@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/material.dart';
@@ -26,15 +27,62 @@ class _CounterState extends State<_Counter> {
 }
 
 void main() {
-  test('timings follow spec C.6', () {
+  test('timings: the base scale and the v2 tokens (§8)', () {
     expect(AknMotion.fast, const Duration(milliseconds: 150));
     expect(AknMotion.base, const Duration(milliseconds: 250));
     expect(AknMotion.slow, const Duration(milliseconds: 400));
     expect(AknMotion.emphasized, const Duration(milliseconds: 600));
-    expect(AknMotion.staggerDelay(0), Duration.zero);
+    // The one orchestrated moment (§8.1).
+    expect(AknMotion.plateLight, const Duration(milliseconds: 180));
+    expect(AknMotion.plateRoll, const Duration(milliseconds: 900));
+    expect(AknMotion.barsRise, const Duration(milliseconds: 300));
+    expect(AknMotion.barsStagger, const Duration(milliseconds: 40));
+    expect(AknMotion.projectionDraw, const Duration(milliseconds: 200));
+    // Feedback (§8.2).
+    expect(AknMotion.plateHandoff, const Duration(milliseconds: 200));
+    expect(AknMotion.deckFly, const Duration(milliseconds: 240));
+    expect(AknMotion.deckStep, const Duration(milliseconds: 220));
+    expect(AknMotion.press, const Duration(milliseconds: 90));
+    expect(AknMotion.pressOut, const Duration(milliseconds: 120));
+    expect(AknMotion.pressScale, 0.98);
+    expect(AknMotion.stamp, const Duration(milliseconds: 160));
+    expect(AknMotion.stageStep, const Duration(milliseconds: 240));
+    expect(AknMotion.needle, const Duration(milliseconds: 200));
+    expect(AknMotion.thumb, const Duration(milliseconds: 220));
+    expect(AknMotion.routeGlide, const Duration(milliseconds: 400));
+    expect(AknMotion.sheet, const Duration(milliseconds: 250));
+    expect(AknMotion.scrim, const Duration(milliseconds: 200));
+    expect(AknMotion.toastIn, const Duration(milliseconds: 200));
+    expect(AknMotion.toastOut, const Duration(milliseconds: 150));
+    expect(AknMotion.skeletonPulse, const Duration(milliseconds: 1200));
+    expect(AknMotion.fly, Curves.easeIn);
+    // Bars rise 40 ms apart, all within the last 300 ms of the roll.
+    expect(AknMotion.barDelay(0), Duration.zero);
+    expect(AknMotion.barDelay(5), const Duration(milliseconds: 200));
+    expect(AknMotion.barDelay(-1), Duration.zero);
+    // Deprecated (kept for API stability).
     expect(AknMotion.staggerDelay(3), const Duration(milliseconds: 90));
-    expect(AknMotion.staggerDelay(8), const Duration(milliseconds: 240));
     expect(AknMotion.staggerDelay(40), const Duration(milliseconds: 240));
+  });
+
+  test('register roll: v(t) = 1 − (1 − t)^3.2 (§8.1)', () {
+    expect(AknMotion.rollProgress(0), 0);
+    expect(AknMotion.rollProgress(1), 1);
+    for (final t in [0.05, 0.3, 0.6, 0.9]) {
+      final expected = 1 - math.pow(1 - t, 3.2);
+      expect(AknMotion.rollProgress(t), closeTo(expected, 1e-12));
+      expect(AknMotion.roll.transform(t), closeTo(expected, 1e-12));
+    }
+    // Fast start, long settle: past half-way after ~20 % of the time.
+    expect(AknMotion.rollProgress(0.2), greaterThan(0.5));
+    // Monotonic.
+    var last = 0.0;
+    for (var i = 1; i <= 100; i++) {
+      final v = AknMotion.rollProgress(i / 100);
+      expect(v, greaterThanOrEqualTo(last));
+      last = v;
+    }
+    expect(AknMotion.rollProgress(2), 1);
   });
 
   for (final reduce in [false, true]) {
@@ -93,7 +141,7 @@ void main() {
     expect(find.byType(FadeUp), findsNothing);
   });
 
-  testWidgets('StaggerScope: only the first screenful animates', (
+  testWidgets('StaggerScope / StaggerItem: no list entrances in v2 (§8.3)', (
     tester,
   ) async {
     final items = ValueNotifier<int>(2);
@@ -111,15 +159,106 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(FadeUp), findsNWidgets(2));
-    await tester.pump(const Duration(seconds: 2));
-    items.value = 3;
-    await tester.pump();
-    // The late item appears without an entrance.
+    // Items render at once: no fade, no lift.
+    expect(find.byType(FadeUp), findsNothing);
+    expect(find.text('satır 1'), findsOneWidget);
     expect(
-      find.ancestor(of: find.text('satır 2'), matching: find.byType(FadeUp)),
+      find.ancestor(of: find.text('satır 0'), matching: find.byType(Opacity)),
       findsNothing,
     );
+    expect(
+      find.ancestor(of: find.text('satır 0'), matching: find.byType(Transform)),
+      findsNothing,
+    );
+    items.value = 3;
+    await tester.pump();
+    expect(find.text('satır 2'), findsOneWidget);
+    expect(find.byType(FadeUp), findsNothing);
+  });
+
+  testWidgets('AknMotion.animateTo jumps under reduce motion', (tester) async {
+    for (final reduce in [true, false]) {
+      late AnimationController controller;
+      late BuildContext ctx;
+      await pumpUi(
+        tester,
+        _ControllerHost(
+          key: ValueKey(reduce),
+          onReady: (c, context) {
+            controller = c;
+            ctx = context;
+          },
+        ),
+        reduceMotion: reduce,
+      );
+      unawaited(
+        AknMotion.animateTo(
+          ctx,
+          controller,
+          1,
+          duration: AknMotion.plateRoll,
+          curve: AknMotion.roll,
+        ),
+      );
+      await tester.pump();
+      if (reduce) {
+        expect(controller.value, 1);
+        expect(AknMotion.curveOf(ctx, AknMotion.spring), Curves.linear);
+      } else {
+        expect(controller.value, lessThan(1));
+        expect(AknMotion.curveOf(ctx, AknMotion.spring), AknMotion.spring);
+        await tester.pump(AknMotion.plateRoll);
+        expect(controller.value, 1);
+      }
+    }
+  });
+
+  testWidgets('PressScale: 0.98 while pressed, static under reduce motion', (
+    tester,
+  ) async {
+    await pumpUi(
+      tester,
+      const Center(
+        child: PressScale(
+          child: ColoredBox(
+            color: Color(0xFFF3F4F6),
+            child: SizedBox(width: 100, height: 40),
+          ),
+        ),
+      ),
+    );
+    final box = find.byType(PressScale);
+    final gesture = await tester.startGesture(tester.getCenter(box));
+    await tester.pump();
+    var scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
+    expect(scale.scale, AknMotion.pressScale);
+    expect(scale.duration, AknMotion.press);
+    await gesture.up();
+    await tester.pump();
+    scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
+    expect(scale.scale, 1);
+    expect(scale.duration, AknMotion.pressOut);
+    await tester.pumpAndSettle();
+
+    await pumpUi(
+      tester,
+      const Center(
+        key: ValueKey('r'),
+        child: PressScale(
+          child: ColoredBox(
+            color: Color(0xFFF3F4F6),
+            child: SizedBox(width: 100, height: 40),
+          ),
+        ),
+      ),
+      reduceMotion: true,
+    );
+    final g2 = await tester.startGesture(
+      tester.getCenter(find.byType(PressScale)),
+    );
+    await tester.pump();
+    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
+    await g2.up();
   });
 
   testWidgets('Shimmer is static under reduce motion', (tester) async {
@@ -129,14 +268,16 @@ void main() {
       reduceMotion: true,
     );
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(ShaderMask), findsNothing);
+    // Nothing ticks: no frame is scheduled after the first one.
+    expect(tester.binding.hasScheduledFrame, isFalse);
 
     await pumpUi(
       tester,
       const Shimmer(key: ValueKey('s'), child: SkeletonBox(width: 100)),
     );
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byType(ShaderMask), findsOneWidget);
+    // With motion on, the loading pulse runs.
+    expect(tester.binding.hasScheduledFrame, isTrue);
   });
 
   testWidgets('FadeThroughIndexedStack keeps every tab state', (tester) async {
@@ -319,4 +460,31 @@ void main() {
     }
     expect(find.text('SP-7 kart'), findsOneWidget);
   });
+}
+
+class _ControllerHost extends StatefulWidget {
+  const _ControllerHost({super.key, required this.onReady});
+
+  final void Function(AnimationController controller, BuildContext context)
+  onReady;
+
+  @override
+  State<_ControllerHost> createState() => _ControllerHostState();
+}
+
+class _ControllerHostState extends State<_ControllerHost>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    widget.onReady(_c, context);
+    return const SizedBox();
+  }
 }

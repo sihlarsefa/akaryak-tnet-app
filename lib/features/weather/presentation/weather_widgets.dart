@@ -42,24 +42,36 @@ class WeatherHourCell extends StatelessWidget {
           '$time, ${temp(hour.temperature)}, ${cond.label}'
           '${rain == null ? '' : ', yağış olasılığı $rain'}',
       excludeSemantics: true,
+      // Renkli kutu yok (§4.4): saat, soluk simge, sıcaklık (sayaç sesi); şimdiki saat Beton zeminde.
       child: Container(
-        constraints: const BoxConstraints(minWidth: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        constraints: const BoxConstraints(minWidth: 52),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         decoration: BoxDecoration(
-          color: highlight ? c.brandSoft : c.surfaceAlt,
-          borderRadius: AknRadius.card,
-          border: Border.all(color: highlight ? c.brandLine : c.lineSoft),
+          color: highlight ? c.surfaceAlt : null,
+          borderRadius: AknRadius.chip,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(time, style: t.captionStrong.copyWith(color: c.text)),
-            const SizedBox(height: 4),
-            Icon(cond.icon, size: 20, color: c.tone(cond.tone).fg),
-            const SizedBox(height: 4),
-            Text(temp(hour.temperature), style: t.bodyStrong),
+            Text(
+              time,
+              style: (highlight ? t.captionStrong : t.caption).copyWith(
+                color: highlight ? c.ink : c.dim,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Icon(cond.icon, size: 22, color: c.dim),
+            const SizedBox(height: 6),
+            Text(
+              temp(hour.temperature),
+              style: t.number.copyWith(
+                fontSize: 18,
+                height: 22 / 18,
+                color: c.ink,
+              ),
+            ),
             if (rain != null)
-              Text(rain, style: t.captionStrong.copyWith(color: c.info.fg)),
+              Text(rain, style: t.captionStrong.copyWith(color: c.dim)),
           ],
         ),
       ),
@@ -91,12 +103,12 @@ class DrivingStatusStrip extends StatelessWidget {
       container: true,
       label: '$title. $body',
       excludeSemantics: true,
+      // Kuyu (§4.5): Beton, r12; tonun simgesi + ink metin. Pastel zemin yok.
       child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         decoration: BoxDecoration(
-          color: tc.bg,
+          color: c.surfaceAlt,
           borderRadius: AknRadius.card,
-          border: Border.all(color: tc.line),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +117,7 @@ class DrivingStatusStrip extends StatelessWidget {
               padding: const EdgeInsets.only(top: 1),
               child: Icon(
                 a?.icon ?? Icons.check_circle_rounded,
-                size: 18,
+                size: 20,
                 color: tc.fg,
               ),
             ),
@@ -115,9 +127,9 @@ class DrivingStatusStrip extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(title, style: t.label.copyWith(color: tc.fg)),
+                  Text(title, style: t.bodyStrong.copyWith(color: c.ink)),
                   const SizedBox(height: 2),
-                  Text(body, style: t.bodySmall.copyWith(color: c.text)),
+                  Text(body, style: t.bodySmall.copyWith(color: c.ink)),
                 ],
               ),
             ),
@@ -149,8 +161,8 @@ class WeatherNowRow extends StatelessWidget {
     final cond = WeatherCondition.of(now.code, isDay: now.isDay);
     return Row(
       children: [
-        AknIconBox(icon: cond.icon, tone: cond.tone, size: large ? 52 : 44),
-        const SizedBox(width: 12),
+        Icon(cond.icon, size: large ? 40 : 32, color: c.dim),
+        const SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +170,7 @@ class WeatherNowRow extends StatelessWidget {
             children: [
               Text(
                 report.isStale
-                    ? '${WeatherCopy.title} · ${WeatherCopy.stale}'
+                    ? '${WeatherCopy.title}, ${WeatherCopy.stale}'
                     : WeatherCopy.title,
                 style: t.caption.copyWith(color: c.dim),
               ),
@@ -169,13 +181,16 @@ class WeatherNowRow extends StatelessWidget {
                 children: [
                   Text(
                     temp(now.temperature),
-                    style: (large ? t.display : t.title).copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                    style: (large ? t.numberLarge : t.number).copyWith(
+                      color: c.ink,
                     ),
                   ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 3),
-                    child: Text(cond.label, style: t.bodyStrong),
+                    child: Text(
+                      cond.label,
+                      style: t.bodyStrong.copyWith(color: c.ink),
+                    ),
                   ),
                 ],
               ),
@@ -188,7 +203,7 @@ class WeatherNowRow extends StatelessWidget {
   }
 }
 
-/// "En yüksek 18° · en düşük 9° · hissedilen 14°".
+/// "En yüksek 18°, en düşük 9°, hissedilen 14°".
 String weatherSummaryLine(WeatherReport r) {
   final d = r.today;
   if (d == null) return '${WeatherCopy.feelsLike} ${temp(r.now.apparent)}';
@@ -196,7 +211,7 @@ String weatherSummaryLine(WeatherReport r) {
     '${WeatherCopy.high} ${temp(d.max)}',
     'en düşük ${temp(d.min)}',
     'hissedilen ${temp(r.now.apparent)}',
-  ].join(' · ');
+  ].join(', ');
 }
 
 /// Ekran okuyucu özeti: "Hava durumu: 14 derece, parçalı bulutlu, hissedilen 12 derece".

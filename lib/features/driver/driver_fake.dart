@@ -523,7 +523,7 @@ void _notifyBayi(FakeWorld w, JsonMap s, {required String actor}) {
       eventCode: 'shipment.reported',
       title: 'Teslimat bildirildi',
       body:
-          '${s['orderNumber']} · ${s['customerName']} · müşteri onayı bekleniyor.',
+          '${s['orderNumber']}, ${s['customerName']}: müşteri onayı bekleniyor.',
       route: '/bayi/orders/${s['orderId']}',
       entityType: 'Order',
       entityId: s['orderId'] as int?,

@@ -118,7 +118,7 @@ class ChatComposerState extends State<ChatComposer> {
         top: false,
         minimum: const EdgeInsets.only(bottom: 6),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+          padding: const EdgeInsets.fromLTRB(AknSpace.page, 10, 12, 0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -164,8 +164,7 @@ class ChatComposerState extends State<ChatComposer> {
                     child: AknIconButton(
                       icon: Icons.send_rounded,
                       semanticLabel: AssistantCopy.send,
-                      color: _canSend ? c.onBrandFill : c.faint,
-                      background: _canSend ? c.brandFill : c.surfaceAlt,
+                      color: _canSend ? c.ink : c.faint,
                       onPressed: _canSend ? _send : null,
                     ),
                   ),
@@ -179,10 +178,13 @@ class ChatComposerState extends State<ChatComposer> {
                       style: t.caption.copyWith(color: c.dim),
                     ),
                   ),
-                  TextButton(
-                    onPressed: widget.onOpenKvkk,
-                    child: const Text(AssistantCopy.kvkk),
+                  const SizedBox(width: 12),
+                  AknInlineLink(
+                    label: AssistantCopy.kvkk,
+                    onTap: widget.onOpenKvkk,
+                    style: t.label.copyWith(fontWeight: FontWeight.w600),
                   ),
+                  const SizedBox(width: 8),
                 ],
               ),
             ],

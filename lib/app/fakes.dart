@@ -15,6 +15,7 @@ import '../features/notifications/notifications_fake.dart';
 import '../features/onboarding/onboarding_fake.dart';
 import '../features/payments/payments_fake.dart';
 import '../features/profile/profile_fake.dart';
+import '../features/stats/stats_fake.dart';
 import '../features/weather/weather_fake.dart';
 
 /// Sahte API sunucusu: çekirdek uçlar + her özelliğin `<f>_fake.dart` uçları (spec C.4).
@@ -37,5 +38,6 @@ FakeServer buildFakeServer({FakeWorld? world, bool latency = true}) {
   registerAssistantFakes(s);
   registerWeatherFakes(s);
   registerProfileFakes(s);
+  registerStatsFakes(s);
   return s;
 }

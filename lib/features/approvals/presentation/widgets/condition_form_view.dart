@@ -249,18 +249,18 @@ class _FieldShell extends StatelessWidget {
         if (suggestionLabel != null)
           Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, size: 14, color: c.info.fg),
+              Icon(Icons.auto_awesome_outlined, size: 14, color: c.dim),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   suggestionLabel!,
-                  style: t.caption.copyWith(color: c.info.fg),
+                  style: t.caption.copyWith(color: c.dim),
                 ),
               ),
               if (onUseSuggestion != null)
-                TextButton(
-                  onPressed: onUseSuggestion,
-                  child: const Text('Öneriyi kullan'),
+                AknInlineLink(
+                  label: 'Öneriyi kullan',
+                  onTap: onUseSuggestion!,
                 ),
             ],
           ),

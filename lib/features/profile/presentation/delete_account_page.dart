@@ -124,7 +124,12 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
       body: Form(
         key: _form,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          padding: const EdgeInsets.fromLTRB(
+            AknSpace.page,
+            16,
+            AknSpace.page,
+            32,
+          ),
           children: [
             Text(ProfileCopy.deleteIntro, style: t.body),
             if (_error != null) ...[

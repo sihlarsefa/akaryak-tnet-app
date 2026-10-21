@@ -100,10 +100,10 @@ void main() {
     );
     await tapVisible(tester, find.text('Doğrulama kodu gönder'));
     await pumpFor(tester, const Duration(milliseconds: 800));
-    expect(find.text('Yeniden gönder · 1:00'), findsOneWidget);
+    expect(find.text('Kodu tekrar gönder (1:00)'), findsOneWidget);
     clock.advance(const Duration(seconds: 61));
     await tester.pump(const Duration(seconds: 1));
-    await tapVisible(tester, find.text('Yeniden gönder'));
+    await tapVisible(tester, find.text('Kodu tekrar gönder'));
     await pumpFor(tester, const Duration(milliseconds: 600));
     expect(ctl.resends, 1);
     expect(ctl.phoneVerifyStarts, 1);

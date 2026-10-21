@@ -45,36 +45,35 @@ class _SupportBody extends ConsumerWidget {
       if (!ok) AppToast.error(ProfileCopy.linkFailed);
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return AknLedger(
       children: [
         if (phone != null)
           AknListTile(
-            leadingIcon: Icons.call_rounded,
-            leadingTone: AknTone.brand,
+            leadingIcon: Icons.call_outlined,
+            showChevron: true,
             title: ProfileCopy.supportCall,
             subtitle: Fmt.phone(support.phone),
             onTap: () => unawaited(launch(phone)),
           ),
         if (whatsapp != null)
           AknListTile(
-            leadingIcon: Icons.chat_rounded,
-            leadingTone: AknTone.ok,
+            leadingIcon: Icons.chat_outlined,
+            showChevron: true,
             title: ProfileCopy.supportWhatsapp,
             subtitle: Fmt.phone(support.whatsapp),
             onTap: () => unawaited(launch(whatsapp)),
           ),
         if (email != null)
           AknListTile(
-            leadingIcon: Icons.mail_rounded,
-            leadingTone: AknTone.info,
+            leadingIcon: Icons.mail_outline_rounded,
+            showChevron: true,
             title: ProfileCopy.supportEmail,
             subtitle: support.email,
             onTap: () => unawaited(launch(email)),
           ),
         AknListTile(
           leadingIcon: Icons.help_outline_rounded,
+          showChevron: true,
           title: ProfileCopy.supportPage,
           subtitle: ProfileCopy.supportPageHint,
           onTap: () => unawaited(launch(page, external: false)),

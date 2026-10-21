@@ -99,7 +99,10 @@ class PaymentActions {
     String? attachmentPublicId,
     required bool retried,
   }) async {
-    final done = 'Ödeme durumu "${to.label}" olarak güncellendi.';
+    // Bildirim düğmenin fiilini yineler (tasarım v2 §10.1).
+    final done = to == PaymentStatus.collected
+        ? 'Ödeme tahsil edildi olarak işaretlendi.'
+        : 'Ödeme durumu "${to.label}" olarak kaydedildi.';
     final ledger = ref.read(a5IdempotencyLedgerProvider);
     final intent = jsonEncode([
       'payments.status',
@@ -201,7 +204,9 @@ class PaymentActions {
       );
       ledger.settle(intent);
       _invalidate(i.orderId);
-      return ActionDone('${i.displayKindLabel} durumu "${to.label}" oldu.');
+      return ActionDone(
+        '${i.displayKindLabel} durumu "${to.label}" olarak kaydedildi.',
+      );
     } on AppFailure catch (f) {
       ledger.settle(intent, error: f);
       if (f is ValidationFailure) {

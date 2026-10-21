@@ -102,7 +102,7 @@ class _LocationCardState extends ConsumerState<LocationCard> {
     void addLocationButton(String label) => actions.add(
       AknButton.secondary(
         label: label,
-        icon: Icons.my_location_rounded,
+        icon: Icons.my_location_outlined,
         size: AknButtonSize.small,
         onPressed: () => unawaited(requestLocation(context, ref, cap)),
       ),
@@ -123,7 +123,7 @@ class _LocationCardState extends ConsumerState<LocationCard> {
       case LocationPhase.idle:
       case LocationPhase.acquiring:
         tone = AknTone.info;
-        icon = Icons.my_location_rounded;
+        icon = Icons.my_location_outlined;
         status = DriverCopy.locationAcquiring;
       case LocationPhase.ready:
         final pos = p!;
@@ -155,12 +155,12 @@ class _LocationCardState extends ConsumerState<LocationCard> {
           );
         } else {
           tone = AknTone.ok;
-          icon = Icons.location_on_rounded;
+          icon = Icons.location_on_outlined;
           status = DriverCopy.locationOk(pos.accuracyLabel);
         }
       case LocationPhase.needsPermission:
         tone = widget.required ? AknTone.warn : AknTone.neutral;
-        icon = Icons.location_off_rounded;
+        icon = Icons.location_off_outlined;
         status = widget.required
             ? DriverCopy.summaryNeedsGps
             : DriverCopy.locationOptionalHint;
@@ -168,13 +168,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.denied:
         tone = widget.required ? AknTone.danger : AknTone.warn;
-        icon = Icons.location_disabled_rounded;
+        icon = Icons.location_disabled_outlined;
         status = DriverCopy.locationDenied;
         detail = DriverCopy.locationDeniedBody;
         actions.add(
           AknButton.secondary(
             label: DriverCopy.locationOpenSettings,
-            icon: Icons.settings_rounded,
+            icon: Icons.settings_outlined,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_openSettings()),
           ),
@@ -182,13 +182,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.serviceOff:
         tone = widget.required ? AknTone.danger : AknTone.warn;
-        icon = Icons.location_disabled_rounded;
+        icon = Icons.location_disabled_outlined;
         status = DriverCopy.locationServiceOff;
         detail = DriverCopy.locationServiceOffBody;
         actions.add(
           AknButton.secondary(
             label: DriverCopy.locationOpenSettings,
-            icon: Icons.settings_rounded,
+            icon: Icons.settings_outlined,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_openSettings(location: true)),
           ),
@@ -210,58 +210,60 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.skipped:
         tone = AknTone.neutral;
-        icon = Icons.location_off_rounded;
+        icon = Icons.location_off_outlined;
         status = DriverCopy.locationSkipped;
         addLocationButton(DriverCopy.locationAdd);
     }
 
     final tc = c.tone(tone);
     final busy = cap.isBusy || cap.phase == LocationPhase.idle;
-    return AknCard(
+    final iconColor = tone == AknTone.neutral || tone == AknTone.info
+        ? c.dim
+        : tc.fg;
+    // Beton kuyu (§4.5): ton simgesi + mürekkep yazı; zemin rengi tonla değişmez.
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(widget.title, style: t.label.copyWith(color: c.dim)),
-          const SizedBox(height: 8),
+          Text(
+            widget.title,
+            style: t.label.copyWith(color: c.dim, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 6),
           Semantics(
             liveRegion: true,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: tc.bg,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: tc.line),
-                  ),
+                SizedBox(
+                  width: 24,
+                  height: 24,
                   child: Center(
                     child: busy
                         ? ChevronSpinner(
-                            size: 16,
-                            color: tc.fg,
+                            size: 18,
+                            color: c.ink,
                             semanticLabel: null,
                           )
-                        : Icon(icon, size: 20, color: tc.fg),
+                        : Icon(icon, size: 22, color: iconColor),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        status,
-                        style: t.bodyStrong.copyWith(
-                          color: tone == AknTone.neutral ? c.ink : tc.fg,
-                        ),
-                      ),
+                      Text(status, style: t.bodyStrong.copyWith(color: c.ink)),
                       if (detail != null) ...[
                         const SizedBox(height: 2),
-                        Text(detail, style: t.bodySmall),
+                        Text(detail, style: t.bodySmall.copyWith(color: c.ink)),
                       ],
                     ],
                   ),
@@ -299,24 +301,26 @@ class StartLocationLine extends ConsumerWidget {
         switch (capture.phase) {
           case LocationPhase.ready when p != null:
             text = p.approximate
-                ? '${DriverCopy.locationApproximate} · ${p.accuracyLabel}'
+                ? '${DriverCopy.locationApproximate}, ${p.accuracyLabel}'
                 : DriverCopy.locationStartWill(p.accuracyLabel);
-            icon = Icons.location_on_rounded;
+            icon = Icons.location_on_outlined;
           case LocationPhase.idle || LocationPhase.acquiring:
             text = DriverCopy.locationAcquiring;
-            icon = Icons.my_location_rounded;
+            icon = Icons.my_location_outlined;
           case _:
             text = DriverCopy.locationStartOptional;
-            icon = Icons.location_off_rounded;
+            icon = Icons.location_off_outlined;
             canAdd = capture.phase != LocationPhase.serviceOff;
         }
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: c.dim),
+              Icon(icon, size: 20, color: c.dim),
               const SizedBox(width: 8),
-              Expanded(child: Text(text, style: t.bodySmall)),
+              Expanded(
+                child: Text(text, style: t.bodySmall.copyWith(color: c.ink)),
+              ),
               if (canAdd)
                 AknButton.ghost(
                   label: DriverCopy.locationAdd,

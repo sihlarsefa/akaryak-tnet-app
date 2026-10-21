@@ -1,5 +1,6 @@
-/// Tanıtımın Türkçe metinleri (spec A.4 A1, C.7): üç sahne, siparişten teslimata. Bayi ve müşteri aynı
-/// uygulamayı kullandığı için metinler iki tarafa da uyar.
+/// Tanıtımın Türkçe metinleri (spec A.4 A1, C.7; tasarım v2 §7.3): üç sahne, siparişten teslimata. Bayi
+/// ve müşteri aynı uygulamayı kullandığı için metinler iki tarafa da uyar. Üst etiketler (eyebrow)
+/// v2'de çizilmez; yalnızca API uyumu için durur.
 abstract final class OnboardingCopy {
   static const skip = 'Atla';
   static const skipSpoken = 'Tanıtımı atla';
@@ -13,7 +14,7 @@ abstract final class OnboardingCopy {
   static const orderBody =
       'Ürün, litre ve teslimat noktası seçilir; sipariş bayiye anında ulaşır.';
   static const orderScene =
-      'Örnek sipariş: motorin, 12.500 litre, yarın teslim; sipariş gönderildi.';
+      'Örnek sipariş özeti: 12.500 litre motorin, yarın 09:00 teslim; sipariş bayiye gönderildi.';
 
   // Sahne 2 — Teklif
   static const quoteEyebrow = 'Teklif';
@@ -22,7 +23,7 @@ abstract final class OnboardingCopy {
       'Fiyat ve teslim tarihi hazır olunca bildirim gelir; onay, revize ya da ret '
       'tek dokunuşla.';
   static const quoteScene =
-      'Örnek teklif: litre fiyatı ve toplam tutar, geçerlilik süresi ve onay düğmesi.';
+      'Örnek teklif: 529.375 lira, litresi 42,35 lira, yarın teslim; teklif onaylandı.';
 
   // Sahne 3 — Teslimat
   static const deliveryEyebrow = 'Teslimat';
@@ -30,9 +31,16 @@ abstract final class OnboardingCopy {
   static const deliveryBody =
       'Planlamadan yola çıkışa, teslim kanıtına kadar her adım cebinizde.';
   static const deliveryScene =
-      'Örnek teslimat: araç yolda, planlandı ve yola çıktı adımları tamam, teslim bekleniyor.';
+      'Örnek teslimat: araç yolda, tahmini varış 11:20; planlandı ve yola çıktı adımları tamam, teslim bekleniyor.';
 
-  // Sahne içi örnek etiketler (yalnızca çizim; ekran okuyucu sahne açıklamasını okur)
+  // Sahne içi örnek metinler (yalnızca çizim; ekran okuyucu sahne açıklamasını okur). Sayılar ve
+  // tarihler gerçek arayüzdeki biçimle (tr_TR).
+  static const wizardTitle = 'Yeni sipariş';
+  static const wizardMeta = 'Özet, 4. adım';
+  static const summaryTitle = 'Tahmini sipariş';
+  static const litres = '12.500';
+  static const litresSpoken = '12.500 litre';
+  static const orderSentence = 'motorin, yarın 09:00 teslim';
   static const product = 'Motorin';
   static const productCaption = 'Ürün';
   static const quantity = 'Miktar';
@@ -40,23 +48,35 @@ abstract final class OnboardingCopy {
   static const deliveryValue = 'Yarın, 09:00';
   static const point = 'Nokta';
   static const pointValue = 'Merkez depo';
-  static const placeOrder = 'Sipariş ver';
-  static const sent = 'Gönderildi';
+  static const placeOrder = 'Siparişi gönder';
+  static const sent = 'Siparişiniz bayiye gönderildi';
+  static const quoteOrder = 'Motorin, 12.500 L';
+  static const awaitingDecision = 'Kararınızı bekliyor';
+  static const quoteFrom = 'Demir Petrol teklifi';
+  static const quoteTime = 'bugün 10:05';
+  static const quoteSpoken = '529.375 lira';
   static const quoteReady = 'Teklif hazır';
-  static const validFor = '25 dk';
-  static const total = 'Toplam';
+  static const validFor = '2 sa 57 dk kaldı';
+  static const total = 'Tahmini tutar';
   static const deliveryDate = 'Teslim';
   static const tomorrow = 'Yarın';
-  static const revise = 'Revize';
-  static const approve = 'Onayla';
-  static const approved = 'Onaylandı';
+  static const revise = 'Revize iste';
+  static const approve = 'Teklifi onayla';
+  static const approved = 'Teklif onaylandı';
+  static const approvedToast = 'Teklif onaylandı. Bayi sevkiyatı planlayacak.';
   static const inTransit = 'Yolda';
-  static const origin = 'Bayi';
-  static const destination = 'Depo';
+  static const origin = 'Bayi deposu, 09:58 çıktı';
+  static const destination = 'Merkez depo';
+  static const remaining = '18 km kaldı';
+  static const eta = 'varış 11:20';
+  static const etaShort = 'tahmini 11:20';
+  static const deliveryRowTitle = 'Motorin, 12.500 L';
+  static const deliveryRowMeta = 'Merkez depo, bugün';
   static const stepPlanned = 'Planlandı';
   static const stepDispatched = 'Yola çıktı';
   static const stepDelivered = 'Teslim edildi';
   static const plate = '34 AKN 101';
-  static const unitPriceCaption = 'Litre fiyatı';
+  static const unitPriceCaption = 'Birim fiyat (tahmini)';
+  static const unitPriceShort = 'Birim fiyat';
   static const received = 'Teslim alınan';
 }

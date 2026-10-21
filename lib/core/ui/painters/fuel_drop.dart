@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../tokens.dart';
 
-/// A fuel drop that fills by [fill] (delivered / planned litres). The level
-/// rises smoothly when [fill] changes; with [flowing] a slow, shallow wave
-/// moves on the surface (off under reduce motion).
+/// A fuel drop that fills by [fill] (delivered / planned litres) on the chart
+/// track. The level rises smoothly when [fill] changes. Design v2 uses it in
+/// the splash at most; [flowing] is ignored (no looping animations, §8.3).
 ///
 /// Ported from F2GO's `_DolanDamlaBoyayici`, recoloured to the brand.
 class FuelDrop extends StatefulWidget {
@@ -53,12 +53,8 @@ class _FuelDropState extends State<FuelDrop>
   }
 
   void _sync() {
-    final run = widget.flowing && !AknMotion.reduced(context);
-    if (run && !_wave.isAnimating) {
-      _wave.repeat();
-    } else if (!run && _wave.isAnimating) {
-      _wave.stop();
-    }
+    // v2: no idle loops (§8.3); the surface stays still.
+    if (_wave.isAnimating) _wave.stop();
   }
 
   @override
@@ -70,7 +66,7 @@ class _FuelDropState extends State<FuelDrop>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = widget.color ?? c.brand;
+    final color = widget.color ?? c.brandBright;
     final f = widget.fill.isNaN ? 0.0 : widget.fill.clamp(0.0, 1.0);
     final size = Size(widget.size * 0.8, widget.size);
     return Semantics(
@@ -87,7 +83,7 @@ class _FuelDropState extends State<FuelDrop>
             painter: FuelDropPainter(
               fill: level,
               color: color,
-              wavePhase: widget.flowing ? _wave.value : null,
+              track: c.chartTrack,
             ),
           ),
         ),
@@ -97,11 +93,19 @@ class _FuelDropState extends State<FuelDrop>
 }
 
 class FuelDropPainter extends CustomPainter {
-  FuelDropPainter({required this.fill, required this.color, this.wavePhase});
+  FuelDropPainter({
+    required this.fill,
+    required this.color,
+    this.wavePhase,
+    this.track,
+  });
 
   final double fill;
   final Color color;
   final double? wavePhase;
+
+  /// The empty part of the drop (defaults to a 12 % tint of [color]).
+  final Color? track;
 
   static Path dropPath(Size size) {
     final w = size.width;
@@ -123,7 +127,10 @@ class FuelDropPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
     final drop = dropPath(size);
-    canvas.drawPath(drop, Paint()..color = color.withValues(alpha: 0.12));
+    canvas.drawPath(
+      drop,
+      Paint()..color = track ?? color.withValues(alpha: 0.12),
+    );
     if (fill > 0) {
       canvas.save();
       canvas.clipPath(drop);
@@ -159,5 +166,8 @@ class FuelDropPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(FuelDropPainter old) =>
-      old.fill != fill || old.color != color || old.wavePhase != wavePhase;
+      old.fill != fill ||
+      old.color != color ||
+      old.wavePhase != wavePhase ||
+      old.track != track;
 }

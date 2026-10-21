@@ -430,7 +430,7 @@ void main() {
       expect(WizardRules.paymentDueDate(d, m), due);
       expect(
         WizardRules.paymentSummary(d, m),
-        'Çek · 40 gün · vade ${Fmt0.date(due)}',
+        'Çek, 40 gün, vade ${Fmt0.date(due)}',
       );
     });
   });

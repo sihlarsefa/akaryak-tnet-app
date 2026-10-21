@@ -9,6 +9,7 @@ import '../../../../core/models/enums.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/cm_access.dart';
 import '../../application/documents_controller.dart';
 import '../../copy.dart';
@@ -95,13 +96,13 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
       title: CmCopy.documentsTitle,
       subtitle: s.page.loading && s.page.isEmpty
           ? null
-          : '${totals.orderCount} sipariş · ${totals.shipmentCount} sevkiyat',
+          : '${totals.orderCount} sipariş, ${totals.shipmentCount} sevkiyat',
       refreshing: s.page.refreshing,
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: SearchField(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            child: CmSearchField(
               hint: 'Sipariş no, SVK / TT kodu, plaka ara',
               onChanged: (v) => ctrl.setQuery(q.copyWith(search: v.trim())),
             ),
@@ -125,10 +126,10 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
             ],
             value: q.shipment,
             onChanged: (f) => ctrl.setQuery(q.copyWith(shipment: f)),
-            margin: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
           ),
           if (s.page.fromCache) CachedNote(storedAt: s.page.storedAt),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Expanded(
             child: _List(state: s, policy: policy),
           ),
@@ -183,24 +184,26 @@ class _List extends ConsumerWidget {
           if (n.metrics.extentAfter < 400) ctrl.loadMore();
           return false;
         },
-        child: StaggerScope(
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 8, bottom: 16),
-            itemCount: p.items.length + 2,
-            itemBuilder: (context, i) {
-              if (i == p.items.length) {
-                return LoadMoreFooter(
-                  loading: p.loadingMore,
-                  error: p.loadMoreError,
-                  onRetry: ctrl.loadMore,
-                );
-              }
-              if (i == p.items.length + 1) return const _FooterNote();
-              final row = p.items[i];
-              return StaggerItem(
-                index: i,
-                child: ArchiveRowCard(
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(top: 4, bottom: 16),
+          itemCount: p.items.length + 2,
+          itemBuilder: (context, i) {
+            if (i == p.items.length) {
+              return LoadMoreFooter(
+                loading: p.loadingMore,
+                error: p.loadMoreError,
+                onRetry: ctrl.loadMore,
+              );
+            }
+            if (i == p.items.length + 1) return const _FooterNote();
+            final row = p.items[i];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (i > 0) const AknLedgerDivider(),
+                ArchiveRowCard(
                   row: row,
                   policy: policy,
                   onOpenAll: () => showOrderDocumentsSheet(
@@ -213,9 +216,9 @@ class _List extends ConsumerWidget {
                   ),
                   onOpen: (req) => openGeneratedDocument(context, ref, req),
                 ),
-              );
-            },
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -230,7 +233,7 @@ class _FooterNote extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -239,7 +242,7 @@ class _FooterNote extends StatelessWidget {
           Expanded(
             child: Text(
               CmCopy.documentsFooter,
-              style: t.caption.copyWith(color: c.dim),
+              style: t.bodySmall.copyWith(color: c.dim),
             ),
           ),
         ],
@@ -248,7 +251,8 @@ class _FooterNote extends StatelessWidget {
   }
 }
 
-/// Arşiv satırı: sipariş, (varsa) sevkiyat ve hızlı belge düğmeleri.
+/// Arşiv satırı (tasarım v2 §6.8, ledger): ürün ve litre, sipariş no / tarih / bayi / nokta, sağda
+/// tutar; durum lambası ve sevkiyat; altında hızlı belge çipleri. Dokununca siparişin tüm belgeleri.
 class ArchiveRowCard extends StatelessWidget {
   const ArchiveRowCard({
     super.key,
@@ -280,79 +284,41 @@ class ArchiveRowCard extends StatelessWidget {
         WaybillDocRequest(r.shipmentId!),
     ];
     final ship = r.shipmentStatus;
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      onTap: onOpenAll,
+    final lamp = AknStatus.orderLamp(
+      r.status,
+      const StatusViewer.customer(),
+      shipment: ship,
+    );
+    final title = '${r.productName}, ${Fmt.liters(r.quantityLiters)}';
+    final subtitle = [
+      r.orderNumber,
+      if (r.orderDate != null) Fmt.date(r.orderDate),
+      r.stationTitle,
+      ?r.deliveryPointName,
+    ].where((x) => x.isNotEmpty).join(', ');
+    final shipNote = !r.hasShipment
+        ? null
+        : (r.deliveredAt != null
+              ? '${r.shipmentCode}, teslim ${Fmt.dayMonth(r.deliveredAt)}'
+              : '${r.shipmentCode}, plan ${Fmt.dayMonth(r.scheduledAt)}');
+    return AknListTile(
+      title: title,
+      subtitle: subtitle,
+      amount: r.totalAmountTry == null ? null : Fmt.money(r.totalAmountTry),
+      status: AknStatusLine(
+        lamp: AknLamp.status(lamp),
+        trailing: shipNote == null
+            ? null
+            : Text(shipNote, style: t.bodySmall.copyWith(color: c.dim)),
+      ),
       semanticLabel:
-          '${r.orderNumber}, ${r.status.label}, ${r.productName} ${Fmt.liters(r.quantityLiters)}'
+          '$title, ${r.orderNumber}, ${lamp.label}'
           '${r.hasShipment ? ', ${r.shipmentCode}, ${ship?.label ?? ''}' : ', sevkiyat yok'}'
-          ', ${quick.length} belge',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                CmHeadRow(
-                  title: Text(r.orderNumber, style: t.bodyStrong),
-                  trailing: StatusChip.style(
-                    r.status.statusStyle,
-                    size: StatusChipSize.small,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${r.productName} · ${Fmt.liters(r.quantityLiters)} · ${Fmt.date(r.orderDate)}',
-                  style: t.bodySmall,
-                ),
-                Text(
-                  [
-                    r.stationTitle,
-                    ?r.deliveryPointName,
-                  ].where((x) => x.isNotEmpty).join(' · '),
-                  style: t.caption,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (r.hasShipment) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.surfaceAlt,
-                      borderRadius: AknRadius.chip,
-                    ),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(r.shipmentCode!, style: t.label),
-                        if (ship != null)
-                          StatusChip.style(
-                            ship.statusStyle,
-                            size: StatusChipSize.small,
-                          ),
-                        Text(
-                          r.deliveredAt != null
-                              ? 'Teslim ${Fmt.date(r.deliveredAt)} · ${Fmt.liters(r.deliveredLiters)}'
-                              : 'Plan ${Fmt.date(r.scheduledAt)} · ${Fmt.liters(r.plannedLiters)}',
-                          style: t.caption.copyWith(color: c.text),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (quick.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
+          ', ${quick.length} belge, tüm belgeleri açar',
+      onTap: onOpenAll,
+      footer: quick.isEmpty
+          ? null
+          : Wrap(
               spacing: 8,
               runSpacing: 0,
               children: [
@@ -361,7 +327,7 @@ class ArchiveRowCard extends StatelessWidget {
                     avatar: Icon(
                       DocumentTile.iconOf(req.kind),
                       size: 16,
-                      color: c.brandInk,
+                      color: c.ink,
                     ),
                     label: Text(_shortLabel(req)),
                     tooltip: '${req.label} PDF',
@@ -369,9 +335,6 @@ class ArchiveRowCard extends StatelessWidget {
                   ),
               ],
             ),
-          ],
-        ],
-      ),
     );
   }
 
@@ -449,8 +412,8 @@ class _OrderDocumentsSheet extends ConsumerWidget {
           ),
         if (order != null) ...[
           Text(
-            '${order.productName} · ${Fmt.liters(order.quantityLiters)} · ${order.displayStatus}',
-            style: t.bodySmall,
+            '${order.productName}, ${Fmt.liters(order.quantityLiters)}, ${TurkishText.lower(order.displayStatus)}',
+            style: t.bodySmall.copyWith(color: context.akn.dim),
           ),
           const SizedBox(height: 8),
         ],
@@ -460,7 +423,7 @@ class _OrderDocumentsSheet extends ConsumerWidget {
             padding: EdgeInsets.fromLTRB(0, 8, 0, 4),
           ),
           for (final r in orderDocs)
-            DocumentTile(request: r, onTap: () => open(r)),
+            DocumentTile(request: r, onTap: () => open(r), padding: _sheetRow),
         ],
         if (shipDocs.isNotEmpty) ...[
           const SectionHeader(
@@ -468,7 +431,7 @@ class _OrderDocumentsSheet extends ConsumerWidget {
             padding: EdgeInsets.fromLTRB(0, 16, 0, 4),
           ),
           for (final r in shipDocs)
-            DocumentTile(request: r, onTap: () => open(r)),
+            DocumentTile(request: r, onTap: () => open(r), padding: _sheetRow),
         ],
         if (orderDocs.isEmpty && shipDocs.isEmpty)
           const EmptyState(
@@ -477,8 +440,13 @@ class _OrderDocumentsSheet extends ConsumerWidget {
             illustration: AknIllustration.documents,
           ),
         const SizedBox(height: 12),
-        Text(CmCopy.documentsFooter, style: t.caption),
+        Text(
+          CmCopy.documentsFooter,
+          style: t.caption.copyWith(color: context.akn.dim),
+        ),
       ],
     );
   }
+
+  static const _sheetRow = EdgeInsets.symmetric(vertical: 12);
 }

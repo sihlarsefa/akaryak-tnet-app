@@ -266,11 +266,27 @@ Future<void> tapFinder(WidgetTester tester, Finder f) async {
 Finder inSheet(Finder f) =>
     find.descendant(of: find.byType(AppSheet), matching: f);
 
-/// [label] etiketli metin alanı.
-Finder fieldLabeled(String label) => find.ancestor(
-  of: find.textContaining(label),
-  matching: find.byType(TextField),
-);
+/// [label] etiketli metin alanı: etiket alanın içinde (Material `labelText`) ya da v2 alanlarda
+/// alanın üstünde ([AknTextField], [MoneyField], [LitersField]: etiket üstte, alan altta).
+Finder fieldLabeled(String label) {
+  final inside = find.ancestor(
+    of: find.textContaining(label),
+    matching: find.byType(TextField),
+  );
+  final above = find.descendant(
+    of: find.ancestor(
+      of: find.textContaining(label),
+      matching: find.byWidgetPredicate(
+        (w) => w is AknTextField || w is MoneyField || w is LitersField,
+      ),
+    ),
+    matching: find.byType(TextField),
+  );
+  return find.byElementPredicate(
+    (e) => inside.evaluate().contains(e) || above.evaluate().contains(e),
+    description: 'metin alanı: $label',
+  );
+}
 
 /// [label] etiketli alana yazar.
 Future<void> typeInto(WidgetTester tester, String label, String text) async {

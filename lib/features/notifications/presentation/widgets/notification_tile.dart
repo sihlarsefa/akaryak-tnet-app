@@ -6,9 +6,10 @@ import '../../../../core/utils/format.dart';
 import '../../copy.dart';
 import '../../data/notification_models.dart';
 
-/// Gelen kutusu satırı: kategori ikonu (önem tonunda), başlık (okunmamışsa kalın), metin, göreli
-/// zaman ve okunmamış noktası. Okunmamış satır sağa kaydırınca okundu olur (satır yerinde kalır);
-/// ekran okuyucuda "Okundu işaretle" özel eylemi vardır.
+/// Gelen kutusu satırı (tasarım v2 §6.8, §7.17): tam genişlikte defter satırı — okunmamışsa başlıktan
+/// önce 8 px turuncu nokta ve 600 başlık; sağda saat, altında metin ve kategori (uyarı / tehlike
+/// bildirimlerinde lamba). Renkli ikon kutusu yok. Okunmamış satır sağa kaydırınca okundu olur (satır
+/// yerinde kalır); ekran okuyucuda "Okundu işaretle" özel eylemi vardır.
 class NotificationTile extends StatelessWidget {
   const NotificationTile({
     super.key,
@@ -32,7 +33,6 @@ class NotificationTile extends StatelessWidget {
     final n = notification;
     final unread = !n.isRead;
     final when = Fmt.relative(n.createdAt, now: now);
-    final tc = c.tone(n.tone);
     final semantics = [
       if (unread) NotificationsCopy.unreadPrefix,
       n.title,
@@ -40,76 +40,85 @@ class NotificationTile extends StatelessWidget {
       n.label,
       when,
     ].join('. ');
+    final titleStyle = t.headline.copyWith(
+      fontSize: 16,
+      height: 22 / 16,
+      color: c.ink,
+      fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+    );
+    final statusTone = n.tone == AknTone.danger || n.tone == AknTone.warn;
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final time = Text(when, style: t.bodySmall.copyWith(color: c.dim));
 
     final Widget row = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      // Nokta sol boşlukta asılı durur; başlık 20 px kenarda (ince çizgilerle aynı hizada).
+      padding: const EdgeInsets.fromLTRB(6, 12, AknSpace.page, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: tc.bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: tc.line),
-            ),
-            alignment: Alignment.center,
-            child: Icon(
-              NotificationCategory.icon(n.category),
-              size: 20,
-              color: tc.fg,
+          // Okunmamış: başlığın ilk satırının ortasında 8 px logo turuncusu nokta.
+          SizedBox(
+            width: 8,
+            height: MediaQuery.textScalerOf(context).scale(22),
+            child: Center(
+              child: AnimatedScale(
+                scale: unread ? 1 : 0,
+                duration: AknMotion.of(context, AknMotion.base),
+                curve: AknMotion.emphasizedCurve,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: c.logo,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  n.title,
-                  style: unread
-                      ? t.bodyStrong.copyWith(color: c.ink)
-                      : t.body.copyWith(
-                          color: c.text,
-                          fontWeight: FontWeight.w500,
+                if (large) ...[
+                  Text(n.title, style: titleStyle),
+                  time,
+                ] else
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          n.title,
+                          style: titleStyle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                      ),
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: time,
+                      ),
+                    ],
+                  ),
                 if (n.body.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     n.body,
                     style: t.bodySmall.copyWith(color: c.text),
-                    maxLines: 3,
+                    maxLines: large ? 8 : 3,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-                const SizedBox(height: 4),
-                Text(
-                  '${n.label} · $when',
-                  style: t.caption.copyWith(color: c.dim),
-                ),
+                const SizedBox(height: 6),
+                if (statusTone)
+                  AknLamp(label: n.label, tone: n.tone, size: AknLampSize.small)
+                else
+                  Text(n.label, style: t.caption.copyWith(color: c.dim)),
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: AnimatedScale(
-              scale: unread ? 1 : 0,
-              duration: AknMotion.of(context, AknMotion.base),
-              curve: AknMotion.emphasizedCurve,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: c.brandFill,
-                  shape: BoxShape.circle,
-                ),
-              ),
             ),
           ),
         ],
@@ -128,8 +137,13 @@ class NotificationTile extends StatelessWidget {
             }
           : null,
       child: Material(
-        color: unread ? c.surface : c.bg,
-        child: InkWell(onTap: onTap, child: row),
+        color: c.bg,
+        child: InkWell(
+          onTap: onTap,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: c.surfaceAlt,
+          child: row,
+        ),
       ),
     );
 
@@ -161,11 +175,11 @@ class _SwipeBackground extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.mark_email_read_rounded, color: c.ok.fg, size: 22),
+          Icon(Icons.mark_email_read_outlined, color: c.ok.fg, size: 22),
           const SizedBox(width: 8),
           Text(
             NotificationsCopy.markedRead,
-            style: t.label.copyWith(color: c.ok.fg),
+            style: t.label.copyWith(color: c.ink),
           ),
         ],
       ),

@@ -135,7 +135,7 @@ void registerAssistantFakes(FakeServer s) {
       throw FakeResponse.problem(
         429,
         'rate_limited',
-        'Çok fazla soru gönderdiniz. Lütfen biraz bekleyin.',
+        'Çok fazla soru gönderdiniz. Biraz bekleyip tekrar deneyin.',
         headers: {'retry-after': '20'},
       );
     }

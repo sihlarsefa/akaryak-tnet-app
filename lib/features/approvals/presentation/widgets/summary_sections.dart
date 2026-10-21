@@ -11,7 +11,8 @@ import '../../../../core/routing/route_access.dart';
 import '../../../../core/ui/ui.dart';
 import '../../data/approval_models.dart';
 
-/// Bölüm başlığı + içerik (detay tarifindeki kart bölümleri).
+/// Bölüm başlığı + içerik (tasarım v2 §4.5 "Section": başlık ve içerik, kutu yok). İçerik 20 px
+/// kenarda; [bleed] iken tam genişlik (defter satırları kendi kenar boşluğunu verir).
 class DetailSection extends StatelessWidget {
   const DetailSection({
     super.key,
@@ -20,6 +21,7 @@ class DetailSection extends StatelessWidget {
     this.subtitle,
     this.actionLabel,
     this.onAction,
+    this.bleed = false,
   });
 
   final String title;
@@ -27,6 +29,9 @@ class DetailSection extends StatelessWidget {
   final Widget child;
   final String? actionLabel;
   final VoidCallback? onAction;
+
+  /// İçerik kenar boşluksuz (tam genişlik satırlar).
+  final bool bleed;
 
   @override
   Widget build(BuildContext context) {
@@ -38,18 +43,20 @@ class DetailSection extends StatelessWidget {
           subtitle: subtitle,
           actionLabel: actionLabel,
           onAction: onAction,
-          padding: const EdgeInsets.fromLTRB(16, 20, 8, 8),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: child,
-        ),
+        if (bleed)
+          child
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: child,
+          ),
       ],
     );
   }
 }
 
-/// Sunucunun Türkçe biçimli etiket – değer satırları.
+/// Sunucunun Türkçe biçimli etiket – değer satırları: kutu yok, aralarında ince çizgi.
 class FactsCard extends StatelessWidget {
   const FactsCard({super.key, required this.facts});
 
@@ -58,21 +65,18 @@ class FactsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    return AknCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < facts.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: c.lineSoft),
-            FactRow(
-              label: facts[i].label,
-              value: facts[i].value,
-              tone: _tone(facts[i].tone),
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < facts.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+          FactRow(
+            label: facts[i].label,
+            value: facts[i].value.replaceAll(' · ', ', '),
+            tone: _tone(facts[i].tone),
+          ),
         ],
-      ),
+      ],
     );
   }
 
@@ -82,7 +86,7 @@ class FactsCard extends StatelessWidget {
   }
 }
 
-/// Kalemler (sipariş satırları, ürünler).
+/// Kalemler (sipariş satırları, ürünler): defter satırları, değer sağda (`amount`).
 class LinesCard extends StatelessWidget {
   const LinesCard({super.key, required this.lines});
 
@@ -92,52 +96,56 @@ class LinesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    return AknCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        children: [
-          for (var i = 0; i < lines.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: c.lineSoft),
-            Semantics(
-              container: true,
-              label: [
-                lines[i].title,
-                ?lines[i].subtitle,
-                ?lines[i].value,
-              ].join(', '),
-              excludeSemantics: true,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(lines[i].title, style: t.bodyStrong),
-                          if (lines[i].subtitle != null)
-                            Text(lines[i].subtitle!, style: t.bodySmall),
-                        ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < lines.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+          Semantics(
+            container: true,
+            label: [
+              lines[i].title,
+              ?lines[i].subtitle,
+              ?lines[i].value,
+            ].join(', '),
+            excludeSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          lines[i].title,
+                          style: t.bodyStrong.copyWith(color: c.ink),
+                        ),
+                        if (lines[i].subtitle != null)
+                          Text(
+                            lines[i].subtitle!.replaceAll(' · ', ', '),
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (lines[i].value != null) ...[
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Text(
+                        lines[i].value!,
+                        style: t.amount.copyWith(fontSize: 15, color: c.ink),
+                        textAlign: TextAlign.end,
                       ),
                     ),
-                    if (lines[i].value != null) ...[
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          lines[i].value!,
-                          style: t.amount.copyWith(fontSize: 14),
-                          textAlign: TextAlign.end,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -156,7 +164,7 @@ class WarningBanners extends StatelessWidget {
       children: [
         for (final w in warnings)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: AknBanner(tone: AknTone.warn, message: w),
           ),
       ],
@@ -182,7 +190,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
     out.add(
       RelatedLink(
         'Siparişi aç',
-        Icons.receipt_long_rounded,
+        Icons.receipt_long_outlined,
         customer
             ? AppRoutes.order(l.orderId!)
             : AppRoutes.bayiOrder(l.orderId!),
@@ -193,7 +201,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
     out.add(
       RelatedLink(
         'Sipariş talebini aç',
-        Icons.fact_check_rounded,
+        Icons.fact_check_outlined,
         AppRoutes.companyRequest(d.companyRequestId!),
       ),
     );
@@ -203,7 +211,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Saha formunu aç',
-          Icons.assignment_rounded,
+          Icons.assignment_outlined,
           AppRoutes.fieldForm(l.fieldOrderId!),
         ),
       );
@@ -212,7 +220,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Ön kaydı aç',
-          Icons.how_to_reg_rounded,
+          Icons.how_to_reg_outlined,
           AppRoutes.fieldLead(l.leadId!),
         ),
       );
@@ -221,7 +229,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Finans kartını aç',
-          Icons.account_balance_rounded,
+          Icons.account_balance_outlined,
           AppRoutes.financeCustomer(l.stationCustomerId!),
         ),
       );
@@ -230,7 +238,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Cari kartını aç',
-          Icons.apartment_rounded,
+          Icons.apartment_outlined,
           AppRoutes.customer(l.customerId!),
         ),
       );
@@ -249,7 +257,6 @@ class RelatedLinksCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final policy = ref.watch(accessPolicyProvider);
     final features = ref.watch(appConfigProvider).features;
-    final c = context.akn;
     final links = [
       for (final l in relatedLinks(detail, policy))
         if (RouteAccess.isAllowed(l.route, policy, features)) l,
@@ -257,20 +264,18 @@ class RelatedLinksCard extends ConsumerWidget {
     if (links.isEmpty) return const SizedBox.shrink();
     return DetailSection(
       title: 'İlgili kayıtlar',
-      child: AknCard(
-        padding: EdgeInsets.zero,
-        child: Column(
-          children: [
-            for (var i = 0; i < links.length; i++) ...[
-              if (i > 0) Divider(height: 1, color: c.lineSoft),
-              AknListTile(
-                leadingIcon: links[i].icon,
-                title: links[i].label,
-                onTap: () => context.push(links[i].route),
-              ),
-            ],
-          ],
-        ),
+      bleed: true,
+      child: AknLedger(
+        children: [
+          for (final l in links)
+            AknListTile(
+              leadingIcon: l.icon,
+              title: l.label,
+              showChevron: true,
+              dense: true,
+              onTap: () => context.push(l.route),
+            ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
+import '../../../core/ui/status.dart';
 
 /// Bayi ekranlarındaki düğmelerin yetki kuralları (spec A.1 "Action → grant" tablosu). Tek kaynak
 /// [AccessPolicy.can] / [AccessPolicy.hasCap]'tır; rol adına bakılmaz (bayiler özel rol kurar). Sunucu
@@ -114,6 +115,16 @@ class BayiGrants {
 
   /// Aktif/pasif ve "Şifre bağlantısı gönder": `StationStaff:Duzenler`.
   bool get manageStaff => viewStaff && _can(Pg.stationStaff, Perm.edit);
+
+  // ------------------------------------------------------------------ Durum lambası
+
+  /// Durum lambası için izleyici (tasarım v2 §10.3): teklif verebilen "Teklif verin", sevkiyat
+  /// planlayabilen "Sevkiyat planlayın" lambasını turuncu (sıra sizde) görür.
+  StatusViewer get viewer => StatusViewer.bayi(
+    canQuote: quoteOnOrder || quoteOnDesk,
+    canPlan: planShipment,
+    canDecide: viewApprovals,
+  );
 }
 
 /// Oturumdaki kullanıcının bayi yetkileri.

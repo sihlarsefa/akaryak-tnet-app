@@ -283,3 +283,15 @@ Future<void> finish(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(seconds: 1));
 }
+
+/// Etiketi alanın üstünde duran (tasarım v2 §6.10) metin alanı: [label] metnini taşıyan
+/// `AknTextField`'ın içindeki `TextFormField`.
+Finder fieldLabeled(String label) => find
+    .descendant(
+      of: find.ancestor(
+        of: find.text(label),
+        matching: find.byType(AknTextField),
+      ),
+      matching: find.byType(TextFormField),
+    )
+    .first;

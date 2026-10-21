@@ -11,8 +11,10 @@ import '../tokens.dart';
 import 'buttons.dart';
 import 'toast.dart';
 
-/// Empty list / screen: calm illustration, title, message and an optional
-/// action. Every list has one (spec C.7).
+/// Empty list or screen (design v2 §6.24): a 96 px line drawing, a title
+/// (17/22 600), one sentence (14/20 dim, at most two lines) and one button.
+/// The copy invites the action: "Açık siparişiniz yok. Yeni sipariş için
+/// Sipariş ver’e dokunun." Empty states are the one place text is centred.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
@@ -35,65 +37,66 @@ class EmptyState extends StatelessWidget {
   final String? secondaryLabel;
   final VoidCallback? onSecondary;
 
-  /// Smaller layout for cards and sheets.
+  /// Smaller layout for sections and sheets.
   final bool compact;
+
+  /// Deprecated: drawings are always dim with one orange detail.
   final AknTone? tone;
 
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     return Semantics(
       container: true,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: 24,
+          horizontal: AknSpace.page,
           vertical: compact ? 16 : 32,
         ),
-        child: FadeUp(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              EmptyIllustration(
-                subject: illustration,
-                size: compact ? 80 : 112,
-                tone: tone,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EmptyIllustration(subject: illustration, size: compact ? 80 : 96),
+            SizedBox(height: compact ? 10 : 14),
+            Semantics(
+              header: true,
+              child: Text(
+                title,
+                style: t.headline,
+                textAlign: TextAlign.center,
               ),
-              SizedBox(height: compact ? 12 : 20),
-              Semantics(
-                header: true,
+            ),
+            if (message != null) ...[
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 340),
                 child: Text(
-                  title,
-                  style: compact ? t.bodyStrong : t.headline,
+                  message!,
+                  style: t.bodySmall.copyWith(color: c.dim),
                   textAlign: TextAlign.center,
                 ),
               ),
-              if (message != null) ...[
-                const SizedBox(height: 6),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: Text(
-                    message!,
-                    style: t.body.copyWith(color: context.akn.dim),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ],
-              if (actionLabel != null && onAction != null) ...[
-                SizedBox(height: compact ? 12 : 20),
-                AknButton(label: actionLabel!, onPressed: onAction),
-              ],
-              if (secondaryLabel != null && onSecondary != null)
-                AknButton.ghost(label: secondaryLabel!, onPressed: onSecondary),
             ],
-          ),
+            if (actionLabel != null && onAction != null) ...[
+              SizedBox(height: compact ? 14 : 20),
+              AknButton(label: actionLabel!, onPressed: onAction),
+            ],
+            if (secondaryLabel != null && onSecondary != null) ...[
+              const SizedBox(height: 4),
+              AknButton.ghost(label: secondaryLabel!, onPressed: onSecondary),
+            ],
+          ],
         ),
       ),
     );
   }
 }
 
-/// Load failure with a retry. [offline] switches to the "no connection"
-/// wording; the message is always Turkish and never a raw payload.
+/// Load failure with a retry (§6.24, copy rule §10.2): the "route with a
+/// gap" drawing, what failed, what to do and "Tekrar dene". [offline]
+/// switches to the no-connection wording; the message is always Turkish and
+/// never a raw payload — never "İstek başarısız" or "Bir hata oluştu".
 class ErrorState extends StatelessWidget {
   const ErrorState({
     super.key,
@@ -117,6 +120,18 @@ class ErrorState extends StatelessWidget {
   /// copied on tap (spec C.7).
   final String? traceId;
 
+  /// Default title when the reason is not known (what failed).
+  static const String defaultTitle = 'Bilgiler yüklenemedi';
+
+  /// Default sentence (what to do): the 5xx wording of §10.2.
+  static const String defaultMessage =
+      'Sunucuya şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.';
+
+  /// Offline title and sentence (§10.2, reads).
+  static const String offlineTitle = 'Bağlantı yok';
+  static const String offlineMessage =
+      'Bağlantı gelince bu sayfa kendiliğinden yenilenir.';
+
   String? get _supportCode {
     final t = traceId?.trim();
     if (t == null || t.isEmpty) return null;
@@ -128,12 +143,13 @@ class ErrorState extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
+    final code = _supportCode;
     return Semantics(
       container: true,
       liveRegion: true,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: 24,
+          horizontal: AknSpace.page,
           vertical: compact ? 16 : 32,
         ),
         child: Column(
@@ -143,44 +159,36 @@ class ErrorState extends StatelessWidget {
               subject: offline
                   ? AknIllustration.offline
                   : AknIllustration.error,
-              size: compact ? 80 : 112,
-              tone: offline ? null : AknTone.danger,
+              size: compact ? 80 : 96,
             ),
-            SizedBox(height: compact ? 12 : 20),
+            SizedBox(height: compact ? 10 : 14),
             Semantics(
               header: true,
               child: Text(
-                title ??
-                    (offline
-                        ? 'İnternet bağlantısı yok'
-                        : 'Bir şeyler ters gitti'),
-                style: compact ? t.bodyStrong : t.headline,
+                title ?? (offline ? offlineTitle : defaultTitle),
+                style: t.headline,
                 textAlign: TextAlign.center,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 360),
+              constraints: const BoxConstraints(maxWidth: 340),
               child: Text(
-                message ??
-                    (offline
-                        ? 'Bağlantı gelince otomatik yenilenir. Kaydettiğiniz işlemler bekleyen işlemlerde durur.'
-                        : 'Bilgiler yüklenemedi. Lütfen biraz sonra tekrar deneyin.'),
-                style: t.body.copyWith(color: c.dim),
+                message ?? (offline ? offlineMessage : defaultMessage),
+                style: t.bodySmall.copyWith(color: c.dim),
                 textAlign: TextAlign.center,
               ),
             ),
-            if (_supportCode != null) ...[
-              const SizedBox(height: 6),
+            if (code != null)
               // "Destek kodu: 1a2b3c4d" (spec C.7): dokununca panoya kopyalanır.
               Semantics(
                 button: true,
-                label: 'Destek kodu ${_supportCode!}, kopyalamak için dokunun',
+                label: 'Destek kodu $code, kopyalamak için dokunun',
                 excludeSemantics: true,
-                child: InkWell(
-                  borderRadius: AknRadius.pillAll,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () async {
-                    await Clipboard.setData(ClipboardData(text: _supportCode!));
+                    await Clipboard.setData(ClipboardData(text: code));
                     if (context.mounted) {
                       AppToast.info(
                         'Destek kodu kopyalandı.',
@@ -192,34 +200,26 @@ class ErrorState extends StatelessWidget {
                     constraints: const BoxConstraints(
                       minHeight: AknSpace.minTap,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              'Destek kodu: ${_supportCode!}',
-                              style: t.caption.copyWith(color: c.text),
-                              textAlign: TextAlign.center,
-                            ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Destek kodu: $code',
+                            style: t.caption.copyWith(color: c.dim),
+                            textAlign: TextAlign.center,
                           ),
-                          const SizedBox(width: 6),
-                          Icon(Icons.copy_rounded, size: 16, color: c.dim),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 6),
+                        Icon(Icons.copy_outlined, size: 16, color: c.dim),
+                      ],
                     ),
                   ),
                 ),
               ),
-            ],
             if (onRetry != null) ...[
-              SizedBox(height: compact ? 12 : 20),
-              AknButton.secondary(
-                label: retryLabel,
-                icon: Icons.refresh_rounded,
-                onPressed: onRetry,
-              ),
+              SizedBox(height: code != null ? 4 : (compact ? 14 : 20)),
+              AknButton.secondary(label: retryLabel, onPressed: onRetry),
             ],
           ],
         ),
@@ -228,7 +228,8 @@ class ErrorState extends StatelessWidget {
   }
 }
 
-/// Centered brand spinner with an optional message (full-screen waits).
+/// Centred brand spinner (32 px, logo orange) with an optional dim message
+/// (full-screen waits).
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key, this.message});
 
@@ -245,7 +246,7 @@ class LoadingView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const ChevronSpinner(size: 30),
+            const ChevronSpinner(size: 32),
             if (message != null) ...[
               const SizedBox(height: 14),
               Text(message!, style: t.bodySmall, textAlign: TextAlign.center),
@@ -257,8 +258,10 @@ class LoadingView extends StatelessWidget {
   }
 }
 
-/// Connection banner under the app bar: slides in while [offline] or while
-/// operations wait to be sent ("2 işlem gönderilmeyi bekliyor").
+/// The offline line under the app bar (§6.24): one Beton line with
+/// `cloud_off_outlined` 18 dim and "Çevrimdışı. Değişiklikler telefona
+/// kaydediliyor (3)." (13/18 500 ink; driver mode makes it 15/20). Online
+/// with queued operations it reads "3 işlem gönderilmeyi bekliyor".
 class OfflineBanner extends StatelessWidget {
   const OfflineBanner({
     super.key,
@@ -274,11 +277,12 @@ class OfflineBanner extends StatelessWidget {
   final VoidCallback? onTap;
 
   static String message({required bool offline, required int pending}) {
-    final ops = pending > 0 ? '$pending işlem gönderilmeyi bekliyor' : null;
     if (offline) {
-      return ops == null ? 'Çevrimdışısınız' : 'Çevrimdışısınız · $ops';
+      return pending > 0
+          ? 'Çevrimdışı. Değişiklikler telefona kaydediliyor ($pending).'
+          : 'Çevrimdışı. Değişiklikler telefona kaydediliyor.';
     }
-    return ops ?? '';
+    return pending > 0 ? '$pending işlem gönderilmeyi bekliyor' : '';
   }
 
   @override
@@ -286,7 +290,6 @@ class OfflineBanner extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final visible = offline || pendingCount > 0;
-    final tc = offline ? c.neutral : c.info;
     final text = message(offline: offline, pending: pendingCount);
     return AknAnimatedSize(
       curve: AknMotion.emphasizedCurve,
@@ -299,39 +302,37 @@ class OfflineBanner extends StatelessWidget {
               label: text,
               excludeSemantics: true,
               child: Material(
-                color: tc.bg,
+                color: c.surfaceAlt,
                 child: InkWell(
                   onTap: onTap,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      border: Border(bottom: BorderSide(color: tc.line)),
-                    ),
+                  splashFactory: NoSplash.splashFactory,
+                  highlightColor: c.line,
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
+                      horizontal: AknSpace.page,
                       vertical: 8,
                     ),
                     child: Row(
                       children: [
                         Icon(
                           offline
-                              ? Icons.cloud_off_rounded
-                              : Icons.cloud_upload_rounded,
+                              ? Icons.cloud_off_outlined
+                              : Icons.cloud_upload_outlined,
                           size: 18,
-                          color: tc.fg,
+                          color: c.dim,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             text,
-                            style: t.label.copyWith(color: tc.fg),
+                            style: t.label.copyWith(color: c.ink),
                           ),
                         ),
                         if (onTap != null)
                           Icon(
                             Icons.chevron_right_rounded,
                             size: 18,
-                            color: tc.fg,
+                            color: c.dim,
                           ),
                       ],
                     ),
@@ -343,9 +344,10 @@ class OfflineBanner extends StatelessWidget {
   }
 }
 
-/// Outcome body (order sent, delivery confirmed, request failed): a success
-/// check that draws itself (or a tone icon), title, message, optional
-/// details and actions. Screen readers hear the title.
+/// Outcome body after a submit (§6.24): a 72 px success check (ok) — or a
+/// plain tone icon — then a title that echoes the verb ("Siparişiniz bayiye
+/// gönderildi"), the detail, a primary ("Siparişi aç") and a ghost ("Ana
+/// sayfaya dön"). Screen readers hear the title.
 class ResultView extends StatelessWidget {
   const ResultView({
     super.key,
@@ -367,7 +369,7 @@ class ResultView extends StatelessWidget {
   final AknTone tone;
   final IconData? icon;
 
-  /// E.g. a card of `FactRow`s (order numbers, amounts).
+  /// E.g. a group of `FactRow`s (order numbers, amounts).
   final Widget? details;
   final String? primaryLabel;
   final VoidCallback? onPrimary;
@@ -380,30 +382,21 @@ class ResultView extends StatelessWidget {
     final t = context.aknText;
     final tc = c.tone(tone);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 32, AknSpace.page, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
             child: tone == AknTone.ok && icon == null
-                ? const SuccessCheck(size: 96, semanticLabel: null)
-                : Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      color: tc.bg,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: tc.line, width: 2),
-                    ),
-                    child: Icon(
-                      icon ?? AknStatus.toneIcon(tone),
-                      color: tc.fg,
-                      size: 44,
-                    ),
+                ? const SuccessCheck(size: 72, semanticLabel: null)
+                : Icon(
+                    icon ?? AknStatus.toneIcon(tone),
+                    color: tone == AknTone.brand ? c.ink : tc.fg,
+                    size: 56,
                   ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Semantics(
             header: true,
             liveRegion: true,
@@ -423,7 +416,7 @@ class ResultView extends StatelessWidget {
             AknButton(label: primaryLabel!, expand: true, onPressed: onPrimary),
           ],
           if (secondaryLabel != null && onSecondary != null) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
             AknButton.ghost(
               label: secondaryLabel!,
               expand: true,

@@ -161,7 +161,7 @@ abstract final class ConditionValueCodec {
     return errors;
   }
 
-  /// Koşulun ekrandaki özeti ("Ödeme yöntemi: Havale · Vade (gün): 30").
+  /// Koşulun ekrandaki özeti ("Ödeme yöntemi: Havale; Vade (gün): 30").
   static String describe(ConditionForm form, Map<String, Object> conditions) {
     final parts = <String>[];
     for (final f in form.fields) {
@@ -169,7 +169,7 @@ abstract final class ConditionValueCodec {
       if (v == null) continue;
       parts.add('${f.label}: ${display(form, f, v)}');
     }
-    return parts.join(' · ');
+    return parts.join('; ');
   }
 
   /// Bir koşul değerinin Türkçe gösterimi.

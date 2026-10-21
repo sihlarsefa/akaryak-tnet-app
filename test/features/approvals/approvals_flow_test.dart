@@ -352,9 +352,15 @@ void main() {
       await tapText(tester, 'Onayla');
       await tapText(tester, 'Onayla', last: true);
       await pumpFor(tester);
+      // Sonuç bölümü plakanın ve özetin altında: görünür olana dek kaydırılır.
+      await tester.scrollUntilVisible(
+        find.text('Talep sonucu'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Talep sonucu'), findsOneWidget);
       expect(
-        find.text('1 sipariş oluşturuldu · 1 satır oluşturulamadı'),
+        find.text('1 sipariş oluşturuldu, 1 satır oluşturulamadı'),
         findsOneWidget,
       );
       expect(app.log.last('GET', 'order-requests/3001'), isNotNull);
@@ -396,7 +402,8 @@ void main() {
     final req = app.log.last('GET', '/approvals')!;
     expect(req.queryParameters['type'], ApprovalType.leadFinance.code);
     expect(find.textContaining('Akdeniz Gıda'), findsWidgets);
-    await tapText(tester, 'Akdeniz Gıda');
+    // Satır başlığı "Ön kayıt: Akdeniz Gıda …" (tür: karşı taraf, tasarım v2 §7.13).
+    await tapFinder(tester, find.textContaining('Akdeniz Gıda').first);
     expect(find.text('Ön kayıt finans onayı'), findsWidgets);
     await finish(tester);
   });

@@ -7,8 +7,9 @@ import '../../application/link_opener.dart';
 import '../../copy.dart';
 import '../../data/server_gate.dart';
 
-/// Destek kanalları (`app/config.support`): ara, WhatsApp, e-posta, destek sayfası. Tanımsız kanal
-/// gizlenir; hiçbiri yoksa kısa bir not gösterilir.
+/// Destek kanalları (`app/config.support`): ara, WhatsApp, e-posta, destek sayfası — tek grup kutusunda
+/// ince çizgilerle ayrılmış satırlar (tasarım v2 §4.5; kart listesi değil). Tanımsız kanal gizlenir;
+/// hiçbiri yoksa kısa bir not gösterilir.
 class SupportContacts extends ConsumerWidget {
   const SupportContacts({super.key, required this.links, this.mailSubject});
 
@@ -27,7 +28,6 @@ class SupportContacts extends ConsumerWidget {
       return Text(
         AuthCopy.noSupport,
         style: t.bodySmall.copyWith(color: c.dim),
-        textAlign: TextAlign.center,
       );
     }
     Future<void> open(Uri uri, {bool external = true}) async {
@@ -35,39 +35,48 @@ class SupportContacts extends ConsumerWidget {
       if (!ok) AppToast.error(AuthCopy.linkFailed);
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (phone != null)
-          _Channel(
-            icon: Icons.call_rounded,
-            label: AuthCopy.callSupport,
-            detail: Fmt.phone(links.supportPhone),
-            onTap: () => open(phone),
-          ),
-        if (whatsapp != null)
-          _Channel(
-            icon: Icons.chat_rounded,
-            label: AuthCopy.whatsappSupport,
-            detail: Fmt.phone(links.supportWhatsapp),
-            onTap: () => open(whatsapp),
-          ),
-        if (email != null)
-          _Channel(
-            icon: Icons.mail_outline_rounded,
-            label: AuthCopy.emailSupport,
-            detail: links.supportEmail!,
-            onTap: () => open(email),
-          ),
-        if (page != null)
-          _Channel(
-            icon: Icons.support_agent_rounded,
-            label: AuthCopy.supportPage,
-            detail: page.host,
-            onTap: () => open(page, external: false),
-          ),
-      ],
+    final channels = <Widget>[
+      if (phone != null)
+        _Channel(
+          icon: Icons.call_outlined,
+          label: AuthCopy.callSupport,
+          detail: Fmt.phone(links.supportPhone),
+          onTap: () => open(phone),
+        ),
+      if (whatsapp != null)
+        _Channel(
+          icon: Icons.chat_outlined,
+          label: AuthCopy.whatsappSupport,
+          detail: Fmt.phone(links.supportWhatsapp),
+          onTap: () => open(whatsapp),
+        ),
+      if (email != null)
+        _Channel(
+          icon: Icons.mail_outline_rounded,
+          label: AuthCopy.emailSupport,
+          detail: links.supportEmail!,
+          onTap: () => open(email),
+        ),
+      if (page != null)
+        _Channel(
+          icon: Icons.support_agent_outlined,
+          label: AuthCopy.supportPage,
+          detail: page.host,
+          onTap: () => open(page, external: false),
+        ),
+    ];
+    return AknCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < channels.length; i++) ...[
+            if (i > 0) const AknLedgerDivider(indent: 16),
+            channels[i],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -87,26 +96,19 @@ class _Channel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Semantics(
-        button: true,
-        label: '$label, $detail',
-        excludeSemantics: true,
+    return Semantics(
+      button: true,
+      label: '$label, $detail',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: AknListTile(
+        leadingIcon: icon,
+        title: label,
+        subtitle: detail,
+        titleStyle: context.aknText.bodyStrong,
+        showChevron: true,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         onTap: onTap,
-        child: AknCard(
-          padding: EdgeInsets.zero,
-          shadow: false,
-          onTap: onTap,
-          child: AknListTile(
-            leadingIcon: icon,
-            leadingTone: AknTone.brand,
-            title: label,
-            subtitle: detail,
-            showChevron: true,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-        ),
       ),
     );
   }

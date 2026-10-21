@@ -1,71 +1,87 @@
 import 'package:flutter/material.dart';
 
-import 'logo_mark.dart';
+import '../tokens.dart';
 
-/// Navy hero background: a subtle diagonal light from the top-left and a
-/// faint » watermark on the right. Calm; no glow, no motion.
+/// Deprecated: how the old hero laid out its gradient. v2 has no gradient,
+/// no watermark and no header strip (§1 rule 4, §11); both styles paint the
+/// same flat plate.
+enum AknHeroStyle { panel, strip }
+
+/// Deprecated: v2 has no gradients anywhere. Kept so old call sites compile;
+/// every "gradient" is the flat plate colour.
+abstract final class AknHeroGradient {
+  /// = [AknColors.plate].
+  static Color deep(AknColors c) => c.plate;
+
+  /// A flat (single-colour) gradient in [AknColors.plate].
+  static LinearGradient of(
+    AknColors c, {
+    AknHeroStyle style = AknHeroStyle.panel,
+  }) => LinearGradient(colors: [c.plate, c.plate]);
+}
+
+/// Deprecated hero background: fills its box with the flat plate colour —
+/// no gradient, no highlight, no depth, no » watermark (design v2 §11). The
+/// flags are accepted and ignored.
 class HeroBackdropPainter extends CustomPainter {
   HeroBackdropPainter({
-    required this.navy,
-    this.light = const Color(0xFFFFFFFF),
+    required this.colors,
+    this.style = AknHeroStyle.panel,
     this.watermark = true,
+    this.highlight = true,
+    this.depth = false,
+    this.light = Colors.white,
   });
 
-  final Color navy;
-  final Color light;
+  final AknColors colors;
+  final AknHeroStyle style;
   final bool watermark;
+  final bool highlight;
+  final bool depth;
+  final Color light;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    canvas.drawRect(rect, Paint()..color = navy);
-    // Diagonal light band.
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            light.withValues(alpha: 0.075),
-            light.withValues(alpha: 0.02),
-            light.withValues(alpha: 0),
-          ],
-          stops: const [0, 0.45, 0.8],
-        ).createShader(rect),
-    );
-    // Fade the light out towards the top edge, so a hero placed right under
-    // a flat navy app bar shows no seam.
-    final fade = (size.height * 0.3).clamp(0.0, 48.0);
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, size.width, fade),
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [navy, navy.withValues(alpha: 0)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, fade)),
-    );
-    if (!watermark || size.height < 40) return;
-    // » watermark, cropped by the right edge.
-    final h = size.height * 1.1;
-    final s = h / 80;
-    canvas.save();
-    canvas.clipRect(rect);
-    canvas.translate(size.width - h * 0.62, size.height / 2 - h / 2);
-    canvas.scale(s);
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9.8
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = light.withValues(alpha: 0.045);
-    canvas.drawPath(LogoMarkPainter.chevronPath(0), stroke);
-    canvas.drawPath(LogoMarkPainter.chevronPath(1), stroke);
-    canvas.restore();
+    if (rect.isEmpty) return;
+    canvas.drawRect(rect, Paint()..color = colors.plate);
   }
 
   @override
-  bool shouldRepaint(HeroBackdropPainter old) =>
-      old.navy != navy || old.light != light || old.watermark != watermark;
+  bool shouldRepaint(HeroBackdropPainter old) => old.colors != colors;
+}
+
+/// Deprecated: paints the flat plate behind [child] (or fills its box). New
+/// code uses the plate widget instead.
+class AknHeroBackground extends StatelessWidget {
+  const AknHeroBackground({
+    super.key,
+    this.child,
+    this.style = AknHeroStyle.panel,
+    this.watermark = true,
+    this.highlight = true,
+    this.depth = false,
+  });
+
+  final Widget? child;
+  final AknHeroStyle style;
+  final bool watermark;
+  final bool highlight;
+  final bool depth;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
+    final paint = CustomPaint(
+      painter: HeroBackdropPainter(colors: c, style: style),
+      child: child == null ? const SizedBox.expand() : null,
+    );
+    if (child == null) return paint;
+    return Stack(
+      children: [
+        Positioned.fill(child: paint),
+        child!,
+      ],
+    );
+  }
 }

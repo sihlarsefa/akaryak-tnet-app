@@ -75,13 +75,11 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
         ),
         const SizedBox(height: 12),
         drivers.when(
-          loading: () => const Shimmer(
-            child: Column(
-              children: [
-                SkeletonCard(lines: 2, margin: EdgeInsets.only(bottom: 8)),
-                SkeletonCard(lines: 2, margin: EdgeInsets.only(bottom: 8)),
-              ],
-            ),
+          loading: () => const SkeletonList(
+            itemCount: 3,
+            leading: true,
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
           ),
           error: (e, _) => FailureView(
             failure: AppFailure.from(e),
@@ -107,26 +105,30 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
             }
             return Column(
               children: [
-                for (final d in rows)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _DriverCard(
-                      driver: d,
-                      selected: widget.selected?.account?.userId == d.userId,
-                      onTap: () => _pick(DriverChoice.account(d)),
-                    ),
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0)
+                    Divider(height: 1, thickness: 1, color: context.akn.line),
+                  DriverPickerRow(
+                    driver: rows[i],
+                    selected:
+                        widget.selected?.account?.userId == rows[i].userId,
+                    onTap: () => _pick(DriverChoice.account(rows[i])),
                   ),
+                ],
               ],
             );
           },
         ),
         if (widget.allowManual) ...[
-          const SizedBox(height: 12),
-          Text('Uygulama hesabı olmayan şoför', style: t.bodyStrong),
+          const SizedBox(height: 20),
+          Text(
+            'Uygulama hesabı olmayan şoför',
+            style: t.bodyStrong.copyWith(color: context.akn.ink),
+          ),
           const SizedBox(height: 4),
           Text(
             'Bu şoförün teslimatlarını yola çıkar ve teslim bildir ile siz yönetirsiniz.',
-            style: t.bodySmall,
+            style: t.bodySmall.copyWith(color: context.akn.dim),
           ),
           const SizedBox(height: 8),
           AknTextField(
@@ -142,9 +144,10 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
               spacing: 8,
               children: [
                 for (final s in suggestions.drivers.take(6))
-                  ActionChip(
-                    label: Text(s.value),
-                    onPressed: () => setState(() => _manual.text = s.value),
+                  AknChip(
+                    label: s.value,
+                    selected: _manual.text.trim() == s.value,
+                    onTap: () => setState(() => _manual.text = s.value),
                   ),
               ],
             ),
@@ -163,8 +166,11 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
   }
 }
 
-class _DriverCard extends StatelessWidget {
-  const _DriverCard({
+/// Şoför satırı (tasarım v2 §7.15): baş harf, ad, telefon; açık sevkiyat yükü küçük bir yük çubuğu
+/// olarak; rol ("Şoför" / "Personel") ve "uygulamada" lambası; seçili satırda mürekkep onay işareti.
+class DriverPickerRow extends StatelessWidget {
+  const DriverPickerRow({
+    super.key,
     required this.driver,
     required this.selected,
     required this.onTap,
@@ -177,20 +183,118 @@ class _DriverCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = driver;
-    final details = [
+    final t = context.aknText;
+    final c = context.akn;
+    final load = d.activeShipments == 0
+        ? 'Açık sevkiyatı yok'
+        : '${d.activeShipments} açık sevkiyat';
+    final semantic = [
+      d.displayName,
       if (d.phone != null) Fmt.phone(d.phone),
-      d.activeShipments == 0
-          ? 'Açık sevkiyatı yok'
-          : '${d.activeShipments} açık sevkiyat',
-    ].join(' · ');
-    return ChoiceCard(
-      title: d.displayName,
-      subtitle: details,
+      load,
+      d.isDriverRole ? 'Şoför' : 'Personel',
+      if (d.hasActiveDevice) 'uygulamada',
+      if (selected) 'seçili',
+    ].join(', ');
+    return Semantics(
+      button: true,
       selected: selected,
-      tag: d.isDriverRole ? 'Şoför' : 'Personel',
-      leading: AknAvatar(name: d.displayName, size: 40),
-      trailing: d.hasActiveDevice ? const InAppBadge() : null,
+      label: semantic,
+      excludeSemantics: true,
       onTap: onTap,
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: c.surfaceAlt,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AknAvatar(name: d.displayName, size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          d.displayName,
+                          style: t.headline.copyWith(color: c.ink),
+                        ),
+                        Text(
+                          d.isDriverRole ? 'Şoför' : 'Personel',
+                          style: t.label.copyWith(color: c.dim),
+                        ),
+                      ],
+                    ),
+                    if (d.phone != null)
+                      Text(
+                        Fmt.phone(d.phone),
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _LoadBar(count: d.activeShipments),
+                        Text(load, style: t.label.copyWith(color: c.ink)),
+                        if (d.hasActiveDevice) const InAppBadge(),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (selected)
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(start: 8),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 22,
+                    color: c.ink,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Şoförün açık sevkiyat yükü: 4 dilimli küçük çubuk (her açık sevkiyat bir mürekkep dilim).
+class _LoadBar extends StatelessWidget {
+  const _LoadBar({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    const slots = 4;
+    return ExcludeSemantics(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < slots; i++) ...[
+            if (i > 0) const SizedBox(width: 3),
+            Container(
+              width: 14,
+              height: 6,
+              decoration: BoxDecoration(
+                color: i < count ? c.ink : c.chartTrack,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

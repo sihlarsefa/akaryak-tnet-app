@@ -115,26 +115,24 @@ class _CameraPrimer extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 8),
-        const Center(
-          child: AknIconBox(
-            icon: Icons.photo_camera_rounded,
-            tone: AknTone.brand,
-            size: 56,
-          ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Icon(Icons.photo_camera_outlined, size: 28, color: c.ink),
         ),
-        const SizedBox(height: 16),
-        Text(
-          'Fotoğraf için kameranızı kullanacağız',
-          style: t.title,
-          textAlign: TextAlign.center,
+        const SizedBox(height: 12),
+        Semantics(
+          header: true,
+          child: Text(
+            'Fotoğraf için kameranızı kullanacağız',
+            style: t.title.copyWith(color: c.ink),
+          ),
         ),
         const SizedBox(height: 8),
         Text(
           'Çek, senet ya da dekontun fotoğrafını çekip siparişinize ekleyebilmeniz için '
           'kameraya erişim istenecek. Fotoğraf yalnızca ilgili siparişe eklenir.',
           style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         AknButton(
@@ -404,7 +402,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
             _phase == _UploadPhase.failed) ...[
           AknButton(
             label: _phase == _UploadPhase.failed ? 'Tekrar yükle' : 'Yükle',
-            icon: Icons.cloud_upload_rounded,
+            icon: Icons.cloud_upload_outlined,
             expand: true,
             loading: _phase == _UploadPhase.uploading,
             loadingLabel: 'Yükleniyor %${(_progress * 100).round()}',
@@ -423,13 +421,13 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
             children: [
               AknButton(
                 label: 'Fotoğraf çek',
-                icon: Icons.photo_camera_rounded,
+                icon: Icons.photo_camera_outlined,
                 expand: true,
                 onPressed: () => _pick(CaptureSource.camera),
               ),
               AknButton.secondary(
                 label: 'Galeriden seç',
-                icon: Icons.photo_library_rounded,
+                icon: Icons.photo_library_outlined,
                 expand: true,
                 onPressed: () => _pick(CaptureSource.gallery),
               ),
@@ -441,7 +439,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
               alignment: Alignment.centerLeft,
               child: AknButton.ghost(
                 label: 'Dosya (PDF) seç',
-                icon: Icons.picture_as_pdf_rounded,
+                icon: Icons.picture_as_pdf_outlined,
                 size: AknButtonSize.small,
                 onPressed: () => _pick(CaptureSource.file),
               ),
@@ -464,7 +462,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              'Dosya: ${Fmt.fileSize(img.sizeBytes)} · JPEG (konum bilgisi silinir)',
+              'Dosya: ${Fmt.fileSize(img.sizeBytes)}, JPEG (konum bilgisi silinir)',
               style: t.caption.copyWith(color: c.dim),
             ),
           ),

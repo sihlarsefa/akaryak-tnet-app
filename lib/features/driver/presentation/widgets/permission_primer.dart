@@ -31,12 +31,12 @@ class DriverPrimerBody extends StatelessWidget {
     final c = context.akn;
     final (icon, title, body) = switch (kind) {
       DriverPrimerKind.location => (
-        Icons.my_location_rounded,
+        Icons.my_location_outlined,
         DriverCopy.primerLocationTitle,
         DriverCopy.primerLocationBody,
       ),
       DriverPrimerKind.camera => (
-        Icons.photo_camera_rounded,
+        Icons.photo_camera_outlined,
         DriverCopy.primerCameraTitle,
         DriverCopy.primerCameraBody,
       ),
@@ -46,9 +46,7 @@ class DriverPrimerBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 8),
-        Center(
-          child: AknIconBox(icon: icon, tone: AknTone.brand, size: 56),
-        ),
+        Center(child: Icon(icon, size: 40, color: c.ink)),
         const SizedBox(height: 16),
         Semantics(
           header: true,

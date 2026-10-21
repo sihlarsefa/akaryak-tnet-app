@@ -1,5 +1,6 @@
-// Sipariş ayrıntısı ve teklif kararı (spec A.4): kart (₺/L, toplam, vN), önceki alımlar, belge eksikken
-// Onayla kapalı (yükleyince açılır), onay özeti, revize ön ayar çipleri (web ile aynı),
+// Sipariş ayrıntısı ve teklif kararı (spec A.4; tasarım v2 §7.8): teklif plakası (toplam, ₺/L, miktar,
+// teslim), aşama şeridi, son alımlarla kıyas, belge eksikken Teklifi onayla kapalı (yükleyince açılır),
+// onay özeti, revize ön ayar çipleri (web ile aynı),
 // expectedQuoteId + anahtar, takip (yolda kamyon, "canlı konum değildir"), teklif bekleyen ipucu,
 // çevrimdışı karar kapalı, erişilebilirlik.
 import 'dart:typed_data';
@@ -14,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/fonts.dart';
 import 'support/a2_support.dart';
 
 /// 1×1 JPEG (görsel yükleme testleri için).
@@ -27,6 +29,10 @@ void main() {
   late int o2; // karar bekleyen, çek, görsel eksik
   late int o3; // onaylı, yolda
   late int o1; // teklif bekleyen
+
+  // Gerçek yüz (Mona Sans): plaka göstergeleri ve büyük yazı yerleşimi cihazdaki gibi ölçülür
+  // (tasarım v2 §14.1). Dosyalar yoksa test yazı tipiyle sürer.
+  setUpAll(loadRealFonts);
 
   setUp(() async {
     env = await A2Env.create();
@@ -92,37 +98,63 @@ void main() {
       textScale: textScale,
       brightness: brightness,
     );
-    await pumpUntil(tester, find.text('Sipariş takibi'));
+    await pumpUntil(tester, find.byType(StageStrip));
     await pumpReal(tester);
     return c;
   }
 
-  AknButton approveButton(WidgetTester tester) =>
-      tester.widget<AknButton>(find.widgetWithText(AknButton, 'Onayla').first);
+  AknButton approveButton(WidgetTester tester) => tester.widget<AknButton>(
+    find.widgetWithText(AknButton, OrdersCopy.approve).first,
+  );
 
-  testWidgets('teklif kartı: ₺/L, toplam, sürüm, geri sayım, önceki alımlar', (
-    tester,
-  ) async {
-    await open(tester, o2);
-    expect(find.text('Teklif hazır'), findsOneWidget);
-    expect(find.text('42,35 ₺/L'), findsWidgets);
-    expect(find.text('338.800,00 ₺'), findsWidgets);
-    expect(find.textContaining('v1'), findsWidgets);
-    expect(find.byType(CountdownBadge), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Önceki alımlarınız'), 150);
-    expect(find.textContaining('Son alıma göre'), findsOneWidget);
-    await tearDownUi(tester);
-  });
+  /// ⋯ menüsünden bir seçenek.
+  Future<void> openMenu(WidgetTester tester, String item) async {
+    await tester.tap(find.bySemanticsLabel('Diğer seçenekler'));
+    await pumpUntil(tester, find.text(item));
+    await tester.tap(find.text(item));
+    await pumpReal(tester);
+  }
+
+  testWidgets(
+    'teklif plakası: toplam, ₺/L, miktar, teslim; geri sayım; aşama şeridi; son alımlarla kıyas',
+    (tester) async {
+      await open(tester, o2);
+      expect(find.byType(AknPlate), findsOneWidget, reason: 'tek plaka');
+      expect(find.text('Demir Petrol teklifi'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Teklif toplamı 338.800,00 lira')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('42,35'), findsWidgets);
+      expect(find.text('Kararınızı bekliyor'), findsOneWidget);
+      expect(find.byType(CountdownBadge), findsOneWidget);
+      final strip = tester.widget<StageStrip>(find.byType(StageStrip));
+      expect(strip.stages[strip.current], 'Karar');
+      expect(strip.yourMove, isTrue);
+      await tester.scrollUntilVisible(
+        find.text('Son alımlarınızla kıyas'),
+        150,
+      );
+      expect(
+        find.textContaining('alımınızın ortalamasından litrede'),
+        findsOneWidget,
+      );
+      await tearDownUi(tester);
+    },
+  );
 
   testWidgets(
     'çek görseli eksik: Onayla kapalı; yükleyince açılır; onay özeti → onaylandı',
     (tester) async {
       await open(tester, o2);
-      expect(find.text('Çek görseli bekleniyor'), findsWidgets);
+      expect(
+        find.text('Onaylamak için çek görselini yükleyin'),
+        findsOneWidget,
+      );
       expect(approveButton(tester).onPressed, isNull);
       expect(find.textContaining('yüklenmeden onaylanamaz'), findsWidgets);
 
-      final upload = find.text('Görseli yükle').first;
+      final upload = find.text('Belge yükle').first;
       await tester.ensureVisible(upload);
       await tester.pump();
       await tester.tap(upload);
@@ -138,15 +170,23 @@ void main() {
       await pumpReal(tester, rounds: 10);
       expect(approveButton(tester).onPressed, isNotNull);
 
-      await tester.tap(find.widgetWithText(AknButton, 'Onayla').first);
+      await tester.tap(
+        find.widgetWithText(AknButton, OrdersCopy.approve).first,
+      );
       await pumpReal(tester);
       expect(find.text('Teklifi onaylıyor musunuz?'), findsOneWidget);
       expect(
-        find.textContaining('338.800,00 ₺ · 8.000 L · teslim'),
+        find.textContaining('338.800,00 ₺, 8.000 L, teslim'),
         findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(AknButton, 'Onayla').last);
+      await tester.tap(find.widgetWithText(AknButton, OrdersCopy.approve).last);
       await pumpUntil(tester, find.text('Onaylanan teklif'));
+      expect(
+        find.text('Teklif onaylandı. Bayi sevkiyatı planlayacak.'),
+        findsOneWidget,
+      );
+      final strip = tester.widget<StageStrip>(find.byType(StageStrip));
+      expect(strip.stages[strip.current], 'Plan');
       expect(env.world.order(o2)!['status'], 3);
       final sent = env.controls.decisionRequests.last;
       final latestId =
@@ -164,7 +204,7 @@ void main() {
       await tester.tap(find.widgetWithText(AknButton, 'Revize iste'));
       await pumpReal(tester);
       for (final preset in QuoteDecisionPresets.revisionReasons) {
-        expect(find.widgetWithText(FilterChip, preset), findsOneWidget);
+        expect(find.widgetWithText(AknChip, preset), findsOneWidget);
       }
       // Neden seçmeden gönderilemez.
       await tester.tap(find.widgetWithText(AknButton, 'Revize iste').last);
@@ -174,12 +214,16 @@ void main() {
         findsOneWidget,
       );
       await tester.tap(
-        find.widgetWithText(FilterChip, 'Teslim tarihi uygun değil'),
+        find.widgetWithText(AknChip, 'Teslim tarihi uygun değil'),
       );
       await tester.pump();
       await tester.tap(find.widgetWithText(AknButton, 'Revize iste').last);
       await pumpUntil(tester, find.text('Revize teklif bekleniyor'));
       expect(env.world.order(o2)!['status'], 5);
+      expect(
+        find.text('Revize istendi. Bayi yeni teklif hazırlayacak.'),
+        findsOneWidget,
+      );
       expect(
         ((env.world.order(o2)!['quotes'] as List).last as Map)['revisionNote'],
         'Teslim tarihi uygun değil',
@@ -193,9 +237,9 @@ void main() {
     await tester.tap(find.widgetWithText(AknButton, 'Reddet'));
     await pumpReal(tester);
     for (final preset in QuoteDecisionPresets.rejectReasons) {
-      expect(find.widgetWithText(FilterChip, preset), findsOneWidget);
+      expect(find.widgetWithText(AknChip, preset), findsOneWidget);
     }
-    await tester.tap(find.widgetWithText(AknButton, 'Reddet').last);
+    await tester.tap(find.widgetWithText(AknButton, OrdersCopy.rejectQuote));
     await pumpUntil(tester, find.text('Reddedildi'));
     expect(env.world.order(o2)!['status'], 4);
     await tearDownUi(tester);
@@ -229,7 +273,7 @@ void main() {
       await tester.tap(find.widgetWithText(AknButton, 'Revize iste'));
       await pumpReal(tester);
       await tester.tap(
-        find.widgetWithText(FilterChip, 'Teslim tarihi uygun değil'),
+        find.widgetWithText(AknChip, 'Teslim tarihi uygun değil'),
       );
       await tester.pump();
       await tester.tap(find.widgetWithText(AknButton, 'Revize iste').last);
@@ -255,7 +299,7 @@ void main() {
       await open(tester, o2);
       expect(find.text('Onaylanan teklif'), findsNothing);
       expect(find.text(title), findsOneWidget);
-      expect(find.text('42,35 ₺/L'), findsWidgets);
+      expect(find.textContaining('42,35'), findsWidgets);
       await tearDownUi(tester);
     });
   }
@@ -271,7 +315,7 @@ void main() {
     (tester) async {
       await open(tester, o3);
       await tester.scrollUntilVisible(
-        find.textContaining('Yolda (canlı konum değildir)'),
+        find.textContaining('canlı konum değildir'),
         150,
       );
       expect(find.byType(TruckRoute), findsOneWidget);
@@ -282,6 +326,56 @@ void main() {
       await tearDownUi(tester);
     },
   );
+
+  testWidgets(
+    'teslimat bildirildi: alt çubukta "Teslimatı onayla" teslimat ayrıntısını açar',
+    (tester) async {
+      final shipment = env.world.shipments.firstWhere(
+        (x) =>
+            x['status'] == 2 &&
+            env.world.order(x['orderId'] as int)?['customerId'] == 101,
+      );
+      await open(tester, shipment['orderId'] as int);
+      expect(find.text('Teslimatı onaylayın'), findsWidgets);
+      await tester.tap(
+        find.widgetWithText(AknButton, OrdersCopy.confirmDelivery),
+      );
+      await pumpReal(tester);
+      expect(find.text('ROUTE:/shipments/${shipment['id']}'), findsOneWidget);
+      await tearDownUi(tester);
+    },
+  );
+
+  testWidgets('tamamlanan siparişte alt çubukta "Siparişi tekrarla"', (
+    tester,
+  ) async {
+    final done =
+        env.world.orders.firstWhere(
+              (o) => o['status'] == 7 && o['customerId'] == 101,
+            )['id']
+            as int;
+    await open(tester, done);
+    expect(find.text('Tamamlandı'), findsOneWidget);
+    final strip = tester.widget<StageStrip>(find.byType(StageStrip));
+    expect(strip.current, strip.stages.length, reason: 'tüm aşamalar bitti');
+    expect(find.widgetWithText(AknButton, OrdersCopy.reorder), findsOneWidget);
+    expect(find.widgetWithText(AknButton, OrdersCopy.approve), findsNothing);
+    await tearDownUi(tester);
+  });
+
+  testWidgets('teklif yokken tahmini tutar plakası', (tester) async {
+    await open(tester, o1);
+    expect(find.byType(AknPlate), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AknPlate),
+        matching: find.text('Tahmini tutar'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Teklif bekleniyor'), findsWidgets);
+    await tearDownUi(tester);
+  });
 
   testWidgets('teklif bekleyen: ipucu ve bayiyi ara', (tester) async {
     await open(tester, o1);
@@ -303,31 +397,29 @@ void main() {
         1000;
     await open(tester, o2);
     expect(find.text('Ön ödemeli bakiye yetersiz'), findsOneWidget);
-    expect(find.text('Çek görseli bekleniyor'), findsNothing);
+    expect(find.text('Onaylamak için çek görselini yükleyin'), findsNothing);
     expect(approveButton(tester).onPressed, isNull);
     await tearDownUi(tester);
   });
 
-  testWidgets('"Tekrarla" sihirbazı aynı siparişle özete açar', (tester) async {
+  testWidgets('⋯ "Siparişi tekrarla" sihirbazı aynı siparişle özete açar', (
+    tester,
+  ) async {
     await open(tester, o3);
-    final again = find.widgetWithText(AknButton, 'Tekrarla').first;
-    await tester.ensureVisible(again);
-    await tester.pump();
-    await tester.tap(again);
+    await openMenu(tester, OrdersCopy.reorder);
     await pumpUntil(tester, find.textContaining('siparişi tekrarlanıyor'));
     await tester.pump(const Duration(seconds: 1)); // sayfa geçişi biter
     expect(find.text(OrdersCopy.saveAsTemplate), findsOneWidget);
-    expect(find.text('Motorin · 20.000 L'), findsOneWidget);
+    expect(find.text('Motorin, 20.000 L'), findsOneWidget);
     await tearDownUi(tester);
   });
 
-  testWidgets('"Şablon yap": ad sayfası → şablon kaydedilir', (tester) async {
+  testWidgets('⋯ "Şablon olarak kaydet": ad sayfası → şablon kaydedilir', (
+    tester,
+  ) async {
     final before = A2Fake.templatesOf(env.world, 101).length;
     await open(tester, o3);
-    final make = find.widgetWithText(AknButton, 'Şablon yap');
-    await tester.ensureVisible(make);
-    await tester.pump();
-    await tester.tap(make);
+    await openMenu(tester, OrdersCopy.makeTemplate);
     await pumpUntil(tester, find.widgetWithText(AknButton, 'Kaydet'));
     await tester.enterText(find.byType(TextField).last, 'Pendik haftalık');
     await tester.tap(find.widgetWithText(AknButton, 'Kaydet'));
@@ -353,7 +445,7 @@ void main() {
     env.world.bag<Map<String, bool>>('a2.expiry', () => {'on': true})['on'] =
         false;
     await open(tester, o2);
-    expect(find.text('Teklif hazır'), findsOneWidget);
+    expect(find.text('Demir Petrol teklifi'), findsOneWidget);
     expect(find.byType(CountdownBadge), findsNothing);
     await tearDownUi(tester);
   });
@@ -373,7 +465,7 @@ void main() {
         () => c.read(sessionControllerProvider.notifier).restore(),
       );
       await pumpA2(tester, c, initialLocation: '/orders/$o2');
-      await pumpUntil(tester, find.text('Teklif hazır'));
+      await pumpUntil(tester, find.text('Demir Petrol teklifi'));
       await pumpReal(tester);
       expect(find.textContaining(OrdersCopy.lastUpdate), findsWidgets);
       expect(find.text(OrdersCopy.decisionOffline), findsOneWidget);

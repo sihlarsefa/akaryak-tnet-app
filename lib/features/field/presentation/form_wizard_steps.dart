@@ -37,7 +37,7 @@ class FieldWizardStepBody extends StatelessWidget {
   };
 }
 
-const _pad = EdgeInsets.fromLTRB(16, 8, 16, 24);
+const _pad = EdgeInsets.fromLTRB(20, 8, 20, 24);
 const _gap = SizedBox(height: 14);
 
 // ═══════════════════════════════════════════════════════════════════ 1. Cari
@@ -158,8 +158,12 @@ class _ResumeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
-    return AknCard(
-      accent: AknTone.info,
+    return Container(
+      decoration: BoxDecoration(
+        color: context.akn.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -170,8 +174,8 @@ class _ResumeCard extends StatelessWidget {
               draft.customerTitle ?? 'Cari seçilmedi',
               if (draft.lines.isNotEmpty) '${draft.lines.length} satır',
               if (savedAt != null) Fmt.relative(savedAt),
-            ].join(' · '),
-            style: t.bodySmall,
+            ].join(', '),
+            style: t.bodySmall.copyWith(color: context.akn.ink),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -235,10 +239,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
           (
             r.customerId,
             r.customerTitle,
-            [
-              if (r.customerCode.isNotEmpty) r.customerCode,
-              ?r.city,
-            ].join(' · '),
+            [if (r.customerCode.isNotEmpty) r.customerCode, ?r.city].join(', '),
           ),
       ];
       loading = p.firstLoading;
@@ -294,23 +295,19 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                 : AknIllustration.error,
           )
         else
-          for (final (id, title, sub) in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: AknCard(
-                padding: EdgeInsets.zero,
-                onTap: () => widget.onPicked(id, title),
-                semanticLabel: [
-                  title,
-                  if (sub != null && sub.isNotEmpty) sub,
-                ].join(', '),
-                child: AknListTile(
-                  title: title,
-                  subtitle: sub,
-                  leading: AknAvatar(name: title, size: 36),
-                ),
-              ),
+          for (var i = 0; i < rows.length; i++) ...[
+            if (i > 0) const AknLedgerDivider(indent: 0),
+            AknListTile(
+              title: rows[i].$2,
+              subtitle: rows[i].$3,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              semanticLabel: [
+                rows[i].$2,
+                if (rows[i].$3 != null && rows[i].$3!.isNotEmpty) rows[i].$3!,
+              ].join(', '),
+              onTap: () => widget.onPicked(rows[i].$1, rows[i].$2),
             ),
+          ],
       ],
     );
   }
@@ -504,7 +501,7 @@ class _SupplyStep extends ConsumerWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Maliyet girdileri · yalnızca bayi içi',
+                  'Maliyet girdileri (yalnızca bayi içi)',
                   style: t.captionStrong,
                 ),
               ),
@@ -643,7 +640,7 @@ class _PaymentStep extends ConsumerWidget {
                 if (m.isDeferred) 'Vadeli',
                 if (m.requiresFinance) 'Finans onayına düşebilir',
                 ?m.hint,
-              ].join(' · '),
+              ].join(', '),
               tag: m.code == pay.defaultMethodCode ? 'Varsayılan' : null,
               leadingIcon: _methodIcon(m.code),
               selected: d.paymentMethodCode == m.code,
@@ -663,7 +660,7 @@ class _PaymentStep extends ConsumerWidget {
           value: d.paymentTermDays,
           helper: minTerm > 0
               ? '$minTerm–$maxTerm gün'
-              : '0 = peşin · en çok $maxTerm gün',
+              : '0 = peşin, en çok $maxTerm gün',
           error: s.errors['paymentTermDays'],
           onChanged: (v) => ctrl.update(
             (x) => x.copyWith(paymentTermDays: v?.round() ?? 0),
@@ -675,7 +672,7 @@ class _PaymentStep extends ConsumerWidget {
           label: 'Ödeme tarihi',
           value: due == null
               ? 'Sevk tarihi seçilince hesaplanır'
-              : '${Fmt.date(due)} · ${Fmt.weekday(due)}',
+              : '${Fmt.date(due)}, ${Fmt.weekday(due)}',
           icon: Icons.event_rounded,
         ),
         Text('Sevk tarihi + vade', style: t.caption),
@@ -905,12 +902,15 @@ class _LineCard extends ConsumerWidget {
                 height: 28,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: c.brandSoft,
+                  color: c.surfaceAlt,
                   shape: BoxShape.circle,
                 ),
                 child: Text(
                   '${index + 1}',
-                  style: t.label.copyWith(color: c.brandInk),
+                  style: t.label.copyWith(
+                    color: c.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -919,7 +919,7 @@ class _LineCard extends ConsumerWidget {
                   header: true,
                   child: Text(
                     product?.name ?? 'Satır ${index + 1}',
-                    style: t.bodyStrong,
+                    style: t.headline,
                   ),
                 ),
               ),
@@ -951,7 +951,7 @@ class _LineCard extends ConsumerWidget {
                   title: p.name,
                   subtitle: p.suggestedUnitPrice == null
                       ? p.code
-                      : '${Fmt.unitPrice(p.suggestedUnitPrice)}${p.suggestedSourceLabel == null ? '' : ' · ${p.suggestedSourceLabel}'}',
+                      : '${Fmt.unitPrice(p.suggestedUnitPrice)}${p.suggestedSourceLabel == null ? '' : ', ${p.suggestedSourceLabel}'}',
                 ),
             ],
             onSelected: (id) => ctrl.setLineProduct(lineKey, id),
@@ -1039,7 +1039,7 @@ class _LineCard extends ConsumerWidget {
                 ? 'Referans fiyat yok; günün fiyatını yazabilirsiniz.'
                 : stale
                 ? 'Bugünün Tüpraş fiyatı girilmedi (son ${Fmt.date(refDate)}).'
-                : 'Referans ${Fmt.pricePerM3(refTupras)}${refDate == null ? '' : ' · ${Fmt.dayMonth(refDate)}'}',
+                : 'Referans ${Fmt.pricePerM3(refTupras)}${refDate == null ? '' : ', ${Fmt.dayMonth(refDate)}'}',
             onChanged: (v) => upd(
               (l) => l.copyWith(
                 tuprasM3: v,
@@ -1100,7 +1100,7 @@ class _LineCard extends ConsumerWidget {
       if (p.lastUnitPrice != null)
         'Son teklif ${Fmt.unitPrice(p.lastUnitPrice)}',
     ];
-    return parts.join(' · ');
+    return parts.join(', ');
   }
 }
 
@@ -1131,7 +1131,7 @@ class _LineResult extends StatelessWidget {
             label: 'Fatura (KDV dahil)',
             value: line.invoicePerLiter == null
                 ? '—'
-                : '${Fmt.unitPrice(line.invoicePerLiter)} · ${Fmt.pricePerM3(line.unitPriceM3)}',
+                : '${Fmt.unitPrice(line.invoicePerLiter)}, ${Fmt.pricePerM3(line.unitPriceM3)}',
             padding: const EdgeInsets.symmetric(vertical: 3),
           ),
           FactRow(
@@ -1143,7 +1143,7 @@ class _LineResult extends StatelessWidget {
             FactRow(
               label: 'Tüpraş ±',
               value:
-                  '${pct(line.tuprasDiffPercent)} · ${Fmt.pricePerM3(line.tuprasDiffM3)}',
+                  '${pct(line.tuprasDiffPercent)}, ${Fmt.pricePerM3(line.tuprasDiffM3)}',
               padding: const EdgeInsets.symmetric(vertical: 3),
             ),
           if (line.pumpDiscountPercent != null)
@@ -1165,7 +1165,7 @@ class _LineResult extends StatelessWidget {
             FactRow(
               label: 'Satış kârı',
               value:
-                  '${Fmt.percent(line.profitPercent, maxFraction: 2)}${line.netProfit == null ? '' : ' · ${Fmt.money(line.netProfit)}'}',
+                  '${Fmt.percent(line.profitPercent, maxFraction: 2)}${line.netProfit == null ? '' : ', ${Fmt.money(line.netProfit)}'}',
               tone: line.loss ? AknTone.danger : null,
               padding: const EdgeInsets.symmetric(vertical: 3),
             ),
@@ -1193,7 +1193,9 @@ class _SummaryStep extends ConsumerWidget {
     return ListView(
       padding: _pad,
       children: [
-        FieldPreviewPanel(args: args),
+        _SummaryPlate(args: args),
+        const SizedBox(height: 16),
+        FieldPreviewPanel(args: args, showTotals: false),
         const SizedBox(height: 20),
         FieldTextInput(
           label: 'Not',
@@ -1246,12 +1248,86 @@ class _SummaryStep extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Gönderilen form düzenlenemez. Onaylanan fiyat müşteriye teklif olarak gider; müşteri maliyet ve kârı görmez.',
-                style: t.caption,
+                style: t.caption.copyWith(color: c.dim),
               ),
             ),
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Özet adımının plakası (tasarım v2 §7.16): form tutarı (önizleme gelmediyse "tahmini"), kural,
+/// Litre / Satır / Ödeme okumaları.
+class _SummaryPlate extends ConsumerWidget {
+  const _SummaryPlate({required this.args});
+
+  final FormWizardArgs args;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final s = ref.watch(formWizardProvider(args));
+    final p = s.preview;
+    final d = s.draft;
+    final amount =
+        p?.totalAmount ?? (d.estimatedAmount > 0 ? d.estimatedAmount : null);
+    final liters =
+        p?.totalLiters ??
+        d.lines.fold<double>(0, (sum, l) => sum + (l.liters ?? 0));
+    final lines = p?.lineCount ?? d.lines.length;
+    final money = amount == null
+        ? null
+        : Fmt.number(amount, minFraction: 2, maxFraction: 2);
+    final comma = money?.lastIndexOf(',') ?? -1;
+    final whole = money == null
+        ? Fmt.dash
+        : comma < 0
+        ? money
+        : money.substring(0, comma);
+    final decimals = money == null || comma < 0 ? null : money.substring(comma);
+    final due = p?.dueDate;
+    final term = d.paymentTermDays;
+    return AknPlate(
+      semanticLabel: [
+        p == null ? 'Tahmini form tutarı' : 'Form tutarı',
+        amount == null ? 'hesaplanmadı' : Fmt.money(amount),
+        Fmt.liters(liters),
+        '$lines satır',
+        if (due != null) 'ödeme ${Fmt.date(due)}',
+      ].join(', '),
+      head: PlateHead(
+        icon: Icons.request_quote_outlined,
+        title: p == null ? 'Tahmini form tutarı' : 'Form tutarı',
+        period: p == null ? null : 'önizleme',
+      ),
+      figure: PlateFigure(
+        value: whole,
+        decimals: decimals,
+        unit: amount == null ? null : '₺',
+      ),
+      below: FieldPlateReadouts(
+        items: [
+          PlateReadout(
+            label: 'Litre',
+            value: Fmt.number(liters, maxFraction: 3),
+            unit: 'L',
+          ),
+          PlateReadout(label: 'Satır', value: Fmt.integer(lines)),
+          if (due != null)
+            PlateReadout(
+              label: 'Ödeme',
+              value:
+                  '${TrTime.wall(due).day} ${Fmt.monthShort[TrTime.wall(due).month - 1]}',
+            )
+          else
+            PlateReadout(
+              label: 'Vade',
+              value: term == 0 ? 'Peşin' : '$term',
+              unit: term == 0 ? null : 'gün',
+            ),
+        ],
+      ),
     );
   }
 }

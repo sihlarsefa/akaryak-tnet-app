@@ -1,13 +1,17 @@
-// Müşteri ana sayfası (spec A.4 A2): "Sipariş ver", karar bekleyenler (geri sayım), yüklenecek
-// belgeler, yoldaki teslimat, limitler, son şablonlar, ilk sipariş ipucu, çevrimdışı son kayıt ve
-// C.7 erişilebilirlik (360×640, %100 / %200 yazı, açık / koyu).
+// Müşteri ana sayfası (tasarım v2 §7.4): başlık (şirket, kişi ve rol), tek plaka (yönetici destesi ya
+// da bu ayın plakası), karar bekleyen en acil teklif (geri sayım), "Yolda" (rota çizgisi), yüklenecek
+// belgeler, limitler, son şablonlar, ilk sipariş ipucu, çevrimdışı son kayıt ve erişilebilirlik
+// (360×640, %100 / %200 yazı, açık / koyu).
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/customer_home/api.dart';
+import 'package:akaryakitnet/features/customer_home/copy.dart';
+import 'package:akaryakitnet/features/customer_home/presentation/home_sections.dart';
 import 'package:akaryakitnet/features/customer_orders/application/wizard_models.dart';
 import 'package:akaryakitnet/features/customer_orders/application/wizard_store.dart';
+import 'package:akaryakitnet/features/stats/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +19,21 @@ import 'package:flutter_test/flutter_test.dart';
 import '../customer_orders/support/a2_support.dart';
 
 void main() {
+  test('başlık metinleri: kısa bayi adı, kişi ve rol, ay dönemi', () {
+    expect(
+      HomeCopy.quoteTitle('Demir Petrol Akaryakıt Ltd. Şti.'),
+      'Demir Petrol teklifi',
+    );
+    expect(HomeCopy.shortCompany('Kuzey Enerji A.Ş.'), 'Kuzey Enerji');
+    expect(HomeCopy.shortCompany('Ltd. Şti.'), 'Ltd. Şti.');
+    expect(HomeCopy.quoteTitle(null), 'Bayi teklifi');
+    expect(HomeCopy.person('Selin Aydın', 'Yönetici'), 'Selin Aydın, yönetici');
+    expect(HomeCopy.person('Burak Yılmaz', null), 'Burak Yılmaz');
+    expect(monthToDateLabel(DateTime(2026, 10, 21)), '1–21 Ekim');
+    expect(monthToDateLabel(DateTime(2026, 10, 1)), '1 Ekim');
+    expect(compactMoneyParts(1500000), ('1,5', 'mn ₺'));
+  });
+
   late A2Env env;
 
   setUp(() async {
@@ -49,24 +68,27 @@ void main() {
   }
 
   testWidgets(
-    'içerik: selam, KPI, karar bekleyen, belge, teslimat, limit, şablon',
+    'içerik: başlık, ay plakası, karar bekleyen, belge, yolda, limit, şablon',
     (tester) async {
       await open(tester);
-      expect(find.textContaining('Selin'), findsOneWidget);
+      expect(find.text('Selin Aydın, yönetici'), findsOneWidget);
       expect(find.text('Anadolu Lojistik A.Ş.'), findsWidgets);
-      expect(find.text('Karar bekleyen'), findsOneWidget);
-      expect(find.text('Karar bekleyen teklifler'), findsOneWidget);
-      expect(find.byType(CountdownBadge), findsWidgets);
+      // Deste ucu yok (A2 ortamı): ekranın tek plakası bu ayın plakası.
+      expect(find.byType(MonthPlate), findsOneWidget);
+      expect(find.byType(AknPlate), findsOneWidget);
+      expect(find.text('Bu ay harcama'), findsOneWidget);
+      expect(find.textContaining('Karar bekleyen teklifler'), findsOneWidget);
+      expect(find.text('Demir Petrol teklifi'), findsOneWidget);
+      expect(find.byType(CountdownBadge), findsOneWidget);
+      expect(find.textContaining(' · '), findsNothing);
+      await tester.scrollUntilVisible(find.text('Yolda'), 200);
+      expect(find.byType(TruckRoute), findsOneWidget);
+      expect(find.text('Takip et'), findsNothing, reason: 'iki açık sevkiyat');
       await tester.scrollUntilVisible(
-        find.text('Yüklenecek ödeme belgeleri'),
+        find.textContaining('Yüklenecek ödeme belgeleri'),
         200,
       );
       expect(find.text('Çek görseli'), findsWidgets);
-      await tester.scrollUntilVisible(
-        find.text('Yolda (canlı konum değildir)'),
-        200,
-      );
-      expect(find.byType(TruckRoute), findsOneWidget);
       await tester.scrollUntilVisible(find.text('Limitlerim'), 200);
       await tester.scrollUntilVisible(
         find.text('Haftalık motorin – Pendik'),
@@ -77,14 +99,50 @@ void main() {
     },
   );
 
-  testWidgets('"Sipariş ver" sihirbazı açar; şablona dokunmak şablonla açar', (
+  testWidgets('yönetici destesi görünürken ay plakası yok (tek plaka)', (
     tester,
   ) async {
+    registerStatsFakes(env.server);
+    final c = await open(tester);
+    await pumpUntil(tester, find.byType(ManagerStatsDeck));
+    await pumpReal(tester);
+    expect(c.read(canSeeStatsDeckProvider), isTrue);
+    expect(find.byType(ManagerStatsDeck), findsOneWidget);
+    expect(find.byType(MonthPlate), findsNothing);
+    expect(find.textContaining('Karar bekleyen teklifler'), findsOneWidget);
+    await tearDownUi(tester);
+  });
+
+  testWidgets('talep eden: deste ve plaka yok', (tester) async {
+    registerStatsFakes(env.server);
+    await open(tester, persona: 'talep', waitFor: find.textContaining('Burak'));
+    expect(find.text('Burak Yılmaz, talep eden'), findsOneWidget);
+    expect(find.byType(ManagerStatsDeck), findsNothing);
+    expect(find.byType(AknPlate), findsNothing);
+    await tearDownUi(tester);
+  });
+
+  testWidgets('karar satırı siparişi açar', (tester) async {
     await open(tester);
-    await tester.tap(find.widgetWithText(AknButton, 'Sipariş ver'));
+    await tester.scrollUntilVisible(find.text('Demir Petrol teklifi'), 200);
+    await tester.pump();
+    await tester.tap(find.text('Demir Petrol teklifi'));
+    await pumpReal(tester);
+    await pumpReal(tester);
+    expect(find.byType(CustomerHome).hitTestable(), findsNothing);
+    await tearDownUi(tester);
+  });
+
+  testWidgets('şablon satırı sihirbazı şablonla açar', (tester) async {
+    await open(tester);
+    await tester.scrollUntilVisible(
+      find.text('Haftalık motorin – Pendik'),
+      200,
+    );
+    await tester.pump();
+    await tester.tap(find.text('Haftalık motorin – Pendik'));
     await pumpUntil(tester, find.text('Ürün ve litre'));
     expect(find.text('Ürün ve litre'), findsOneWidget);
-    expect(find.text('Bayi'), findsOneWidget, reason: 'iki bağlı bayi: seçici');
     await tearDownUi(tester);
   });
 
@@ -94,6 +152,8 @@ void main() {
       env.world.orders.removeWhere((o) => o['customerId'] == 101);
       await open(tester);
       expect(find.text('İlk siparişinizi verin'), findsOneWidget);
+      await tester.ensureVisible(find.byTooltip('Kapat').first);
+      await tester.pump();
       await tester.tap(find.byTooltip('Kapat').first);
       await pumpReal(tester);
       expect(find.text('İlk siparişinizi verin'), findsNothing);
@@ -117,19 +177,21 @@ void main() {
       await pumpA2(tester, c, initialLocation: '/home');
       await pumpUntil(tester, find.textContaining('Son güncelleme'));
       expect(find.textContaining('Son güncelleme'), findsOneWidget);
-      expect(find.text('Karar bekleyen teklifler'), findsOneWidget);
+      expect(find.textContaining('Karar bekleyen teklifler'), findsOneWidget);
       await tearDownUi(tester);
     },
   );
 
-  testWidgets('asistan: üst çubuk simgesi /assistant açar', (tester) async {
+  testWidgets('asistan: başlıkta yalnızca zil (pano), giriş sayfadaki satır', (
+    tester,
+  ) async {
     await open(
       tester,
       before: (c) => c.read(appConfigProvider.notifier).load(),
     );
-    await tester.tap(find.byTooltip('Asistan'));
-    await pumpUntil(tester, find.text('ROUTE:/assistant'));
-    expect(find.text('ROUTE:/assistant'), findsOneWidget);
+    expect(find.byTooltip('Asistan'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Asistana sorun'), 200);
+    expect(find.text('Asistana sorun'), findsOneWidget);
     await tearDownUi(tester);
   });
 
@@ -183,7 +245,11 @@ void main() {
       );
       await pumpUntil(tester, find.text('Yarım kalan siparişinize devam edin'));
       expect(find.text('Yarım kalan siparişinize devam edin'), findsOneWidget);
-      expect(find.textContaining('1 satır · 5.000 L'), findsOneWidget);
+      expect(find.textContaining('1 satır, 5.000 L'), findsOneWidget);
+      await tester.ensureVisible(
+        find.text('Yarım kalan siparişinize devam edin'),
+      );
+      await tester.pump();
       await tester.tap(find.text('Yarım kalan siparişinize devam edin'));
       await pumpUntil(tester, find.text('Ürün ve litre'));
       await pumpReal(tester);
@@ -214,6 +280,7 @@ void main() {
     expect(find.byType(UsageBar), findsOneWidget);
     expect(find.text('Limitsiz'), findsWidgets);
     expect(find.text('Kalan'), findsOneWidget);
+    expect(find.byType(AknCard), findsNothing, reason: 'ledger satırları');
     await expectA11y(tester);
     await tearDownUi(tester);
   });

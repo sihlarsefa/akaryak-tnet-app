@@ -10,37 +10,60 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/offline/outbox_op.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
+import '../../../core/utils/tr_time.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../../weather/api.dart';
 import '../application/driver_home_state.dart';
 import '../application/driver_lists.dart';
 import '../application/driver_ops.dart';
 import '../application/location.dart';
+import '../application/proximity.dart';
 import '../copy.dart';
 import '../data/driver_models.dart';
 import '../data/driver_outbox.dart';
 import '../driver_paths.dart';
+import 'driver_home.dart' show ContactRow, distanceReadout;
 import 'widgets/delivery_point_card.dart';
 import 'widgets/evidence_grid.dart';
 import 'widgets/location_card.dart';
 import 'widgets/navigation.dart';
 import 'widgets/op_status.dart';
+import 'widgets/stop_dock.dart';
+import 'widgets/stop_plate.dart';
 
-/// Teslimat ayrıntısı (spec A.4 A7): durum başlığı, teslimat noktası (harita iğnesi ya da adres, yol
-/// tarifi, yetkili, giriş notları, tank), hava durumu ve sürüş uyarısı, sipariş bilgileri, teslim
-/// kanıtı. Alt çubukta durumuna göre "Kaydırarak yola çıkın", "Teslim et", "Teslimatı düzelt" ya da
-/// bekleyen işlemin sonucu.
-class ShipmentDetailPage extends ConsumerStatefulWidget {
+/// Teslimat ayrıntısı (tasarım v2 §5.2 ve §7.11; spec A.4 A7). Sürücü kipinde: müşteri ve adres,
+/// durum lambası; **tek plaka** (açık teslimatta bu durağın litresi + plan / uzaklık / teslim saati,
+/// teslim edilende teslim edilen litre + planlanan / fark / saat); kapı notu ve teslim alacak kişi;
+/// teslimat noktası, hava durumu, sipariş bilgileri ve teslim kanıtı bölümleri.
+///
+/// Alt raf durumuna göre: planlıysa "Yola çıkmak için kaydırın" (konum satırıyla); yoldaysa
+/// "Yol tarifi" + "Teslim et" (birincil olan tırı izler); itirazlıysa "Teslimatı düzelt"; bekleyen
+/// işlem varsa sonucu (gönderiliyor / telefona kaydedildi / gönderildi / reddedildi).
+class ShipmentDetailPage extends StatelessWidget {
   const ShipmentDetailPage({super.key, required this.id});
 
   final int id;
 
   @override
-  ConsumerState<ShipmentDetailPage> createState() => _ShipmentDetailPageState();
+  Widget build(BuildContext context) =>
+      AknDriverScope(child: _ShipmentDetailView(id: id));
 }
 
-class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
-  late final LocationCapture _location;
-  bool _primed = false;
+class _ShipmentDetailView extends ConsumerStatefulWidget {
+  const _ShipmentDetailView({required this.id});
+
+  final int id;
+
+  @override
+  ConsumerState<_ShipmentDetailView> createState() =>
+      _ShipmentDetailPageState();
+}
+
+class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
+  late final ProximityWatch _proximity;
+  late final AppLifecycleListener _lifecycle;
+
+  LocationCapture get _location => _proximity.capture;
 
   /// Az önce kuyruğa yazılan yola çıkış (sağlayıcı güncellenene kadar gösterilir).
   OutboxOp? _justQueued;
@@ -49,22 +72,19 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
   @override
   void initState() {
     super.initState();
-    _location = LocationCapture(ref.read(driverLocationServiceProvider));
+    _proximity = ProximityWatch(ref.read(driverLocationServiceProvider));
+    _lifecycle = AppLifecycleListener(onResume: _proximity.resume);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _proximity.start();
+    });
   }
 
   @override
   void dispose() {
     _settle?.cancel();
-    _location.dispose();
+    _lifecycle.dispose();
+    _proximity.dispose();
     super.dispose();
-  }
-
-  void _primeLocation(DriverShipmentDetail d) {
-    if (_primed || !d.row.isPlanned) return;
-    _primed = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_location.prime());
-    });
   }
 
   Future<void> _start(DriverShipmentDetail d) async {
@@ -75,7 +95,7 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
           .start(shipmentId: d.id, code: d.code, position: position);
       if (!mounted) return;
       setState(() => _justQueued = op);
-      // Başarı animasyonu bittikten sonra alt çubuk "Teslim et"e geçsin.
+      // Başarı animasyonu bittikten sonra alt raf "Teslim et"e geçsin.
       _settle?.cancel();
       _settle = Timer(const Duration(seconds: 5), () {
         if (mounted) setState(() => _justQueued = null);
@@ -119,83 +139,174 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
       return _skeleton();
     }
     final d = state.detail;
-    _primeLocation(d);
     final ops = ref.watchDriverOps()[d.id];
     final draft = ref.watch(driverDraftsProvider)[d.id];
     final weatherOn = ref.watch(
       appConfigProvider.select((c) => c.features.weather),
     );
+    final online = ref.watchOnline();
     final controller = ref.read(driverShipmentProvider(widget.id).notifier);
+    final row = d.row;
+    final open = row.isPlanned || row.isInTransit;
+    final dockHasNavigate = row.isInTransit || (ops?.startWaiting ?? false);
 
     return AppScaffold(
       title: d.code,
-      subtitle: d.row.customerTitle,
       refreshing: state.refreshing,
-      actions: [
-        if (d.contactPhone != null)
-          AknIconButton(
-            icon: Icons.call_rounded,
-            semanticLabel:
-                '${d.contactName ?? DriverCopy.contact} kişisini ara',
-            onPressed: () => callPhone(context, d.contactPhone),
-          ),
-      ],
+      showBell: false,
       body: PullToRefresh(
         onRefresh: controller.refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.only(bottom: 32),
           children: [
-            if (state.refreshError != null || state.cachedAt != null)
+            if (state.refreshError != null || state.cachedAt != null || !online)
               _StaleNote(
                 at: state.cachedAt,
-                offline: state.refreshError is OfflineFailure,
+                offline: !online || state.refreshError is OfflineFailure,
               ),
-            _StatusHero(detail: d, ops: ops),
-            if (d.row.isDisputed) ...[
-              const SizedBox(height: 12),
-              AknBanner(
-                tone: AknTone.danger,
-                icon: Icons.report_rounded,
-                title: DriverCopy.disputedTitle,
-                message: d.row.disputeNote ?? DriverCopy.disputedFallback,
+            _Head(detail: d, ops: ops),
+            if (row.isDisputed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: AknBanner(
+                  tone: AknTone.danger,
+                  icon: Icons.report_outlined,
+                  title: DriverCopy.disputedTitle,
+                  message: row.disputeNote ?? DriverCopy.disputedFallback,
+                ),
               ),
-            ],
-            const SectionHeader(
-              title: DriverCopy.deliveryPoint,
-              padding: EdgeInsets.fromLTRB(0, 24, 0, 8),
+            ListenableBuilder(
+              listenable: _proximity,
+              builder: (context, _) => _plate(d),
             ),
-            DeliveryPointCard(detail: d),
-            if (weatherOn && d.hasCoordinates && d.row.isOpen) ...[
-              const SizedBox(height: 12),
-              DrivingAlertBanner(
-                lat: d.latitude!,
-                lng: d.longitude!,
-                at: d.row.scheduledAt,
+            if (open && d.accessNotes != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: _DoorNote(text: d.accessNotes!),
               ),
-              WeatherCard(lat: d.latitude!, lng: d.longitude!),
-            ],
-            const SectionHeader(
-              title: DriverCopy.order,
-              padding: EdgeInsets.fromLTRB(0, 24, 0, 8),
-            ),
+            if (open && (d.contactName != null || d.contactPhone != null))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: ContactRow(
+                  name: d.contactName,
+                  phone: d.contactPhone,
+                  role: DriverCopy.recipientRole,
+                ),
+              ),
+            if (weatherOn && d.hasCoordinates && row.isOpen)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DrivingAlertBanner(
+                      lat: d.latitude!,
+                      lng: d.longitude!,
+                      at: row.scheduledAt,
+                    ),
+                    WeatherCard(lat: d.latitude!, lng: d.longitude!),
+                  ],
+                ),
+              ),
+            const SectionHeader(title: DriverCopy.deliveryPoint),
+            DeliveryPointCard(detail: d, showNavigate: !dockHasNavigate),
+            if (!open && (d.contactName != null || d.contactPhone != null))
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: ContactRow(
+                  name: d.contactName,
+                  phone: d.contactPhone,
+                  role: DriverCopy.contactRole,
+                ),
+              ),
+            const SectionHeader(title: DriverCopy.order),
             _OrderFacts(detail: d),
-            if (d.row.deliveredLiters != null || d.attachments.isNotEmpty) ...[
-              const SectionHeader(
-                title: DriverCopy.proofTitle,
-                padding: EdgeInsets.fromLTRB(0, 24, 0, 8),
-              ),
-              _ProofCard(detail: d),
+            if (row.deliveredLiters != null || d.attachments.isNotEmpty) ...[
+              const SectionHeader(title: DriverCopy.proofTitle),
+              _Proof(detail: d),
             ],
           ],
         ),
       ),
-      actionBar: _barOf(_actionBar(d, ops, draft != null)),
+      actionBar: _barOf(
+        ListenableBuilder(
+          listenable: _proximity,
+          builder: (context, _) =>
+              _actionBar(d, ops, draft != null) ?? const SizedBox.shrink(),
+        ),
+        visible: _actionBar(d, ops, draft != null) != null,
+      ),
     );
   }
 
-  /// Alt çubuk içeriği yüksekliğini çocuğundan alır (genişleyen düğmeler çubuğu büyütmesin).
-  static Widget? _barOf(Widget? child) => child == null
+  /// Ekranın tek plakası: açıkta bu durağın litresi, teslim edilende teslim edilen litre.
+  Widget _plate(DriverShipmentDetail d) {
+    final row = d.row;
+    final now = TrTime.now();
+    final delivered = row.deliveredLiters;
+    final margin = const EdgeInsets.fromLTRB(20, 16, 20, 0);
+    if (delivered != null && !row.isPlanned && !row.isInTransit) {
+      final diff = d.differenceLiters ?? 0;
+      return DriverStopPlate(
+        product: row.productName,
+        title: DriverCopy.plateDelivered,
+        figure: Fmt.number(delivered, maxFraction: 3),
+        margin: margin,
+        readouts: [
+          StopReadout(
+            label: DriverCopy.readoutPlanned,
+            value: Fmt.number(row.plannedLiters, maxFraction: 3),
+            unit: 'L',
+          ),
+          StopReadout(
+            label: DriverCopy.readoutDiff,
+            value: diff.abs() < 0.001
+                ? '0'
+                : '${diff < 0 ? '−' : '+'}${Fmt.number(diff.abs(), maxFraction: 3)}',
+            unit: 'L',
+          ),
+          if (d.deliveredAt != null)
+            StopReadout(
+              label: DriverCopy.readoutTime,
+              value: Fmt.time(d.deliveredAt),
+            ),
+        ],
+      );
+    }
+    final at = row.scheduledAt;
+    final day = Fmt.dayLabel(at, now: now);
+    final dist = row.isOpen
+        ? _proximity.distanceTo(d.latitude, d.longitude)
+        : null;
+    return DriverStopPlate(
+      product: row.productName,
+      figure: Fmt.number(row.plannedLiters, maxFraction: 3),
+      margin: margin,
+      readouts: [
+        if (at != null)
+          StopReadout(
+            label: day == 'Bugün'
+                ? DriverCopy.readoutPlan
+                : DriverCopy.readoutPlanOn(TurkishText.lower(day)),
+            value: Fmt.time(at),
+          ),
+        if (dist != null)
+          distanceReadout(dist)
+        else if (d.tankCapacityLiters != null)
+          StopReadout(
+            label: DriverCopy.readoutTank,
+            value: Fmt.number(d.tankCapacityLiters),
+            unit: 'L',
+          ),
+        if (row.windowLabel != null)
+          StopReadout(label: DriverCopy.readoutWindow, value: row.windowLabel!),
+      ],
+    );
+  }
+
+  /// Alt raf içeriği yüksekliğini çocuğundan alır (genişleyen düğmeler rafı büyütmesin).
+  static Widget? _barOf(Widget child, {required bool visible}) => !visible
       ? null
       : Column(
           mainAxisSize: MainAxisSize.min,
@@ -238,16 +349,24 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
             (startOp.id == justQueued?.id) ||
             isFreshlyDone(startOp));
 
-    final deliverButton = AknButton(
-      label: hasDraft
+    Widget deliverDock() => DriverStopDock(
+      onNavigate: () => unawaited(
+        openNavigation(
+          context,
+          lat: d.latitude,
+          lng: d.longitude,
+          address: d.fullAddress,
+        ),
+      ),
+      actionLabel: hasDraft
           ? DriverCopy.actionResume
-          : d.row.isDisputed
-          ? DriverCopy.actionFix
           : DriverCopy.actionDeliver,
-      icon: d.row.isDisputed ? Icons.edit_note_rounded : Icons.task_alt_rounded,
-      expand: true,
-      size: AknButtonSize.large,
-      onPressed: () => unawaited(_openDeliver(d)),
+      actionIcon: Icons.task_alt_rounded,
+      actionSemanticLabel: hasDraft
+          ? '${DriverCopy.actionDeliver}: ${DriverCopy.resumeDraft}'
+          : null,
+      actionIsPrimary: _proximity.deliverIsPrimary(d.latitude, d.longitude),
+      onAction: () => unawaited(_openDeliver(d)),
     );
 
     if (showStartOutcome) {
@@ -257,7 +376,7 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OpOutcomePanel(op: startOp, compact: true),
-          if (canDeliverNow) ...[const SizedBox(height: 10), deliverButton],
+          if (canDeliverNow) ...[const SizedBox(height: 10), deliverDock()],
         ],
       );
     }
@@ -272,27 +391,40 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
             label: DriverCopy.slideStart,
             doneLabel: DriverCopy.slideStartDone,
             semanticHint: 'Yola çıkmak için iki kez dokunun',
+            confirmLabel: DriverCopy.confirmStart,
             onConfirmed: () => _start(d),
           ),
         ],
       );
     }
-    if (d.actions.canDeliver) return deliverButton;
+    if (d.actions.canDeliver && d.row.isDisputed) {
+      return AknButton(
+        label: hasDraft ? DriverCopy.actionResume : DriverCopy.actionFix,
+        icon: Icons.edit_note_rounded,
+        expand: true,
+        onPressed: () => unawaited(_openDeliver(d)),
+      );
+    }
+    if (d.actions.canDeliver) return deliverDock();
     if (d.row.status == ShipmentStatus.reported ||
         d.row.status == ShipmentStatus.accepted) {
-      return Row(
-        children: [
-          Icon(Icons.verified_outlined, color: context.akn.dim, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              d.row.status == ShipmentStatus.reported
-                  ? 'Teslimat bildirildi; müşteri onayı bekleniyor.'
-                  : 'Teslimat müşteri tarafından onaylandı.',
-              style: context.aknText.bodySmall,
+      final c = context.akn;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.verified_outlined, color: c.ok.fg, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                d.row.status == ShipmentStatus.reported
+                    ? 'Teslimat bildirildi; müşteri onayı bekleniyor.'
+                    : 'Teslimat müşteri tarafından onaylandı.',
+                style: context.aknText.bodySmall.copyWith(color: c.ink),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
     return null;
@@ -310,14 +442,24 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
 
   Widget _skeleton() => const AppScaffold(
     title: DriverCopy.title,
+    showBell: false,
     body: Shimmer(
-      child: Column(
-        children: [
-          SizedBox(height: 12),
-          SkeletonCard(lines: 4),
-          SkeletonCard(lines: 3),
-          SkeletonCard(lines: 3),
-        ],
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SkeletonLine(widthFactor: 0.7, height: 24),
+            SizedBox(height: 8),
+            SkeletonLine(widthFactor: 0.9, height: 16),
+            SizedBox(height: 16),
+            SkeletonBox(height: 214, radius: 20),
+            SizedBox(height: 16),
+            SkeletonLine(widthFactor: 0.8, height: 16),
+            SizedBox(height: 8),
+            SkeletonLine(widthFactor: 0.6, height: 16),
+          ],
+        ),
       ),
     ),
   );
@@ -344,6 +486,7 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
     };
     return AppScaffold(
       title: DriverCopy.title,
+      showBell: false,
       body: Center(child: SingleChildScrollView(child: body)),
     );
   }
@@ -360,23 +503,32 @@ class _StaleNote extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     if (at == null && !offline) return const SizedBox.shrink();
+    final text = offline
+        ? at == null
+              ? DriverCopy.offlineLine
+              : '${DriverCopy.offlineLine} ${DriverCopy.lastUpdated} ${Fmt.time(at)}.'
+        : '${DriverCopy.lastUpdated} ${Fmt.time(at)}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            offline ? Icons.cloud_off_rounded : Icons.history_rounded,
-            size: 16,
-            color: c.dim,
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              offline ? Icons.cloud_off_outlined : Icons.history_rounded,
+              size: 20,
+              color: c.dim,
+            ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              [
-                if (at != null) '${DriverCopy.lastUpdated} ${Fmt.time(at)}',
-                if (offline) 'Çevrimdışı',
-              ].join(' · '),
-              style: t.caption,
+              text,
+              style: t.label.copyWith(
+                color: c.dim,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -385,136 +537,124 @@ class _StaleNote extends StatelessWidget {
   }
 }
 
-/// Lacivert durum başlığı: kod, durum, müşteri, nokta, litre, plan zamanı, plaka; yoldaysa çıkış saati.
-class _StatusHero extends StatelessWidget {
-  const _StatusHero({required this.detail, this.ops});
+/// Başlık: müşteri (24/30), adres, durum lambası ve (varsa) işlem lambası; yoldaysa çıkış saati.
+class _Head extends StatelessWidget {
+  const _Head({required this.detail, this.ops});
 
   final DriverShipmentDetail detail;
   final DriverShipmentOps? ops;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
     final row = detail.row;
     final op = ops?.primary;
     final style = row.status.statusStyle.withLabel(row.statusLabelFromServer);
-    return AknHeroPanel(
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          final c = context.akn;
-          final at = row.scheduledAt;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final place = [
+      ?row.deliveryPointName,
+      ?(row.district ?? row.city),
+    ].join(', ');
+    final dispatched = detail.dispatchedAt;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Durak adı 24/30; büyük yazıda en çok 1,6× (başlıklar gibi).
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.6,
+            child: Semantics(
+              header: true,
+              child: Text(
+                row.customerTitle ?? row.code,
+                style: AknDriverMode.stopName(
+                  t,
+                ).copyWith(color: c.ink, letterSpacing: -0.4),
+              ),
+            ),
+          ),
+          if (place.isNotEmpty)
+            Text(place, style: t.body.copyWith(color: c.ink)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(row.code, style: t.label.copyWith(color: c.dim)),
-                  StatusChip.style(style, size: StatusChipSize.small),
-                  if (op != null) OpStatusChip(op: op),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Semantics(
-                header: true,
-                child: Text(row.customerTitle ?? row.code, style: t.title),
-              ),
-              if (row.deliveryPointName != null || row.placeLine != null) ...[
-                const SizedBox(height: 2),
+              AknLamp.style(style),
+              if (row.isInTransit && dispatched != null)
                 Text(
-                  [?row.deliveryPointName, ?row.placeLine].join(' · '),
-                  style: t.body.copyWith(color: c.dim),
+                  DriverCopy.dispatchedMeta(Fmt.time(dispatched)),
+                  style: t.bodySmall.copyWith(color: c.dim),
                 ),
-              ],
-              const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          row.deliveredLiters != null
-                              ? DriverCopy.delivered
-                              : DriverCopy.planned,
-                          style: t.caption,
-                        ),
-                        AmountText(
-                          Fmt.liters(row.deliveredLiters ?? row.plannedLiters),
-                          large: true,
-                        ),
-                        if (row.productName != null)
-                          Text(row.productName!, style: t.bodySmall),
-                      ],
-                    ),
-                  ),
-                  if (row.vehiclePlate != null)
-                    Flexible(
-                      child: Align(
-                        alignment: AlignmentDirectional.bottomEnd,
-                        child: PlateBadge(
-                          plate: row.vehiclePlate!,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 16,
-                runSpacing: 6,
-                children: [
-                  _HeroFact(
-                    icon: Icons.event_rounded,
-                    text: '${Fmt.dayLabel(at)} ${Fmt.time(at)}',
-                  ),
-                  if (row.windowLabel != null)
-                    _HeroFact(
-                      icon: Icons.schedule_rounded,
-                      text: row.windowLabel!,
-                    ),
-                  if (detail.dispatchedAt != null)
-                    _HeroFact(
-                      icon: Icons.local_shipping_rounded,
-                      text: DriverCopy.enRouteSince(
-                        Fmt.time(detail.dispatchedAt),
-                      ),
-                    ),
-                ],
-              ),
+              if (row.isOverdue(TrTime.now()))
+                const AknLamp(label: DriverCopy.overdue, tone: AknTone.danger),
+              if (op != null) OpStatusChip(op: op),
             ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 }
 
-class _HeroFact extends StatelessWidget {
-  const _HeroFact({required this.icon, required this.text});
+class _DoorNote extends StatelessWidget {
+  const _DoorNote({required this.text});
 
-  final IconData icon;
   final String text;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final t = context.aknText;
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: c.dim),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text,
-            style: context.aknText.bodySmall.copyWith(color: c.text),
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Icon(Icons.door_front_door_outlined, size: 22, color: c.ink),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(
+                  text: '${DriverCopy.doorNote} ',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                TextSpan(text: text),
+              ],
+            ),
+            style: t.body.copyWith(color: c.ink),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Olgu satırları (bölüm, kutu yok): etiket solda soluk, değer sağda; aralarında ince çizgi.
+class _Facts extends StatelessWidget {
+  const _Facts({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+            children[i],
+          ],
+        ],
+      ),
     );
   }
 }
@@ -527,39 +667,33 @@ class _OrderFacts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final row = detail.row;
-    return AknCard(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Column(
-        children: [
-          FactRow(label: DriverCopy.order, value: row.orderNumber),
-          if (row.productName != null)
-            FactRow(label: DriverCopy.product, value: row.productName!),
+    return _Facts(
+      children: [
+        FactRow(label: DriverCopy.order, value: row.orderNumber),
+        if (row.productName != null)
+          FactRow(label: DriverCopy.product, value: row.productName!),
+        FactRow(
+          label: DriverCopy.planned,
+          value: Fmt.liters(row.plannedLiters),
+        ),
+        FactRow(
+          label: DriverCopy.scheduled,
+          value: Fmt.dateTime(row.scheduledAt),
+        ),
+        if (row.vehiclePlate != null)
+          FactRow(label: DriverCopy.plate, value: Fmt.plate(row.vehiclePlate)),
+        if (detail.dispatchedAt != null)
           FactRow(
-            label: DriverCopy.planned,
-            value: Fmt.liters(row.plannedLiters),
+            label: DriverCopy.dispatchedAt,
+            value: Fmt.dateTime(detail.dispatchedAt),
           ),
-          FactRow(
-            label: DriverCopy.scheduled,
-            value: Fmt.dateTime(row.scheduledAt),
-          ),
-          if (row.vehiclePlate != null)
-            FactRow(
-              label: DriverCopy.plate,
-              value: Fmt.plate(row.vehiclePlate),
-            ),
-          if (detail.dispatchedAt != null)
-            FactRow(
-              label: DriverCopy.dispatchedAt,
-              value: Fmt.dateTime(detail.dispatchedAt),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }
 
-class _ProofCard extends StatelessWidget {
-  const _ProofCard({required this.detail});
+class _Proof extends StatelessWidget {
+  const _Proof({required this.detail});
 
   final DriverShipmentDetail detail;
 
@@ -567,51 +701,57 @@ class _ProofCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final row = detail.row;
     final diff = detail.differenceLiters;
-    return AknCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (row.deliveredLiters != null)
-            FactRow(
-              label: DriverCopy.delivered,
-              value: Fmt.liters(row.deliveredLiters),
-            ),
-          if (diff != null && diff.abs() >= 0.001)
-            FactRow(
-              label: DriverCopy.difference,
-              value: DriverCopy.differenceLine(
-                Fmt.liters(diff.abs()),
-                Fmt.liters(row.plannedLiters),
-                less: diff < 0,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Facts(
+          children: [
+            if (row.deliveredLiters != null)
+              FactRow(
+                label: DriverCopy.delivered,
+                value: Fmt.liters(row.deliveredLiters),
               ),
-              tone: AknTone.warn,
-            ),
-          if (detail.deliveryDocumentNo != null)
-            FactRow(
-              label: DriverCopy.documentNo,
-              value: detail.deliveryDocumentNo!,
-            ),
-          if (detail.recipientName != null)
-            FactRow(label: DriverCopy.recipient, value: detail.recipientName!),
-          if (detail.deliveredAt != null)
-            FactRow(
-              label: DriverCopy.deliveredAt,
-              value: Fmt.dateTime(detail.deliveredAt),
-            ),
-          if (detail.signatureWaiverLabel != null)
-            FactRow(
-              label: DriverCopy.signatureWaived,
-              value: detail.signatureWaiverLabel!,
-              tone: AknTone.warn,
-            ),
-          if (detail.deliveryNote != null)
-            FactRow(label: DriverCopy.note, value: detail.deliveryNote!),
-          if (detail.attachments.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            EvidenceGrid(attachments: detail.attachments),
+            if (diff != null && diff.abs() >= 0.001)
+              FactRow(
+                label: DriverCopy.difference,
+                value: DriverCopy.differenceLine(
+                  Fmt.liters(diff.abs()),
+                  Fmt.liters(row.plannedLiters),
+                  less: diff < 0,
+                ),
+                tone: AknTone.warn,
+              ),
+            if (detail.deliveryDocumentNo != null)
+              FactRow(
+                label: DriverCopy.documentNo,
+                value: detail.deliveryDocumentNo!,
+              ),
+            if (detail.recipientName != null)
+              FactRow(
+                label: DriverCopy.recipient,
+                value: detail.recipientName!,
+              ),
+            if (detail.deliveredAt != null)
+              FactRow(
+                label: DriverCopy.deliveredAt,
+                value: Fmt.dateTime(detail.deliveredAt),
+              ),
+            if (detail.signatureWaiverLabel != null)
+              FactRow(
+                label: DriverCopy.signatureWaived,
+                value: detail.signatureWaiverLabel!,
+                tone: AknTone.warn,
+              ),
+            if (detail.deliveryNote != null)
+              FactRow(label: DriverCopy.note, value: detail.deliveryNote!),
           ],
-        ],
-      ),
+        ),
+        if (detail.attachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: EvidenceGrid(attachments: detail.attachments),
+          ),
+      ],
     );
   }
 }

@@ -65,7 +65,7 @@ Future<bool> showPlanSheet(BuildContext context, PlanTarget target) async {
   final r = await showAppSheet<bool>(
     context: context,
     title: 'Sevkiyat planla',
-    subtitle: [target.orderNumber, ?target.customerTitle].join(' · '),
+    subtitle: [?target.customerTitle, target.orderNumber].join(', '),
     builder: (_) => _PlanSheet(target: target),
   );
   return r ?? false;
@@ -133,6 +133,11 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
         );
       });
     }
+  }
+
+  void _setTime(int hour, int minute) {
+    final w = TrTime.wall(_at);
+    setState(() => _at = TrTime.fromWall(w.year, w.month, w.day, hour, minute));
   }
 
   void _setDay(DateTime day) {
@@ -241,37 +246,7 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          AknCard(
-            color: c.surfaceAlt,
-            shadow: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  [
-                    ?_t.productName,
-                    'Kalan ${Fmt.liters(_t.remainingLiters)}',
-                  ].join(' · '),
-                  style: t.bodyStrong,
-                ),
-                if (_t.deliveryPointName != null) ...[
-                  const SizedBox(height: 2),
-                  Text(_t.deliveryPointName!, style: t.bodySmall),
-                ],
-                if (windowLabel != null || _t.tankCapacityLiters != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    [
-                      if (windowLabel != null) 'Teslim penceresi $windowLabel',
-                      if (_t.tankCapacityLiters != null)
-                        'Tank ${Fmt.liters(_t.tankCapacityLiters)}',
-                    ].join(' · '),
-                    style: t.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ),
+          _PlanSummary(target: _t, windowLabel: windowLabel),
           const SizedBox(height: 16),
           LitersField(
             label: 'Planlanan litre',
@@ -289,18 +264,25 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
           const SizedBox(height: 12),
           PlateField(controller: _plate, label: 'Araç plakası'),
           if (suggestions != null && suggestions.plates.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text('Son kullanılanlar', style: t.caption),
-            const SizedBox(height: 2),
+            const SizedBox(height: 6),
+            Text(
+              'Son kullanılanlar',
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w400,
+                color: c.dim,
+              ),
+            ),
             Wrap(
               spacing: 8,
               children: [
                 for (final s in suggestions.plates.take(6))
-                  ActionChip(
-                    avatar: const Icon(Icons.local_shipping_outlined, size: 16),
-                    label: Text(Fmt.plate(s.value)),
-                    tooltip: s.pair == null ? null : 'Son şoför: ${s.pair}',
-                    onPressed: () => _applyPlate(s),
+                  AknChip(
+                    label: Fmt.plate(s.value),
+                    semanticLabel: s.pair == null
+                        ? 'Plaka ${Fmt.plate(s.value)}'
+                        : 'Plaka ${Fmt.plate(s.value)}, son şoför ${s.pair}',
+                    selected: Fmt.plate(_plate.text) == Fmt.plate(s.value),
+                    onTap: () => _applyPlate(s),
                   ),
               ],
             ),
@@ -319,20 +301,8 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
             lastDate: TrTime.addDays(today, 90),
             onChanged: _setDay,
           ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Semantics(
-              button: true,
-              label: 'Plan saati ${Fmt.time(_at)}, değiştir',
-              excludeSemantics: true,
-              child: OutlinedButton.icon(
-                onPressed: _pickTime,
-                icon: const Icon(Icons.schedule_rounded, size: 18),
-                label: Text('Saat ${Fmt.time(_at)}'),
-              ),
-            ),
-          ),
+          const SizedBox(height: 14),
+          _TimeChips(at: _at, onPick: _pickTime, onSet: _setTime),
           if (_windowWarning != null) ...[
             const SizedBox(height: 8),
             AknBanner(tone: AknTone.warn, message: _windowWarning!),
@@ -349,14 +319,13 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
             const SizedBox(height: 12),
             const AknBanner(
               tone: AknTone.neutral,
-              icon: Icons.cloud_off_rounded,
+              icon: Icons.cloud_off_outlined,
               message: 'Çevrimdışıyken sevkiyat planlanamaz.',
             ),
           ],
           const SizedBox(height: 20),
           AknButton(
             label: 'Sevkiyatı planla',
-            icon: Icons.event_available_rounded,
             expand: true,
             loading: _busy,
             loadingLabel: 'Planlanıyor',
@@ -385,39 +354,153 @@ class _DriverField extends StatelessWidget {
       button: true,
       label: ch == null ? 'Şoför seçin' : 'Şoför: ${ch.displayName}, değiştir',
       excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AknRadius.input,
-        child: InputDecorator(
-          isEmpty: ch == null,
-          decoration: InputDecoration(
-            labelText: 'Şoför *',
-            errorText: error,
-            suffixIcon: const Icon(Icons.expand_more_rounded),
-          ),
-          child: ch == null
-              ? const SizedBox(height: 20)
-              : Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      ch.displayName,
-                      style: t.body.copyWith(fontSize: 16, color: c.ink),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AknFieldLabel(text: 'Şoför *'),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: onTap,
+            borderRadius: AknRadius.input,
+            child: InputDecorator(
+              isEmpty: ch == null,
+              decoration: AknTextField.decoration(
+                context,
+                hint: 'Seçmek için dokunun',
+                errorText: error,
+                suffixIcon: const Icon(Icons.expand_more_rounded),
+              ),
+              child: ch == null
+                  ? const SizedBox(height: 22)
+                  : Wrap(
+                      spacing: 10,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          ch.displayName,
+                          style: t.body.copyWith(
+                            fontSize: 16,
+                            height: 22 / 16,
+                            color: c.ink,
+                          ),
+                        ),
+                        if (account?.hasActiveDevice ?? false)
+                          const AknLamp(
+                            label: 'uygulamada',
+                            tone: AknTone.ok,
+                            size: AknLampSize.small,
+                          ),
+                        if (!ch.isAccount)
+                          const AknLamp(
+                            label: 'Hesapsız',
+                            tone: AknTone.neutral,
+                            size: AknLampSize.small,
+                          ),
+                      ],
                     ),
-                    if (account?.hasActiveDevice ?? false) const InAppBadge(),
-                    if (!ch.isAccount)
-                      const StatusChip(
-                        label: 'Hesapsız',
-                        tone: AknTone.neutral,
-                        icon: Icons.person_off_outlined,
-                        size: StatusChipSize.small,
-                      ),
-                  ],
-                ),
-        ),
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+/// Planlanacak siparişin özeti: ADR levhası, ürün ve kalan litre; nokta, teslim penceresi, tank.
+class _PlanSummary extends StatelessWidget {
+  const _PlanSummary({required this.target, this.windowLabel});
+
+  final PlanTarget target;
+  final String? windowLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    final adr = AdrPlate.forProduct(target.productName, height: 30);
+    final meta = [
+      ?target.deliveryPointName,
+      if (windowLabel != null) 'pencere $windowLabel',
+      if (target.tankCapacityLiters != null)
+        'tank ${Fmt.liters(target.tankCapacityLiters)}',
+    ].join(', ');
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (adr != null) ...[adr, const SizedBox(width: 12)],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                keepUnits(
+                  [
+                    ?target.productName,
+                    'kalan ${Fmt.liters(target.remainingLiters)}',
+                  ].join(', '),
+                ),
+                style: t.bodyStrong.copyWith(color: c.ink),
+              ),
+              if (meta.isNotEmpty)
+                Text(
+                  keepUnits(meta),
+                  style: t.bodySmall.copyWith(color: c.dim),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Plan saati: sık kullanılan saatler çip olarak ("08:00", "10:00", "13:00", "15:00") ve "Başka saat"
+/// (saat seçici); seçili saat mürekkep dolgulu.
+class _TimeChips extends StatelessWidget {
+  const _TimeChips({
+    required this.at,
+    required this.onPick,
+    required this.onSet,
+  });
+
+  final DateTime at;
+  final VoidCallback onPick;
+  final void Function(int hour, int minute) onSet;
+
+  static const _presets = [(8, 0), (10, 0), (13, 0), (15, 0)];
+
+  @override
+  Widget build(BuildContext context) {
+    final w = TrTime.wall(at);
+    String two(int v) => v.toString().padLeft(2, '0');
+    final preset = _presets.any((p) => p.$1 == w.hour && p.$2 == w.minute);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const AknFieldLabel(text: 'Plan saati'),
+        Wrap(
+          spacing: 8,
+          children: [
+            for (final (h, m) in _presets)
+              AknChip(
+                label: '${two(h)}:${two(m)}',
+                semanticLabel: 'Plan saati ${two(h)}:${two(m)}',
+                selected: w.hour == h && w.minute == m,
+                onTap: () => onSet(h, m),
+              ),
+            AknChip(
+              label: preset ? 'Başka saat' : 'Saat ${Fmt.time(at)}',
+              icon: Icons.schedule_rounded,
+              semanticLabel: 'Plan saati ${Fmt.time(at)}, değiştir',
+              selected: !preset,
+              onTap: onPick,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

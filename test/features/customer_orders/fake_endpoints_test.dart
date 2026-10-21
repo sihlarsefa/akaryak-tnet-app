@@ -200,7 +200,7 @@ void main() {
         expect(o.unitPrices[1], 42.10);
         final kart = o.options.method('KART')!;
         expect(kart.hasInstallments, isTrue);
-        expect(kart.termLabel, 'Peşin · taksit seçenekli');
+        expect(kart.termLabel, 'Peşin, taksit seçenekli');
         final other = await repo.paymentOptions(stationId: 2, productIds: [1]);
         expect(other.unitPrices[1], closeTo(42.45, 0.0001));
         expect(other.options.method('CEK'), isNull);

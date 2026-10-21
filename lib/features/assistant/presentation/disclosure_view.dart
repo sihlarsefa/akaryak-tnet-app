@@ -33,7 +33,7 @@ class DisclosureView extends ConsumerWidget {
       if (d.provider != null)
         d.providerCountry == null
             ? d.provider!
-            : '${d.provider} · ${d.providerCountry}',
+            : '${d.provider}, ${d.providerCountry}',
       if (d.retentionDays != null) AssistantCopy.retention(d.retentionDays!),
       AssistantCopy.optional,
     ];
@@ -41,37 +41,68 @@ class DisclosureView extends ConsumerWidget {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            padding: const EdgeInsets.fromLTRB(
+              AknSpace.page,
+              20,
+              AknSpace.page,
+              24,
+            ),
             children: [
-              const Center(child: AssistantAvatar(size: 56)),
-              const SizedBox(height: 16),
+              const Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: AssistantAvatar(size: 40),
+              ),
+              const SizedBox(height: 20),
               Semantics(
                 header: true,
                 child: Text(
                   d.title,
-                  style: t.title,
-                  textAlign: TextAlign.center,
+                  style: t.display.copyWith(color: c.ink),
+                  textScaler: MediaQuery.textScalerOf(
+                    context,
+                  ).clamp(maxScaleFactor: 1.6),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 AssistantCopy.disclosureLead,
                 style: t.body.copyWith(color: c.dim),
-                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final f in facts)
-                    StatusChip(
-                      label: f,
-                      tone: AknTone.neutral,
-                      showIcon: false,
-                    ),
-                ],
+              // Olgular: virgülle değil, ayrı satırlarda (lamba yok, nötr bilgi).
+              AknCard(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < facts.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 6),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Icon(
+                              Icons.check_rounded,
+                              size: 18,
+                              color: c.dim,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              facts[i],
+                              style: t.bodySmall.copyWith(color: c.ink),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
               ),
               if (gate.notice != null) ...[
                 const SizedBox(height: 16),
@@ -82,17 +113,16 @@ class DisclosureView extends ConsumerWidget {
               const SizedBox(height: 4),
               const AknBanner(
                 tone: AknTone.warn,
-                icon: Icons.privacy_tip_rounded,
+                icon: Icons.privacy_tip_outlined,
                 title: AssistantCopy.doNotShare,
                 message: AssistantCopy.doNotShareBody,
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: TextButton.icon(
-                  onPressed: () => unawaited(_openFull(ref, d)),
-                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                  label: const Text(AssistantCopy.fullText),
+                child: AknInlineLink(
+                  label: AssistantCopy.fullText,
+                  onTap: () => unawaited(_openFull(ref, d)),
                 ),
               ),
             ],
@@ -158,11 +188,14 @@ class _Section extends StatelessWidget {
           if (section.title.isNotEmpty) ...[
             Semantics(
               header: true,
-              child: Text(section.title, style: t.bodyStrong),
+              child: Text(
+                section.title,
+                style: t.headline.copyWith(color: c.ink),
+              ),
             ),
             const SizedBox(height: 4),
           ],
-          Text(section.body, style: t.body.copyWith(color: c.text)),
+          Text(section.body, style: t.body.copyWith(color: c.ink)),
         ],
       ),
     );

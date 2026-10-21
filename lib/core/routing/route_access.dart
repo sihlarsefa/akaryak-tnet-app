@@ -125,7 +125,28 @@ abstract final class RouteAccess {
 
     // ---------------------------------------------------------------- Ortak
     _Rule(AppRoutes.assistant, (p, f) => f.assistant),
+    _Rule(AppRoutes.stats, (p, f) => statsAudience(p)),
   ];
+
+  /// İstatistikler (`/stats`) ve ana sayfadaki yönetici destesi kimde görünür (spec R1 §3.1; özellik
+  /// `features/stats` kapsamı bundan türetir, sunucu ayrıca denetler):
+  /// - müşteri: harcama raporu yetkisi + şirket rolü Yönetici ya da Onaylayan (talep eden görmez),
+  /// - saha satış: kendi portföyü,
+  /// - bayi: rapor yetkisi olan yönetim rolleri; operasyon ekranları (sipariş masası, sevkiyat / depo,
+  ///   yalnızca şoför) görmez.
+  static bool statsAudience(AccessPolicy p) {
+    if (p.isCustomer) {
+      return p.can(Pg.customerSpending) && p.customerRole.canApprove;
+    }
+    if (!p.isBayi) return false;
+    if (p.isFieldSales) return true;
+    if (p.isDriverOnly) return false;
+    if (p.rolePreset == RolePreset.orderDesk ||
+        p.rolePreset == RolePreset.dispatch) {
+      return false;
+    }
+    return p.can(Pg.stationReports);
+  }
 
   /// Merkez kullanıcısının açabileceği rotalar (Onaylarım · Bildirimler · Profil).
   static const _platformPrefixes = [

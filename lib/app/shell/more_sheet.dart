@@ -6,7 +6,8 @@ import '../../core/ui/ui.dart';
 import '../destinations.dart';
 import 'shell_badges.dart';
 
-/// "Diğer" sayfası (spec A.2): alt menüye sığmayan hedefler + Bildirimler, Asistan, Profil. Rozeti olan
+/// "Diğer" sayfası (spec A.2; tasarım v2 §7.17): alt menüye sığmayan hedefler + Bildirimler, Asistan,
+/// Profil — ince çizgiyle ayrılmış defter satırları (24 px soluk simge, ok; rozet Asfalt). Rozeti olan
 /// öğe sayısını gösterir; ekran okuyucu "Onaylarım, 3 bekleyen" der.
 Future<void> showMoreSheet(BuildContext context, List<AppDestination> items) =>
     showAppSheet<void>(
@@ -31,8 +32,7 @@ class MoreSheetBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final badges = ref.watch(destinationBadgesProvider);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    return AknLedger(
       children: [
         for (final d in items)
           Semantics(
@@ -47,7 +47,6 @@ class MoreSheetBody extends ConsumerWidget {
                   ? AknCountBadge(count: badges[d.id]!)
                   : null,
               showChevron: true,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               onTap: () => _open(context, d),
             ),
           ),

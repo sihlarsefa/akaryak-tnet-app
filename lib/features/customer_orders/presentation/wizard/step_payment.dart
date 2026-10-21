@@ -15,18 +15,19 @@ import '../../copy.dart';
 import '../../data/payment_models.dart';
 import '../widgets/common.dart';
 import '../widgets/payment_document_flow.dart';
+import 'wizard_parts.dart';
 
 IconData paymentMethodIcon(String code) => switch (code) {
-  PaymentCodes.cash => Icons.payments_rounded,
+  PaymentCodes.cash => Icons.payments_outlined,
   PaymentCodes.transfer => Icons.swap_horiz_rounded,
-  PaymentCodes.card => Icons.credit_card_rounded,
-  PaymentCodes.dbs => Icons.account_balance_rounded,
-  PaymentCodes.cheque => Icons.edit_document,
-  PaymentCodes.promissoryNote => Icons.description_rounded,
-  PaymentCodes.openAccount => Icons.menu_book_rounded,
-  PaymentCodes.guarantee => Icons.shield_rounded,
-  PaymentCodes.utts => Icons.directions_car_rounded,
-  PaymentCodes.advance => Icons.account_balance_wallet_rounded,
+  PaymentCodes.card => Icons.credit_card_outlined,
+  PaymentCodes.dbs => Icons.account_balance_outlined,
+  PaymentCodes.cheque => Icons.receipt_outlined,
+  PaymentCodes.promissoryNote => Icons.description_outlined,
+  PaymentCodes.openAccount => Icons.menu_book_outlined,
+  PaymentCodes.guarantee => Icons.shield_outlined,
+  PaymentCodes.utts => Icons.directions_car_outlined,
+  PaymentCodes.advance => Icons.account_balance_wallet_outlined,
   _ => Icons.radio_button_unchecked_rounded,
 };
 
@@ -83,23 +84,17 @@ class StepPayment extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Semantics(
-                  header: true,
-                  child: Text('Ödeme yöntemi', style: t.headline),
-                ),
-              ),
+              const WizardHeading('Ödeme yöntemi'),
               if (o.blockedReason != null)
                 AknBanner(
                   tone: AknTone.warn,
                   icon: Icons.hourglass_top_rounded,
                   message: o.blockedReason!,
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 )
               else if (o.methods.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                   child: Text(
                     OrdersCopy.noMethods,
                     style: t.body.copyWith(color: c.dim),
@@ -108,7 +103,7 @@ class StepPayment extends ConsumerWidget {
               else ...[
                 for (final method in o.methods)
                   ChoiceCard(
-                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                     title: method.displayName,
                     subtitle: method.termLabel,
                     leadingIcon: paymentMethodIcon(method.code),
@@ -121,7 +116,7 @@ class StepPayment extends ConsumerWidget {
                     onTap: () => ctrl.selectMethod(method.code),
                   ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(10, 0, 20, 0),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: d.payment.hasMethod
@@ -131,7 +126,7 @@ class StepPayment extends ConsumerWidget {
                             onPressed: ctrl.clearMethod,
                           )
                         : Padding(
-                            padding: const EdgeInsets.fromLTRB(8, 4, 0, 8),
+                            padding: const EdgeInsets.fromLTRB(10, 4, 0, 8),
                             child: Text(
                               OrdersCopy.noPayment,
                               style: t.bodySmall.copyWith(color: c.dim),
@@ -238,8 +233,6 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
   Widget build(BuildContext context) {
     final w = ref.watch(orderWizardProvider);
     final ctrl = ref.read(orderWizardProvider.notifier);
-    final t = context.aknText;
-    final c = context.akn;
     final m = widget.method;
     final d = w.draft;
     final p = d.payment;
@@ -252,18 +245,17 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
           label: 'Vade (gün) *',
           helper:
               '${m.minTermDays > 0 ? m.minTermDays : 0}–${m.maxTermDays} gün'
-              '${m.requiresFinance ? ' · finans onayı gerekebilir' : ''}'
-              '${m.isInstrument ? ' · belgenin vadesinden hesaplanır' : ''}',
+              '${m.requiresFinance ? ', finans onayı gerekebilir' : ''}'
+              '${m.isInstrument ? ', belgenin vadesinden hesaplanır' : ''}',
           error: widget.errorFor('term'),
           child: Wrap(
             spacing: 8,
-            runSpacing: 8,
             children: [
               for (final days in terms)
-                ChoiceChip(
-                  label: Text(days == 0 ? 'Peşin' : '$days gün'),
+                AknChip(
+                  label: days == 0 ? 'Peşin' : '$days gün',
                   selected: p.termDays == days,
-                  onSelected: (_) => ctrl.setTerm(days),
+                  onTap: () => ctrl.setTerm(days),
                 ),
             ],
           ),
@@ -278,13 +270,12 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
           helper: 'Kart bilgisi istenmez; ödeme teslimatta POS ile alınır.',
           child: Wrap(
             spacing: 8,
-            runSpacing: 8,
             children: [
               for (final n in m.installmentOptions)
-                ChoiceChip(
-                  label: Text(n == 1 ? 'Tek çekim' : '$n taksit'),
+                AknChip(
+                  label: n == 1 ? 'Tek çekim' : '$n taksit',
                   selected: p.installments == n,
-                  onSelected: (_) => ctrl.setInstallments(n),
+                  onTap: () => ctrl.setInstallments(n),
                 ),
             ],
           ),
@@ -356,39 +347,34 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
     final est = w.estimate;
     children.add(
       Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: AknCard(
-          color: c.surfaceAlt,
-          shadow: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FactRow(label: 'Ödeme', value: WizardRules.paymentSummary(d, m)),
-              FactRow(
-                label: 'Tahmini tutar',
-                value: est.value != null
-                    ? Fmt.money(est.value)
-                    : (est.unknown ? OrdersCopy.priceUnknown : Fmt.dash),
-              ),
-            ],
-          ),
+        padding: const EdgeInsets.only(top: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FactRow(label: 'Ödeme', value: WizardRules.paymentSummary(d, m)),
+            FactRow(
+              label: 'Tahmini tutar',
+              value: est.value != null
+                  ? Fmt.money(est.value)
+                  : (est.unknown ? OrdersCopy.priceUnknown : Fmt.dash),
+            ),
+          ],
         ),
       ),
     );
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            header: true,
-            child: Text('${m.displayName} ayrıntıları', style: t.headline),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WizardHeading('${m.displayName} ayrıntıları', top: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
           ),
-          const SizedBox(height: 4),
-          ...children,
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -408,13 +394,13 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                   children: [
                     AknButton.secondary(
                       label: 'Dekontu çek',
-                      icon: Icons.photo_camera_rounded,
+                      icon: Icons.photo_camera_outlined,
                       expand: true,
                       onPressed: _pickReceipt,
                     ),
                     AknButton.secondary(
                       label: 'Galeriden seç',
-                      icon: Icons.photo_library_rounded,
+                      icon: Icons.photo_library_outlined,
                       expand: true,
                       onPressed: _pickReceiptFromGallery,
                     ),
@@ -424,7 +410,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                   alignment: Alignment.centerLeft,
                   child: AknButton.ghost(
                     label: 'Dosya (PDF) seç',
-                    icon: Icons.picture_as_pdf_rounded,
+                    icon: Icons.picture_as_pdf_outlined,
                     size: AknButtonSize.small,
                     onPressed: _pickReceiptFile,
                   ),
@@ -433,7 +419,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
             )
           : Row(
               children: [
-                Icon(Icons.receipt_long_rounded, color: c.ok.fg),
+                Icon(Icons.check_circle_rounded, color: c.ok.fg),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -491,7 +477,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                       : Fmt.number(v, minFraction: 2, maxFraction: 2),
                 ),
               ),
-              if (error != null) _ErrorLine(error),
+              if (error != null) WizardError(error, padding: EdgeInsets.zero),
             ],
           ),
         );
@@ -596,33 +582,18 @@ class _Group extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(label, style: t.label.copyWith(color: c.text)),
-          const SizedBox(height: 8),
+          Text(label, style: t.label.copyWith(color: c.ink)),
+          const SizedBox(height: 4),
           child,
           if (helper != null) ...[
             const SizedBox(height: 6),
             Text(helper!, style: t.caption.copyWith(color: c.dim)),
           ],
-          if (error != null) _ErrorLine(error!),
+          if (error != null) WizardError(error!, padding: EdgeInsets.zero),
         ],
       ),
     );
   }
-}
-
-class _ErrorLine extends StatelessWidget {
-  const _ErrorLine(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 6),
-    child: Text(
-      text,
-      style: context.aknText.bodySmall.copyWith(color: context.akn.danger.fg),
-    ),
-  );
 }
 
 class _Hint extends StatelessWidget {

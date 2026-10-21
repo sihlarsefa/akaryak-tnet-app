@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 import '../../data/approval_models.dart';
 import '../../shared/layout.dart';
@@ -17,13 +18,17 @@ class ApprovalStepsTimeline extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final multi = detail.steps.length > 1;
-    return AknCard(
+    final yourMove =
+        detail.row.canDecide && detail.row.status == ApprovalStatus.pending;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: StepTimeline(
+        yourMove: yourMove,
         steps: adaptSteps(context, [
           for (final s in detail.steps)
             TimelineStep(
-              title: multi ? '${s.levelNo}. kademe · ${s.name}' : s.name,
-              subtitle: [s.displayStatusLabel, ?s.deciderText].join(' · '),
+              title: multi ? '${s.levelNo}. kademe, ${s.name}' : s.name,
+              subtitle: [s.displayStatusLabel, ?s.deciderText].join(', '),
               time: s.decidedAt != null
                   ? shortStamp(s.decidedAt)
                   : (s.dueAt != null && s.status == ApprovalStepStatus.pending
@@ -38,7 +43,10 @@ class ApprovalStepsTimeline extends StatelessWidget {
               },
               content: s.note == null
                   ? null
-                  : Text('“${s.note}”', style: t.bodySmall),
+                  : Text(
+                      '“${s.note}”',
+                      style: t.bodySmall.copyWith(color: context.akn.ink),
+                    ),
             ),
         ]),
       ),
@@ -55,7 +63,8 @@ class CustomerProcessTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AknCard(
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: StepTimeline(steps: adaptSteps(context, customerSteps(detail))),
     );
   }
@@ -203,33 +212,24 @@ class _ApprovalEventsLogState extends State<ApprovalEventsLog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AknCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              for (var i = 0; i < shown.length; i++) ...[
-                if (i > 0) Divider(height: 1, color: c.lineSoft),
-                _EventRow(
-                  event: shown[i],
-                  icon: _icon(shown[i].eventType),
-                  onOpenFile: widget.onOpenFile,
-                ),
-              ],
-            ],
+        for (var i = 0; i < shown.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+          _EventRow(
+            event: shown[i],
+            icon: _icon(shown[i].eventType),
+            onOpenFile: widget.onOpenFile,
           ),
-        ),
+        ],
         if (events.length > 4)
           Align(
-            alignment: Alignment.centerLeft,
-            child: AknButton.ghost(
+            alignment: AlignmentDirectional.centerStart,
+            child: AknInlineLink(
               label: _all ? 'Daha az göster' : 'Tüm olaylar (${events.length})',
-              icon: _all
-                  ? Icons.expand_less_rounded
-                  : Icons.expand_more_rounded,
-              onPressed: () => setState(() => _all = !_all),
+              onTap: () => setState(() => _all = !_all),
             ),
           ),
-        if (events.isEmpty) Text('Henüz olay yok.', style: t.bodySmall),
+        if (events.isEmpty)
+          Text('Henüz olay yok.', style: t.bodySmall.copyWith(color: c.dim)),
       ],
     );
   }
@@ -249,8 +249,9 @@ class _EventRow extends StatelessWidget {
     final e = event;
     final file = e.attachmentPublicId;
     final large = isLargeText(context);
+    final when = TurkishText.lower(Fmt.relative(e.occurredAt));
     final row = Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -265,13 +266,18 @@ class _EventRow extends StatelessWidget {
               children: [
                 Text(
                   e.displayLabel,
-                  style: t.bodyStrong.copyWith(fontSize: 14),
+                  style: t.bodyStrong.copyWith(color: c.ink),
                 ),
-                if (large) Text(Fmt.relative(e.occurredAt), style: t.caption),
-                if (e.actorText != null) Text(e.actorText!, style: t.bodySmall),
+                if (large)
+                  Text(when, style: t.caption.copyWith(color: c.dim)),
+                if (e.actorText != null)
+                  Text(
+                    e.actorText!,
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
                 if (e.note != null) ...[
                   const SizedBox(height: 2),
-                  Text(e.note!, style: t.body.copyWith(fontSize: 14)),
+                  Text(e.note!, style: t.bodySmall.copyWith(color: c.ink)),
                 ],
                 if (e.attachmentFileName != null) ...[
                   const SizedBox(height: 2),
@@ -291,7 +297,7 @@ class _EventRow extends StatelessWidget {
           ),
           if (!large) ...[
             const SizedBox(width: 12),
-            Text(Fmt.relative(e.occurredAt), style: t.caption),
+            Text(when, style: t.caption.copyWith(color: c.dim)),
           ],
         ],
       ),

@@ -22,8 +22,10 @@ import 'widgets/approval_card.dart';
 /// SLA süzgeci ("Bende" sekmesinde, yüklenen satırlar üzerinde).
 enum _SlaFilter { all, dueSoon, overdue }
 
-/// Onaylarım (spec A.4 A5): Bende / Taleplerim / Karar verdiklerim / Tümü (İnceler), tür çipleri,
-/// SLA çipleri, rozet. Satıra dokununca ayrıntı (`/approvals/{id}`) açılır.
+/// Onaylarım (spec A.4 A5, tasarım v2 §7.13): kök başlık, Bende / Taleplerim / Karar verdiklerim / Tümü
+/// (İnceler) çipleri, gecikenler için kuyu, arama kuyusu, tür ve SLA çipleri; defter satırları
+/// (tür: karşı taraf, tutar, izleyiciye göre lamba ve son tarih). Satıra dokununca ayrıntı
+/// (`/approvals/{id}`) açılır.
 class ApprovalsPage extends ConsumerStatefulWidget {
   const ApprovalsPage({super.key, this.initialScope});
 
@@ -144,13 +146,12 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     _maybeAutoLoad(raw, state.items.length);
     final customer = policy.isCustomer;
     final showSla = !customer && _scope == ApprovalScope.toMe;
-    final org = policy.access?.organizationTitle;
-
     return AppScaffold(
       title: ApprovalsCopy.title,
-      subtitle: org,
       refreshing: raw.refreshing,
       body: A5PagedListView<ApprovalRow>(
+        ledger: true,
+        padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
         state: state,
         staggerKey: (query, _sla),
         onRefresh: _refresh,
@@ -158,7 +159,7 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
           ref.read(approvalsListProvider(query).notifier).loadMore(),
         ),
         header: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           _ScopeTabs(
             scopes: scopes,
             value: _scope,
@@ -169,10 +170,10 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
               (badge?.overdue ?? 0) > 0 &&
               _sla != _SlaFilter.overdue)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: AknBanner(
-                tone: AknTone.warn,
-                icon: Icons.alarm_rounded,
+                tone: AknTone.danger,
+                icon: Icons.timer_off_outlined,
                 message: badge!.overdue == 1
                     ? '1 talebin karar süresi geçti.'
                     : '${badge.overdue} talebin karar süresi geçti.',
@@ -184,7 +185,7 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
               ),
             ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: SearchField(
               controller: _searchCtrl,
               hint: ApprovalsCopy.searchHint,
@@ -192,38 +193,13 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
             ),
           ),
           if (!customer)
-            FilterChips<ApprovalType>(
-              options: [
-                for (final t in ApprovalType.values)
-                  if (!t.isUnknown)
-                    FilterOption(
-                      value: t,
-                      label: t.shortLabel,
-                      icon: AknStatus.approvalType(t).icon,
-                    ),
-              ],
-              selected: {?_type},
-              onChanged: (s) => setState(() {
-                _type = s.isEmpty ? null : s.first;
-              }),
-            ),
-          if (showSla)
-            FilterChips<_SlaFilter>(
-              options: const [
-                FilterOption(
-                  value: _SlaFilter.dueSoon,
-                  label: 'Süresi dolanlar',
-                  icon: Icons.alarm_rounded,
-                ),
-                FilterOption(
-                  value: _SlaFilter.overdue,
-                  label: 'Süresi geçenler',
-                  icon: Icons.alarm_off_rounded,
-                ),
-              ],
-              selected: {if (_sla != _SlaFilter.all) _sla},
-              onChanged: (s) => setState(() {
-                _sla = s.isEmpty ? _SlaFilter.all : s.first;
+            _TypeAndSlaChips(
+              type: _type,
+              sla: _sla,
+              showSla: showSla,
+              onType: (t) => setState(() => _type = t),
+              onSla: (v) => setState(() {
+                _sla = v;
                 _autoLoads = 0;
               }),
             ),
@@ -295,13 +271,110 @@ class _ScopeTabs extends StatelessWidget {
               : null,
         ),
     ];
-    // Tek seçimli çipler: çekirdek `AknSegmented` seçilmemiş metni açık temada 4,5:1 kontrastın
-    // altında kalıyor (contract-changes.md A5); çipler büyük yazıda da satır kaydırır.
-    return FilterChips<ApprovalScope>(
+    final chips = FilterChips<ApprovalScope>(
       options: options,
       selected: {value},
       allowEmpty: false,
       onChanged: (s) => onChanged(s.first),
+    );
+    // Normal yazıda v2 bölümlü denetim (Beton ray, beyaz başparmak); büyük yazıda (≥ 1,3×) ya da
+    // etiketler eşit dilimlere sığmadığında (dar ekran, kalın yazı) kesilmesin diye yatay kayan çipler.
+    final scaler = MediaQuery.textScalerOf(context);
+    if (scaler.scale(10) >= 13) return chips;
+    final t = context.aknText;
+    var style = t.label.copyWith(fontSize: 14, fontWeight: FontWeight.w600);
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.copyWith(fontWeight: FontWeight.w700);
+    }
+    double width(String text) {
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final w = tp.width;
+      tp.dispose();
+      return w;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final slot =
+            (constraints.maxWidth - 2 * AknSpace.page - 6) / options.length;
+        final fits = options.every((o) {
+          final count = o.count == null ? 0.0 : 5 + width('${o.count}');
+          return width(o.label) + count + 12 + 2 <= slot;
+        });
+        if (!fits) return chips;
+        return Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 4),
+          child: AknSegmented<ApprovalScope>(
+            segments: options,
+            value: value,
+            onChanged: onChanged,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Tür ve son tarih süzgeçleri tek kayan satırda (v2 çipleri): tür tek seçimli, ardından "Süresi
+/// dolanlar" / "Süresi geçenler" ("Bende" sekmesinde).
+class _TypeAndSlaChips extends StatelessWidget {
+  const _TypeAndSlaChips({
+    required this.type,
+    required this.sla,
+    required this.showSla,
+    required this.onType,
+    required this.onSla,
+  });
+
+  final ApprovalType? type;
+  final _SlaFilter sla;
+  final bool showSla;
+  final ValueChanged<ApprovalType?> onType;
+  final ValueChanged<_SlaFilter> onSla;
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[
+      if (showSla) ...[
+        AknChip(
+          label: 'Süresi dolanlar',
+          selected: sla == _SlaFilter.dueSoon,
+          onTap: () => onSla(
+            sla == _SlaFilter.dueSoon ? _SlaFilter.all : _SlaFilter.dueSoon,
+          ),
+        ),
+        AknChip(
+          label: 'Süresi geçenler',
+          selected: sla == _SlaFilter.overdue,
+          onTap: () => onSla(
+            sla == _SlaFilter.overdue ? _SlaFilter.all : _SlaFilter.overdue,
+          ),
+        ),
+      ],
+      for (final t in ApprovalType.values)
+        if (!t.isUnknown)
+          AknChip(
+            label: t.shortLabel,
+            selected: type == t,
+            onTap: () => onType(type == t ? null : t),
+          ),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Row(
+        children: [
+          for (var i = 0; i < chips.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            chips[i],
+          ],
+        ],
+      ),
     );
   }
 }

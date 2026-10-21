@@ -9,6 +9,9 @@ abstract final class WeatherCopy {
   static const lastUpdated = 'Son güncelleme';
   static const feelsLike = 'Hissedilen';
   static const wind = 'Rüzgâr';
+
+  /// Cümle içinde: "hissedilen 11°, rüzgâr 14 km/s".
+  static const windInline = 'rüzgâr';
   static const high = 'En yüksek';
   static const low = 'En düşük';
   static const now = 'Şimdi';

@@ -45,17 +45,36 @@ void main() {
     expect(TrTime.isoDate(picked!), '2026-10-22');
   });
 
-  testWidgets('DateField shows dd.MM.yyyy and the weekday', (tester) async {
+  testWidgets('DateField shows "22 Ekim Perşembe" under the label (§3.3)', (
+    tester,
+  ) async {
+    TrTime.clock = () => DateTime.utc(2026, 10, 21, 9);
     await pumpUi(
       tester,
-      DateField(
-        label: 'Teslim tarihi',
-        value: TrTime.fromWall(2026, 10, 22),
-        onChanged: (_) {},
-        quickPicks: false,
+      Column(
+        children: [
+          DateField(
+            label: 'Teslim tarihi',
+            value: TrTime.fromWall(2026, 10, 22),
+            onChanged: (_) {},
+            quickPicks: false,
+          ),
+          DateField(
+            label: 'Sonraki yıl',
+            value: TrTime.fromWall(2027, 1, 8),
+            onChanged: (_) {},
+            quickPicks: false,
+          ),
+        ],
       ),
     );
-    expect(find.text('22.10.2026  ·  Perşembe'), findsOneWidget);
+    expect(find.text('22 Ekim Perşembe'), findsOneWidget);
+    expect(find.text('8 Ocak 2027 Cuma'), findsOneWidget);
+    // The label sits above the field (v2 §6.10).
+    expect(
+      tester.getBottomLeft(find.text('Teslim tarihi')).dy,
+      lessThanOrEqualTo(tester.getTopLeft(find.text('22 Ekim Perşembe')).dy),
+    );
   });
 
   testWidgets('MoneyField.unitPrice keeps four decimals in ₺/L', (
@@ -275,12 +294,20 @@ void main() {
     );
   });
 
-  test('offline banner wording', () {
-    expect(OfflineBanner.message(offline: true, pending: 0), 'Çevrimdışısınız');
+  test('offline banner wording (v2 §6.24, no " · ")', () {
+    expect(
+      OfflineBanner.message(offline: true, pending: 0),
+      'Çevrimdışı. Değişiklikler telefona kaydediliyor.',
+    );
+    expect(
+      OfflineBanner.message(offline: true, pending: 3),
+      'Çevrimdışı. Değişiklikler telefona kaydediliyor (3).',
+    );
     expect(
       OfflineBanner.message(offline: false, pending: 3),
       '3 işlem gönderilmeyi bekliyor',
     );
+    expect(OfflineBanner.message(offline: false, pending: 0), '');
   });
 
   testWidgets('AppToast.forbidden uses the standard 403 text', (tester) async {

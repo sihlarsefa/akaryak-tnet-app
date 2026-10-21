@@ -409,7 +409,7 @@ abstract final class A2Fake {
     final name = products.length == 1
         ? products.first
         : '${products.length} ürün';
-    return '$name ${fmtInt(liters)} L · $points nokta';
+    return '$name ${fmtInt(liters)} L, $points nokta';
   }
 
   static String fmtInt(num v) {
@@ -709,7 +709,7 @@ abstract final class A2Fake {
     final plate = '${s['vehiclePlate'] ?? ''}'.trim();
     final driver = '${s['driverName'] ?? ''}'.trim();
     if (plate.isEmpty) return driver;
-    return driver.isEmpty ? plate : '$plate · $driver';
+    return driver.isEmpty ? plate : '$plate, $driver';
   }
 
   static String _num(num v, {int fraction = 0}) {
@@ -763,7 +763,7 @@ abstract final class A2Fake {
       final at = _lastAt(w, id, 5);
       quote['state'] = 1;
       quote['at'] = at == null ? null : local(at);
-      quote['detail'] = 'Revize istendi · yeni fiyat bekleniyor';
+      quote['detail'] = 'Revize istendi, yeni fiyat bekleniyor';
     } else if (status == 0 || status == 1) {
       quote['state'] = 1;
       quote['detail'] = o['financeStatus'] == 1
@@ -774,7 +774,7 @@ abstract final class A2Fake {
       quote['state'] = 2;
       quote['at'] = latest['createdAt'];
       quote['detail'] =
-          '${_num(latest['unitPriceTry'] as num, fraction: 2)} TL/L${v > 1 ? ' · v$v' : ''}';
+          '${_num(latest['unitPriceTry'] as num, fraction: 2)} ₺/L${v > 1 ? ', v$v' : ''}';
     } else if (closed) {
       quote['state'] = 3;
       quote['detail'] = OrderStatus.fromCode(status).label;
@@ -820,7 +820,7 @@ abstract final class A2Fake {
           : (dispatched.isEmpty ? null : dispatched.first);
       if (lead != null) {
         dispatch['detail'] =
-            '${_vehicle(lead)}${dispatched.length > 1 ? ' · ${dispatched.length} araç' : ''}';
+            '${_vehicle(lead)}${dispatched.length > 1 ? ', ${dispatched.length} araç' : ''}';
       }
     } else if (status == 3) {
       dispatch['state'] = 1;
@@ -830,7 +830,7 @@ abstract final class A2Fake {
         );
       dispatch['detail'] = planned.isEmpty
           ? 'Sevkiyat planlanıyor'
-          : '${_vehicle(planned.first)} · ${_dayText(planned.first['scheduledAt'])} planlandı';
+          : '${_vehicle(planned.first)}, ${_dayText(planned.first['scheduledAt'])} planlandı';
     }
 
     final delivered = step('delivered', 'Teslim edildi', 'fa-flag-checkered');
@@ -869,7 +869,7 @@ abstract final class A2Fake {
         'at': created == null ? s['scheduledAt'] : local(created),
         'icon': 'fa-calendar',
         'title': 'Sevkiyat planlandı',
-        'note': '$vehicle · ${_num(s['plannedLiters'] as num)} L',
+        'note': '$vehicle, ${_num(s['plannedLiters'] as num)} L',
         'tone': 'info',
       });
       if (s['dispatchedAt'] != null) {
@@ -888,7 +888,7 @@ abstract final class A2Fake {
           'icon': 'fa-map-marker',
           'title': 'Teslimat bildirildi',
           'note':
-              '${_num((s['deliveredLiters'] as num?) ?? 0)} L${doc == null ? '' : ' · irsaliye $doc'}',
+              '${_num((s['deliveredLiters'] as num?) ?? 0)} L${doc == null ? '' : ', irsaliye $doc'}',
           'tone': 'info',
         });
       }
@@ -897,7 +897,7 @@ abstract final class A2Fake {
           'at': s['acceptedAt'],
           'icon': 'fa-check',
           'title': 'Teslim alındı',
-          'note': '${_num((s['deliveredLiters'] as num?) ?? 0)} L · $vehicle',
+          'note': '${_num((s['deliveredLiters'] as num?) ?? 0)} L, $vehicle',
           'tone': 'ok',
         });
       }
@@ -1529,8 +1529,7 @@ JsonMap _createOrder(
       'subjectId': id,
       'subjectNumber': o['orderNumber'],
       'title': 'Sipariş finans onayı',
-      'summary':
-          '${A2Fake.methodShortName(methodCode)} · ${term ?? 0} gün vade',
+      'summary': '${A2Fake.methodShortName(methodCode)}, ${term ?? 0} gün vade',
       'amount': o['estimatedAmount'],
       'liters': line.liters,
       'requestedByUserId': p.userId,
@@ -1550,7 +1549,7 @@ JsonMap _createOrder(
       code: 'order.created',
       title: 'Yeni sipariş',
       body:
-          '${w.customerTitle(cid)} · ${o['orderNumber']} · '
+          '${w.customerTitle(cid)}, ${o['orderNumber']}, '
           '${A2Fake.fmtInt(line.liters)} L ${o['productName']}',
       orderId: id,
       audience: A2Fake.quoteCapable,
@@ -1640,7 +1639,7 @@ JsonMap _companyRequest(
     'subjectId': id,
     'subjectNumber': 'TLP-${id.toString().padLeft(5, '0')}',
     'title': 'Şirket içi sipariş talebi',
-    'summary': '${A2Fake.fmtInt(totalLiters)} L · ${resolved.length} satır',
+    'summary': '${A2Fake.fmtInt(totalLiters)} L, ${resolved.length} satır',
     'amount': double.parse(estimate.toStringAsFixed(2)),
     'liters': totalLiters,
     'requestedByUserId': p.userId,
@@ -1841,7 +1840,7 @@ JsonMap _decide(FakeRequest req, String action) {
     stationId: o['stationId'] as int,
     code: code,
     title: title,
-    body: '${o['customerTitle']} · ${o['orderNumber']}',
+    body: '${o['customerTitle']}, ${o['orderNumber']}',
     orderId: o['id'] as int,
     category: 'quotes',
     audience: (x) =>

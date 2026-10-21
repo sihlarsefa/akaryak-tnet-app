@@ -141,7 +141,7 @@ abstract final class CmFake {
       name,
       if (term != null && term > 0) '$term gün',
       if (due != null) 'vade ${Fmt.date(due)}',
-    ].join(' · ');
+    ].join(', ');
   }
 
   /// Ödeme yöntemi ayrıntıları (fiyatlı belgelerde).

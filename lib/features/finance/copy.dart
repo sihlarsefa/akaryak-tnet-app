@@ -12,11 +12,14 @@ abstract final class FinanceCopy {
   static const title = 'Finans';
   static const subtitle = 'Cari finans kartları';
   static const searchHint = 'Cari ünvanı ya da VKN ara';
+  static const allStatuses = 'Tümü';
+  static const reviewOverdue = 'Gözden geçirmesi geçen';
   static const emptyTitle = 'Finans kartı yok';
   static const emptyMessage =
       'Bayinize bağlı carilerin finans kartları burada listelenir.';
-  static const filteredTitle = 'Filtreye uyan kayıt yok';
-  static const filteredMessage = 'Filtreleri değiştirerek yeniden deneyin.';
+  static const filteredTitle = 'Filtreye uyan kart yok';
+  static const filteredMessage =
+      'Filtreleri değiştirin ya da temizleyip tüm kartları görün.';
   static const clearFilters = 'Filtreleri temizle';
   static const notFoundTitle = 'Bu finans kartı artık görüntülenemiyor';
 
@@ -51,7 +54,7 @@ abstract final class FinanceCopy {
       };
       if (text != null) parts.add(text);
     });
-    return parts.isEmpty ? null : parts.join(' · ');
+    return parts.isEmpty ? null : parts.join(', ');
   }
 
   /// Kartı olmayan eski cari.

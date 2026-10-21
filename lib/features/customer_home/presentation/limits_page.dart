@@ -4,18 +4,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../../customer_orders/api.dart';
 import '../copy.dart';
 
 /// Limitlerim rotası (spec C.4 derin bağlantı).
 const limitsRoute = '/limits';
 
-/// Bir bayideki limit kullanımı: dönem, tutar / litre, kullanılan, kalan ve gösterge.
+/// Bir bayideki limit kullanımı, ledger satırı olarak (tasarım v2 §6.8): bayi ve dönem solda, kalan
+/// tutar sağda ("360.000 ₺ / kalan"), altında kullanım göstergesi (mürekkep; %80 üstü uyarı, %100
+/// üstü tehlike rengi ve sözcükle). Tam görünümde ([compact] false) kullanılan / limit ve tür satırı
+/// da yazılır. Limitsiz bayide gösterge yok, sağda "Limitsiz".
 class LimitMeter extends StatelessWidget {
-  const LimitMeter({super.key, required this.limit, this.compact = false});
+  const LimitMeter({
+    super.key,
+    required this.limit,
+    this.compact = false,
+    this.padding,
+  });
 
   final CustomerLimit limit;
   final bool compact;
+
+  /// Satır dolgusu (varsayılan ledger satırı).
+  final EdgeInsetsGeometry? padding;
 
   String _fmt(double? v) => v == null
       ? Fmt.dash
@@ -27,73 +39,55 @@ class LimitMeter extends StatelessWidget {
     final c = context.akn;
     final l = limit;
     if (!l.hasLimit) {
-      return Semantics(
-        label: '${l.stationTitle}: ${HomeCopy.unlimited}',
-        excludeSemantics: true,
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l.stationTitle, style: t.bodyStrong),
-                  Text(
-                    'Bu bayide alım limitiniz yok.',
-                    style: t.bodySmall.copyWith(color: c.dim),
-                  ),
-                ],
-              ),
-            ),
-            const StatusChip(
-              label: HomeCopy.unlimited,
-              tone: AknTone.ok,
-              icon: Icons.all_inclusive_rounded,
-              size: StatusChipSize.small,
-            ),
-          ],
-        ),
+      return AknListTile(
+        padding: padding,
+        title: l.stationTitle,
+        subtitle: HomeCopy.unlimitedMessage,
+        amount: HomeCopy.unlimited,
+        semanticLabel: '${l.stationTitle}: ${HomeCopy.unlimited}',
       );
     }
     final pct = (l.usedPct / 100).clamp(0.0, 1.5);
+    final pctText = '%${Fmt.number(l.usedPct, maxFraction: 0)}';
+    final full = l.usedPct >= 100;
+    final near = !full && l.usedPct >= 80;
+    final state = full
+        ? 'Limit doldu'
+        : near
+        ? 'Limitinize yaklaştınız'
+        : null;
     final label =
         '${l.stationTitle}, ${l.periodLabel}: ${_fmt(l.used)} / ${_fmt(l.amount)} kullanıldı, '
-        'kalan ${_fmt(l.remaining)}, %${Fmt.number(l.usedPct, maxFraction: 0)}';
-    return Semantics(
-      label: label,
-      excludeSemantics: true,
-      child: Column(
+        'kalan ${_fmt(l.remaining)}, $pctText${state == null ? '' : ', $state'}';
+    final usedLine = '${_fmt(l.used)} kullanıldı, limit ${_fmt(l.amount)}';
+    return AknListTile(
+      padding: padding,
+      title: l.stationTitle,
+      subtitle: '${l.periodLabel}, $pctText kullanıldı',
+      amount: _fmt(l.remaining),
+      amountMeta: 'Kalan',
+      semanticLabel: label,
+      footer: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: Text(l.stationTitle, style: t.bodyStrong)),
-              Text(l.periodLabel, style: t.caption.copyWith(color: c.dim)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          UsageBar(
-            value: pct.toDouble(),
-            label: 'Kullanılan ${_fmt(l.used)}',
-            valueLabel: '%${Fmt.number(l.usedPct, maxFraction: 0)}',
-          ),
-          const SizedBox(height: 6),
-          if (compact)
-            Text(
-              'Kalan ${_fmt(l.remaining)} · limit ${_fmt(l.amount)}',
-              style: t.bodySmall.copyWith(color: c.text),
-            )
-          else ...[
-            FactRow(label: 'Limit', value: _fmt(l.amount)),
-            FactRow(label: 'Kullanılan', value: _fmt(l.used)),
-            FactRow(
-              label: 'Kalan',
-              value: _fmt(l.remaining),
-              tone: l.usedPct >= 100
-                  ? AknTone.danger
-                  : (l.usedPct >= 80 ? AknTone.warn : AknTone.ok),
+          UsageBar(value: pct.toDouble()),
+          if (state != null) ...[
+            const SizedBox(height: 8),
+            AknLamp(
+              label: state,
+              tone: full ? AknTone.danger : AknTone.warn,
+              size: AknLampSize.small,
             ),
-            if (l.type != null) FactRow(label: 'Tür', value: l.type!),
+          ],
+          if (!compact) ...[
+            const SizedBox(height: 8),
+            Text(usedLine, style: t.bodySmall.copyWith(color: c.dim)),
+            if (l.type != null)
+              Text(
+                'Limit türü: ${TurkishText.lower(l.type!)}',
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
           ],
         ],
       ),
@@ -101,7 +95,7 @@ class LimitMeter extends StatelessWidget {
   }
 }
 
-/// Limitlerim (spec A.4): bayi başına limit kullanımı (ana sayfa verisinden).
+/// Limitlerim (spec A.4): bayi başına limit kullanımı (ana sayfa verisinden), ledger satırları.
 class LimitsPage extends ConsumerWidget {
   const LimitsPage({super.key});
 
@@ -122,14 +116,22 @@ class LimitsPage extends ConsumerWidget {
         ),
       );
     } else {
-      final limits = home.limits;
+      final limits = [...home.limits]
+        ..sort((a, b) {
+          if (a.hasLimit != b.hasLimit) return a.hasLimit ? -1 : 1;
+          return b.usedPct.compareTo(a.usedPct);
+        });
       body = PullToRefresh(
         onRefresh: () => ref.read(customerHomeProvider.notifier).refresh(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 32),
           children: [
-            LastUpdatedNote(updatedAt: s.updatedAt, fromCache: s.fromCache),
+            LastUpdatedNote(
+              updatedAt: s.updatedAt,
+              fromCache: s.fromCache,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            ),
             if (limits.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 48),
@@ -141,22 +143,17 @@ class LimitsPage extends ConsumerWidget {
               )
             else ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Text(
-                  'Limit, onaylanan ve yoldaki siparişlerinizle dolar. Aşan siparişler '
-                  'bayinin finans onayına düşebilir.',
+                  HomeCopy.limitsNote,
                   style: context.aknText.bodySmall.copyWith(
                     color: context.akn.dim,
                   ),
                 ),
               ),
-              for (final l in limits)
-                ContentWidth(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: AknCard(child: LimitMeter(limit: l)),
-                  ),
-                ),
+              AknLedger(
+                children: [for (final l in limits) LimitMeter(limit: l)],
+              ),
             ],
           ],
         ),

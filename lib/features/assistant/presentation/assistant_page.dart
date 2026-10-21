@@ -99,7 +99,7 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
           : null,
       actions: [
         AknIconButton(
-          icon: Icons.support_agent_rounded,
+          icon: Icons.support_agent_outlined,
           semanticLabel: AssistantCopy.support,
           onPressed: () => unawaited(showSupportSheet(context)),
         ),

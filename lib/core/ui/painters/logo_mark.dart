@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../motion.dart';
 import '../tokens.dart';
+import '../typography.dart' show AknFonts;
+import '../widgets/cards.dart' show OnHero;
 import 'path_trim.dart';
 
-/// The AkaryakıtNet mark: white » chevrons in the orange rounded square
-/// (`assets/brand/akaryakitnet-symbol.svg`, drawn as vectors).
+/// The AkaryakıtNet mark: white » chevrons in the logo-orange rounded square
+/// (r = 22.5 % of the size; `assets/brand/akaryakitnet-symbol.svg`, drawn as
+/// vectors). Never changed (§13). On the plate ([OnHero]) it flips to the
+/// inverse tile: a white square with orange chevrons.
 ///
 /// [progress] draws the chevrons in along their strokes (0 = none, 1 = full);
 /// the second chevron trails the first. With [animate] the mark draws itself
@@ -72,15 +76,19 @@ class _LogoMarkState extends State<LogoMark>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
+    const white = Color(0xFFFFFFFF);
+    final onHero = OnHero.isOn(context);
     Widget paint(double p) => CustomPaint(
       size: Size.square(widget.size),
       painter: LogoMarkPainter(
         progress: p,
         showTile: widget.showTile,
-        tileColor: widget.tileColor ?? c.logo,
+        tileColor: widget.tileColor ?? (onHero ? white : c.logo),
         chevronColor:
             widget.chevronColor ??
-            (widget.showTile ? const Color(0xFFFFFFFF) : c.logo),
+            (widget.showTile
+                ? (onHero ? c.logo : white)
+                : (onHero ? white : c.logo)),
         trackOpacity: widget.trackOpacity,
       ),
     );
@@ -186,8 +194,13 @@ class LogoMarkPainter extends CustomPainter {
       old.trackOpacity != trackOpacity;
 }
 
-/// "Akaryakıt**Net**" wordmark. On navy (or dark) "Akaryakıt" is white; on
-/// light surfaces it is the brand navy. "Net" is always the logo orange.
+/// "Akaryakıt**Net**" wordmark (design v2 §6.29), Mona Sans 700.
+///
+/// * On white: "Akaryakıt" in ink, "Net" in the logo orange.
+/// * On dark surfaces ([onDark] or the dark theme): "Akaryakıt" #F1F2F4,
+///   "Net" logo orange.
+/// * On the plate ([OnHero], e.g. the login band): "Akaryakıt" black, "Net"
+///   white — the inverse of ink + orange (large text, 3.28:1 ≥ 3).
 class AknWordmark extends StatelessWidget {
   const AknWordmark({
     super.key,
@@ -205,13 +218,20 @@ class AknWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
+    final onPlate = OnHero.isOn(context);
     final dark = onDark ?? c.isDark;
+    final ink = onPlate
+        ? c.onPlate
+        : (dark ? AknColors.dark.ink : AknColors.light.ink);
+    final net = onPlate ? c.plateContext : c.logo;
     final base = TextStyle(
+      fontFamily: AknFonts.sans,
       fontSize: fontSize,
-      height: 1.15,
+      height: 1.18,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.02 * fontSize,
-      color: dark ? const Color(0xFFFFFFFF) : const Color(0xFF202E3D),
+      leadingDistribution: TextLeadingDistribution.even,
+      color: ink,
     );
     final text = Text.rich(
       TextSpan(
@@ -220,7 +240,7 @@ class AknWordmark extends StatelessWidget {
         children: [
           TextSpan(
             text: 'Net',
-            style: base.copyWith(color: c.logo),
+            style: base.copyWith(color: net),
           ),
         ],
       ),
@@ -234,7 +254,9 @@ class AknWordmark extends StatelessWidget {
   }
 }
 
-/// Mark + wordmark lock-up (login header, about screen).
+/// Mark + wordmark lock-up (login band, about screen). On the plate it is the
+/// inverse tile with the black + white wordmark; [onDark] keeps working for
+/// dark surfaces.
 class AknLogo extends StatelessWidget {
   const AknLogo({
     super.key,

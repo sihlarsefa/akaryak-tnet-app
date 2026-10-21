@@ -14,6 +14,7 @@ import '../application/login_effects.dart';
 import '../copy.dart';
 import '../data/auth_api.dart';
 import 'widgets/code_entry.dart';
+import 'widgets/gate_view.dart';
 
 /// Kod ekranının amacı.
 enum CodePurpose {
@@ -71,34 +72,41 @@ class CodePage extends ConsumerWidget {
     final a = args;
     if (a == null) {
       return AppScaffold(
-        title: AuthCopy.codeTitleTwoFactor,
+        appBar: false,
         showBell: false,
-        body: Center(
-          child: SingleChildScrollView(
-            child: EmptyState(
-              title: AuthCopy.missingChallenge,
-              message: AuthCopy.missingChallengeBody,
-              illustration: AknIllustration.locked,
-              actionLabel: AuthCopy.backToLogin,
-              onAction: () => context.go(AppRoutes.login),
-            ),
+        body: GateView(
+          icon: Icons.sms_failed_outlined,
+          tone: AknTone.warn,
+          title: AuthCopy.missingChallenge,
+          message: AuthCopy.missingChallengeBody,
+          primary: AknButton(
+            label: AuthCopy.backToLogin,
+            expand: true,
+            size: AknButtonSize.large,
+            onPressed: () => context.go(AppRoutes.login),
           ),
         ),
       );
     }
     final otp = a.purpose == CodePurpose.otpLogin;
+    // Beyaz sayfa (tasarım v2 §7.2): geri düğmesi, 40 px logo karosu, "Kodu girin", tek cümle, 6 kutu,
+    // "Kodu tekrar gönder", birincil "Doğrula". Amaç (2FA / telefonla giriş) ekran okuyucuya söylenir.
     return AppScaffold(
-      title: otp ? AuthCopy.codeTitleOtp : AuthCopy.codeTitleTwoFactor,
       showBell: false,
+      largeTitle: false,
+      titleWidget: Semantics(
+        label: otp ? AuthCopy.codeTitleOtp : AuthCopy.codeTitleTwoFactor,
+        child: const SizedBox.shrink(),
+      ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
         excludeFromSemantics: true,
         onTap: () => FocusScope.of(context).unfocus(),
         child: SingleChildScrollView(
           padding: EdgeInsets.fromLTRB(
-            16,
-            24,
-            16,
+            AknSpace.page,
+            4,
+            AknSpace.page,
             24 + MediaQuery.viewPaddingOf(context).bottom,
           ),
           child: Center(
@@ -139,7 +147,7 @@ class CodePage extends ConsumerWidget {
       );
     } else {
       throw const UnknownFailure(
-        'Doğrulama tamamlanamadı. Lütfen tekrar deneyin.',
+        'Doğrulama tamamlanamadı. Kodu yeniden girip tekrar deneyin.',
       );
     }
   }

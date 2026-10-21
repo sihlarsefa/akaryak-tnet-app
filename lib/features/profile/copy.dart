@@ -55,7 +55,8 @@ abstract final class ProfileCopy {
   static const supportMailSubject = 'AkaryakıtNet mobil destek';
   static const askAssistant = 'Asistana sorun';
   static const askAssistantHint = 'Uygulamanın kullanımıyla ilgili sorular';
-  static const linkFailed = 'Bağlantı açılamadı.';
+  static const linkFailed =
+      'Sayfa açılamadı. Tarayıcınızı kontrol edip tekrar deneyin.';
 
   // ------------------------------------------------------------------ Yasal
   static const privacyPolicy = 'Gizlilik politikası';
@@ -77,7 +78,8 @@ abstract final class ProfileCopy {
       'Asistanı yeniden kullanmak için aydınlatma metnini tekrar onaylamanız gerekir. '
       'Sohbet kayıtlarınız saklama süresi dolunca silinir.';
   static const withdrawDone = 'Asistan onayınız geri alındı.';
-  static const withdrawFailed = 'Onay geri alınamadı. Lütfen tekrar deneyin.';
+  static const withdrawFailed =
+      'Onay geri alınamadı. Bağlantınızı kontrol edip tekrar deneyin.';
   static const permissions = 'Uygulama izinleri';
   static const permissionsHint = 'Konum, kamera ve bildirim izinleri';
 
@@ -88,7 +90,7 @@ abstract final class ProfileCopy {
   static const about = 'Hakkında';
   static String server(String s) => 'Sunucu $s';
   static const biometricGeneric = 'Biyometri';
-  static String version(String v, String env) => 'Sürüm $v · $env';
+  static String version(String v, String env) => 'Sürüm $v, $env';
   static const devMenu = 'Geliştirici menüsü';
   static const devMenuHint =
       'Demo hesapları, hata enjeksiyonu, tasarım galerisi';
@@ -162,6 +164,9 @@ abstract final class ProfileCopy {
   static const sessionsTitle = 'Aktif oturumlar';
   static const thisDevice = 'Bu cihaz';
   static String lastSeen(String when) => 'Son etkinlik $when';
+
+  /// Cümle içinde (sürümden sonra): "son etkinlik …".
+  static String lastSeenInline(String when) => 'son etkinlik $when';
   static const revoke = 'Oturumu kapat';
   static const revokeTitle = 'Bu cihazdaki oturum kapatılsın mı?';
   static const revokeMessage =

@@ -127,15 +127,14 @@ class _PhotoTile extends ConsumerWidget {
                     horizontal: 6,
                     vertical: 2,
                   ),
-                  decoration: const BoxDecoration(
-                    color: Color(0xE60F172A),
-                    borderRadius: AknRadius.pillAll,
+                  decoration: BoxDecoration(
+                    color: AknColors.light.ink,
+                    borderRadius: BorderRadius.circular(AknRadius.xs),
                   ),
-                  child: const Text(
-                    'Önceki',
-                    style: TextStyle(
-                      color: Color(0xFFFFFFFF),
-                      fontSize: 11,
+                  child: Text(
+                    DriverCopy.photoPreviousTag,
+                    style: context.aknText.caption.copyWith(
+                      color: AknColors.light.surface,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -154,19 +153,19 @@ class _PhotoTile extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onRemove,
                 child: SizedBox.square(
-                  dimension: AknSpace.minTap,
+                  dimension: context.minTap,
                   child: Center(
                     child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: const BoxDecoration(
-                        color: Color(0xCC0F172A),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AknColors.light.ink,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.close_rounded,
                         size: 18,
-                        color: Color(0xFFFFFFFF),
+                        color: AknColors.light.surface,
                       ),
                     ),
                   ),
@@ -207,11 +206,8 @@ class _AddTile extends StatelessWidget {
       excludeSemantics: true,
       onTap: onTap,
       child: Material(
-        color: c.brandSoft,
-        shape: RoundedRectangleBorder(
-          borderRadius: AknRadius.card,
-          side: BorderSide(color: c.brandLine),
-        ),
+        color: c.surfaceAlt,
+        shape: const RoundedRectangleBorder(borderRadius: AknRadius.card),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -221,11 +217,14 @@ class _AddTile extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.add_a_photo_rounded, color: c.brandInk, size: 28),
+                  Icon(Icons.add_a_photo_outlined, color: c.ink, size: 28),
                   const SizedBox(height: 4),
                   Text(
-                    'Ekle',
-                    style: t.label.copyWith(color: c.brandInk),
+                    DriverCopy.photoAdd,
+                    style: t.label.copyWith(
+                      color: c.ink,
+                      fontWeight: FontWeight.w600,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

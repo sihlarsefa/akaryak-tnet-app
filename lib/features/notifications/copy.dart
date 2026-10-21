@@ -38,7 +38,8 @@ abstract final class NotificationsCopy {
   static const categoriesHint =
       'Kapalı kategoriler anlık bildirim göndermez; bildirim kutunuzda yine görünür.';
   static const prefsError = 'Tercihler yüklenemedi';
-  static const prefsSaveFailed = 'Tercih kaydedilemedi. Lütfen tekrar deneyin.';
+  static const prefsSaveFailed =
+      'Tercih kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.';
   static const deviceTitle = 'Bu cihaz';
   static const pushOffTitle = 'Anlık bildirimler kapalı';
   static const pushOffMessage =

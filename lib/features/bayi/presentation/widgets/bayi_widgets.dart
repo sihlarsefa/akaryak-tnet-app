@@ -9,6 +9,8 @@ import '../../../../core/network/app_failure.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/external_activity.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/tr_time.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 
 /// Ekran düzeyinde hata / boş durum: çevrimdışı, yetki yok, kayıt yok, sunucu hatası.
@@ -116,9 +118,9 @@ class UpdatedCaption extends StatelessWidget {
     final offline = error is OfflineFailure || fromCache;
     final text = offline
         ? 'Son güncelleme ${Fmt.relative(at)}'
-        : 'Yenilenemedi · son güncelleme ${Fmt.relative(at)}';
+        : 'Yenilenemedi, son güncelleme ${Fmt.relative(at)}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Row(
         children: [
           Icon(
@@ -206,7 +208,7 @@ class BayiSectionHeader extends StatelessWidget {
     this.count,
     this.actionLabel,
     this.onAction,
-    this.padding = const EdgeInsets.fromLTRB(16, 24, 8, 8),
+    this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
   });
 
   final String title;
@@ -240,10 +242,10 @@ class BayiSectionHeader extends StatelessWidget {
           padding: padding,
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
           child: Align(
             alignment: AlignmentDirectional.centerStart,
-            child: TextButton(onPressed: onAction, child: Text(actionLabel!)),
+            child: AknInlineLink(label: actionLabel!, onTap: onAction!),
           ),
         ),
       ],
@@ -255,16 +257,15 @@ class BayiSectionHeader extends StatelessWidget {
 bool isLargeText(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(16) > 22;
 
-/// Bölüm seçici (2–3 seçenek), Material [SegmentedButton]: 48 dp dokunma hedefi, ekran okuyucuda
-/// etkinleştirilebilir seçili düğme ve AA kontrast. (Çekirdek [AknSegmented]: seçili olmayan etiket
-/// 4,34:1, 42 dp yükseklik ve ekran okuyucuda dokunma eylemi yok.)
+/// Bölüm seçici (2–3 seçenek): v2 [AknSegmented] (Beton ray, beyaz başparmak; her bölüm 48 dp hedefli,
+/// ekran okuyucuda seçili / seçilmemiş düğme). Adı ve parametreleri eski çağrılar için korunur.
 class BayiSegmented<T> extends StatelessWidget {
   const BayiSegmented({
     super.key,
     required this.segments,
     required this.value,
     required this.onChanged,
-    this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.padding = const EdgeInsets.symmetric(horizontal: AknSpace.page),
   });
 
   final List<FilterOption<T>> segments;
@@ -273,27 +274,58 @@ class BayiSegmented<T> extends StatelessWidget {
   final EdgeInsetsGeometry padding;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: padding,
-    child: SegmentedButton<T>(
-      segments: [
-        for (final s in segments)
-          ButtonSegment<T>(
-            value: s.value,
-            label: Text(
-              s.count == null ? s.label : '${s.label} (${s.count})',
-              textAlign: TextAlign.center,
-            ),
-          ),
-      ],
-      selected: {value},
-      showSelectedIcon: false,
-      expandedInsets: EdgeInsets.zero,
-      onSelectionChanged: (v) {
-        if (v.isNotEmpty) onChanged(v.first);
+  Widget build(BuildContext context) {
+    // Tam genişlik: içerik dar olsa da çipler 20 px kenardan başlar (ortalanmaz).
+    final chips = SizedBox(
+      width: double.infinity,
+      child: FilterChips<T>(
+        options: segments,
+        selected: {value},
+        allowEmpty: false,
+        padding: padding,
+        onChanged: (v) => onChanged(v.first),
+      ),
+    );
+    // Büyük yazıda ya da etiket eşit dilime sığmadığında (dar ekran, kalın yazı) kayan çipler.
+    final scaler = MediaQuery.textScalerOf(context);
+    if (scaler.scale(10) >= 13) return chips;
+    var style = context.aknText.label.copyWith(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+    );
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.copyWith(fontWeight: FontWeight.w700);
+    }
+    double width(String text) {
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: Directionality.of(context),
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final w = tp.width;
+      tp.dispose();
+      return w;
+    }
+
+    final inset = padding.resolve(Directionality.of(context)).horizontal;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final slot = (constraints.maxWidth - inset - 6) / segments.length;
+        final fits = segments.every((o) {
+          final count = o.count == null ? 0.0 : 5 + width('${o.count}');
+          return width(o.label) + count + 14 <= slot;
+        });
+        if (!fits) return chips;
+        return AknSegmented<T>(
+          segments: segments,
+          value: value,
+          onChanged: onChanged,
+          margin: padding,
+        );
       },
-    ),
-  );
+    );
+  }
 }
 
 /// [UsageBar]; etiket ve değer etiketi ("6.000 L / 16.000 L planlı") tek satıra sığmazsa (dar ekran,
@@ -398,11 +430,10 @@ class InAppBadge extends StatelessWidget {
   const InAppBadge({super.key});
 
   @override
-  Widget build(BuildContext context) => const StatusChip(
+  Widget build(BuildContext context) => const AknLamp(
     label: 'uygulamada',
     tone: AknTone.ok,
-    icon: Icons.phone_iphone_rounded,
-    size: StatusChipSize.small,
+    size: AknLampSize.small,
   );
 }
 
@@ -415,11 +446,11 @@ class SectionFailedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
     child: AknBanner(
       tone: AknTone.warn,
-      icon: Icons.cloud_off_rounded,
-      title: '$title · ${BayiCopy.sectionFailed}',
+      icon: Icons.cloud_off_outlined,
+      title: '$title: ${TurkishText.lower(BayiCopy.sectionFailed)}',
       message: BayiCopy.sectionFailedMessage,
       actionLabel: onRetry == null ? null : BayiCopy.retry,
       onAction: onRetry,
@@ -606,4 +637,278 @@ class CountLine extends StatelessWidget {
       showChevron: onTap != null,
     );
   }
+}
+
+/// Defter satırının ilk iki satırı (tasarım v2 §6.8): başlık (`headline` 17/22 600) ve ikinci satır
+/// (`bodySmall` dim) solda; tutar (`amount` 17/22 600, satır kırmaz) ve alt bilgisi ("42,35 ₺/L",
+/// "tahmini") sağda, sağ kenara hizalı. Dar ekranda (< 340) ya da 1,3× üstü yazıda sağ sütun başlığın
+/// altına iner; hiçbir şey kesilmez.
+class LedgerHead extends StatelessWidget {
+  const LedgerHead({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.amount,
+    this.amountMeta,
+    this.titleMaxLines = 2,
+    this.titleStyle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? amount;
+  final String? amountMeta;
+  final int titleMaxLines;
+  final TextStyle? titleStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final head = (titleStyle ?? t.headline).copyWith(color: c.ink);
+    final meta = t.bodySmall.copyWith(color: c.dim);
+    final money = t.amount.copyWith(color: c.ink);
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final sub = subtitle;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = large || constraints.maxWidth < 300;
+        if (stack) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title, style: head),
+              if (amount != null) ...[
+                const SizedBox(height: 2),
+                Text.rich(
+                  TextSpan(
+                    text: amount,
+                    style: money,
+                    children: [
+                      if (amountMeta != null)
+                        TextSpan(text: '  $amountMeta', style: meta),
+                    ],
+                  ),
+                ),
+              ],
+              if (sub != null && sub.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(sub, style: meta),
+              ],
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: head,
+                    maxLines: titleMaxLines,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (amount != null) ...[
+                  const SizedBox(width: 12),
+                  Text(amount!, style: money, maxLines: 1, softWrap: false),
+                ],
+              ],
+            ),
+            if ((sub != null && sub.isNotEmpty) || amountMeta != null) ...[
+              const SizedBox(height: 2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: sub == null || sub.isEmpty
+                        ? const SizedBox.shrink()
+                        : Text(sub, style: meta),
+                  ),
+                  if (amountMeta != null) ...[
+                    const SizedBox(width: 12),
+                    Text(
+                      amountMeta!,
+                      style: meta,
+                      maxLines: 1,
+                      softWrap: false,
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Satır içi kısa not: 16 px simge ve `bodySmall` metin ("Çek, 30 gün vade", "Son alımlar: …"). Simge
+/// durum taşıyorsa ([tone] uyarı / tehlike / tamam) tonun renginde, metin mürekkep; yoksa ikisi de
+/// soluk.
+class RowNote extends StatelessWidget {
+  const RowNote({
+    super.key,
+    required this.text,
+    this.icon,
+    this.tone,
+    this.maxLines,
+  });
+
+  final String text;
+  final IconData? icon;
+  final AknTone? tone;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final tn = tone;
+    final status = tn != null && tn != AknTone.neutral && tn != AknTone.info;
+    final style = t.bodySmall.copyWith(color: status ? c.ink : c.dim);
+    final scaler = MediaQuery.textScalerOf(context);
+    final line = scaler.scale(14) * 20 / 14;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (icon != null) ...[
+          SizedBox(
+            height: line,
+            child: Icon(
+              icon,
+              size: scaler.scale(16).clamp(16.0, 24.0),
+              color: status ? c.tone(tn).fg : c.dim,
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        Expanded(
+          child: Text(
+            text,
+            style: style,
+            maxLines: maxLines,
+            overflow: maxLines == null ? null : TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Gün başlığı (geçmiş listelerinde "Bugün", "Dün", "18 Ekim"): `label` 13/18 600 soluk, 20 px kenar.
+class DayHeader extends StatelessWidget {
+  const DayHeader(this.text, {super.key, this.trailing});
+
+  final String text;
+
+  /// Sağda kısa özet ("2 sevkiyat, 18.000 L").
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final style = t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim);
+    return Semantics(
+      header: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 2),
+        child: Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          spacing: 12,
+          children: [
+            Text(text, style: style),
+            if (trailing != null)
+              Text(trailing!, style: t.label.copyWith(color: c.dim)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Liste sonu cümlesi (§7.7): öğelerin nereye gittiğini söyler ("Teslim edilen siparişler …").
+class ListFooterNote extends StatelessWidget {
+  const ListFooterNote(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+    child: Text(
+      text,
+      style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
+    ),
+  );
+}
+
+/// Beton kuyu içinde kısa bilgi (§4.5): 44 px'lik tek satır uyarı ("2 sipariş finans onayında; …").
+/// Sayfa kenarına (20) hizalı.
+class PageWell extends StatelessWidget {
+  const PageWell({
+    super.key,
+    required this.message,
+    this.title,
+    this.tone = AknTone.info,
+    this.icon,
+    this.actionLabel,
+    this.onAction,
+    this.top = 8,
+  });
+
+  final String message;
+  final String? title;
+  final AknTone tone;
+  final IconData? icon;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsets.fromLTRB(20, top, 20, 0),
+    child: AknBanner(
+      tone: tone,
+      icon: icon,
+      title: title,
+      message: message,
+      actionLabel: actionLabel,
+      onAction: onAction,
+    ),
+  );
+}
+
+/// Sayı ile birimi arasında satır kırılmasın ("10.000 L", "338.800,00 ₺", "42,35 ₺/L", "30 gün"):
+/// aradaki boşluk bölünmez boşluk olur.
+String keepUnits(String s) => s.replaceAllMapped(
+  RegExp(r'(\d) (?=(L|₺|₺/L|m³|gün|dk|sa|km|sipariş|teslimat)(?=$|[\s,.;)]))'),
+  (m) => '${m[1]} ',
+);
+
+/// "22 Ekim" (gün + tam ay adı; yıl yok).
+String dayMonthLong(DateTime instant) {
+  final w = TrTime.wall(instant);
+  return '${w.day} ${Fmt.monthNames[w.month - 1]}';
+}
+
+/// Plaka okumaları için yazı ölçeği sınırı (en çok 1,5×): üç sütun korunur, değer sütuna sığmazsa
+/// küçülür; çok büyük yazıda sayı satır ortasından bölünmez ya da taşmaz.
+class PlateClamp extends StatelessWidget {
+  const PlateClamp({super.key, required this.child, this.max = 1.5});
+
+  final Widget child;
+  final double max;
+
+  @override
+  Widget build(BuildContext context) =>
+      MediaQuery.withClampedTextScaling(maxScaleFactor: max, child: child);
 }

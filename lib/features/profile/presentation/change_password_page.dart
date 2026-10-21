@@ -119,7 +119,12 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
         key: _form,
         child: AutofillGroup(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+            padding: const EdgeInsets.fromLTRB(
+              AknSpace.page,
+              16,
+              AknSpace.page,
+              32,
+            ),
             children: [
               const AknBanner(
                 tone: AknTone.info,

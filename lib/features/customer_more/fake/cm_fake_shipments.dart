@@ -51,7 +51,7 @@ void registerCmShipmentFakes(FakeServer s) {
       sh,
       'shipment.accepted',
       'Teslimat kabul edildi',
-      '${sh['orderNumber']} · ${sh['code']} müşteri tarafından kabul edildi.',
+      '${sh['orderNumber']}, ${sh['code']} müşteri tarafından kabul edildi.',
       severity: 1,
     );
     return null;
@@ -72,7 +72,7 @@ void registerCmShipmentFakes(FakeServer s) {
       sh,
       'shipment.disputed',
       'Teslimata itiraz edildi',
-      '${sh['orderNumber']} · ${sh['code']}: müşteri itiraz etti.',
+      '${sh['orderNumber']}, ${sh['code']}: müşteri itiraz etti.',
       severity: 3,
     );
     return null;

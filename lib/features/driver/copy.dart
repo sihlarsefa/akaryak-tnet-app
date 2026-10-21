@@ -8,13 +8,17 @@ abstract final class DriverCopy {
   static const tabHistory = 'Geçmiş';
 
   static const sectionTodo = 'Sırada';
+  static const sectionNext = 'Sonraki duraklar';
   static const sectionDone = 'Tamamlanan';
   static const sectionDisputed = 'Düzeltme bekleyen';
+  static const sectionUpcoming = 'Yaklaşan teslimatlar';
+  static const sectionHistory = 'Son 30 gün';
+  static const noMoreStops = 'Bugün başka durak yok.';
 
   static const lastUpdated = 'Son güncelleme';
 
   // ------------------------------------------------------------------ Boş / hata
-  static const emptyTodayTitle = 'Bugün için teslimat yok';
+  static const emptyTodayTitle = 'Bugün teslimatınız yok';
   static const emptyTodayMessage =
       'Size yeni bir teslimat atandığında burada görünür ve bildirim alırsınız.';
   static const emptyUpcomingTitle = 'Yaklaşan teslimat yok';
@@ -25,7 +29,7 @@ abstract final class DriverCopy {
       'Bildirdiğiniz ve iptal edilen teslimatlar burada görünür.';
   static const offlineNoCacheTitle = 'Çevrimdışısınız';
   static const offlineNoCacheMessage =
-      'Bu ekran için kayıtlı veri yok. Bağlantı gelince otomatik yenilenir.';
+      'Bağlantı yok. Bağlantı gelince bu sayfa kendiliğinden yenilenir.';
   static const forbiddenTitle = 'Bu ekranı görüntüleyemiyorsunuz';
   static const forbiddenMessage =
       'Teslimatlarım yalnızca sevkiyat yetkisi olan bayi personeline açıktır.';
@@ -43,7 +47,51 @@ abstract final class DriverCopy {
   static const overdue = 'Gecikmiş';
   static String todaySummary(int open, int done) => done == 0
       ? '$open teslimat sırada'
-      : '$open teslimat sırada · $done tamamlandı';
+      : '$open teslimat sırada, $done tamamlandı';
+
+  /// "Sıradaki teslimat, 1 / 3".
+  static String nextOf(int n, int total) => '$nextStop, $n / $total';
+
+  /// Plakanın başlığı: "Motorin, bu durakta".
+  static String onThisStop(String? product) =>
+      product == null || product.isEmpty
+      ? 'Bu durakta'
+      : '$product, bu durakta';
+
+  /// Yük çubuğunun ekran okuyucu metni.
+  static String loadSemantics(String liters, int stops) =>
+      'Tankta $liters, bugün $stops durak';
+  static const offlineLine = 'Çevrimdışı. Teslimatlar telefona kaydediliyor.';
+  static String offlineLineCount(int n) =>
+      'Çevrimdışı. Teslimatlar telefona kaydediliyor ($n).';
+  static String syncedAt(String time) => 'Eşitlendi $time';
+  static String refreshFailed(String time) =>
+      'Yenilenemedi. Son güncelleme $time.';
+  static const doorNote = 'Kapı notu:';
+  static const recipientRole = 'teslim alacak kişi';
+  static const contactRole = 'yetkili';
+  static String callSemantics(String name) => '$name kişisini ara';
+
+  // Plaka okumaları (§7.11). Canlı varış tahmini ve yol mesafesi API'de yok: plan saati ve
+  // telefon konumuna göre kuş uçuşu uzaklık gösterilir.
+  static const readoutPlan = 'Plan';
+  static String readoutPlanOn(String day) => 'Plan, $day';
+  static const readoutDistance = 'Uzaklık';
+  static const readoutWindow = 'Teslim saati';
+  static const readoutTank = 'Tank';
+  static const readoutPlanned = 'Planlanan';
+  static const readoutDiff = 'Fark';
+  static const readoutTime = 'Saat';
+  static const plateDelivered = 'Teslim edildi';
+  static const plateReading = 'Sayaç okuması';
+  static String distanceSemantics(String d) => 'kuş uçuşu $d';
+  static String startedAt(String time) => 'Yolda, $time çıktınız';
+  static String overdueSince(String when) => 'Gecikmiş, $when planlıydı';
+  static String draftAt(String step) => 'Yarım kalan teslimat, $step adımında';
+  static const reportedLamp = 'Teslim edildi, kabul bekliyor';
+  static const acceptedLamp = 'Müşteri teslim aldı';
+  static const deliverWaitingLamp = 'Teslimat telefonda, gönderilecek';
+  static String disputedCount(int n) => '$n teslimat düzeltme bekliyor';
 
   // ------------------------------------------------------------------ İpucu
   static const tipTitle = 'Teslimatı kaydırarak onaylayın';
@@ -60,15 +108,17 @@ abstract final class DriverCopy {
   static const actionNavigate = 'Yol tarifi';
   static const actionCall = 'Ara';
   static const actionResume = 'Devam et';
-  static const slideStart = 'Kaydırarak yola çıkın';
-  static const slideDeliver = 'Kaydırarak teslim edin';
+  static const slideStart = 'Yola çıkmak için kaydırın';
+  static const slideDeliver = 'Teslimatı kaydetmek için kaydırın';
+  static const confirmStart = 'Yola çık';
+  static const confirmDeliver = 'Teslimatı kaydet';
   static const slideStartDone = 'Kaydedildi';
   static const disputedTitle = 'Müşteri itiraz etti';
   static const disputedFallback =
       'Müşteri teslimata itiraz etti. Bilgileri kontrol edip teslimatı düzeltin.';
   static const resumeDraft = 'Yarım kalan teslimat';
   static String resumeDraftBody(String code, String step) =>
-      '$code · $step adımında kaldınız.';
+      '$code, $step adımında kaldınız.';
 
   static const deliveryPoint = 'Teslimat noktası';
   static const accessNotes = 'Giriş ve erişim notları';
@@ -105,7 +155,10 @@ abstract final class DriverCopy {
   static const navigateFailed = 'Harita uygulaması açılamadı.';
   static const callFailed = 'Arama başlatılamadı.';
   static const enRouteCaption = 'Yolda (canlı konum değildir)';
-  static String enRouteSince(String time) => 'Yolda · çıkış $time';
+  static String enRouteSince(String time) => 'Yolda, çıkış $time';
+
+  /// Ayrıntı başlığında "Yolda" lambasının yanında: "çıkış 09:20".
+  static String dispatchedMeta(String time) => 'çıkış $time';
 
   // ------------------------------------------------------------------ Bekleyen işlem
   static const opWaiting = 'Gönderilmeyi bekliyor';
@@ -115,16 +168,22 @@ abstract final class DriverCopy {
   static const opFix = 'Düzelt';
   static const opRetry = 'Tekrar dene';
   static const opDiscard = 'Vazgeç';
-  static const queuedTitle = 'Kaydedildi — bağlantı gelince gönderilecek';
+
+  /// Yola çıkış çevrimdışı kaydedildi (§10.2: ne oldu + ne olacak).
+  static const queuedTitle = 'Yola çıkış telefona kaydedildi';
+  static const queuedStartTitle = queuedTitle;
+
+  /// Teslimat çevrimdışı kaydedildi (§7.10).
+  static const queuedDeliverTitle = 'Teslimat telefona kaydedildi';
   static const queuedStartBody =
-      'Yola çıkışınız telefonda saklandı. İnternet gelince otomatik gönderilir; bu sırada teslimata devam edebilirsiniz.';
+      'Bağlantı gelince gönderilecek. Bu sırada teslimata devam edebilirsiniz.';
   static const queuedDeliverBody =
-      'Teslimat bilgileri telefonunuzda güvende. İnternet gelince otomatik gönderilir; uygulamayı kapatabilirsiniz.';
+      'Bağlantı gelince gönderilecek. Uygulamayı kapatabilirsiniz.';
   static String nextAttempt(String time) => 'Sonraki deneme $time';
   static const startSentTitle = 'Yola çıktınız';
   static const startSentBody =
       'Müşteriye aracın yola çıktığı bildirildi. İyi yolculuklar.';
-  static const deliverSentTitle = 'Teslimat bildirildi';
+  static const deliverSentTitle = 'Teslimat kaydedildi';
   static const deliverSentBody =
       'Müşteriye teslimatı onaylaması için bildirim gönderildi.';
   static const deliverFailedTitle = 'Teslimat gönderilemedi';
@@ -156,10 +215,15 @@ abstract final class DriverCopy {
   static const stepPhotos = 'Fotoğraf';
   static const stepSignature = 'İmza';
   static const stepSummary = 'Özet';
+
+  // Adım başlıkları (ilerleme şeridinin kısa etiketlerinden ayrı, ne yapılacağını söyler).
+  static const headPhotos = 'Teslim fotoğrafları';
+  static const headSignature = 'Teslim alanın imzası';
+  static const headSummary = 'Teslimatı kontrol edin';
   static const stepShort = [
-    'Litre',
+    'Sayaç',
     'İrsaliye',
-    'Teslim alan',
+    'Alıcı',
     'Fotoğraf',
     'İmza',
     'Özet',
@@ -176,7 +240,7 @@ abstract final class DriverCopy {
       'Planlanan litreyi aşamaz (en fazla $max).';
   static const litersDecimals = 'En çok 3 ondalık girilebilir.';
   static String tankWarning(String cap) =>
-      'Girilen litre tank kapasitesini ($cap) aşıyor. Lütfen kontrol edin.';
+      'Girilen litre tank kapasitesini ($cap) aşıyor. Sayacı kontrol edin.';
   static const keyDelete = 'Sil';
   static const keyComma = 'Virgül';
 
@@ -203,7 +267,9 @@ abstract final class DriverCopy {
   static const photoPrevious = 'Önceki teslimattan';
   static String photoCount(int n) => '$n fotoğraf';
   static const photoMax = 'En çok 20 fotoğraf eklenebilir.';
-  static const photoFailed = 'Fotoğraf alınamadı. Lütfen tekrar deneyin.';
+  static const photoFailed = 'Fotoğraf alınamadı. Tekrar deneyin.';
+  static const photoPreviousTag = 'Önceki';
+  static const photoAdd = 'Ekle';
 
   static const signatureHint = 'Teslim alan kişi aşağıya imzalasın.';
   static const signatureOptional = 'İmza isteğe bağlıdır.';
@@ -254,7 +320,7 @@ abstract final class DriverCopy {
   static const locationTitle = 'Teslim konumu';
   static const locationStartTitle = 'Yola çıkış konumu';
   static const locationAcquiring = 'Konum alınıyor…';
-  static String locationOk(String accuracy) => 'Konum alındı · $accuracy';
+  static String locationOk(String accuracy) => 'Konum alındı, $accuracy';
   static String locationLowAccuracy(String accuracy) =>
       'Konum hassasiyeti düşük ($accuracy). Açık alanda tekrar deneyin.';
   static const locationApproximate = 'Hassas konum kapalı';

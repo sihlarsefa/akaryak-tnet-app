@@ -10,6 +10,7 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../application/loadable.dart';
 import '../application/templates_controller.dart';
 import '../copy.dart';
@@ -19,7 +20,8 @@ import 'widgets/common.dart';
 /// Şablonlarım rotası (spec C.4 derin bağlantı).
 const templatesRoute = '/templates';
 
-/// Şablonlarım (spec A.4): kullan (`/orders/new?fromTemplate=`), sil.
+/// Şablonlarım (spec A.4; tasarım v2 §7.7): ledger satırları (ad, satırlar, son kullanım),
+/// "Kullan" (`/orders/new?fromTemplate=`) ve sil.
 class TemplatesPage extends ConsumerWidget {
   const TemplatesPage({super.key});
 
@@ -63,7 +65,7 @@ class TemplatesPage extends ConsumerWidget {
                     title: 'Henüz şablonunuz yok',
                     message:
                         'Sipariş verirken Özet adımında “Şablon olarak kaydet”i açın ya da '
-                        'bir siparişin ayrıntısında “Şablon yap”a dokunun.',
+                        'bir siparişin ⋯ menüsünden şablon olarak kaydedin.',
                     illustration: AknIllustration.orders,
                     actionLabel: canUse ? OrdersCopy.newOrder : null,
                     onAction: canUse
@@ -72,40 +74,40 @@ class TemplatesPage extends ConsumerWidget {
                   ),
                 ],
               )
-            : StaggerScope(
-                child: ListView.builder(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(0, 4, 0, 32),
-                  itemCount: items.length + 1,
-                  itemBuilder: (context, i) {
-                    if (i == 0) {
-                      return LastUpdatedNote(
-                        updatedAt: s.updatedAt,
-                        fromCache: s.fromCache,
-                      );
-                    }
-                    final tpl = items[i - 1];
-                    return StaggerItem(
-                      index: i - 1,
-                      child: ContentWidth(
-                        child: _TemplateCard(item: tpl, canUse: canUse),
-                      ),
+            : ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(0, 4, 0, 32),
+                itemCount: items.length + 1,
+                separatorBuilder: (context, i) => i == 0
+                    ? const SizedBox.shrink()
+                    : const ContentWidth(child: AknLedgerDivider()),
+                itemBuilder: (context, i) {
+                  if (i == 0) {
+                    return LastUpdatedNote(
+                      updatedAt: s.updatedAt,
+                      fromCache: s.fromCache,
                     );
-                  },
-                ),
+                  }
+                  final tpl = items[i - 1];
+                  return ContentWidth(
+                    child: _TemplateRow(item: tpl, canUse: canUse),
+                  );
+                },
               ),
       );
     }
     return AppScaffold(
       title: OrdersCopy.templates,
+      largeTitle: false,
+      showBell: false,
       refreshing: s.refreshing,
       body: body,
     );
   }
 }
 
-class _TemplateCard extends ConsumerWidget {
-  const _TemplateCard({required this.item, required this.canUse});
+class _TemplateRow extends ConsumerWidget {
+  const _TemplateRow({required this.item, required this.canUse});
 
   final TemplateListItem item;
   final bool canUse;
@@ -136,64 +138,35 @@ class _TemplateCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.aknText;
     final c = context.akn;
     final used = item.lastUsedAt == null
         ? 'Henüz kullanılmadı'
-        : 'Son kullanım ${Fmt.relative(item.lastUsedAt)}';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: AknCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        : 'Son kullanım ${TurkishText.lower(Fmt.relative(item.lastUsedAt))}';
+    return AknListTile(
+      title: item.name,
+      subtitle: '${item.subtitle}\n$used',
+      subtitleMaxLines: 3,
+      trailing: !canUse
+          ? null
+          : Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const AknIconBox(
-                  icon: Icons.bookmarks_rounded,
-                  tone: AknTone.brand,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.name, style: t.bodyStrong),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.subtitle,
-                        style: t.bodySmall.copyWith(color: c.text),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(used, style: t.caption.copyWith(color: c.dim)),
-                    ],
+                AknButton.secondary(
+                  label: 'Kullan',
+                  size: AknButtonSize.small,
+                  semanticLabel: '${item.name} şablonuyla sipariş ver',
+                  onPressed: () => context.push(
+                    '${AppRoutes.orderNew}?fromTemplate=${item.id}',
                   ),
                 ),
-                if (canUse)
-                  AknIconButton(
-                    icon: Icons.delete_outline_rounded,
-                    semanticLabel: '${item.name} şablonunu sil',
-                    color: c.dim,
-                    onPressed: () => _delete(context, ref),
-                  ),
+                AknIconButton(
+                  icon: Icons.delete_outline_rounded,
+                  semanticLabel: '${item.name} şablonunu sil',
+                  color: c.dim,
+                  onPressed: () => _delete(context, ref),
+                ),
               ],
             ),
-            if (canUse) ...[
-              const SizedBox(height: 12),
-              AknButton(
-                label: 'Kullan',
-                icon: Icons.shopping_cart_checkout_rounded,
-                expand: true,
-                semanticLabel: '${item.name} şablonuyla sipariş ver',
-                onPressed: () => context.push(
-                  '${AppRoutes.orderNew}?fromTemplate=${item.id}',
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

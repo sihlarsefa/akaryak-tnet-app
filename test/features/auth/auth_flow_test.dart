@@ -25,7 +25,11 @@ import 'package:pinput/pinput.dart';
 import '../../support/test_app.dart';
 import 'auth_test_support.dart';
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+/// Etiketi alanın üstünde duran (tasarım v2 §6.10) metin alanı.
+Finder _field(String label) => find.descendant(
+  of: find.ancestor(of: find.text(label), matching: find.byType(AknTextField)),
+  matching: find.byType(TextField),
+);
 
 Future<ProviderContainer> _launch(
   WidgetTester tester, {
@@ -50,7 +54,7 @@ Future<void> _typeLogin(
   String user,
   String password,
 ) async {
-  await tester.enterText(_field('Kullanıcı adı veya e-posta'), user);
+  await tester.enterText(_field('E-posta ya da kullanıcı adı'), user);
   await tester.enterText(_field('Şifre'), password);
   await tapVisible(tester, find.text('Giriş yap'));
   await pumpFor(tester, const Duration(seconds: 1));
@@ -64,7 +68,13 @@ void main() {
     await tester.tap(find.text('Atla'));
     await pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Giriş yap'), findsOneWidget);
-    expect(find.text('Demo hesapları'), findsOneWidget);
+    // Demo hesapları alt bilgideki "Demo" bağlantısının ardında (tasarım v2 §7.2).
+    await tester.scrollUntilVisible(
+      find.text('Demo'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Demo'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -82,12 +92,12 @@ void main() {
 
   testWidgets('telefonla giriş → kabuk (müşteri)', (tester) async {
     final c = await _launch(tester);
-    await tapVisible(tester, find.text('Telefonla'));
+    await tapVisible(tester, find.text('Telefon numarasıyla giriş yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.enterText(_field('Cep telefonu'), '0532 000 01 01');
     await tapVisible(tester, find.text('Kod gönder'));
     await pumpFor(tester, const Duration(seconds: 1));
-    expect(find.text('Telefonla giriş'), findsWidgets);
+    expect(find.text('Kodu girin'), findsOneWidget);
     await tester.enterText(find.byType(Pinput), '123456');
     await pumpUntil(tester, () => isSignedIn(c));
     await pumpFor(tester, const Duration(seconds: 2));
@@ -156,7 +166,7 @@ void main() {
       );
       expect(
         tester
-            .widget<TextField>(_field('Kullanıcı adı veya e-posta'))
+            .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
             .controller!
             .text,
         'musteri',
@@ -196,7 +206,7 @@ void main() {
       await pumpUntil(tester, () => isSignedIn(c));
       await pumpFor(tester, const Duration(seconds: 2));
       expect(find.text('Daha hızlı ve güvenli açılış'), findsOneWidget);
-      await tester.tap(find.textContaining('kullan'));
+      await tester.tap(find.textContaining('tanıma kullan'));
       await pumpFor(tester, const Duration(seconds: 1));
       expect(bio.calls, 1);
       expect(c.read(biometricLockProvider), isTrue);

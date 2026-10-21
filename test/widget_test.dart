@@ -65,7 +65,13 @@ void main() {
     await tester.tap(find.text('Atla'));
     await _pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Giriş yap'), findsOneWidget);
-    expect(find.text('Demo hesapları'), findsOneWidget);
+    // Sahte kipte demo hesapları alt bilgideki "Demo" bağlantısının ardında (tasarım v2 §7.2).
+    await tester.scrollUntilVisible(
+      find.text('Demo'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Demo'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -74,6 +80,13 @@ void main() {
   ) async {
     final container = await _launch(tester);
     expect(find.text('Giriş yap'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Demo'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Demo'));
+    await _pumpFor(tester, const Duration(milliseconds: 600));
     await tester.ensureVisible(find.text('Selin Aydın'));
     await tester.tap(find.text('Selin Aydın'));
     for (
@@ -130,7 +143,13 @@ void main() {
     final c = await _launch(tester);
     await login(tester, c, 'sofor');
     expect(find.byType(DriverHome), findsOneWidget);
-    await tester.tap(find.byType(NotificationBell));
+    // Şoför ana sayfasında zil yok (tahta ekran 6); Bildirimler alt menüde sekmedir.
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AnimatedBottomBar),
+        matching: find.text('Bildirim'),
+      ),
+    );
     await _pumpFor(tester, const Duration(seconds: 1));
     // Gelen kutusu (A8): şoföre atanan teslimat bildirimi.
     expect(find.byType(NotificationsPage), findsOneWidget);

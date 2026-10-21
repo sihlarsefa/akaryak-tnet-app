@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../driver_mode.dart';
+import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
 import 'buttons.dart';
 import 'skeletons.dart';
 import 'states.dart';
+
+export 'home_header.dart';
 
 /// Shell-level state the design system reads: the unread count for the bell,
 /// connectivity and pending operations for the offline banner.
@@ -55,7 +59,9 @@ class AppChrome extends InheritedWidget {
       old.onOpenPendingOps != onOpenPendingOps;
 }
 
-/// App-bar bell with the unread badge (from [AppChrome]).
+/// The bell (design v2 §6.3): `notifications_none_rounded` 24 in ink with an
+/// Asfalt count badge (dark: a light badge), from [AppChrome]. Hidden when
+/// the shell provides no notifications callback.
 class NotificationBell extends StatelessWidget {
   const NotificationBell({super.key, this.color});
 
@@ -69,9 +75,7 @@ class NotificationBell extends StatelessWidget {
     }
     final unread = chrome.unreadCount;
     return AknIconButton(
-      icon: unread > 0
-          ? Icons.notifications_rounded
-          : Icons.notifications_none_rounded,
+      icon: Icons.notifications_none_rounded,
       semanticLabel: 'Bildirimler',
       badgeCount: unread,
       badgeSemantics: (n) => '$n okunmamış',
@@ -81,13 +85,22 @@ class NotificationBell extends StatelessWidget {
   }
 }
 
-/// Page scaffold: app bar (title + optional subtitle, actions, the bell),
-/// offline banner, a refresh progress bar that keeps content visible, and a
-/// bottom action bar for primary actions.
+/// Page scaffold (design v2 §6.1): the bar, the offline line under it, a
+/// refresh bar that keeps content visible, and a sticky [actionBar].
 ///
-/// [navy] gives the app bar the navy identity (home screens, status heroes;
-/// pair with `AknHeroPanel` directly under it).
-class AppScaffold extends StatelessWidget {
+/// * **Home** ([homeHeader], e.g. [AknHomeHeader]): a pinned 62 px header
+///   (logo tile, company, person, bell) on the page colour.
+/// * **Root tab pages** (no back button: Siparişlerim, Onaylarım, Teklif
+///   masası …): 60 px bar, the title in `display` 30/36 left at 20, 44 px
+///   ink action buttons (and the bell).
+/// * **Pushed pages**: 52 px bar, the platform back button, the title in
+///   `headline` 17/22 600 (one line), actions on the right. Object pages then
+///   start the body with a `display` title.
+/// * The bar is the page colour (white; dark #16191D). A hairline appears
+///   only after content scrolls under it — no shadow, no orange strip.
+///   [largeTitle] overrides the root / pushed detection.
+/// * [hero] / [navy] are deprecated and render the normal white bar.
+class AppScaffold extends StatefulWidget {
   const AppScaffold({
     super.key,
     required this.body,
@@ -101,12 +114,15 @@ class AppScaffold extends StatelessWidget {
     this.bottom,
     this.actionBar,
     this.floatingActionButton,
+    this.hero = false,
     this.navy = false,
     this.refreshing = false,
     this.showOfflineBanner = true,
     this.backgroundColor,
     this.resizeToAvoidBottomInset = true,
     this.appBar = true,
+    this.homeHeader,
+    this.largeTitle,
   });
 
   final Widget body;
@@ -120,15 +136,21 @@ class AppScaffold extends StatelessWidget {
   final Widget? leading;
   final bool automaticallyImplyLeading;
 
-  /// Under the app bar (e.g. a `TabBar`).
+  /// Under the bar (e.g. a `TabBar`).
   final PreferredSizeWidget? bottom;
 
-  /// Bottom bar for the screen's primary actions (on a raised surface).
+  /// Sticky bottom area for the screen's primary actions ([ActionBar]).
   final Widget? actionBar;
   final Widget? floatingActionButton;
+
+  /// Deprecated: the orange header strip is gone; renders the white bar.
+  final bool hero;
+
+  /// Deprecated alias of [hero].
   final bool navy;
 
-  /// Background refresh in progress: thin bar at the top, content stays.
+  /// Background refresh in progress: thin bar under the app bar, content
+  /// stays.
   final bool refreshing;
   final bool showOfflineBanner;
   final Color? backgroundColor;
@@ -137,62 +159,86 @@ class AppScaffold extends StatelessWidget {
   /// False for screens that draw their own header.
   final bool appBar;
 
+  /// The home header (§6.2), pinned in place of the app bar.
+  final Widget? homeHeader;
+
+  /// Forces the root (`display` title, 60 px) or pushed (`headline`, 52 px)
+  /// bar; null detects it from the route (a back button means pushed).
+  final bool? largeTitle;
+
+  /// Deprecated: always false visually (kept for API stability).
+  bool get isHero => hero || navy;
+
+  @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  bool _scrolled = false;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
+    final scrolled = n.metrics.extentBefore > 0.5;
+    if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final t = context.aknText;
     final chrome = AppChrome.maybeOf(context);
-    final onNavy = navy;
-    final fg = onNavy ? c.onNavy : c.ink;
+    final home = widget.homeHeader;
+    final pageColor = widget.backgroundColor ?? c.bg;
 
-    Widget? titleBlock = titleWidget;
-    if (titleBlock == null && title != null) {
-      titleBlock = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title!,
-            style: t.headline.copyWith(color: fg),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (subtitle != null)
-            Text(
-              subtitle!,
-              style: t.caption.copyWith(color: onNavy ? c.onNavyDim : c.dim),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+    PreferredSizeWidget? bar;
+    if (widget.appBar && home == null) {
+      final route = ModalRoute.of(context);
+      final canGoBack =
+          widget.leading != null ||
+          (widget.automaticallyImplyLeading &&
+              (route?.impliesAppBarDismissal ?? false));
+      final root = widget.largeTitle ?? !canGoBack;
+      final scaler = MediaQuery.textScalerOf(context);
+      final t = context.aknText;
+      final driver = context.isDriverMode;
+      final titleStyle = root ? t.display : t.headline;
+      final titleScale = root ? 1.5 : 1.6;
+      final line =
+          scaler.clamp(maxScaleFactor: titleScale).scale(titleStyle.fontSize!) *
+          (titleStyle.height ?? 1.2);
+      final subtitleLine = widget.subtitle == null
+          ? 0.0
+          : scaler.clamp(maxScaleFactor: 1.6).scale(14) * 20 / 14;
+      final toolbar = root
+          ? (line + subtitleLine + 24).clamp(
+              driver ? 64.0 : AknTheme.rootBarHeight,
+              200.0,
+            )
+          : (line + subtitleLine + 8).clamp(
+              driver ? 60.0 : AknTheme.pushedBarHeight,
+              200.0,
+            );
+      bar = _AknAppBar(
+        root: root,
+        toolbarHeight: toolbar,
+        titleScale: titleScale,
+        scrolled: _scrolled,
+        title: widget.title,
+        titleWidget: widget.titleWidget,
+        subtitle: widget.subtitle,
+        leading: widget.leading,
+        automaticallyImplyLeading: widget.automaticallyImplyLeading,
+        background: pageColor,
+        actions: [
+          ...widget.actions,
+          if (widget.showBell) const NotificationBell(),
+          const SizedBox(width: 6),
         ],
+        bottom: widget.bottom,
       );
     }
 
-    final PreferredSizeWidget? bar = !appBar
-        ? null
-        : AppBar(
-            title: titleBlock == null
-                ? null
-                : Semantics(header: true, child: titleBlock),
-            leading: leading,
-            automaticallyImplyLeading: automaticallyImplyLeading,
-            backgroundColor: onNavy ? c.navy : null,
-            foregroundColor: onNavy ? c.onNavy : null,
-            scrolledUnderElevation: onNavy ? 0 : null,
-            systemOverlayStyle: onNavy
-                ? AknTheme.overlayOnNavy
-                : AknTheme.overlayFor(c.brightness),
-            iconTheme: onNavy ? IconThemeData(color: c.onNavy) : null,
-            actionsIconTheme: onNavy ? IconThemeData(color: c.onNavy) : null,
-            actions: [
-              ...actions,
-              if (showBell) NotificationBell(color: onNavy ? c.onNavy : null),
-              const SizedBox(width: 4),
-            ],
-            bottom: bottom,
-          );
-
-    final banner = showOfflineBanner && chrome != null
+    final banner = widget.showOfflineBanner && chrome != null
         ? OfflineBanner(
             offline: chrome.offline,
             pendingCount: chrome.pendingOps,
@@ -202,17 +248,34 @@ class AppScaffold extends StatelessWidget {
 
     final content = Column(
       children: [
+        if (home != null)
+          ColoredBox(
+            color: pageColor,
+            child: SafeArea(
+              bottom: false,
+              child: _ScrollEdge(
+                visible: _scrolled,
+                duration: AknMotion.of(context, AknMotion.base),
+                child: home,
+              ),
+            ),
+          ),
         ?banner,
         Expanded(
           child: Stack(
             children: [
-              // Geniş ekranda (tablet, yatay) içerik en fazla 640 dp (spec D.7).
-              Positioned.fill(child: ContentMaxWidth(child: body)),
+              // Geniş ekranda (tablet, yatay) içerik en fazla 640 dp.
+              Positioned.fill(
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: _onScroll,
+                  child: ContentMaxWidth(child: widget.body),
+                ),
+              ),
               Positioned(
                 top: 0,
                 left: 0,
                 right: 0,
-                child: TopProgressBar(active: refreshing),
+                child: TopProgressBar(active: widget.refreshing),
               ),
             ],
           ),
@@ -221,22 +284,161 @@ class AppScaffold extends StatelessWidget {
     );
 
     final scaffold = Scaffold(
-      backgroundColor: backgroundColor,
-      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
+      backgroundColor: pageColor,
+      resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
       appBar: bar,
-      floatingActionButton: floatingActionButton,
+      floatingActionButton: widget.floatingActionButton,
       body: content,
-      bottomNavigationBar: actionBar == null
+      bottomNavigationBar: widget.actionBar == null
           ? null
-          : ActionBar(child: actionBar!),
+          : ActionBar(child: widget.actionBar!),
     );
-    // Uygulama çubuğu olmayan ekranda durum çubuğu simgeleri yüzeye göre (kenardan kenara).
-    return appBar
-        ? scaffold
-        : AnnotatedRegion<SystemUiOverlayStyle>(
-            value: AknTheme.overlayFor(c.brightness),
-            child: scaffold,
-          );
+    // System bars follow the page surface (dark icons on white, light on the
+    // dark page).
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AknTheme.overlayFor(c.brightness),
+      child: scaffold,
+    );
+  }
+}
+
+/// The scaffold's app bar: the page colour, a root (`display`) or pushed
+/// (`headline`) title, a hairline once content scrolls under it.
+class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _AknAppBar({
+    required this.root,
+    required this.toolbarHeight,
+    required this.titleScale,
+    required this.scrolled,
+    required this.title,
+    required this.titleWidget,
+    required this.subtitle,
+    required this.leading,
+    required this.automaticallyImplyLeading,
+    required this.background,
+    required this.actions,
+    required this.bottom,
+  });
+
+  final bool root;
+  final double toolbarHeight;
+  final double titleScale;
+  final bool scrolled;
+  final String? title;
+  final Widget? titleWidget;
+  final String? subtitle;
+  final Widget? leading;
+  final bool automaticallyImplyLeading;
+  final Color background;
+  final List<Widget> actions;
+  final PreferredSizeWidget? bottom;
+
+  @override
+  Size get preferredSize =>
+      Size.fromHeight(toolbarHeight + (bottom?.preferredSize.height ?? 0));
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    Widget? titleBlock = titleWidget;
+    if (titleBlock == null && title != null) {
+      final style =
+          (root ? AknTheme.rootAppBarTitle(t) : AknTheme.appBarTitle(t))
+              .copyWith(color: c.ink);
+      titleBlock = MediaQuery.withClampedTextScaling(
+        maxScaleFactor: titleScale,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title!,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (subtitle != null)
+              Text(
+                subtitle!,
+                style: t.bodySmall.copyWith(color: c.dim),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+          ],
+        ),
+      );
+    }
+    final appBar = AppBar(
+      toolbarHeight: toolbarHeight,
+      title: titleBlock == null
+          ? null
+          : Semantics(header: true, child: titleBlock),
+      centerTitle: false,
+      titleSpacing: leading == null && root ? AknSpace.page : 0,
+      leading: leading,
+      leadingWidth: 52,
+      automaticallyImplyLeading: automaticallyImplyLeading,
+      backgroundColor: background,
+      foregroundColor: c.ink,
+      iconTheme: IconThemeData(color: c.ink, size: 24),
+      actionsIconTheme: IconThemeData(color: c.ink, size: 24),
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      shadowColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
+      systemOverlayStyle: AknTheme.overlayFor(c.brightness),
+      actions: actions,
+      bottom: bottom,
+    );
+    return _ScrollEdge(
+      visible: scrolled && bottom == null,
+      duration: AknMotion.of(context, AknMotion.base),
+      child: appBar,
+    );
+  }
+}
+
+/// The hairline under a bar while content is scrolled under it (fades in
+/// and out). No shadow.
+class _ScrollEdge extends StatelessWidget {
+  const _ScrollEdge({
+    required this.visible,
+    required this.duration,
+    required this.child,
+  });
+
+  final bool visible;
+  final Duration duration;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Stack(
+      clipBehavior: Clip.none,
+      fit: StackFit.passthrough,
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              opacity: visible ? 1 : 0,
+              duration: duration,
+              curve: AknMotion.standard,
+              child: SizedBox(
+                height: 1,
+                width: double.infinity,
+                child: ColoredBox(color: c.line),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -260,7 +462,9 @@ class ContentMaxWidth extends StatelessWidget {
   );
 }
 
-/// Raised bottom area for a screen's primary actions (safe-area aware).
+/// The sticky dock for a screen's primary actions (§6.1): `surfaceRaised`
+/// (dark: `surface`) with a 1 px hairline on top, padding 12/20 plus the
+/// safe area, no shadow. One primary region per screen.
 class ActionBar extends StatelessWidget {
   const ActionBar({super.key, required this.child});
 
@@ -270,19 +474,18 @@ class ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // Alttaki sistem gezinme çubuğu simgeleri yükseltilmiş yüzeye göre.
+      // Alttaki sistem gezinme çubuğu simgeleri yüzeye göre.
       value: AknTheme.overlayFor(c.brightness),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: c.surfaceRaised,
+          color: c.isDark ? c.surface : c.surfaceRaised,
           border: Border(top: BorderSide(color: c.line)),
-          boxShadow: AknShadows.bar(c),
         ),
         child: SafeArea(
           top: false,
-          minimum: const EdgeInsets.only(bottom: 8),
+          minimum: const EdgeInsets.only(bottom: 12),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             // The bar sizes to its content: an expanded button (or a Row of
             // them) placed here directly never stretches to the screen height.
             child: Column(

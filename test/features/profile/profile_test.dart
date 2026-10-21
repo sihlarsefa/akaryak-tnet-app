@@ -232,6 +232,7 @@ void main() {
     setPhoneSize(tester, _tall);
     final h = await A8Harness.create();
     final c = await pumpA8(tester, '/profile', harness: h);
+    await scrollTo(tester, find.text('Çıkış yap'));
     await tapVisible(tester, find.text('Çıkış yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     expect(find.text('Çıkış yapılsın mı?'), findsOneWidget);
@@ -261,6 +262,7 @@ void main() {
       ],
       beforeOpen: (c) => h.outbox.insert(_op('u-musteri')),
     );
+    await scrollTo(tester, find.text('Çıkış yap'));
     await tapVisible(tester, find.text('Çıkış yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     expect(find.text('Gönderilmeyi bekleyen 1 işlem var'), findsOneWidget);
@@ -286,6 +288,7 @@ void main() {
         beforeOpen: (c) =>
             h.outbox.insert(_op('u-musteri', type: 'unknown.op')),
       );
+      await scrollTo(tester, find.text('Çıkış yap'));
       await tapVisible(tester, find.text('Çıkış yap'));
       await pumpFor(tester, const Duration(milliseconds: 500));
       await tester.tap(find.text('Şimdi gönder'));
@@ -310,6 +313,7 @@ void main() {
       harness: h,
       beforeOpen: (c) => h.outbox.insert(_op('u-musteri', type: 'unknown.op')),
     );
+    await scrollTo(tester, find.text('Çıkış yap'));
     await tapVisible(tester, find.text('Çıkış yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
     await tester.tap(find.text('Vazgeç'));

@@ -64,16 +64,10 @@ class SupportCodeChip extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.copy_rounded, size: 16, color: c.dim),
+                  Icon(Icons.copy_outlined, size: 16, color: c.dim),
                   const SizedBox(width: 6),
                   Flexible(
-                    child: Text(
-                      text,
-                      style: t.caption.copyWith(
-                        color: c.dim,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
+                    child: Text(text, style: t.caption.copyWith(color: c.dim)),
                   ),
                 ],
               ),

@@ -1,8 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,7 +29,6 @@ import 'widgets/auth_banners.dart';
 import 'widgets/auth_header.dart';
 import 'widgets/hold_button.dart';
 import 'widgets/legal_footer.dart';
-import 'widgets/mode_switch.dart';
 import 'widgets/no_account_sheet.dart';
 import 'widgets/phone_formatter.dart';
 import 'widgets/server_status.dart';
@@ -288,153 +287,149 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   Widget build(BuildContext context) {
     final gate = ref.watch(serverGateProvider).valueOrNull;
     final blocked = gate != null && gate.blocks;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: blocked
-          ? AknTheme.overlayFor(context.akn.brightness)
-          : AknTheme.overlayOnNavy,
-      child: AppScaffold(
-        appBar: false,
-        showBell: false,
-        showOfflineBanner: false,
-        body: FadeThroughSwitcher(
-          child: blocked
-              ? KeyedSubtree(
-                  key: ValueKey(gate.kind),
-                  child: UpdateGateBody(
-                    reason: gate.kind == ServerGateKind.maintenance
-                        ? UpdateReason.maintenance
-                        : UpdateReason.server,
-                    maintenanceMessage: gate.maintenanceMessage,
-                  ),
-                )
-              : KeyedSubtree(
-                  key: const ValueKey('login'),
-                  child: _form(context),
+    return AppScaffold(
+      appBar: false,
+      showBell: false,
+      showOfflineBanner: false,
+      body: FadeThroughSwitcher(
+        child: blocked
+            ? KeyedSubtree(
+                key: ValueKey(gate.kind),
+                child: UpdateGateBody(
+                  reason: gate.kind == ServerGateKind.maintenance
+                      ? UpdateReason.maintenance
+                      : UpdateReason.server,
+                  maintenanceMessage: gate.maintenanceMessage,
                 ),
-        ),
+              )
+            : KeyedSubtree(key: const ValueKey('login'), child: _form(context)),
       ),
     );
   }
 
+  /// Tahta ekran 1: turuncu bant, "Giriş yapın", etiketi üstte iki alan, birincil "Giriş yap", ikincil
+  /// "Telefon numarasıyla giriş yap", "Hesabınız yok mu? Bayinizden davet isteyin" ve alt bilgi.
   Widget _form(BuildContext context) {
     final env = ref.watch(appEnvProvider);
     final otpEnabled = ref.watch(otpLoginEnabledProvider);
     final mode = otpEnabled ? _mode : LoginMode.password;
     final t = context.aknText;
     final c = context.akn;
+    final large = MediaQuery.textScalerOf(context).scale(16) > 22;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
       excludeFromSemantics: true,
       onTap: () => FocusScope.of(context).unfocus(),
       child: ListView(
+        // Alt bilgi ekranın altından 30 px yukarıda (tahta): ev çubuğu payının bir kısmı bağlantıların
+        // 48 px dokunma alanına girer.
         padding: EdgeInsets.only(
-          bottom: MediaQuery.viewPaddingOf(context).bottom,
+          bottom: math.max(0.0, MediaQuery.viewPaddingOf(context).bottom - 18),
         ),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         children: [
-          // Büyük yazıda başlık kısalır; form ilk ekranda kalır.
-          AuthHeader(compact: MediaQuery.textScalerOf(context).scale(16) > 22),
-          // Sahte kipte demo hesapları formun üstünde (persona değiştirmek tek dokunuş).
-          if (kFakeApiCompiled && env.isFake)
-            _DemoAccounts(onSelected: _loginAsDemo),
+          // Büyük yazıda bant daralır; form ilk ekrana yaklaşır.
+          AuthHeader(compact: large),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-                // Form ilk açılışta bir kez, sakin biçimde belirir (azaltılmış harekette anında).
-                child: FadeUp(
-                  child: AutofillGroup(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(AuthCopy.loginTitle, style: t.title),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          AuthCopy.loginSubtitle,
-                          style: t.bodySmall.copyWith(color: c.dim),
-                        ),
-                        const SizedBox(height: 20),
-                        if (otpEnabled) ...[
-                          ModeSwitch<LoginMode>(
-                            semanticLabel: AuthCopy.modeGroup,
-                            value: mode,
-                            onChanged: _setMode,
-                            options: const [
-                              (
-                                value: LoginMode.password,
-                                label: AuthCopy.modePassword,
-                                icon: Icons.password_rounded,
-                              ),
-                              (
-                                value: LoginMode.phone,
-                                label: AuthCopy.modePhone,
-                                icon: Icons.smartphone_rounded,
-                              ),
-                            ],
+                padding: const EdgeInsets.fromLTRB(
+                  AknSpace.page,
+                  18,
+                  AknSpace.page,
+                  0,
+                ),
+                child: AutofillGroup(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          AuthCopy.loginTitle,
+                          style: t.title.copyWith(
+                            fontSize: 22,
+                            height: 28 / 22,
+                            color: c.ink,
                           ),
-                          const SizedBox(height: 20),
-                        ],
-                        ..._notices(context, mode),
-                        SharedAxisSwitcher(
-                          reverse: mode == LoginMode.password,
-                          child: mode == LoginMode.password
-                              ? KeyedSubtree(
-                                  key: const ValueKey('password'),
-                                  child: _passwordFields(),
-                                )
-                              : KeyedSubtree(
-                                  key: const ValueKey('phone'),
-                                  child: _phoneFields(),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      ..._notices(context, mode),
+                      SharedAxisSwitcher(
+                        reverse: mode == LoginMode.password,
+                        child: mode == LoginMode.password
+                            ? KeyedSubtree(
+                                key: const ValueKey('password'),
+                                child: _passwordFields(),
+                              )
+                            : KeyedSubtree(
+                                key: const ValueKey('phone'),
+                                child: _phoneFields(),
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+                      HoldAwareButton(
+                        scope: mode == LoginMode.password
+                            ? ThrottleScope.password
+                            : ThrottleScope.otp,
+                        label: mode == LoginMode.password
+                            ? AuthCopy.loginButton
+                            : AuthCopy.sendCode,
+                        busyLabel: mode == LoginMode.password
+                            ? AuthCopy.loggingIn
+                            : AuthCopy.sendingCode,
+                        busy: _busy,
+                        onPressed: _busy ? null : _submit,
+                      ),
+                      if (otpEnabled) ...[
+                        const SizedBox(height: 8),
+                        AknButton.secondary(
+                          label: mode == LoginMode.password
+                              ? AuthCopy.modePhone
+                              : AuthCopy.modePassword,
+                          icon: mode == LoginMode.password
+                              ? Icons.smartphone_outlined
+                              : Icons.password_rounded,
+                          size: AknButtonSize.large,
+                          expand: true,
+                          onPressed: _busy
+                              ? null
+                              : () => _setMode(
+                                  mode == LoginMode.password
+                                      ? LoginMode.phone
+                                      : LoginMode.password,
                                 ),
                         ),
-                        const SizedBox(height: 20),
-                        HoldAwareButton(
-                          scope: mode == LoginMode.password
-                              ? ThrottleScope.password
-                              : ThrottleScope.otp,
-                          label: mode == LoginMode.password
-                              ? AuthCopy.loginButton
-                              : AuthCopy.sendCode,
-                          busyLabel: mode == LoginMode.password
-                              ? AuthCopy.loggingIn
-                              : AuthCopy.sendingCode,
-                          busy: _busy,
-                          onPressed: _busy ? null : _submit,
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          runSpacing: 4,
-                          children: [
-                            if (mode == LoginMode.password)
-                              AknButton.ghost(
-                                label: AuthCopy.forgotPassword,
-                                onPressed: _openForgotPassword,
-                              ),
-                            AknButton.ghost(
-                              label: AuthCopy.noAccount,
-                              icon: Icons.help_outline_rounded,
-                              onPressed: () => showNoAccountSheet(context),
-                            ),
-                          ],
-                        ),
                       ],
-                    ),
+                      _NoAccountLine(onTap: () => showNoAccountSheet(context)),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
-          const LegalFooter(),
+          LegalFooter(
+            demo: kFakeApiCompiled && env.isFake
+                ? () => _pickDemo(context)
+                : null,
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _pickDemo(BuildContext context) async {
+    final persona = await showAppSheet<FakePersona>(
+      context: context,
+      title: AuthCopy.demoTitle,
+      subtitle: AuthCopy.demoSubtitle(FakeAuth.password, FakeAuth.code),
+      padding: const EdgeInsets.only(bottom: 16),
+      builder: (sheet) =>
+          _DemoAccounts(onSelected: (p) => Navigator.of(sheet).pop(p)),
+    );
+    if (persona != null && mounted) _loginAsDemo(persona);
   }
 
   void _loginAsDemo(FakePersona p) {
@@ -473,7 +468,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: AknBanner(
             message: AuthCopy.offlineNotice,
             tone: AknTone.neutral,
-            icon: Icons.cloud_off_rounded,
+            icon: Icons.cloud_off_outlined,
           ),
         ),
       if (update && error == null && !active)
@@ -483,7 +478,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             title: AuthCopy.updateBannerTitle,
             message: AuthCopy.updateBannerBody,
             tone: AknTone.info,
-            icon: Icons.system_update_rounded,
+            icon: Icons.system_update_outlined,
             actionLabel: AuthCopy.updateAction,
             onAction: () => openStore(ref),
           ),
@@ -492,6 +487,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Widget _passwordFields() {
+    // Büyük yazıda "Şifremi unuttum" etiket satırına sığmaz: alanın altına iner.
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -499,7 +496,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           controller: _user,
           focusNode: _userFocus,
           label: AuthCopy.userLabel,
-          prefixIcon: Icons.person_outline_rounded,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.username, AutofillHints.email],
@@ -508,12 +504,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             if (_userError != null) setState(() => _userError = null);
           },
         ),
-        const SizedBox(height: 12),
+        // Şifre etiketinin satırı "Şifremi unuttum" bağlantısıyla 48 px; boşluğu o verir.
+        if (large) const SizedBox(height: 14),
         AknTextField(
           controller: _password,
           focusNode: _passwordFocus,
           label: AuthCopy.passwordLabel,
-          prefixIcon: Icons.lock_outline_rounded,
+          labelActionText: large ? null : AuthCopy.forgotPassword,
+          onLabelAction: large ? null : _openForgotPassword,
           obscureText: _obscure,
           textInputAction: TextInputAction.done,
           autofillHints: const [AutofillHints.password],
@@ -522,16 +520,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             if (_passwordError != null) setState(() => _passwordError = null);
           },
           onSubmitted: (_) => _submit(),
-          suffixIcon: IconButton(
-            tooltip: _obscure ? AuthCopy.showPassword : AuthCopy.hidePassword,
+          suffixIcon: _RevealButton(
+            obscured: _obscure,
             onPressed: () => setState(() => _obscure = !_obscure),
-            icon: Icon(
-              _obscure
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-            ),
           ),
         ),
+        if (large)
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: AknInlineLink(
+              label: AuthCopy.forgotPassword,
+              onTap: _openForgotPassword,
+            ),
+          ),
       ],
     );
   }
@@ -543,7 +544,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       label: AuthCopy.phoneLabel,
       hint: AuthCopy.phoneHint,
       helper: AuthCopy.phoneHelper,
-      prefixIcon: Icons.smartphone_rounded,
       keyboardType: TextInputType.phone,
       textInputAction: TextInputAction.done,
       autofillHints: const [AutofillHints.telephoneNumberNational],
@@ -557,8 +557,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
-/// Sahte kipte demo hesapları (şifre `demo`, kod `123456`): yatay kaydırılan kısa kartlar; canlı
-/// derlemede hiç gösterilmez.
+/// Sahte kipte demo hesapları (şifre `demo`, kod `123456`): "Demo hesabı seç" sayfasında defter
+/// satırları; canlı derlemede hiç gösterilmez.
 class _DemoAccounts extends StatelessWidget {
   const _DemoAccounts({required this.onSelected});
 
@@ -566,111 +566,112 @@ class _DemoAccounts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(AuthCopy.demoTitle, style: t.bodyStrong),
-                ),
-                Text(
-                  AuthCopy.demoSubtitle(FakeAuth.password, FakeAuth.code),
-                  style: t.caption.copyWith(color: c.dim),
-                ),
-              ],
-            ),
+    return AknLedger(
+      children: [
+        for (final p in fakePersonas)
+          AknListTile(
+            leading: AknAvatar(name: p.displayName, size: 40),
+            title: p.displayName,
+            subtitle: p.summary.replaceAll(' · ', ', '),
+            titleMaxLines: 1,
+            showChevron: true,
+            semanticLabel:
+                '${p.displayName}, ${p.summary.replaceAll(' · ', ', ')}',
+            onTap: () => onSelected(p),
           ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final p in fakePersonas) ...[
-                  _DemoChip(persona: p, onTap: () => onSelected(p)),
-                  const SizedBox(width: 8),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
+      ],
     );
   }
 }
 
-class _DemoChip extends StatelessWidget {
-  const _DemoChip({required this.persona, required this.onTap});
+/// Şifre alanının sağındaki "Göster / Gizle" (tasarım v2 §6.10): göz simgesi + ink 14/20 600, 48 dp hedef.
+class _RevealButton extends StatelessWidget {
+  const _RevealButton({required this.obscured, required this.onPressed});
 
-  final FakePersona persona;
-  final VoidCallback onTap;
+  final bool obscured;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
-    return Semantics(
-      button: true,
-      label: '${persona.displayName}, ${persona.summary}',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: 240,
-          minHeight: AknSpace.minTap,
-        ),
-        child: Material(
-          color: c.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: AknRadius.card,
-            side: BorderSide(color: c.line),
-          ),
-          clipBehavior: Clip.antiAlias,
+    final t = context.aknText;
+    final label = obscured ? AuthCopy.show : AuthCopy.hide;
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 4),
+      child: Tooltip(
+        message: obscured ? AuthCopy.showPassword : AuthCopy.hidePassword,
+        excludeFromSemantics: true,
+        child: Semantics(
+          button: true,
+          label: obscured ? AuthCopy.showPassword : AuthCopy.hidePassword,
+          excludeSemantics: true,
+          onTap: onPressed,
           child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AknAvatar(name: persona.displayName, size: 32),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          persona.displayName,
-                          style: t.bodyStrong.copyWith(color: c.ink),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          persona.summary,
-                          style: t.caption.copyWith(color: c.dim),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+            onTap: onPressed,
+            borderRadius: AknRadius.buttonSmall,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: AknSpace.minTap,
+                minWidth: AknSpace.minTap,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      obscured
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 20,
+                      color: c.ink,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      label,
+                      style: t.label.copyWith(
+                        fontSize: 14,
+                        height: 20 / 14,
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// "Hesabınız yok mu? Bayinizden davet isteyin" (ortalı; bağlantı ink + alt çizgi).
+class _NoAccountLine extends StatelessWidget {
+  const _NoAccountLine({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final style = t.body.copyWith(height: 20 / 15);
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 6,
+      children: [
+        ExcludeSemantics(
+          child: Text(AuthCopy.noAccount, style: style.copyWith(color: c.dim)),
+        ),
+        AknInlineLink(
+          label: AuthCopy.noAccountLink,
+          onTap: onTap,
+          style: style.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

@@ -122,27 +122,22 @@ class _OfferBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 8),
-        Center(
-          child: AknIconBox(
-            icon: biometricIcon(kind),
-            tone: AknTone.brand,
-            size: 56,
-          ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Icon(biometricIcon(kind), size: 32, color: c.ink),
         ),
         const SizedBox(height: 16),
         Semantics(
           header: true,
           child: Text(
             AuthCopy.offerTitle,
-            style: t.title,
-            textAlign: TextAlign.center,
+            style: t.title.copyWith(color: c.ink),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           AuthCopy.offerBody(biometricPhrase(kind)),
           style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         AknButton(

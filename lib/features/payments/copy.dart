@@ -12,6 +12,24 @@ abstract final class PaymentsCopy {
   static const searchPayments = 'Sipariş no ya da cari ara';
   static const searchInstruments = 'Seri no, banka ya da cari ara';
 
+  /// Süzgeç çipleri.
+  static const allCustomers = 'Cari: tümü';
+  static const overdue = 'Gecikenler';
+  static const statusFilters = [
+    PaymentStatus.pending,
+    PaymentStatus.documentUploaded,
+    PaymentStatus.collected,
+    PaymentStatus.bounced,
+    PaymentStatus.refunded,
+    PaymentStatus.cancelled,
+  ];
+
+  /// Liste sonu cümleleri (§7.7: kayıtların nereye gittiği).
+  static const paymentsFootnote =
+      'Tahsil edilen, iade ve iptal edilen ödemeleri görmek için durum filtrelerini kullanın.';
+  static const instrumentsFootnote =
+      'Tahsil edilen ve sonuçlanan belgeler Tümü filtresinde.';
+
   static const emptyPaymentsTitle = 'Açık ödeme yok';
   static const emptyPaymentsMessage =
       'Bekleyen ve belgesi yüklenen ödemeler burada listelenir.';
@@ -19,12 +37,19 @@ abstract final class PaymentsCopy {
   static const emptyInstrumentsMessage =
       'Alınan çek, senet ve teminat mektupları vadeleriyle burada listelenir.';
   static const filteredTitle = 'Filtreye uyan kayıt yok';
-  static const filteredMessage = 'Filtreleri değiştirerek yeniden deneyin.';
+  static const filteredMessage =
+      'Filtreleri değiştirin ya da temizleyip tüm kayıtları görün.';
   static const clearFilters = 'Filtreleri temizle';
   static const notFoundTitle = 'Bu ödeme artık görüntülenemiyor';
 
   static const offline =
-      'Çevrimdışısınız; durum değişikliği için bağlantı gerekli.';
+      'Çevrimdışısınız. Durumu değiştirmek için bağlantı gerekli.';
+
+  /// Ödeme ayrıntısının eylemleri (§7.14).
+  static const markCollected = 'Tahsil edildi olarak işaretle';
+  static const changeStatus = 'Durumu değiştir';
+  static const checkDocument = 'Belgeyi kontrol et';
+  static const openOrder = 'Siparişi aç';
 
   /// Ödeme durumunun açıklaması (durum sayfası).
   static String paymentHint(PaymentStatus s) => switch (s) {

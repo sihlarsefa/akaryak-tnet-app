@@ -4,8 +4,9 @@ import '../../../../core/ui/ui.dart';
 import '../../application/deliver_flow.dart';
 import '../../copy.dart';
 
-/// Büyük litre tuş takımı (eldivenle, güneş altında kullanılır): büyük ekran, 1–9, virgül, 0, sil
-/// (basılı tutunca temizler). Tuşlar en az 56 dp, yazı büyüdükçe uzar.
+/// Büyük litre tuş takımı (eldivenle, güneş altında kullanılır): 1–9, virgül, 0, sil (basılı tutunca
+/// temizler). Tuşlar beyaz, 1 px çizgi, r12; rakamlar pompa göstergesi gibi Mona Sans Condensed 700.
+/// Sürücü kipinde en az 64 dp (§6.30), yazı büyüdükçe uzar.
 class LitreKeypad extends StatelessWidget {
   const LitreKeypad({super.key, required this.onKey, this.onClear});
 
@@ -26,7 +27,7 @@ class LitreKeypad extends StatelessWidget {
       children: [
         for (final row in _rows)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.only(bottom: row == _rows.last ? 0 : 8),
             child: Row(
               children: [
                 for (var i = 0; i < row.length; i++) ...[
@@ -78,10 +79,14 @@ class _Key extends StatelessWidget {
         color: isBackspace || isComma ? c.surfaceAlt : c.surface,
         shape: RoundedRectangleBorder(
           borderRadius: AknRadius.card,
-          side: BorderSide(color: c.line),
+          side: isBackspace || isComma
+              ? BorderSide.none
+              : BorderSide(color: c.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: c.line,
           onTap: () {
             AknHaptics.selection();
             onTap();
@@ -93,17 +98,17 @@ class _Key extends StatelessWidget {
                   onLongPress!();
                 },
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 56),
+            constraints: BoxConstraints(minHeight: context.minTap),
             child: Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: isBackspace
                     ? Icon(Icons.backspace_outlined, color: c.ink, size: 26)
                     : Text(
                         value,
-                        style: t.amountLarge.copyWith(
-                          fontSize: 26,
-                          height: 32 / 26,
+                        style: t.number.copyWith(
+                          fontSize: 30,
+                          height: 34 / 30,
                           color: c.ink,
                         ),
                       ),
@@ -116,7 +121,7 @@ class _Key extends StatelessWidget {
   }
 }
 
-/// Tuş takımının üstündeki büyük litre göstergesi.
+/// Plakasız büyük litre göstergesi (sihirbaz artık okumayı plakada gösterir; başka ekranlar için).
 class LitersDisplay extends StatelessWidget {
   const LitersDisplay({
     super.key,
@@ -168,11 +173,10 @@ class LitersDisplay extends StatelessWidget {
                     child: Text(
                       shown,
                       maxLines: 1,
-                      style: t.display.copyWith(
+                      style: t.numberLarge.copyWith(
                         fontSize: 40,
                         height: 48 / 40,
                         color: empty ? c.dim : c.ink,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ),

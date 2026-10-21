@@ -23,8 +23,10 @@ Future<bool> showQuoteSheet(
 }) async {
   final r = await showAppSheet<bool>(
     context: context,
-    title: 'Teklif ver',
-    subtitle: '${order.orderNumber} · ${order.customerTitle}',
+    title: order.status == OrderStatus.revisionRequested
+        ? 'Teklifi güncelle'
+        : 'Teklif ver',
+    subtitle: '${order.customerTitle}, ${order.orderNumber}',
     builder: (_) => _QuoteSheet(order: order, suggestion: suggestion),
   );
   return r ?? false;
@@ -94,7 +96,7 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
         );
       } else {
         AppToast.success(
-          'Teklif gönderildi; cari kararı bekleniyor.',
+          'Teklif gönderildi. Müşterinin kararı bekleniyor.',
           context: context,
         );
       }
@@ -109,11 +111,13 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final o = widget.order;
     final online = ref.watch(isOnlineProvider);
     final price = MoneyField.parse(_price.text);
     final latest = o.currentQuote;
     final today = TrTime.todayStart();
+    final total = price != null && price > 0 ? price * o.quantityLiters : null;
     return Form(
       key: _form,
       child: Column(
@@ -121,8 +125,14 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${o.productName} · ${Fmt.liters(o.quantityLiters)} · ${o.deliveryPointName}',
-            style: t.bodySmall,
+            keepUnits(
+              [
+                o.productName,
+                Fmt.liters(o.quantityLiters),
+                o.deliveryPointName,
+              ].join(', '),
+            ),
+            style: t.body.copyWith(color: c.ink),
           ),
           if (latest?.revisionNote != null) ...[
             const SizedBox(height: 12),
@@ -130,7 +140,7 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
               tone: AknTone.info,
               icon: Icons.chat_bubble_outline_rounded,
               title:
-                  'Revize notu · önceki teklif ${Fmt.unitPrice(latest!.unitPriceTry)}',
+                  'Revize notu, önceki teklif ${Fmt.unitPrice(latest!.unitPriceTry)}',
               message: latest.revisionNote!,
             ),
           ],
@@ -148,7 +158,7 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
                 v != null && v <= 0 ? 'Sıfırdan büyük bir değer girin.' : null,
             onChanged: (_) => setState(() {}),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           DateField(
             label: 'Teklif teslim günü',
             value: _date,
@@ -157,21 +167,60 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
             requiredMark: true,
             onChanged: (d) => setState(() => _date = d),
           ),
-          if (price != null && price > 0) ...[
-            const SizedBox(height: 12),
-            FactRow(
-              label: 'Tahmini tutar',
-              value: Fmt.money(price * o.quantityLiters),
+          const SizedBox(height: 16),
+          // Canlı toplam: tahmini tutar sağa hizalı, sayaç sesiyle (plaka değil; sayfada tek plaka var).
+          Container(
+            padding: const EdgeInsets.only(top: 12),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: c.line)),
             ),
-          ],
+            child: Semantics(
+              liveRegion: true,
+              label: total == null
+                  ? 'Tahmini tutar, birim fiyat girince hesaplanır'
+                  : 'Tahmini tutar ${Fmt.money(total)}',
+              excludeSemantics: true,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    'Tahmini tutar',
+                    style: t.label.copyWith(color: c.dim),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: Text(
+                        total == null ? Fmt.dash : Fmt.money(total),
+                        style: t.amountLarge.copyWith(
+                          color: total == null ? c.dim : c.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 20),
           AknButton(
             label: 'Teklifi gönder',
-            icon: Icons.send_rounded,
             expand: true,
             loading: _busy,
             onPressed: online ? () => unawaited(_submit()) : null,
           ),
+          if (!online)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'Çevrimdışıyken teklif gönderilemez.',
+                textAlign: TextAlign.center,
+                style: t.label.copyWith(color: c.dim),
+              ),
+            ),
         ],
       ),
     );

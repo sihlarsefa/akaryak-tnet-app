@@ -41,9 +41,9 @@ class WeatherDetail extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${WeatherCopy.feelsLike} ${temp(now.apparent)} · '
-          '${WeatherCopy.wind} ${Fmt.integer(now.windSpeed.round())} km/s',
-          style: t.bodySmall,
+          '${WeatherCopy.feelsLike} ${temp(now.apparent)}, '
+          '${WeatherCopy.windInline} ${Fmt.integer(now.windSpeed.round())} km/s',
+          style: t.bodySmall.copyWith(color: c.dim),
         ),
         const SizedBox(height: 16),
         DrivingStatusStrip(alert: report.drivingAlert()),
@@ -77,11 +77,7 @@ class WeatherDetail extends StatelessWidget {
           for (final d in report.days) _DayRow(day: d),
         ],
         const SizedBox(height: 12),
-        Text(
-          WeatherCopy.attribution,
-          textAlign: TextAlign.center,
-          style: t.caption.copyWith(color: c.dim),
-        ),
+        Text(WeatherCopy.attribution, style: t.caption.copyWith(color: c.dim)),
       ],
     );
   }
@@ -115,19 +111,26 @@ class _DayRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Row(
           children: [
-            Expanded(flex: 3, child: Text(name, style: t.bodyStrong)),
-            Icon(cond.icon, size: 20, color: c.tone(cond.tone).fg),
+            Expanded(
+              flex: 3,
+              child: Text(name, style: t.bodyStrong.copyWith(color: c.ink)),
+            ),
+            Icon(cond.icon, size: 20, color: c.dim),
             const SizedBox(width: 8),
-            Expanded(flex: 4, child: Text(cond.label, style: t.bodySmall)),
+            Expanded(
+              flex: 4,
+              child: Text(
+                cond.label,
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+            ),
             if (rain != null) ...[
-              Text(rain, style: t.captionStrong.copyWith(color: c.info.fg)),
+              Text(rain, style: t.captionStrong.copyWith(color: c.dim)),
               const SizedBox(width: 10),
             ],
             Text(
               '${temp(day.max)} / ${temp(day.min)}',
-              style: t.bodyStrong.copyWith(
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: t.amount.copyWith(color: c.ink),
             ),
           ],
         ),

@@ -10,18 +10,8 @@ import '../../copy.dart';
 import '../../data/form_models.dart';
 import '../../data/home_models.dart';
 import '../../data/order_models.dart';
-import 'common.dart';
 import 'contact_actions.dart';
-
-/// Takip adımı simgesi (sunucunun FontAwesome `icon` alanı kullanılmaz; spec A.4).
-IconData trackingStepIcon(String key) => switch (key) {
-  'received' => Icons.receipt_long_rounded,
-  'quote' => Icons.request_quote_rounded,
-  'approval' => Icons.task_alt_rounded,
-  'dispatch' => Icons.local_shipping_rounded,
-  'delivered' => Icons.flag_rounded,
-  _ => Icons.circle_outlined,
-};
+import 'order_parts.dart';
 
 TimelineState _state(TrackingState s) => switch (s) {
   TrackingState.done => TimelineState.done,
@@ -32,346 +22,253 @@ TimelineState _state(TrackingState s) => switch (s) {
 
 String? _at(DateTime? at, {bool dateOnly = false}) {
   if (at == null) return null;
-  if (dateOnly) return Fmt.date(at);
-  return '${Fmt.dayLabel(at)} ${Fmt.time(at)}';
+  if (dateOnly) return dayMonthLong(at);
+  return relativeMoment(at);
 }
 
-/// Büyük yazıda (yaklaşık %130 ve üstü) çizelgenin sağa yaslı saat metni dar kartlara sığmaz;
-/// saat alt satıra (alt başlığın başına) alınır. Ekran okuyucu etiketi aynı bilgiyi taşır.
-List<TimelineStep> fitTimelineSteps(
-  BuildContext context,
-  List<TimelineStep> steps,
-) {
-  if (!isLargeText(context)) return steps;
-  return [
-    for (final s in steps)
-      if (s.time == null)
-        s
-      else
+/// "Sipariş akışı" (§6.14): sunucunun takip adımları kronolojik dikey zaman çizelgesinde.
+class OrderFlowTimeline extends StatelessWidget {
+  const OrderFlowTimeline({
+    super.key,
+    required this.steps,
+    this.yourMove = false,
+  });
+
+  final List<TrackingStep> steps;
+
+  /// Sıradaki adım müşterinin hamlesi (turuncu halka).
+  final bool yourMove;
+
+  @override
+  Widget build(BuildContext context) => StepTimeline(
+    yourMove: yourMove,
+    steps: [
+      for (final s in steps)
         TimelineStep(
-          title: s.title,
-          subtitle: s.subtitle == null ? s.time : '${s.time} · ${s.subtitle}',
-          state: s.state,
-          icon: s.icon,
-          content: s.content,
+          title: s.label,
+          subtitle: s.detail,
+          time: _at(s.at, dateOnly: s.atIsDateOnly),
+          state: _state(s.state),
         ),
-  ];
+    ],
+  );
 }
 
-/// Sipariş takibi: adım çizelgesi, yoldaki araç, sevkiyat kartları, harita ve bayi iletişimi.
-class TrackingCard extends ConsumerWidget {
-  const TrackingCard({
+/// Etkin sevkiyat bölümü (§7.4 "Yolda", §7.10): yoldaysa büyük rota çizgisi (» araç), çıkış ve
+/// varış etiketleri, sürücü ve plaka, "Haritada aç"; planlıysa tarih; teslim bildirildiyse kabul
+/// çağrısı (asıl düğme alttaki çubukta).
+class ActiveShipmentSection extends ConsumerWidget {
+  const ActiveShipmentSection({
     super.key,
     required this.order,
-    required this.tracking,
+    required this.shipment,
     this.point,
     this.station,
+    this.canAccept = false,
   });
 
   final OrderDetail order;
-  final OrderTracking tracking;
-
-  /// Teslimat noktası (pencere ve konum; sipariş formundan).
+  final TrackingShipment shipment;
   final DeliveryPointOption? point;
-
-  /// Bayi iletişimi (varsayılan bayi bu siparişin bayisiyse).
   final StationContact? station;
+
+  /// Müşteri teslimatı kabul edebilir (alt çubukta "Teslimatı onayla").
+  final bool canAccept;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.aknText;
     final c = context.akn;
-    final steps = tracking.steps;
-    final active = tracking.activeShipment;
-    final inTransit = active?.status == ShipmentStatus.inTransit;
-    final reduce =
-        MediaQuery.disableAnimationsOf(context) ||
-        MediaQuery.accessibleNavigationOf(context);
-    final shipments = tracking.shipments
-        .where((s) => s.status != ShipmentStatus.cancelled)
-        .toList();
-    final cancelled = tracking.shipments.length - shipments.length;
-
-    return SectionCard(
-      title: OrdersCopy.tracking,
-      icon: Icons.route_rounded,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (steps.isNotEmpty)
-            StepTimeline(
-              steps: fitTimelineSteps(context, [
-                for (final s in steps)
-                  TimelineStep(
-                    title: s.label,
-                    subtitle: s.detail,
-                    time: _at(s.at, dateOnly: s.atIsDateOnly),
-                    state: _state(s.state),
-                    icon: s.state == TrackingState.done
-                        ? null
-                        : trackingStepIcon(s.key),
-                  ),
-              ]),
-            ),
-          if (active != null) ...[
-            const SizedBox(height: 12),
-            _ActiveShipment(
-              shipment: active,
-              point: point,
-              moving: inTransit && !reduce,
-            ),
-          ],
-          if (shipments.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              shipments.length == 1
-                  ? 'Sevkiyat'
-                  : 'Sevkiyatlar (${shipments.length})',
-              style: t.label.copyWith(color: c.dim),
-            ),
-            const SizedBox(height: 8),
-            for (final s in shipments) ...[
-              ShipmentMiniCard(shipment: s),
-              const SizedBox(height: 8),
-            ],
-            if (cancelled > 0)
-              Text(
-                '$cancelled sevkiyat planı iptal edildi.',
-                style: t.caption.copyWith(color: c.dim),
-              ),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              if (point != null &&
-                  (point!.hasLocation || point!.fullAddress.isNotEmpty))
-                AknButton.secondary(
-                  label: OrdersCopy.openMap,
-                  icon: Icons.map_rounded,
-                  size: AknButtonSize.small,
-                  semanticLabel: '${point!.name} noktasını haritada aç',
-                  onPressed: () => openExternal(
-                    context,
-                    ref,
-                    ContactLinks.map(
-                      lat: point!.latitude,
-                      lng: point!.longitude,
-                      address: point!.fullAddress,
-                    ),
-                    failMessage: 'Harita açılamadı.',
-                  ),
-                ),
-            ],
-          ),
-          if (station != null) ...[
-            const SizedBox(height: 4),
-            StationContactButtons(
-              station: station,
-              dense: true,
-              message:
-                  '${order.orderNumber} numaralı siparişim hakkında yazıyorum.',
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ActiveShipment extends StatelessWidget {
-  const _ActiveShipment({
-    required this.shipment,
-    required this.point,
-    required this.moving,
-  });
-
-  final TrackingShipment shipment;
-  final DeliveryPointOption? point;
-  final bool moving;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
     final s = shipment;
     final inTransit = s.status == ShipmentStatus.inTransit;
+    final reported = s.status == ShipmentStatus.reported;
+    final pointName = point?.name ?? order.deliveryPointName;
     final window = point?.windowLabel;
-    final estimate = s.scheduledAt == null
+    final title = switch (s.status) {
+      ShipmentStatus.inTransit => 'Yolda',
+      ShipmentStatus.reported => 'Teslim edildi',
+      ShipmentStatus.disputed => 'İtirazlı teslimat',
+      _ => 'Sevkiyat planlandı',
+    };
+    final eta = s.scheduledAt == null
         ? null
-        : '${OrdersCopy.estimatedDelivery}: ${Fmt.date(s.scheduledAt)}${window == null ? '' : ' $window'}';
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
-      ),
+        : '${relativeDay(s.scheduledAt)}${window == null ? '' : ', $window'}';
+    final origin = [
+      shortCompany(order.stationTitle).isEmpty
+          ? 'Bayi'
+          : shortCompany(order.stationTitle),
+      if (s.dispatchedAt != null) '${Fmt.time(s.dispatchedAt)} çıktı',
+    ].join(', ');
+
+    final children = <Widget>[];
+    if (inTransit) {
+      children.addAll([
+        TruckRoute(
+          moving: true,
+          originLabel: origin,
+          destinationLabel: pointName.isEmpty ? 'Teslimat noktası' : pointName,
+          semanticLabel:
+              'Yolda. $origin, ${pointName.isEmpty ? 'teslimat noktası' : pointName}'
+              '${eta == null ? '' : ', tahmini teslim $eta'}.',
+        ),
+        const SizedBox(height: 10),
+        if (eta != null)
+          FactRow(label: OrdersCopy.estimatedDelivery, value: eta),
+        Text(
+          '${OrdersCopy.inTransitCaption}.',
+          style: t.bodySmall.copyWith(color: c.dim),
+        ),
+      ]);
+    } else if (reported) {
+      final liters = s.deliveredLiters;
+      children.add(
+        FactLine(
+          icon: Icons.local_gas_station_outlined,
+          text: [
+            if (liters != null) '${Fmt.liters(liters)} teslim edildi',
+            if (s.deliveredAt != null) relativeMoment(s.deliveredAt),
+            if (s.deliveryDocumentNo != null)
+              'irsaliye ${s.deliveryDocumentNo}',
+          ].join(', '),
+        ),
+      );
+      children.add(const SizedBox(height: 8));
+      children.add(
+        Text(
+          canAccept
+              ? 'Litreyi ve irsaliyeyi kontrol edip teslimatı onaylayın; bir sorun varsa itiraz edin.'
+              : 'Teslimat şirket yöneticinizin onayını bekliyor.',
+          style: t.bodySmall.copyWith(color: c.dim),
+        ),
+      );
+    } else if (s.status == ShipmentStatus.disputed) {
+      children.add(
+        FactLine(
+          icon: Icons.error_outline_rounded,
+          tone: AknTone.danger,
+          text: s.disputeNote == null
+              ? 'İtirazınız bayiye iletildi.'
+              : 'İtirazınız: ${s.disputeNote}',
+        ),
+      );
+    } else if (eta != null) {
+      children.add(
+        FactLine(
+          icon: Icons.event_outlined,
+          text: '${pointName.isEmpty ? 'Teslimat' : pointName}, $eta teslim',
+        ),
+      );
+    }
+
+    final driver = s.driverName.trim();
+    final plate = s.vehiclePlate.trim();
+    if (driver.isNotEmpty || plate.isNotEmpty) {
+      children.addAll([
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(Icons.person_outline_rounded, size: 20, color: c.dim),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                driver.isEmpty ? 'Sürücü' : driver,
+                style: t.bodyStrong.copyWith(color: c.ink),
+              ),
+            ),
+            if (plate.isNotEmpty)
+              Semantics(
+                label: 'Plaka ${Fmt.plate(plate)}',
+                excludeSemantics: true,
+                child: PlateBadge(plate: plate),
+              ),
+          ],
+        ),
+      ]);
+    }
+
+    final hasMap =
+        point != null && (point!.hasLocation || point!.fullAddress.isNotEmpty);
+    if (hasMap || station != null) {
+      children.add(const SizedBox(height: 12));
+      children.add(
+        StationContactButtons(
+          station: station,
+          dense: true,
+          message:
+              '${order.orderNumber} numaralı siparişim hakkında yazıyorum.',
+          leading: [
+            if (hasMap)
+              AknButton.secondary(
+                label: OrdersCopy.openMap,
+                icon: Icons.map_outlined,
+                size: AknButtonSize.small,
+                semanticLabel: '${point!.name} noktasını haritada aç',
+                onPressed: () => openExternal(
+                  context,
+                  ref,
+                  ContactLinks.map(
+                    lat: point!.latitude,
+                    lng: point!.longitude,
+                    address: point!.fullAddress,
+                  ),
+                  failMessage: 'Harita açılamadı.',
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return OrderSection(
+      title: title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              StatusChip.style(
-                s.status.statusStyle,
-                size: StatusChipSize.small,
-              ),
-              if (s.vehiclePlate.trim().isNotEmpty)
-                Semantics(
-                  label: 'Plaka ${Fmt.plate(s.vehiclePlate)}',
-                  excludeSemantics: true,
-                  child: PlateBadge(plate: s.vehiclePlate, fontSize: 13),
-                ),
-              if (s.driverName.trim().isNotEmpty)
-                Text(s.driverName, style: t.bodySmall.copyWith(color: c.text)),
-            ],
-          ),
-          if (inTransit) ...[
-            const SizedBox(height: 8),
-            TruckRoute(
-              moving: moving,
-              height: 40,
-              originLabel: 'Bayi',
-              destinationLabel: point?.name ?? 'Teslimat noktası',
-              semanticLabel: 'Araç yolda. ${OrdersCopy.inTransitCaption}.',
-            ),
-            const SizedBox(height: 4),
-            Text(
-              [
-                OrdersCopy.inTransitCaption,
-                if (s.dispatchedAt != null)
-                  '${Fmt.time(s.dispatchedAt)}\'de çıktı',
-              ].join(' · '),
-              style: t.caption.copyWith(color: c.dim),
-            ),
-          ],
-          if (estimate != null &&
-              (s.status == ShipmentStatus.planned || inTransit)) ...[
-            const SizedBox(height: 8),
-            Text(estimate, style: t.bodyStrong),
-          ],
-        ],
+        children: children,
       ),
     );
   }
 }
 
-/// Sevkiyat kartı: kod, plaka, litre (teslim / plan), irsaliye no ve küçük zaman çizelgesi.
-/// Dokununca teslimat ayrıntısı (`/shipments/{id}`, teslim kanıtı ve kabul / itiraz) açılır.
-class ShipmentMiniCard extends StatelessWidget {
-  const ShipmentMiniCard({super.key, required this.shipment});
+/// Sevkiyat satırları (§6.8): "10.000 L planlandı" / "9.980 L teslim edildi", kod, plaka ve
+/// sürücü; izleyiciye göre lamba ("Teslimatı onaylayın" sıra sizde). Dokununca teslimat ayrıntısı
+/// (`/shipments/{id}`: teslim kanıtı, kabul / itiraz) açılır.
+class ShipmentRows extends StatelessWidget {
+  const ShipmentRows({
+    super.key,
+    required this.shipments,
+    required this.viewer,
+  });
 
-  final TrackingShipment shipment;
+  /// İptal edilenler hariç.
+  final List<TrackingShipment> shipments;
+  final StatusViewer viewer;
 
   @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    final s = shipment;
-    final delivered = s.deliveredLiters;
-    final fill = delivered == null || s.plannedLiters <= 0
-        ? 0.0
-        : (delivered / s.plannedLiters).clamp(0.0, 1.0);
-    final steps = <TimelineStep>[
-      TimelineStep(
-        title: 'Planlandı',
-        time: s.scheduledAt == null ? null : Fmt.date(s.scheduledAt),
-        state: TimelineState.done,
-      ),
-      TimelineStep(
-        title: 'Yola çıktı',
-        time: s.dispatchedAt == null ? null : _at(s.dispatchedAt),
-        state: s.dispatchedAt != null || s.isDispatched
-            ? TimelineState.done
-            : (s.status == ShipmentStatus.planned
-                  ? TimelineState.current
-                  : TimelineState.upcoming),
-      ),
-      TimelineStep(
-        title: 'Teslim edildi',
-        subtitle: delivered == null
-            ? null
-            : '${Fmt.liters(delivered)}${s.deliveryDocumentNo == null ? '' : ' · İrsaliye no ${s.deliveryDocumentNo}'}',
-        time: _at(s.deliveredAt),
-        state: s.deliveredAt != null
-            ? TimelineState.done
-            : (s.status == ShipmentStatus.inTransit
-                  ? TimelineState.current
-                  : TimelineState.upcoming),
-      ),
-      if (s.status == ShipmentStatus.disputed)
-        TimelineStep(
-          title: 'İtiraz edildi',
-          subtitle: s.disputeNote,
-          time: _at(s.disputedAt),
-          state: TimelineState.warning,
-        )
-      else
-        TimelineStep(
-          title: 'Teslim alındı',
-          time: _at(s.acceptedAt),
-          state: s.status == ShipmentStatus.accepted
-              ? TimelineState.done
-              : (s.status == ShipmentStatus.reported
-                    ? TimelineState.current
-                    : TimelineState.upcoming),
-        ),
-    ];
-    final label = [
-      'Sevkiyat ${s.displayCode}',
-      s.status.label,
-      'Plan ${Fmt.liters(s.plannedLiters)}',
-      if (delivered != null) 'Teslim ${Fmt.liters(delivered)}',
-    ].join(', ');
-    return AknCard(
-      padding: const EdgeInsets.all(12),
-      shadow: false,
-      semanticLabel: '$label. Ayrıntı için dokunun.',
-      onTap: () => context.push(AppRoutes.shipment(s.id)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              FuelDrop(fill: fill, size: 30, semanticLabel: null),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(s.displayCode, style: t.bodyStrong),
-                    Text(
-                      delivered == null
-                          ? 'Plan ${Fmt.liters(s.plannedLiters)}'
-                          : '${Fmt.liters(delivered)} / ${Fmt.liters(s.plannedLiters)}',
-                      style: t.bodySmall.copyWith(color: c.dim),
-                    ),
-                  ],
-                ),
-              ),
-              StatusChip.style(
-                s.status.statusStyle,
-                size: StatusChipSize.small,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          StepTimeline(steps: fitTimelineSteps(context, steps), dense: true),
-          if (s.status == ShipmentStatus.reported) ...[
-            const SizedBox(height: 8),
-            AknButton(
-              label: OrdersCopy.confirmDelivery,
-              icon: Icons.fact_check_rounded,
-              size: AknButtonSize.small,
-              expand: true,
-              onPressed: () => context.push(AppRoutes.shipment(s.id)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => AknLedger(
+    children: [
+      for (final s in shipments)
+        () {
+          final lamp = AknStatus.shipmentLamp(s.status, viewer);
+          final delivered = s.deliveredLiters;
+          final title = delivered == null
+              ? Fmt.liters(s.plannedLiters)
+              : '${Fmt.liters(delivered)} teslim edildi';
+          final sub = [
+            s.displayCode,
+            if (s.vehiclePlate.trim().isNotEmpty) Fmt.plate(s.vehiclePlate),
+            if (s.driverName.trim().isNotEmpty) s.driverName.trim(),
+          ].join(', ');
+          final when = s.deliveredAt ?? s.dispatchedAt ?? s.scheduledAt;
+          return AknListTile(
+            title: title,
+            subtitle: sub,
+            meta: when == null ? null : relativeDay(when),
+            status: AknStatusLine(lamp: AknLamp.status(lamp)),
+            semanticLabel:
+                '$title, sevkiyat ${s.displayCode}, ${lamp.label}. Ayrıntı için dokunun.',
+            onTap: () => context.push(AppRoutes.shipment(s.id)),
+          );
+        }(),
+    ],
+  );
 }

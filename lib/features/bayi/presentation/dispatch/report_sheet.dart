@@ -71,7 +71,7 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
       AppToast.success(
         d.status == ShipmentStatus.disputed
             ? 'Düzeltilen teslimat cari onayına gönderildi.'
-            : 'Teslimat bildirildi; cari onayı bekleniyor.',
+            : 'Teslimat bildirildi. Carinin onayı bekleniyor.',
         context: context,
       );
       Navigator.of(context).pop(true);
@@ -124,14 +124,13 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
           const SizedBox(height: 8),
           Text(
             'Cari teslimatı uygulamadan onaylar ya da itiraz eder.',
-            style: context.aknText.bodySmall,
+            style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
           ),
           const SizedBox(height: 20),
           AknButton(
             label: d.status == ShipmentStatus.disputed
                 ? 'Düzeltmeyi gönder'
                 : 'Teslimi bildir',
-            icon: Icons.fact_check_rounded,
             expand: true,
             loading: _busy,
             onPressed: online ? () => unawaited(_submit()) : null,

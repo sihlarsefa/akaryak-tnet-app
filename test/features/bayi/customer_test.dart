@@ -28,7 +28,7 @@ void main() {
       );
       expect(find.text('Marmara İnşaat Taahhüt Ltd. Şti.'), findsWidgets);
       expect(
-        find.text('Bekleyen limit talebi · merkez onayında'),
+        find.text('Bekleyen limit talebi, merkez onayında'),
         findsOneWidget,
       );
       expect(
@@ -42,10 +42,10 @@ void main() {
       expect(find.textContaining('2 adet'), findsOneWidget);
       // Teslimat noktası: pencere, tank, erişim, sorumlu.
       await reveal(tester, find.text('İzmit Şantiye'));
-      expect(find.text('Teslim 08:00–17:00'), findsOneWidget);
-      expect(find.textContaining('Tank 40.000'), findsOneWidget);
+      expect(find.textContaining('Teslim 08:00–17:00'), findsOneWidget);
+      expect(find.textContaining('tank 40.000'), findsOneWidget);
       expect(
-        find.textContaining('Sorumlu: Serkan Polat · 0534 333 44 55'),
+        find.textContaining('Sorumlu: Serkan Polat, 0534 333 44 55'),
         findsOneWidget,
       );
       expect(find.text('Sorumluyu ara'), findsOneWidget);
@@ -68,7 +68,7 @@ void main() {
         location: '/customers/101',
       );
       expect(
-        find.text('Bekleyen limit talebi · merkez onayında'),
+        find.text('Bekleyen limit talebi, merkez onayında'),
         findsNothing,
       );
       await scrollTap(tester, find.text('Limit talebi'));
@@ -108,7 +108,7 @@ void main() {
       expect(s.pendingLimitRequest!.period, 'Aylık');
       expect(s.pendingLimitRequest!.limitType, 'Tutar');
       expect(
-        find.text('Bekleyen limit talebi · merkez onayında'),
+        find.text('Bekleyen limit talebi, merkez onayında'),
         findsOneWidget,
       );
       expect(find.text('Limit talebi'), findsNothing);

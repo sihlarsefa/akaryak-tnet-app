@@ -8,6 +8,7 @@ import '../../../../core/auth/permissions.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/customers_controller.dart';
 import '../../copy.dart';
@@ -15,8 +16,9 @@ import '../../data/customer_models.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 
-/// Cariler (spec A.4): arama, limit kullanımı, finans durumu, açık sipariş; saha satış temsilcisi yalnızca
-/// portföyünü görür. Satıra dokununca cari kartı (360-lite).
+/// Cariler (spec A.4, tasarım v2 §7.7): kök başlık, arama kuyusu, defter satırları (limit kullanımı
+/// sağda, finans durumu lambası, açık sipariş sayısı); saha satış temsilcisi yalnızca portföyünü görür.
+/// Satıra dokununca cari kartı (360-lite).
 class BayiCustomersPage extends ConsumerWidget {
   const BayiCustomersPage({super.key});
 
@@ -26,45 +28,47 @@ class BayiCustomersPage extends ConsumerWidget {
     final c = ref.read(bayiCustomersProvider.notifier);
     final g = ref.watch(bayiGrantsProvider);
     final portfolio = !g.policy.can(Pg.stationCustomers) && g.isFieldSales;
+    final total = s.list.totalCount;
     return AppScaffold(
       title: portfolio ? 'Portföyüm' : 'Cariler',
-      subtitle: s.list.loading
-          ? null
-          : '${Fmt.integer(s.list.totalCount)} cari',
       refreshing: s.list.refreshing,
-      body: Column(
-        children: [
+      body: PagedListBody<BayiCustomerRow>(
+        list: s.list,
+        header: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
             child: SearchField(
-              hint: 'Ünvan, vergi no, kod, şehir',
+              hint: 'Ünvan, vergi no, kod ya da şehir',
               onChanged: c.setQuery,
             ),
           ),
-          Expanded(
-            child: PagedListBody<BayiCustomerRow>(
-              list: s.list,
-              onRefresh: () => c.reload(silent: true),
-              onLoadMore: () => unawaited(c.loadMore()),
-              filtered: s.query.isNotEmpty,
-              onClearFilters: () => c.setQuery(''),
-              empty: EmptyState(
-                title: BayiCopy.customersEmptyTitle,
-                message: portfolio
-                    ? BayiCopy.portfolioEmptyMessage
-                    : BayiCopy.customersEmptyMessage,
-                illustration: AknIllustration.customers,
-              ),
-              itemBuilder: (context, row, _) => CustomerRowCard(row: row),
-            ),
-          ),
         ],
+        onRefresh: () => c.reload(silent: true),
+        onLoadMore: () => unawaited(c.loadMore()),
+        filtered: s.query.isNotEmpty,
+        onClearFilters: () => c.setQuery(''),
+        empty: EmptyState(
+          title: BayiCopy.customersEmptyTitle,
+          message: portfolio
+              ? BayiCopy.portfolioEmptyMessage
+              : BayiCopy.customersEmptyMessage,
+          illustration: AknIllustration.customers,
+        ),
+        footer: total <= 0
+            ? null
+            : ListFooterNote(
+                portfolio
+                    ? 'Portföyünüzde ${Fmt.integer(total)} cari var.'
+                    : 'Toplam ${Fmt.integer(total)} cari. Pasif cariler de listede, kartında "Pasif" yazar.',
+              ),
+        itemBuilder: (context, row, _) => CustomerRowCard(row: row),
       ),
     );
   }
 }
 
-/// Cari satırı.
+/// Cari satırı (defter satırı): ünvan, kod ve yer; sağda limit kullanımı ("%62", "limit"); durum
+/// satırında finans kartı lambası ve açık sipariş sayısı; son sipariş zamanı; arama düğmesi.
 class CustomerRowCard extends StatelessWidget {
   const CustomerRowCard({super.key, required this.row});
 
@@ -72,74 +76,62 @@ class CustomerRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final r = row;
     final pct = r.limitUsagePct;
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      onTap: () => GoRouter.of(context).push(AppRoutes.customer(r.customerId)),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AknAvatar(name: r.title, size: 40),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(r.title, style: t.bodyStrong),
-                Text([?r.code, ?r.place].join(' · '), style: t.bodySmall),
-                if (pct != null) ...[
-                  const SizedBox(height: 8),
-                  BayiUsageBar(
-                    value: pct / 100,
-                    label: 'Limit kullanımı',
-                    valueLabel: Fmt.percent(pct),
-                    tone: limitTone(r.limitTone),
-                    height: 6,
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    if (r.financeStatus != null)
-                      FitStart(
-                        child: StatusChip.style(
-                          r.financeStatus!.statusStyle.withLabel(
-                            r.financeStatusLabel,
-                          ),
-                          size: StatusChipSize.small,
-                        ),
+    final t = context.aknText;
+    final k = context.akn;
+    final tone = limitTone(r.limitTone);
+    final status = r.financeStatus;
+    final last = r.lastOrderAt == null
+        ? null
+        : 'son sipariş ${TurkishText.lower(Fmt.relative(r.lastOrderAt))}';
+    return AknListTile(
+      title: r.title,
+      subtitle: [?r.code, ?r.place, ?last].join(', '),
+      amount: pct == null ? null : Fmt.percent(pct),
+      amountMeta: pct == null ? null : 'limit kullanımı',
+      status: status == null && r.openOrders == 0 && tone == null
+          ? null
+          : AknStatusLine(
+              lamp: status != null
+                  ? AknLamp.style(
+                      status.statusStyle.withLabel(r.financeStatusLabel),
+                    )
+                  : (tone == AknTone.warn || tone == AknTone.danger)
+                  ? AknLamp(
+                      label: tone == AknTone.danger
+                          ? 'Limit aşıldı'
+                          : 'Limite yakın',
+                      tone: tone!,
+                    )
+                  : null,
+              trailing: r.openOrders > 0
+                  ? Text(
+                      '${r.openOrders} açık sipariş',
+                      style: t.bodySmall.copyWith(
+                        color: k.ink,
+                        fontWeight: FontWeight.w500,
                       ),
-                    if (r.openOrders > 0)
-                      ToneTag(
-                        label: '${r.openOrders} açık sipariş',
-                        tone: AknTone.info,
-                        icon: Icons.receipt_long_outlined,
-                      ),
-                  ],
-                ),
-                if (r.lastOrderAt != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Son sipariş ${Fmt.relative(r.lastOrderAt)}',
-                    style: t.caption,
-                  ),
-                ],
-              ],
+                    )
+                  : null,
             ),
-          ),
-          if (r.phone != null)
-            AknIconButton(
+      footer: status != null && (tone == AknTone.warn || tone == AknTone.danger)
+          ? RowNote(
+              icon: Icons.speed_rounded,
+              tone: tone,
+              text: tone == AknTone.danger
+                  ? 'Limit aşıldı, yeni sipariş finans onayına gider.'
+                  : 'Limite yakın, limitin ${Fmt.percent(pct)} kadarı kullanıldı.',
+            )
+          : null,
+      trailing: r.phone == null
+          ? null
+          : AknIconButton(
               icon: Icons.call_outlined,
               semanticLabel: '${r.title} ara',
               onPressed: () => callPhone(context, r.phone!),
             ),
-        ],
-      ),
+      onTap: () => GoRouter.of(context).push(AppRoutes.customer(r.customerId)),
     );
   }
 }

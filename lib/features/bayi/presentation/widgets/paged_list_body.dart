@@ -5,8 +5,11 @@ import '../../application/bayi_runtime.dart';
 import '../../copy.dart';
 import 'bayi_widgets.dart';
 
-/// Liste tarifi (spec C.5): ilk yüklemede iskelet, aşağı çekerek yenileme, sonsuz kaydırma, boş /
-/// süzgeçli boş / hata durumları. [header] liste öğelerinden önce kayar (süzgeç özeti, uyarılar).
+/// Liste tarifi (spec C.5, tasarım v2 §7.7): ilk yüklemede defter satırı iskeleti, aşağı çekerek
+/// yenileme, sonsuz kaydırma, boş / süzgeçli boş / hata durumları. [header] liste öğelerinden önce kayar
+/// (süzgeç özeti, uyarılar). Öğeler tam genişlik defter satırlarıdır: [divided] iken aralarına 20 px
+/// içeriden ince çizgi çizilir (ilkinin üstüne, sonuncunun altına değil). [footer] listenin sonunda,
+/// başka sayfa kalmadığında görünür (öğelerin nereye gittiğini söyleyen cümle).
 class PagedListBody<T> extends StatelessWidget {
   const PagedListBody({
     super.key,
@@ -21,6 +24,8 @@ class PagedListBody<T> extends StatelessWidget {
     this.skeletonLines = 3,
     this.padding = const EdgeInsets.only(top: 4, bottom: 24),
     this.controller,
+    this.divided = true,
+    this.footer,
   });
 
   final PagedList<T> list;
@@ -37,6 +42,12 @@ class PagedListBody<T> extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final ScrollController? controller;
 
+  /// Satırlar arasına defter çizgisi.
+  final bool divided;
+
+  /// Liste sonu (tüm sayfalar yüklendiğinde).
+  final Widget? footer;
+
   @override
   Widget build(BuildContext context) {
     final items = list.items;
@@ -47,12 +58,10 @@ class PagedListBody<T> extends StatelessWidget {
         padding: padding,
         children: [
           ...header,
-          Shimmer(
-            child: Column(
-              children: [
-                for (var i = 0; i < 5; i++) SkeletonCard(lines: skeletonLines),
-              ],
-            ),
+          SkeletonList(
+            itemCount: 5,
+            lines: skeletonLines.clamp(2, 3),
+            shrinkWrap: true,
           ),
         ],
       );
@@ -106,15 +115,29 @@ class PagedListBody<T> extends StatelessWidget {
               if (i < header.length) return header[i];
               final index = i - header.length;
               if (index >= items.length) {
+                final end = footer;
+                if (end != null &&
+                    !list.hasMore &&
+                    !list.loadingMore &&
+                    list.moreError == null) {
+                  return end;
+                }
                 return LoadMoreFooter(
                   loading: list.loadingMore,
                   error: list.moreError,
                   onRetry: onLoadMore,
                 );
               }
+              final row = itemBuilder(context, items[index], index);
               return StaggerItem(
                 index: index,
-                child: itemBuilder(context, items[index], index),
+                child: divided && index > 0
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [const AknLedgerDivider(), row],
+                      )
+                    : row,
               );
             },
           ),

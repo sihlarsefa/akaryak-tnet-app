@@ -51,7 +51,7 @@ class _FieldPortfolioViewState extends ConsumerState<FieldPortfolioView> {
     final state = ref.watch(fieldPortfolioProvider(_search));
     final header = <Widget>[
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
         child: SearchField(
           hint: 'Portföyünüzde arayın',
           onChanged: (s) => setState(() => _search = s),
@@ -107,12 +107,12 @@ class _FieldPortfolioViewState extends ConsumerState<FieldPortfolioView> {
               );
             }
             final row = items[index];
-            return Padding(
-              padding: EdgeInsets.fromLTRB(16, index == 0 ? 12 : 0, 16, 8),
-              child: StaggerItem(
-                index: index,
-                child: _PortfolioTile(row: row),
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (index > 0) const AknLedgerDivider(),
+                _PortfolioTile(row: row),
+              ],
             );
           },
         ),
@@ -138,6 +138,8 @@ class _FieldPortfolioViewState extends ConsumerState<FieldPortfolioView> {
   }
 }
 
+/// Portföy defter satırı: cari ünvanı, kod ve il; dokununca cari kartı açılır. Saha formu
+/// açabilen temsilci için satır sonunda "Saha formu" simge düğmesi.
 class _PortfolioTile extends ConsumerWidget {
   const _PortfolioTile({required this.row});
 
@@ -145,67 +147,28 @@ class _PortfolioTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.aknText;
     final access = ref.watch(fieldAccessProvider);
-    return AknCard(
-      padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Semantics(
-              button: true,
-              label: [
-                row.customerTitle,
-                if (row.customerCode.isNotEmpty) 'Kod ${row.customerCode}',
-                ?row.city,
-                'Cari kartını aç',
-              ].join(', '),
-              excludeSemantics: true,
-              child: InkWell(
-                borderRadius: AknRadius.card,
-                onTap: () => showFieldCustomerCard(context, row),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: AknSpace.minTap),
-                  child: Row(
-                    children: [
-                      AknAvatar(name: row.customerTitle, size: 40),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              row.customerTitle,
-                              style: t.bodyStrong,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              [
-                                if (row.customerCode.isNotEmpty)
-                                  row.customerCode,
-                                ?row.city,
-                              ].join(' · '),
-                              style: t.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (access.canCreateForm)
-            AknIconButton(
+    final second = [
+      if (row.customerCode.isNotEmpty) row.customerCode,
+      ?row.city,
+    ].join(', ');
+    return AknListTile(
+      title: row.customerTitle,
+      subtitle: second.isEmpty ? null : second,
+      semanticLabel: [
+        row.customerTitle,
+        if (row.customerCode.isNotEmpty) 'Kod ${row.customerCode}',
+        ?row.city,
+        'Cari kartını aç',
+      ].join(', '),
+      onTap: () => showFieldCustomerCard(context, row),
+      trailing: access.canCreateForm
+          ? AknIconButton(
               icon: Icons.post_add_rounded,
               semanticLabel: '${row.customerTitle} için saha formu',
               onPressed: () => context.push(_newFormPath(row)),
-            ),
-        ],
-      ),
+            )
+          : null,
     );
   }
 }
@@ -228,7 +191,7 @@ Future<void> showFieldCustomerCard(BuildContext context, PortfolioRow row) =>
       subtitle: [
         if (row.customerCode.isNotEmpty) row.customerCode,
         ?row.city,
-      ].join(' · '),
+      ].join(', '),
       builder: (_) => _CustomerCard(row: row, rootContext: context),
     );
 
@@ -335,7 +298,7 @@ class _CustomerCard extends ConsumerWidget {
               subtitle: [
                 ?p.role,
                 if (p.phone != null) Fmt.phone(p.phone),
-              ].join(' · '),
+              ].join(', '),
               padding: const EdgeInsets.symmetric(vertical: 6),
               trailing: p.phone == null
                   ? null
@@ -405,7 +368,7 @@ class _OptionsBlock extends StatelessWidget {
               value: [
                 Fmt.unitPrice(p.suggestedUnitPrice),
                 ?p.suggestedSourceLabel,
-              ].join(' · '),
+              ].join(', '),
             ),
         ],
         if (options.points.isNotEmpty) ...[

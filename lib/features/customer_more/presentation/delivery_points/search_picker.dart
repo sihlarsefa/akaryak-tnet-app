@@ -87,7 +87,7 @@ class _SearchPickerState extends State<_SearchPicker> {
                     title: o,
                     dense: true,
                     trailing: o == widget.selected
-                        ? Icon(Icons.check_rounded, color: c.brand)
+                        ? Icon(Icons.check_rounded, color: c.ink)
                         : null,
                     onTap: () => Navigator.of(context).pop(o),
                   ),
@@ -109,7 +109,9 @@ class _SearchPickerState extends State<_SearchPicker> {
   }
 }
 
-/// Seçim alanı görünümü (dokununca seçim sayfası açılır).
+/// Seçim alanı (tasarım v2 §6.10): etiket üstte (`label` 13/18 500), altında beyaz 52 px alan
+/// (1 px `lineStrong`, r12) ve sağda açılır ok; dokununca seçim sayfası açılır. Hata satırı alanın
+/// altında.
 class PickerField extends StatelessWidget {
   const PickerField({
     super.key,
@@ -135,29 +137,45 @@ class PickerField extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     final has = value != null && value!.trim().isNotEmpty;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      label: '$label${requiredMark ? ', zorunlu' : ''}',
-      value: has ? value : 'Seçilmedi',
-      excludeSemantics: true,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: AknRadius.input,
-        child: InputDecorator(
-          isEmpty: !has,
-          decoration: InputDecoration(
-            labelText: requiredMark ? '$label *' : label,
-            errorText: errorText,
-            enabled: enabled,
-            suffixIcon: Icon(icon, color: c.dim),
-          ),
-          child: Text(
-            has ? value! : '',
-            style: t.body.copyWith(fontSize: 16, color: c.ink),
+    final labelText = requiredMark ? '$label *' : label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ExcludeSemantics(
+          child: AknFieldLabel(text: labelText, enabled: enabled),
+        ),
+        const SizedBox(height: 6),
+        Semantics(
+          button: true,
+          enabled: enabled,
+          label: '$label${requiredMark ? ', zorunlu' : ''}',
+          value: has ? value : 'Seçilmedi',
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: enabled ? onTap : null,
+            borderRadius: AknRadius.input,
+            child: InputDecorator(
+              isEmpty: !has,
+              decoration: AknTextField.decoration(
+                context,
+                hint: 'Seçin',
+                errorText: errorText,
+                enabled: enabled,
+                suffixIcon: Icon(icon, color: enabled ? c.dim : c.faint),
+              ),
+              child: Text(
+                has ? value! : '',
+                style: t.body.copyWith(
+                  fontSize: 16,
+                  height: 22 / 16,
+                  color: enabled ? c.ink : c.faint,
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }

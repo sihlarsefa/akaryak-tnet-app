@@ -4,11 +4,10 @@ import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
 
-/// Shimmer area: every [SkeletonBox] inside shares one light sweep, so the
-/// whole placeholder reads as one surface. Use on first load only; a refresh
-/// keeps the content and shows [TopProgressBar] instead.
-///
-/// Reduce motion: static placeholders, no sweep.
+/// Loading area (design v2 §6.23): the Beton blocks inside pulse together —
+/// opacity 1 → 0.55 → 1 over 1200 ms — with no sweeping gradient. Static
+/// under reduce motion. Use it on first load only; a refetch keeps the old
+/// content ([RefreshingContent]) and shows [TopProgressBar].
 class Shimmer extends StatefulWidget {
   const Shimmer({
     super.key,
@@ -24,9 +23,26 @@ class Shimmer extends StatefulWidget {
 }
 
 class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController.unbounded(
+  late final AnimationController _c = AnimationController(
     vsync: this,
+    duration: AknMotion.skeletonPulse,
   );
+  late final Animation<double> _opacity = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 0.55,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 1,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 0.55,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.easeInOut)),
+      weight: 1,
+    ),
+  ]).animate(_c);
   bool _reduced = false;
 
   @override
@@ -36,11 +52,7 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     if (_reduced) {
       _c.stop();
     } else if (!_c.isAnimating) {
-      _c.repeat(
-        min: -0.6,
-        max: 1.6,
-        period: const Duration(milliseconds: 1500),
-      );
+      _c.repeat();
     }
   }
 
@@ -50,20 +62,11 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  Size? get _size {
-    final box = context.findRenderObject() as RenderBox?;
-    return box != null && box.hasSize ? box.size : null;
-  }
-
-  Offset _offsetOf(RenderBox descendant) {
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null) return Offset.zero;
-    return descendant.localToGlobal(Offset.zero, ancestor: box);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final child = _ShimmerScope(state: this, child: widget.child);
+    final Widget child = _reduced
+        ? widget.child
+        : FadeTransition(opacity: _opacity, child: widget.child);
     final label = widget.semanticLabel;
     if (label == null) return ExcludeSemantics(child: child);
     return Semantics(
@@ -75,16 +78,8 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
   }
 }
 
-class _ShimmerScope extends InheritedWidget {
-  const _ShimmerScope({required this.state, required super.child});
-
-  final _ShimmerState state;
-
-  @override
-  bool updateShouldNotify(_ShimmerScope old) => old.state != state;
-}
-
-/// Placeholder block. Shimmers inside a [Shimmer], static elsewhere.
+/// A Beton placeholder block: radius 6 for text lines, 12 for blocks, 20 for
+/// a deck slip. It pulses inside a [Shimmer] and is static elsewhere.
 class SkeletonBox extends StatelessWidget {
   const SkeletonBox({
     super.key,
@@ -102,7 +97,7 @@ class SkeletonBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final box = Container(
+    return Container(
       width: circle ? height : width,
       height: height,
       decoration: BoxDecoration(
@@ -111,62 +106,7 @@ class SkeletonBox extends StatelessWidget {
         shape: circle ? BoxShape.circle : BoxShape.rectangle,
       ),
     );
-    final scope = context.dependOnInheritedWidgetOfExactType<_ShimmerScope>();
-    if (scope == null || scope.state._reduced) return box;
-    return _ShimmerMask(state: scope.state, colors: c, child: box);
   }
-}
-
-class _ShimmerMask extends StatelessWidget {
-  const _ShimmerMask({
-    required this.state,
-    required this.colors,
-    required this.child,
-  });
-
-  final _ShimmerState state;
-  final AknColors colors;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: state._c,
-      child: child,
-      builder: (context, child) {
-        final area = state._size;
-        final me = context.findRenderObject() as RenderBox?;
-        if (area == null || me == null || !me.hasSize || !me.attached) {
-          return child!;
-        }
-        final offset = state._offsetOf(me);
-        final gradient = LinearGradient(
-          begin: const Alignment(-1, -0.25),
-          end: const Alignment(1, 0.25),
-          colors: [colors.skeleton, colors.skeletonHighlight, colors.skeleton],
-          stops: const [0.25, 0.42, 0.6],
-          transform: _Slide(state._c.value),
-        );
-        return ShaderMask(
-          blendMode: BlendMode.srcATop,
-          shaderCallback: (bounds) => gradient.createShader(
-            Rect.fromLTWH(-offset.dx, -offset.dy, area.width, area.height),
-          ),
-          child: child,
-        );
-      },
-    );
-  }
-}
-
-class _Slide extends GradientTransform {
-  const _Slide(this.percent);
-
-  final double percent;
-
-  @override
-  Matrix4? transform(Rect bounds, {TextDirection? textDirection}) =>
-      Matrix4.translationValues(bounds.width * percent, 0, 0);
 }
 
 /// One text line placeholder (width as a fraction of the available width).
@@ -186,67 +126,75 @@ class SkeletonLine extends StatelessWidget {
   }
 }
 
-/// Card-shaped placeholder: optional leading block and a few lines.
+/// A ledger-row placeholder (§6.23): title line 60 %, meta line 40 % and an
+/// amount block 25 % on the right; extra [lines] add shorter meta lines. No
+/// card, no border (the name is kept for old call sites).
 class SkeletonCard extends StatelessWidget {
   const SkeletonCard({
     super.key,
     this.lines = 3,
-    this.leading = true,
-    this.margin = const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    this.leading = false,
+    this.margin = AknSpace.row,
   });
 
+  /// 1 = title only, 2 = title + meta, 3+ = more meta lines.
   final int lines;
+
+  /// A 24 px leading block (rows with a leading icon).
   final bool leading;
+
+  /// Outer padding: the row padding (20 / 12) by default.
   final EdgeInsetsGeometry margin;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
     return Padding(
       padding: margin,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: AknRadius.card,
-          border: Border.all(color: c.line),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (leading) ...[
-              const SkeletonBox(width: 40, height: 40, radius: 12),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < lines; i++) ...[
-                    if (i > 0) const SizedBox(height: 10),
-                    SkeletonLine(
-                      widthFactor: i == 0 ? 0.62 : (i.isOdd ? 0.9 : 0.45),
-                      height: i == 0 ? 14 : 11,
-                    ),
-                  ],
-                ],
-              ),
-            ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (leading) ...[
+            const SkeletonBox(width: 24, height: 24, radius: 6),
+            const SizedBox(width: 16),
           ],
-        ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final w = box.maxWidth;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        SkeletonBox(width: w * 0.6, height: 16),
+                        const Spacer(),
+                        SkeletonBox(width: w * 0.25, height: 16),
+                      ],
+                    ),
+                    for (var i = 1; i < lines; i++) ...[
+                      const SizedBox(height: 10),
+                      SkeletonBox(width: w * (i == 1 ? 0.4 : 0.3), height: 12),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// A shimmering list of [SkeletonCard]s for first loads.
+/// A pulsing list of ledger-row placeholders (inset hairlines between rows)
+/// for first loads.
 class SkeletonList extends StatelessWidget {
   const SkeletonList({
     super.key,
     this.itemCount = 6,
-    this.lines = 3,
-    this.leading = true,
-    this.padding = const EdgeInsets.only(top: 12),
+    this.lines = 2,
+    this.leading = false,
+    this.padding = const EdgeInsets.only(top: 4),
     this.header,
     this.shrinkWrap = false,
   });
@@ -256,20 +204,30 @@ class SkeletonList extends StatelessWidget {
   final bool leading;
   final EdgeInsetsGeometry padding;
 
-  /// Optional placeholder above the cards (e.g. a KPI row).
+  /// Optional placeholder above the rows (e.g. a plate slip).
   final Widget? header;
 
-  /// True inside another scrollable (a list section, a sheet): lays the
-  /// cards out in a plain column instead of a `ListView` (no unbounded
-  /// height error).
+  /// True inside another scrollable (a list section, a sheet): lays the rows
+  /// out in a plain column instead of a `ListView` (no unbounded height
+  /// error).
   final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
     final children = [
       ?header,
-      for (var i = 0; i < itemCount; i++)
+      for (var i = 0; i < itemCount; i++) ...[
+        if (i > 0)
+          Divider(
+            height: 1,
+            thickness: 1,
+            indent: AknSpace.page,
+            endIndent: AknSpace.page,
+            color: c.line,
+          ),
         SkeletonCard(lines: lines, leading: leading),
+      ],
     ];
     return Shimmer(
       child: shrinkWrap
@@ -290,13 +248,44 @@ class SkeletonList extends StatelessWidget {
   }
 }
 
-/// Thin brand progress bar for background refreshes: content stays, the bar
-/// slides in at the top while [active].
+/// Keeps the old content visible while it refetches (§6.23): 60 % opacity,
+/// no skeleton flash. Pair it with [TopProgressBar].
+class RefreshingContent extends StatelessWidget {
+  const RefreshingContent({
+    super.key,
+    required this.refreshing,
+    required this.child,
+  });
+
+  final bool refreshing;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: refreshing ? 0.6 : 1,
+      duration: AknMotion.of(context, AknMotion.fast),
+      child: child,
+    );
+  }
+}
+
+/// Thin progress bar for background refreshes and uploads (§6.23): 2.5 px
+/// logo orange. Indeterminate while [active]; with [value] it shows that
+/// share on the chart track (an upload inside an attachment row).
 class TopProgressBar extends StatelessWidget {
-  const TopProgressBar({super.key, required this.active, this.height = 2.5});
+  const TopProgressBar({
+    super.key,
+    required this.active,
+    this.height = 2.5,
+    this.value,
+  });
 
   final bool active;
   final double height;
+
+  /// 0..1 for a determinate bar; null = indeterminate.
+  final double? value;
 
   @override
   Widget build(BuildContext context) {
@@ -308,10 +297,14 @@ class TopProgressBar extends StatelessWidget {
               key: const ValueKey('on'),
               height: height,
               child: LinearProgressIndicator(
+                value: value?.clamp(0.0, 1.0),
                 minHeight: height,
-                color: c.brand,
-                backgroundColor: c.brandSoft,
-                semanticsLabel: 'Yenileniyor',
+                color: c.logo,
+                backgroundColor: value == null
+                    ? Colors.transparent
+                    : c.chartTrack,
+                borderRadius: BorderRadius.zero,
+                semanticsLabel: value == null ? 'Yenileniyor' : 'Yükleniyor',
               ),
             )
           : SizedBox(key: const ValueKey('off'), height: height),

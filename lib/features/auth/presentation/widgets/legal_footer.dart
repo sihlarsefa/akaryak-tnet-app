@@ -7,10 +7,15 @@ import '../../application/link_opener.dart';
 import '../../application/server_gate_controller.dart';
 import '../../copy.dart';
 
-/// Giriş ekranının alt bilgisi: "Gizlilik · KVKK · Koşullar" (`app/config.legal`, uygulama içi
-/// tarayıcıda) ve sürüm. Adresi olmayan bağlantı gizlenir.
+/// Giriş ekranının alt bilgisi (tasarım v2 §7.2): solda "Gizlilik  KVKK  Koşullar" (13/18 dim,
+/// aralıklı, nokta yok; `app/config.legal`, uygulama içi tarayıcıda), sağda "Sürüm 1.0.0". Adresi
+/// olmayan bağlantı gizlenir. Sahte kipte sürümün yanında küçük bir "Demo" bağlantısı ([demo]) demo
+/// hesaplarını açar.
 class LegalFooter extends ConsumerWidget {
-  const LegalFooter({super.key});
+  const LegalFooter({super.key, this.demo});
+
+  /// Sahte kipte demo hesapları sayfasını açar; null ise düğme yok.
+  final VoidCallback? demo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,33 +31,74 @@ class LegalFooter extends ConsumerWidget {
       if (SupportLinks.web(links.termsUrl) case final u?)
         (label: AuthCopy.terms, spoken: AuthCopy.termsSpoken, uri: u),
     ];
+    final small = t.label.copyWith(
+      fontSize: 13,
+      height: 18 / 13,
+      fontWeight: FontWeight.w500,
+      color: c.dim,
+    );
+    final version = Text(
+      AuthCopy.version(info.versionLabel),
+      style: small,
+      textAlign: TextAlign.end,
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 0, AknSpace.page, 16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (items.isNotEmpty)
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  if (i > 0)
-                    ExcludeSemantics(
-                      child: Text('·', style: t.body.copyWith(color: c.dim)),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              if (items.isNotEmpty)
+                Wrap(
+                  spacing: 12,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    for (final i in items)
+                      _LegalLink(
+                        label: i.label,
+                        spoken: i.spoken,
+                        style: small,
+                        onTap: () => _open(ref, i.uri),
+                      ),
+                  ],
+                ),
+              Wrap(
+                spacing: 0,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  // Sahte kipte küçük "Demo" bağlantısı: demo hesapları sayfası (§7.2).
+                  if (demo != null) ...[
+                    _LegalLink(
+                      label: AuthCopy.demoCaption,
+                      spoken: AuthCopy.demoButton,
+                      style: small.copyWith(
+                        color: c.ink,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: c.ink,
+                      ),
+                      onTap: demo!,
+                      link: false,
                     ),
-                  _LegalLink(
-                    label: items[i].label,
-                    spoken: items[i].spoken,
-                    onTap: () => _open(ref, items[i].uri),
+                    const SizedBox(width: 12),
+                  ],
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: AknSpace.minTap,
+                    ),
+                    child: Align(
+                      alignment: AlignmentDirectional.centerEnd,
+                      widthFactor: 1,
+                      child: version,
+                    ),
                   ),
                 ],
-              ],
-            ),
-          const SizedBox(height: 4),
-          Text(
-            AuthCopy.version(info.versionLabel),
-            style: t.caption.copyWith(color: c.dim),
-            textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ],
       ),
@@ -69,19 +115,24 @@ class _LegalLink extends StatelessWidget {
   const _LegalLink({
     required this.label,
     required this.spoken,
+    required this.style,
     required this.onTap,
+    this.link = true,
   });
 
   final String label;
   final String spoken;
+  final TextStyle style;
   final VoidCallback onTap;
+
+  /// Bağlantı (yasal metin) ya da düğme (demo sayfası).
+  final bool link;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
     return Semantics(
-      link: true,
+      link: link,
+      button: !link,
       label: spoken,
       excludeSemantics: true,
       onTap: onTap,
@@ -93,16 +144,10 @@ class _LegalLink extends StatelessWidget {
             minHeight: AknSpace.minTap,
             minWidth: AknSpace.minTap,
           ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Center(
-              widthFactor: 1,
-              child: Text(
-                label,
-                style: t.label.copyWith(color: c.text),
-                textAlign: TextAlign.center,
-              ),
-            ),
+          child: Align(
+            alignment: AlignmentDirectional.centerStart,
+            widthFactor: 1,
+            child: Text(label, style: style),
           ),
         ),
       ),

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../data/approval_models.dart';
 import '../../shared/uploads.dart';
 
@@ -64,23 +65,28 @@ class InfoReplyCard extends ConsumerWidget {
         ? 'Belge ekle'
         : '${kind.label} ekle';
     return AknCard(
-      accent: AknTone.info,
-      borderColor: c.info.line,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AknIconBox(
-                icon: Icons.contact_support_rounded,
-                tone: AknTone.info,
-                size: 36,
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.contact_support_outlined,
+                  size: 20,
+                  color: c.brandInk,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Semantics(
                   header: true,
-                  child: Text('Sizden ek bilgi istendi', style: t.headline),
+                  child: Text(
+                    'Sizden ek bilgi istendi',
+                    style: t.headline.copyWith(color: c.ink),
+                  ),
                 ),
               ),
             ],
@@ -88,9 +94,9 @@ class InfoReplyCard extends ConsumerWidget {
           if (info?.note != null) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               decoration: BoxDecoration(
-                color: c.info.bg,
+                color: c.surfaceAlt,
                 borderRadius: AknRadius.card,
               ),
               child: Text(info!.note!, style: t.body.copyWith(color: c.ink)),
@@ -98,7 +104,10 @@ class InfoReplyCard extends ConsumerWidget {
           ],
           if (info?.requestedAt != null) ...[
             const SizedBox(height: 6),
-            Text('İstek: ${Fmt.relative(info!.requestedAt)}', style: t.caption),
+            Text(
+              'İstek: ${TurkishText.lower(Fmt.relative(info!.requestedAt))}',
+              style: t.caption.copyWith(color: c.dim),
+            ),
           ],
           if (kindLabel != null) ...[
             const SizedBox(height: 12),
@@ -122,10 +131,10 @@ class InfoReplyCard extends ConsumerWidget {
                     child: Text(
                       satisfied
                           ? 'İstenen belge eklendi: $kindLabel'
-                          : 'İstenen belge: $kindLabel — henüz eklenmedi',
-                      style: t.bodyStrong.copyWith(
-                        fontSize: 14,
-                        color: satisfied ? c.ok.fg : c.warn.fg,
+                          : 'İstenen belge: $kindLabel, henüz eklenmedi',
+                      style: t.bodySmall.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: c.ink,
                       ),
                     ),
                   ),
@@ -139,7 +148,8 @@ class InfoReplyCard extends ConsumerWidget {
             alignment: Alignment.centerLeft,
             child: AknButton.secondary(
               label: uploadLabel,
-              icon: Icons.add_a_photo_rounded,
+              icon: Icons.add_a_photo_outlined,
+              size: AknButtonSize.small,
               onPressed: () => unawaited(_add(context, ref)),
             ),
           ),
@@ -158,7 +168,7 @@ class InfoReplyCard extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             'Yanıtladığınızda talep yeniden incelemeye alınır.',
-            style: t.caption,
+            style: t.caption.copyWith(color: c.dim),
           ),
         ],
       ),
@@ -180,61 +190,66 @@ class InfoWaitingCard extends StatelessWidget {
     final asked = detail.events.lastWhereOrNull(
       (e) => e.eventType == ApprovalEventType.infoRequested,
     );
-    return AknCard(
-      accent: AknTone.info,
+    final kind = info?.displayKindLabel;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const AknIconBox(
-                icon: Icons.hourglass_top_rounded,
-                tone: AknTone.info,
-                size: 36,
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  Icons.hourglass_top_rounded,
+                  size: 20,
+                  color: c.ink,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   asked?.userName == null
                       ? 'Ek bilgi bekleniyor'
                       : 'Ek bilgi bekleniyor (${asked!.userName} istedi)',
-                  style: t.bodyStrong,
+                  style: t.bodyStrong.copyWith(color: c.ink),
                 ),
               ),
             ],
           ),
           if (info?.note != null) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Text(info!.note!, style: t.body.copyWith(color: c.ink)),
           ],
-          if (info?.displayKindLabel != null) ...[
+          if (kind != null) ...[
             const SizedBox(height: 8),
             Wrap(
-              spacing: 6,
+              spacing: 16,
               runSpacing: 6,
               children: [
-                StatusChip(
-                  label: 'İstenen: ${info!.displayKindLabel}',
-                  tone: info.requiredKindUploaded ? AknTone.ok : AknTone.info,
-                  icon: info.requiredKindUploaded
-                      ? Icons.check_circle_rounded
-                      : Icons.description_rounded,
-                  size: StatusChipSize.small,
+                AknLamp(
+                  label: 'İstenen: $kind',
+                  tone: info!.requiredKindUploaded ? AknTone.ok : AknTone.info,
+                  size: AknLampSize.small,
                 ),
                 if (info.requiredKindUploaded)
-                  const StatusChip(
+                  const AknLamp(
                     label: 'Belge eklendi',
                     tone: AknTone.ok,
-                    icon: Icons.attach_file_rounded,
-                    size: StatusChipSize.small,
+                    size: AknLampSize.small,
                   ),
               ],
             ),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             'Bilgi ya da belge size başka yoldan ulaştıysa "Bilgi alındı" ile talebi incelemeye alın; yanıt gelmeyecekse gerekçe yazıp reddedin.',
-            style: t.bodySmall,
+            style: t.bodySmall.copyWith(color: c.ink),
           ),
         ],
       ),

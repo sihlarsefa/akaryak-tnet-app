@@ -19,12 +19,16 @@ class FieldPreviewPanel extends ConsumerWidget {
     super.key,
     required this.args,
     this.compact = false,
+    this.showTotals = true,
   });
 
   final FormWizardArgs args;
 
   /// Alt sayfada (önizleme şeridinden açılınca).
   final bool compact;
+
+  /// Toplam litre / form tutarı okumaları (özet adımında plaka gösterdiği için kapalı).
+  final bool showTotals;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,30 +73,32 @@ class FieldPreviewPanel extends ConsumerWidget {
           error: s.previewError,
           onRetry: ctrl.refreshPreview,
         ),
-        const SizedBox(height: 12),
-        KpiRow(
-          children: [
-            KpiTile(
-              label: 'Toplam litre',
-              value: p.totalLiters,
-              format: Fmt.liters,
-              caption: '${Fmt.cubicMeters(p.totalM3)} · ${p.lineCount} satır',
-            ),
-            KpiTile(
-              label: 'Form tutarı',
-              value: p.totalAmount,
-              format: Fmt.money,
-              caption: p.salesInvoice == null
-                  ? null
-                  : 'Satış faturası ${Fmt.money(p.salesInvoice)}',
-            ),
-          ],
-        ),
+        if (showTotals) ...[
+          const SizedBox(height: 12),
+          KpiRow(
+            children: [
+              KpiTile(
+                label: 'Toplam litre',
+                value: p.totalLiters,
+                format: Fmt.liters,
+                caption: '${Fmt.cubicMeters(p.totalM3)}, ${p.lineCount} satır',
+              ),
+              KpiTile(
+                label: 'Form tutarı',
+                value: p.totalAmount,
+                format: Fmt.money,
+                caption: p.salesInvoice == null
+                    ? null
+                    : 'Satış faturası ${Fmt.money(p.salesInvoice)}',
+              ),
+            ],
+          ),
+        ],
         if (p.dueDate != null) ...[
           const SizedBox(height: 8),
           FactRow(
             label: 'Ödeme tarihi',
-            value: '${Fmt.date(p.dueDate)} · ${Fmt.weekday(p.dueDate)}',
+            value: '${Fmt.date(p.dueDate)}, ${Fmt.weekday(p.dueDate)}',
             icon: Icons.event_rounded,
           ),
         ],
@@ -127,7 +133,7 @@ class FieldPreviewPanel extends ConsumerWidget {
             title: 'Finans onayına düşer',
             message: p.financeReasons.isEmpty
                 ? 'Gönderilince finans onayı paralel yürür.'
-                : p.financeReasons.join(' · '),
+                : p.financeReasons.join(', '),
           ),
         ],
         if (p.overriddenLines.isNotEmpty) ...[
@@ -193,15 +199,12 @@ class _BandBlockState extends State<_BandBlock> {
     final p = widget.preview;
     final t = context.aknText;
     final c = context.akn;
-    final tone = AknStatus.toneFromKey(p.band.tone);
-    final tc = c.tone(tone == AknTone.neutral ? AknTone.info : tone);
     return Container(
       decoration: BoxDecoration(
-        color: tc.bg,
+        color: c.surfaceAlt,
         borderRadius: AknRadius.card,
-        border: Border.all(color: tc.line),
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -210,7 +213,10 @@ class _BandBlockState extends State<_BandBlock> {
               Expanded(
                 child: Text(
                   'Onay bandı',
-                  style: t.captionStrong.copyWith(color: tc.fg),
+                  style: t.label.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: c.dim,
+                  ),
                 ),
               ),
               if (widget.loading)
@@ -227,7 +233,7 @@ class _BandBlockState extends State<_BandBlock> {
           ),
           if (p.hint.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(p.hint, style: t.body.copyWith(color: c.text)),
+            Text(p.hint, style: t.bodySmall.copyWith(color: c.ink)),
           ],
           for (final n in p.notices) ...[
             const SizedBox(height: 6),
@@ -244,7 +250,7 @@ class _BandBlockState extends State<_BandBlock> {
                 ),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(n, style: t.bodySmall.copyWith(color: c.text)),
+                  child: Text(n, style: t.bodySmall.copyWith(color: c.ink)),
                 ),
               ],
             ),
@@ -258,12 +264,13 @@ class _BandBlockState extends State<_BandBlock> {
                     widget.error is OfflineFailure
                         ? 'Son hesaplama gösteriliyor (bağlantı yok).'
                         : 'Son hesaplama gösteriliyor: ${widget.error!.message}',
-                    style: t.caption,
+                    style: t.caption.copyWith(color: c.dim),
                   ),
                 ),
-                TextButton(
+                AknButton.ghost(
+                  label: FieldCopy.retry,
+                  size: AknButtonSize.small,
                   onPressed: widget.onRetry,
-                  child: const Text(FieldCopy.retry),
                 ),
               ],
             ),
@@ -283,20 +290,30 @@ class _CostBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = preview;
     final t = context.aknText;
-    return AknCard(
-      color: context.akn.surfaceAlt,
-      shadow: false,
+    return Container(
+      decoration: BoxDecoration(
+        color: context.akn.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.lock_outline_rounded, size: 16),
+              Icon(
+                Icons.lock_outline_rounded,
+                size: 16,
+                color: context.akn.dim,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Kârlılık · yalnızca bayi içi',
-                  style: t.captionStrong,
+                  'Kârlılık (yalnızca bayi içi)',
+                  style: t.label.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.akn.dim,
+                  ),
                 ),
               ),
             ],

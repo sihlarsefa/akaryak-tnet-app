@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../motion.dart';
-import '../status.dart';
 import '../theme.dart';
 import '../tokens.dart';
 import 'buttons.dart';
 
-/// Opens a bottom sheet in the AkaryakıtNet style: 16 px top radius, drag
-/// handle, optional title row with a close button, keyboard-aware padding.
-/// Slides up (320 ms emphasized) over a fading scrim.
+/// Opens a bottom sheet in the v2 style (§6.21): a raised surface with a
+/// 20 px top radius, a 36 × 4 drag handle, 20 px padding, an optional title
+/// (`title` 20/26) with a close button, the body, and optional sticky
+/// [actionsBuilder] actions at the bottom (primary full width first, then
+/// secondary / ghost). Keyboard-aware; slides up in 250 ms over the scrim.
+///
+/// A sheet is for a decision that needs input (revize, red, teslim kanıtı,
+/// filtre). Dialogs ([showAknDialog]) are only for blocking errors and
+/// irreversible confirmations.
 Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -19,10 +24,12 @@ Future<T?> showAppSheet<T>({
   bool enableDrag = true,
   bool useRootNavigator = true,
   bool scrollable = true,
-  EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(16, 0, 16, 16),
+  EdgeInsetsGeometry padding = const EdgeInsets.fromLTRB(20, 0, 20, 20),
   double maxHeightFactor = 0.92,
+  WidgetBuilder? actionsBuilder,
 }) {
   final reduced = AknMotion.reduced(context);
+  final c = context.akn;
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,
@@ -30,12 +37,17 @@ Future<T?> showAppSheet<T>({
     useRootNavigator: useRootNavigator,
     isDismissible: isDismissible,
     enableDrag: enableDrag,
-    showDragHandle: true,
+    showDragHandle: false,
+    backgroundColor: c.surfaceRaised,
+    elevation: 0,
+    barrierColor: c.scrim,
+    shape: const RoundedRectangleBorder(borderRadius: AknRadius.sheet),
+    clipBehavior: Clip.antiAlias,
     sheetAnimationStyle: reduced
         ? AnimationStyle.noAnimation
         : const AnimationStyle(
-            duration: Duration(milliseconds: 320),
-            reverseDuration: Duration(milliseconds: 220),
+            duration: AknMotion.sheet,
+            reverseDuration: AknMotion.scrim,
             curve: AknMotion.emphasizedCurve,
             reverseCurve: AknMotion.exit,
           ),
@@ -46,13 +58,16 @@ Future<T?> showAppSheet<T>({
       scrollable: scrollable,
       padding: padding,
       maxHeightFactor: maxHeightFactor,
+      dismissible: isDismissible,
+      actions: actionsBuilder == null ? null : Builder(builder: actionsBuilder),
       child: Builder(builder: builder),
     ),
   );
 }
 
-/// Sheet body layout used by [showAppSheet]. Usable on its own inside custom
-/// sheets.
+/// Sheet body layout used by [showAppSheet]: drag handle, title row, the
+/// (scrollable) body and optional sticky [actions]. Usable on its own inside
+/// custom sheets.
 class AppSheet extends StatelessWidget {
   const AppSheet({
     super.key,
@@ -61,8 +76,11 @@ class AppSheet extends StatelessWidget {
     this.subtitle,
     this.showClose = true,
     this.scrollable = true,
-    this.padding = const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    this.padding = const EdgeInsets.fromLTRB(20, 0, 20, 20),
     this.maxHeightFactor = 0.92,
+    this.actions,
+    this.showHandle = true,
+    this.dismissible = true,
   });
 
   final Widget child;
@@ -73,11 +91,21 @@ class AppSheet extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double maxHeightFactor;
 
+  /// Sticky actions under the body (primary full width, then secondary /
+  /// ghost); they stay visible while the body scrolls.
+  final Widget? actions;
+  final bool showHandle;
+
+  /// The handle closes the sheet for screen-reader users when true.
+  final bool dismissible;
+
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final mq = MediaQuery.of(context);
     final maxH = mq.size.height * maxHeightFactor;
+    final keyboard = mq.viewInsets.bottom > 0;
     final Widget body = Padding(padding: padding, child: child);
     return Padding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
@@ -87,24 +115,28 @@ class AppSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (showHandle)
+              _DragHandle(dismissible: dismissible)
+            else
+              const SizedBox(height: 12),
             if (title != null)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 4, 8),
+                padding: EdgeInsets.fromLTRB(20, 2, showClose ? 8 : 20, 12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: EdgeInsets.only(top: showClose ? 11 : 0),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Semantics(
                               header: true,
-                              child: Text(title!, style: t.headline),
+                              child: Text(title!, style: t.title),
                             ),
                             if (subtitle != null) ...[
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 4),
                               Text(subtitle!, style: t.bodySmall),
                             ],
                           ],
@@ -115,7 +147,7 @@ class AppSheet extends StatelessWidget {
                       IconButton(
                         tooltip: 'Kapat',
                         onPressed: () => Navigator.of(context).maybePop(),
-                        icon: const Icon(Icons.close_rounded),
+                        icon: Icon(Icons.close_rounded, size: 24, color: c.ink),
                       ),
                   ],
                 ),
@@ -123,8 +155,55 @@ class AppSheet extends StatelessWidget {
             Flexible(
               child: scrollable ? SingleChildScrollView(child: body) : body,
             ),
-            SizedBox(height: mq.viewInsets.bottom > 0 ? 0 : mq.padding.bottom),
+            if (actions != null)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: c.line)),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    12,
+                    20,
+                    12 + (keyboard ? 0 : mq.padding.bottom),
+                  ),
+                  child: actions,
+                ),
+              )
+            else
+              SizedBox(height: keyboard ? 0 : mq.padding.bottom),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 36 × 4 handle (control-border colour) in a 24 px band; a "Kapat" button
+/// for screen readers.
+class _DragHandle extends StatelessWidget {
+  const _DragHandle({required this.dismissible});
+
+  final bool dismissible;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Semantics(
+      button: dismissible,
+      label: dismissible ? 'Kapat' : null,
+      onTap: dismissible ? () => Navigator.of(context).maybePop() : null,
+      child: SizedBox(
+        height: 24,
+        child: Center(
+          child: Container(
+            width: 36,
+            height: 4,
+            decoration: BoxDecoration(
+              color: c.lineStrong,
+              borderRadius: const BorderRadius.all(Radius.circular(2)),
+            ),
+          ),
         ),
       ),
     );
@@ -133,7 +212,8 @@ class AppSheet extends StatelessWidget {
 
 /// Asks for confirmation in a bottom sheet. Returns true only on confirm.
 ///
-/// Destructive actions use the danger button and tone.
+/// Destructive actions ([destructive]) get the red confirm button with a
+/// white label; the cancel is a ghost "Vazgeç".
 Future<bool> showConfirmSheet(
   BuildContext context, {
   required String title,
@@ -162,7 +242,8 @@ Future<bool> showConfirmSheet(
   return result ?? false;
 }
 
-/// Body of [showConfirmSheet].
+/// Body of [showConfirmSheet]: title, sentence, optional content, then the
+/// confirm button (full width) and a ghost cancel under it.
 class ConfirmSheet extends StatelessWidget {
   const ConfirmSheet({
     super.key,
@@ -181,7 +262,11 @@ class ConfirmSheet extends StatelessWidget {
   final String confirmLabel;
   final String cancelLabel;
   final bool destructive;
+
+  /// Optional plain icon above the title (never in a tinted circle).
   final IconData? icon;
+
+  /// Colours [icon] (the confirm button follows [destructive]).
   final AknTone? tone;
   final Widget? content;
 
@@ -189,19 +274,10 @@ class ConfirmSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final effectiveTone =
-        tone ?? (destructive ? AknTone.danger : AknTone.brand);
-    final tc = c.tone(effectiveTone);
-    final stacked = MediaQuery.textScalerOf(context).scale(15) > 20;
-    final cancel = AknButton.secondary(
-      label: cancelLabel,
-      expand: true,
-      onPressed: () => Navigator.of(context).pop(false),
-    );
+    final iconTone = tone ?? (destructive ? AknTone.danger : AknTone.info);
     final confirm = destructive
-        ? AknButton.danger(
+        ? DestructiveButton(
             label: confirmLabel,
-            expand: true,
             onPressed: () => Navigator.of(context).pop(true),
           )
         : AknButton(
@@ -214,48 +290,84 @@ class ConfirmSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        Center(
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(color: tc.bg, shape: BoxShape.circle),
+        if (icon != null) ...[
+          Align(
+            alignment: AlignmentDirectional.centerStart,
             child: Icon(
-              icon ?? AknStatus.toneIcon(effectiveTone),
-              color: tc.fg,
+              icon,
               size: 28,
+              color: iconTone == AknTone.brand ? c.ink : c.tone(iconTone).fg,
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Semantics(
-          header: true,
-          child: Text(title, style: t.headline, textAlign: TextAlign.center),
-        ),
+          const SizedBox(height: 12),
+        ],
+        Semantics(header: true, child: Text(title, style: t.title)),
         if (message != null) ...[
           const SizedBox(height: 8),
-          Text(message!, style: t.body, textAlign: TextAlign.center),
+          Text(message!, style: t.body.copyWith(color: c.dim)),
         ],
         if (content != null) ...[const SizedBox(height: 16), content!],
         const SizedBox(height: 24),
-        if (stacked) ...[
-          confirm,
-          const SizedBox(height: 4),
-          cancel,
-        ] else
-          Row(
-            children: [
-              Expanded(child: cancel),
-              const SizedBox(width: 12),
-              Expanded(child: confirm),
-            ],
-          ),
+        confirm,
+        const SizedBox(height: 8),
+        AknButton.ghost(
+          label: cancelLabel,
+          expand: true,
+          onPressed: () => Navigator.of(context).pop(false),
+        ),
       ],
     );
   }
 }
 
-/// Centered confirmation dialog (for moments that must interrupt, e.g.
-/// leaving a wizard with unsaved changes). Returns true only on confirm.
+/// The destructive confirm of a sheet ("Teklifi reddet", "Çıkış yap"):
+/// `dangerFill` with a white label (§6.5), full width. Use it only as the
+/// confirm button of a sheet or dialog; on pages the danger action is the
+/// outlined `AknButton.danger`.
+class DestructiveButton extends StatelessWidget {
+  const DestructiveButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.expand = true,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool expand;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final c = context.akn;
+    final red = c.copyWith(
+      brandFill: c.dangerFill,
+      brandFillPressed: Color.lerp(c.dangerFill, Colors.black, 0.08),
+      onBrandFill: c.onDangerFill,
+    );
+    return Theme(
+      data: theme.copyWith(
+        extensions: [
+          for (final e in theme.extensions.values)
+            if (e is! AknColors) e,
+          red,
+        ],
+      ),
+      child: AknButton(
+        label: label,
+        icon: icon,
+        expand: expand,
+        onPressed: onPressed,
+      ),
+    );
+  }
+}
+
+/// Centered confirmation dialog (r20) for moments that must interrupt —
+/// leaving a wizard with unsaved changes, a blocking error. Returns true
+/// only on confirm.
 Future<bool> showAknDialog(
   BuildContext context, {
   required String title,
@@ -266,24 +378,31 @@ Future<bool> showAknDialog(
 }) async {
   final result = await showDialog<bool>(
     context: context,
+    barrierColor: context.akn.scrim,
     builder: (ctx) {
       final c = ctx.akn;
+      final t = ctx.aknText;
       return AlertDialog(
-        title: Text(title),
-        content: message == null ? null : Text(message),
+        backgroundColor: c.surfaceRaised,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(borderRadius: AknRadius.dialog),
+        title: Text(title, style: t.title),
+        content: message == null
+            ? null
+            : Text(message, style: t.body.copyWith(color: c.dim)),
         actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           if (cancelLabel != null)
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              style: TextButton.styleFrom(foregroundColor: c.text),
+              style: TextButton.styleFrom(foregroundColor: c.ink),
               child: Text(cancelLabel),
             ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            style: destructive
-                ? TextButton.styleFrom(foregroundColor: c.danger.fg)
-                : null,
+            style: TextButton.styleFrom(
+              foregroundColor: destructive ? c.danger.fg : c.ink,
+            ),
             child: Text(confirmLabel),
           ),
         ],

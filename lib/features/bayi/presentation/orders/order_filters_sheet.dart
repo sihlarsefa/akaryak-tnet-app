@@ -83,7 +83,7 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
     final last = TrTime.addDays(today, 365);
     Widget label(String s) => Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 4),
-      child: Text(s, style: t.bodyStrong),
+      child: Text(s, style: t.bodyStrong.copyWith(color: context.akn.ink)),
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,7 +137,8 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
           label('Cari'),
           AknListTile(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            leadingIcon: Icons.apartment_rounded,
+            leadingIcon: Icons.apartment_outlined,
+            showChevron: _f.customerId == null,
             title:
                 _f.customerTitle ??
                 (_f.customerId == null
@@ -191,26 +192,14 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
           ],
         ),
         const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: AknButton.secondary(
-                label: 'Temizle',
-                expand: true,
-                onPressed: _f.advancedCount == 0
-                    ? null
-                    : () => setState(() => _f = _f.clearAdvanced()),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AknButton(
-                label: 'Uygula',
-                expand: true,
-                onPressed: _apply,
-              ),
-            ),
-          ],
+        AknButton(label: 'Uygula', expand: true, onPressed: _apply),
+        const SizedBox(height: 8),
+        AknButton.ghost(
+          label: 'Temizle',
+          expand: true,
+          onPressed: _f.advancedCount == 0
+              ? null
+              : () => setState(() => _f = _f.clearAdvanced()),
         ),
       ],
     );
@@ -257,10 +246,10 @@ class _Range extends StatelessWidget {
         ),
         if (from != null || to != null)
           Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () => onChanged(null, null),
-              child: const Text('Tarihi temizle'),
+            alignment: AlignmentDirectional.centerStart,
+            child: AknInlineLink(
+              label: 'Tarihi temizle',
+              onTap: () => onChanged(null, null),
             ),
           ),
       ],
@@ -343,7 +332,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               leading: AknAvatar(name: r.title, size: 36),
               title: r.title,
-              subtitle: [?r.code, ?r.place].join(' · '),
+              subtitle: [?r.code, ?r.place].join(', '),
               onTap: () => Navigator.of(context).pop(r),
             ),
       ],

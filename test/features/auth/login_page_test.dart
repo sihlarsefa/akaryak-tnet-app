@@ -1,7 +1,8 @@
 // Giriş ekranı (spec A.4 A1, C.7): erişilebilirlik matrisi, hatalı şifre, kilitlenme geri sayımı,
-// telefon sekmesi, "Hesabım yok", yasal bağlantılar, "Şifremi unuttum", demo hesapları.
+// telefonla giriş, "Bayinizden davet isteyin", yasal bağlantılar, "Şifremi unuttum", demo hesapları.
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
 import 'package:akaryakitnet/core/models/app_config.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/auth/application/auth_throttle.dart';
 import 'package:akaryakitnet/features/auth/application/login_effects.dart';
 import 'package:akaryakitnet/features/auth/auth_fake.dart';
@@ -11,21 +12,27 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'auth_test_support.dart';
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+/// Etiketi alanın üstünde duran (tasarım v2 §6.10) metin alanı.
+Finder _field(String label) => find.descendant(
+  of: find.ancestor(of: find.text(label), matching: find.byType(AknTextField)),
+  matching: find.byType(TextField),
+);
 
 void main() {
   a11yMatrix('giriş (şifre)', (tester, scale, b) async {
     await pumpAuthRoute(tester, '/login', textScale: scale, brightness: b);
     expect(find.text('Giriş yap'), findsOneWidget);
-    expect(find.text('Hesabınıza giriş yapın'), findsOneWidget);
-    expect(find.text('Şifreyle'), findsOneWidget);
+    expect(find.text('Giriş yapın'), findsOneWidget);
+    expect(find.text('Siparişten\nteslimata.'), findsOneWidget);
+    expect(find.text('Telefon numarasıyla giriş yap'), findsOneWidget);
   });
 
   a11yMatrix('giriş (telefon sekmesi)', (tester, scale, b) async {
     await pumpAuthRoute(tester, '/login', textScale: scale, brightness: b);
-    await tapVisible(tester, find.text('Telefonla'));
+    await tapVisible(tester, find.text('Telefon numarasıyla giriş yap'));
     await pumpFor(tester, const Duration(milliseconds: 600));
     expect(find.text('Kod gönder'), findsOneWidget);
+    expect(find.text('Şifreyle giriş yap'), findsOneWidget);
     expect(_field('Cep telefonu'), findsOneWidget);
   });
 
@@ -52,7 +59,7 @@ void main() {
         );
     await tester.pump();
     expect(find.text('Giriş geçici olarak kapalı'), findsOneWidget);
-    expect(find.text('Tekrar dene · 15:00'), findsOneWidget);
+    expect(find.text('Tekrar dene (15:00)'), findsOneWidget);
   });
 
   testWidgets('boş alanlar: alan hataları, istek gitmez', (tester) async {
@@ -73,7 +80,7 @@ void main() {
   ) async {
     setPhoneSize(tester);
     await pumpAuthRoute(tester, '/login');
-    await tester.enterText(_field('Kullanıcı adı veya e-posta'), 'musteri');
+    await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'musteri');
     await tester.enterText(_field('Şifre'), 'yanlis');
     await tapVisible(tester, find.text('Giriş yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
@@ -110,19 +117,22 @@ void main() {
         overrides: clockAndLinks(clock: clock),
       );
       for (var i = 0; i < 5; i++) {
-        await tester.enterText(_field('Kullanıcı adı veya e-posta'), 'musteri');
+        await tester.enterText(
+          _field('E-posta ya da kullanıcı adı'),
+          'musteri',
+        );
         await tester.enterText(_field('Şifre'), 'yanlis');
         await tapVisible(tester, find.text('Giriş yap'));
         await pumpFor(tester, const Duration(milliseconds: 300));
       }
       expect(find.text('Giriş geçici olarak kapalı'), findsOneWidget);
       expect(find.textContaining('15 dakika kapatıldı'), findsOneWidget);
-      expect(find.text('Tekrar dene · 15:00'), findsOneWidget);
+      expect(find.text('Tekrar dene (15:00)'), findsOneWidget);
       expect(find.text('Giriş yap'), findsNothing);
 
       clock.advance(const Duration(minutes: 5));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Tekrar dene · 10:00'), findsOneWidget);
+      expect(find.text('Tekrar dene (10:00)'), findsOneWidget);
 
       clock.advance(const Duration(minutes: 10, seconds: 1));
       await tester.pump(const Duration(seconds: 1));
@@ -138,7 +148,7 @@ void main() {
     (tester) async {
       setPhoneSize(tester);
       await pumpAuthRoute(tester, '/login');
-      await tapVisible(tester, find.text('Telefonla'));
+      await tapVisible(tester, find.text('Telefon numarasıyla giriş yap'));
       await pumpFor(tester, const Duration(milliseconds: 500));
       await tester.enterText(_field('Cep telefonu'), '123');
       await tapVisible(tester, find.text('Kod gönder'));
@@ -155,7 +165,7 @@ void main() {
       await tapVisible(tester, find.text('Kod gönder'));
       await pumpFor(tester, const Duration(milliseconds: 800));
       expect(find.byType(CodePage), findsOneWidget);
-      expect(find.text('Telefonla giriş'), findsWidgets);
+      expect(find.text('Kodu girin'), findsOneWidget);
       expect(find.textContaining('0532 *** ** 01'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
@@ -175,43 +185,45 @@ void main() {
       anonymous: true,
     );
     await pumpAuthRoute(tester, '/login', harness: h);
-    expect(find.text('Telefonla'), findsNothing);
+    expect(find.text('Telefon numarasıyla giriş yap'), findsNothing);
     expect(find.text('Giriş yap'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('"Hesabım yok": açıklama ve destek kanalları açılır', (
-    tester,
-  ) async {
-    setPhoneSize(tester);
-    final links = LinkLog();
-    await pumpAuthRoute(
-      tester,
-      '/login',
-      overrides: clockAndLinks(links: links),
-    );
-    await tapVisible(tester, find.text('Hesabım yok'));
-    await pumpFor(tester, const Duration(milliseconds: 600));
-    expect(find.text('Hesabınız yok mu?'), findsOneWidget);
-    expect(find.textContaining('bayiniz ya da şirketinizin'), findsOneWidget);
-    expect(find.text('Destek hattını arayın'), findsOneWidget);
-    expect(find.text('WhatsApp\'tan yazın'), findsOneWidget);
-    expect(find.text('E-posta gönderin'), findsOneWidget);
+  testWidgets(
+    '"Bayinizden davet isteyin": açıklama ve destek kanalları açılır',
+    (tester) async {
+      setPhoneSize(tester);
+      final links = LinkLog();
+      await pumpAuthRoute(
+        tester,
+        '/login',
+        overrides: clockAndLinks(links: links),
+      );
+      await tapVisible(tester, find.text('Bayinizden davet isteyin'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      // Satırdaki soru + sayfanın başlığı.
+      expect(find.text('Hesabınız yok mu?'), findsNWidgets(2));
+      expect(find.textContaining('bayiniz ya da şirketinizin'), findsOneWidget);
+      expect(find.text('Destek hattını arayın'), findsOneWidget);
+      expect(find.text('WhatsApp\'tan yazın'), findsOneWidget);
+      expect(find.text('E-posta gönderin'), findsOneWidget);
 
-    await tapVisible(tester, find.text('Destek hattını arayın'));
-    await tapVisible(tester, find.text('WhatsApp\'tan yazın'));
-    await tapVisible(tester, find.text('E-posta gönderin'));
-    expect(links.uris.map((u) => u.scheme).toList(), [
-      'tel',
-      'https',
-      'mailto',
-    ]);
-    expect(links.uris[1].host, 'wa.me');
-    expect(links.opened.every((o) => o.external), isTrue);
-    await tester.pumpWidget(const SizedBox());
-  });
+      await tapVisible(tester, find.text('Destek hattını arayın'));
+      await tapVisible(tester, find.text('WhatsApp\'tan yazın'));
+      await tapVisible(tester, find.text('E-posta gönderin'));
+      expect(links.uris.map((u) => u.scheme).toList(), [
+        'tel',
+        'https',
+        'mailto',
+      ]);
+      expect(links.uris[1].host, 'wa.me');
+      expect(links.opened.every((o) => o.external), isTrue);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
-  testWidgets('alt bilgi: Gizlilik · KVKK · Koşullar uygulama içi tarayıcıda', (
+  testWidgets('alt bilgi: Gizlilik, KVKK, Koşullar uygulama içi tarayıcıda', (
     tester,
   ) async {
     setPhoneSize(tester);
@@ -265,7 +277,7 @@ void main() {
     );
     expect(
       tester
-          .widget<TextField>(_field('Kullanıcı adı veya e-posta'))
+          .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
           .controller!
           .text,
       'musteri',

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 
-/// Ayar grubu: tek kart içinde ince çizgiyle ayrılmış satırlar (iOS ayarları gibi sakin bir düzen).
+/// Ayar grubu (tasarım v2 §4.5, §7.17): beyaz grup kutusu (1 px çizgi, r12, gölgesiz), içinde ince
+/// çizgiyle ayrılmış satırlar; kenarlardan 20 px.
 class SettingsGroup extends StatelessWidget {
   const SettingsGroup({super.key, required this.children, this.margin});
 
@@ -16,13 +17,13 @@ class SettingsGroup extends StatelessWidget {
         if (c is! SizedBox || c.width != 0 || c.height != 0) c,
     ];
     return AknCard(
-      margin: margin ?? const EdgeInsets.symmetric(horizontal: 16),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: AknSpace.page),
       padding: EdgeInsets.zero,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const Divider(height: 1, indent: 68),
+            if (i > 0) const Divider(height: 1, indent: 56),
             rows[i],
           ],
         ],
@@ -31,7 +32,8 @@ class SettingsGroup extends StatelessWidget {
   }
 }
 
-/// Ayar satırı: ikon kutusu, başlık / açıklama, isteğe bağlı sağ öğe (çip, değer), dokununca ok.
+/// Ayar satırı (§6.8): 24 px soluk ikon (kutusuz; durum taşıyorsa tonun rengi), başlık / açıklama,
+/// isteğe bağlı sağ öğe (lamba, değer), dokununca ok.
 class SettingsTile extends StatelessWidget {
   const SettingsTile({
     super.key,
@@ -68,24 +70,27 @@ class SettingsTile extends StatelessWidget {
                 external
                     ? Icons.open_in_new_rounded
                     : Icons.chevron_right_rounded,
-                color: c.faint,
+                color: c.dim,
                 size: external ? 18 : 22,
               ));
+    final tn = destructive ? AknTone.danger : tone;
+    final iconColor = tn == null || tn == AknTone.neutral || tn == AknTone.info
+        ? c.dim
+        : c.tone(tn).fg;
     return Semantics(
       button: onTap != null,
       child: InkWell(
         onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: c.surfaceAlt,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+          constraints: const BoxConstraints(minHeight: 56),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
             child: Row(
               children: [
-                AknIconBox(
-                  icon: icon,
-                  tone: destructive ? AknTone.danger : tone,
-                ),
-                const SizedBox(width: 12),
+                Icon(icon, size: 24, color: iconColor),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,12 +99,15 @@ class SettingsTile extends StatelessWidget {
                       Text(
                         title,
                         style: t.bodyStrong.copyWith(
-                          color: destructive ? c.danger.fg : null,
+                          color: destructive ? c.danger.fg : c.ink,
                         ),
                       ),
                       if (subtitle != null && subtitle!.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(subtitle!, style: t.bodySmall),
+                        Text(
+                          subtitle!,
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
                       ],
                     ],
                   ),
@@ -136,25 +144,31 @@ class SettingsSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final enabled = onChanged != null;
     return MergeSemantics(
       child: InkWell(
         onTap: enabled ? () => onChanged!(!value) : null,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: c.surfaceAlt,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
           child: Row(
             children: [
-              AknIconBox(icon: icon, tone: value ? AknTone.brand : null),
-              const SizedBox(width: 12),
+              Icon(icon, size: 24, color: c.dim),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(title, style: t.bodyStrong),
+                    Text(title, style: t.bodyStrong.copyWith(color: c.ink)),
                     if (subtitle != null && subtitle!.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(subtitle!, style: t.bodySmall),
+                      Text(
+                        subtitle!,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
                     ],
                   ],
                 ),
@@ -180,7 +194,7 @@ class SettingsHeader extends StatelessWidget {
   Widget build(BuildContext context) => SectionHeader(
     title: title,
     subtitle: subtitle,
-    padding: const EdgeInsets.fromLTRB(20, 24, 16, 8),
+    padding: const EdgeInsets.fromLTRB(AknSpace.page, 24, 16, 8),
   );
 }
 

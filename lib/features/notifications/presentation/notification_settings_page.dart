@@ -38,7 +38,7 @@ class NotificationSettingsPage extends ConsumerWidget {
         ),
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: EdgeInsets.fromLTRB(AknSpace.page, 8, AknSpace.page, 0),
             child: _DevicePushCard(),
           ),
           const SectionHeader(
@@ -46,12 +46,12 @@ class NotificationSettingsPage extends ConsumerWidget {
             subtitle: NotificationsCopy.categoriesHint,
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
             child: _Categories(state: s),
           ),
           const SectionHeader(title: NotificationsCopy.testTitle),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: AknSpace.page),
             child: _TestCard(),
           ),
         ],
@@ -91,7 +91,7 @@ class _Categories extends ConsumerWidget {
       child: Column(
         children: [
           for (var i = 0; i < s.items.length; i++) ...[
-            if (i > 0) const Divider(height: 1, indent: 68),
+            if (i > 0) const Divider(height: 1, indent: 56),
             _PrefTile(
               pref: s.items[i],
               busy: s.saving.contains(s.items[i].category),
@@ -127,28 +127,36 @@ class _PrefTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final description = NotificationCategory.description(pref.category);
     return MergeSemantics(
       child: InkWell(
         onTap: busy ? null : () => onChanged(!pref.pushEnabled),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
           child: Row(
             children: [
-              AknIconBox(
-                icon: NotificationCategory.icon(pref.category),
-                tone: pref.pushEnabled ? AknTone.brand : null,
+              Icon(
+                NotificationCategory.icon(pref.category),
+                size: 24,
+                color: c.dim,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(pref.label, style: t.bodyStrong),
+                    Text(
+                      pref.label,
+                      style: t.bodyStrong.copyWith(color: c.ink),
+                    ),
                     if (description.isNotEmpty) ...[
                       const SizedBox(height: 2),
-                      Text(description, style: t.bodySmall),
+                      Text(
+                        description,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
                     ],
                   ],
                 ),
@@ -179,7 +187,7 @@ class _DevicePushCard extends ConsumerWidget {
     if (!firebase || !serverPush) {
       return const AknBanner(
         tone: AknTone.info,
-        icon: Icons.notifications_paused_rounded,
+        icon: Icons.notifications_paused_outlined,
         title: NotificationsCopy.pushOffTitle,
         message: NotificationsCopy.pushOffMessage,
       );
@@ -188,13 +196,13 @@ class _DevicePushCard extends ConsumerWidget {
     return switch (permission) {
       PushPermission.granted => const AknBanner(
         tone: AknTone.ok,
-        icon: Icons.notifications_active_rounded,
+        icon: Icons.notifications_active_outlined,
         title: NotificationsCopy.pushOnTitle,
         message: NotificationsCopy.pushOnMessage,
       ),
       PushPermission.notDetermined => AknBanner(
         tone: AknTone.info,
-        icon: Icons.notifications_rounded,
+        icon: Icons.notifications_none_rounded,
         title: NotificationsCopy.pushAskTitle,
         message: NotificationsCopy.pushAskMessage,
         actionLabel: NotificationsCopy.pushAsk,
@@ -202,7 +210,7 @@ class _DevicePushCard extends ConsumerWidget {
       ),
       PushPermission.denied => AknBanner(
         tone: AknTone.warn,
-        icon: Icons.notifications_off_rounded,
+        icon: Icons.notifications_off_outlined,
         title: NotificationsCopy.pushDeniedTitle,
         message: NotificationsCopy.pushDeniedMessage,
         actionLabel: NotificationsCopy.openSettings,
@@ -278,15 +286,21 @@ class _TestCardState extends ConsumerState<_TestCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(NotificationsCopy.testTile, style: t.bodyStrong),
+          Text(
+            NotificationsCopy.testTile,
+            style: t.bodyStrong.copyWith(color: context.akn.ink),
+          ),
           const SizedBox(height: 2),
-          Text(NotificationsCopy.testHint, style: t.bodySmall),
+          Text(
+            NotificationsCopy.testHint,
+            style: t.bodySmall.copyWith(color: context.akn.dim),
+          ),
           const SizedBox(height: 12),
           // Genişletilmiş: çekirdek AknButton'ın daraltılmış hâli eşzamansız işlemde
           // (genişliği sınırsız) kısıt geçişinde hata verir.
           AknButton.secondary(
             label: NotificationsCopy.testSend,
-            icon: Icons.send_rounded,
+            icon: Icons.send_outlined,
             expand: true,
             showSuccess: false,
             onPressedAsync: _send,

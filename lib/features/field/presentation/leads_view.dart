@@ -78,14 +78,14 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
     final header = <Widget>[
       if (widget.all)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
           child: Text(
             'Bayinin tüm ön kayıtları',
-            style: context.aknText.caption,
+            style: context.aknText.label.copyWith(color: context.akn.dim),
           ),
         ),
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
         child: SearchField(
           hint: 'Ünvan, VKN ya da ön kayıt no',
           onChanged: (s) => setState(() => _search = s),
@@ -97,16 +97,15 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
         onChanged: (s) => setState(() => _status = s.isEmpty ? null : s.first),
       ),
       if (state.cachedAt != null) FieldCachedNote(at: state.cachedAt!),
-      for (final q in queued)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: FieldQueuedTile(
-            item: q,
-            onEdit: q.isLead
-                ? () => context.push('${AppRoutes.fieldLeadNew}?op=${q.op.id}')
-                : null,
-          ),
+      for (final q in queued) ...[
+        FieldQueuedTile(
+          item: q,
+          onEdit: q.isLead
+              ? () => context.push('${AppRoutes.fieldLeadNew}?op=${q.op.id}')
+              : null,
         ),
+        const AknLedgerDivider(),
+      ],
     ];
 
     Widget list;
@@ -162,12 +161,12 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
                 shown: items.length,
               );
             }
-            return Padding(
-              padding: EdgeInsets.fromLTRB(16, index == 0 ? 12 : 0, 16, 8),
-              child: StaggerItem(
-                index: index,
-                child: FieldLeadTile(row: items[index], showRep: widget.all),
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (index > 0) const AknLedgerDivider(),
+                FieldLeadTile(row: items[index], showRep: widget.all),
+              ],
             );
           },
         ),

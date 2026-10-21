@@ -12,6 +12,7 @@ import 'package:akaryakitnet/features/driver/data/deliver_draft.dart';
 import 'package:akaryakitnet/features/driver/data/driver_models.dart';
 import 'package:akaryakitnet/features/driver/presentation/deliver_flow_page.dart';
 import 'package:akaryakitnet/features/driver/presentation/widgets/litre_keypad.dart';
+import 'package:akaryakitnet/features/driver/presentation/widgets/stop_plate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -119,7 +120,10 @@ void main() {
     await boot(tester);
     expect(find.byType(DeliverFlowPage), findsOneWidget);
     expect(find.text(DriverCopy.flowTitle), findsWidgets);
-    expect(find.text(DriverCopy.plannedChip('10.000 L')), findsOneWidget);
+    // Sayaç adımı: ekranın tek plakası okumayı ve planlananı gösterir.
+    expect(find.byType(DriverStopPlate), findsOneWidget);
+    expect(find.text(DriverCopy.plateReading), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Planlanan 10.000 L')), findsOneWidget);
 
     // 1. Litre: önce boş ileri → hata, sonra tuşlar.
     await tapNext(tester);
@@ -128,7 +132,8 @@ void main() {
       await tester.tap(key(k));
       await tester.pump();
     }
-    expect(find.text('9.950'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'9\.950 litre')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Fark 50 L eksik')), findsOneWidget);
     await tapNext(tester);
 
     // 2. İrsaliye.
@@ -197,7 +202,7 @@ void main() {
   });
 
   testWidgets(
-    'çevrimdışı: "Kaydedildi — bağlantı gelince gönderilecek" (uyarı + '
+    'çevrimdışı: "Teslimat telefona kaydedildi" (uyarı + '
     'saat, başarı işareti yok); bağlantı gelince gönderilir ve başarı oynar',
     (tester) async {
       final handle = tester.ensureSemantics();
@@ -208,7 +213,7 @@ void main() {
       tester.semantics.tap(find.semantics.byLabel(DriverCopy.slideDeliver));
       await pumpUntil(tester, () => deliverOp() != null);
       await pumpFor(tester, const Duration(milliseconds: 600));
-      expect(find.text(DriverCopy.queuedTitle), findsOneWidget);
+      expect(find.text(DriverCopy.queuedDeliverTitle), findsOneWidget);
       expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
       expect(find.byType(SuccessCheck), findsNothing);
       expect(deliverOp()?.status.isWaiting, isTrue);
@@ -243,7 +248,7 @@ void main() {
     final previous = h;
     await boot(tester, reuse: previous);
     expect(find.text(DriverCopy.recipientHint), findsOneWidget);
-    expect(find.text('Adım 3 / 6'), findsOneWidget);
+    expect(find.text(DriverCopy.stepRecipient), findsOneWidget);
     await tester.tap(find.text(DriverCopy.back));
     await pumpFor(tester, const Duration(milliseconds: 450));
     expect(find.text('IRS-42'), findsOneWidget);
@@ -448,7 +453,7 @@ void main() {
             size: const Size(360, 640),
             seedDraft: summaryDraft,
           );
-          expect(find.text(DriverCopy.stepSummary), findsOneWidget);
+          expect(find.text(DriverCopy.headSummary), findsOneWidget);
           expect(tester.takeException(), isNull);
           await expectA11y(tester);
           await tester.drag(find.byType(ListView).last, const Offset(0, -500));

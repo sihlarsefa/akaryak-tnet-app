@@ -388,32 +388,38 @@ class _Recap extends StatelessWidget {
     final headline = d.summary.headline.isNotEmpty
         ? d.summary.headline
         : (d.row.subjectNumber ?? d.row.title);
-    return AknCard(
-      color: context.akn.surfaceAlt,
-      shadow: false,
+    final c = context.akn;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AknIconBox(
-            icon: AknStatus.approvalType(d.type).icon,
-            tone: AknTone.brand,
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(headline, style: t.bodyStrong),
                 Text(
-                  [
-                    d.row.displayTypeLabel,
-                    if (amount != null) Fmt.money(amount),
-                    if (liters != null) Fmt.liters(liters),
-                  ].join(' · '),
-                  style: t.label,
+                  headline.replaceAll(' · ', ', '),
+                  style: t.bodyStrong.copyWith(color: c.ink),
+                ),
+                Text(
+                  d.row.displayTypeLabel,
+                  style: t.label.copyWith(color: c.dim),
                 ),
               ],
             ),
           ),
+          if (amount != null || liters != null) ...[
+            const SizedBox(width: 12),
+            Text(
+              amount != null ? Fmt.money(amount) : Fmt.liters(liters),
+              style: t.amount.copyWith(color: c.ink),
+            ),
+          ],
         ],
       ),
     );

@@ -465,7 +465,7 @@ JsonMap _requestDto(FakeWorld w, JsonMap r, FakePersona viewer) {
         : [
             methodName ?? method,
             if (term != null && term > 0) '$term gün',
-          ].join(' · '),
+          ].join(', '),
     'paymentDetails': const <Object>[],
   };
 }
