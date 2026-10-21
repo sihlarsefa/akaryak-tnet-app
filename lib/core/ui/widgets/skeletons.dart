@@ -209,13 +209,14 @@ class SkeletonCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: c.surface,
           borderRadius: AknRadius.card,
-          border: Border.all(color: c.line),
+          border: Border.all(color: c.isDark ? c.line : c.lineSoft),
+          boxShadow: AknShadows.card(c),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (leading) ...[
-              const SkeletonBox(width: 40, height: 40, radius: 12),
+              const SkeletonBox(width: 40, height: 40, radius: 13),
               const SizedBox(width: 12),
             ],
             Expanded(
@@ -290,8 +291,8 @@ class SkeletonList extends StatelessWidget {
   }
 }
 
-/// Thin brand progress bar for background refreshes: content stays, the bar
-/// slides in at the top while [active].
+/// Thin orange progress bar for background refreshes: content stays, the
+/// bar slides in at the top while [active] (white on the hero).
 class TopProgressBar extends StatelessWidget {
   const TopProgressBar({super.key, required this.active, this.height = 2.5});
 
@@ -309,7 +310,7 @@ class TopProgressBar extends StatelessWidget {
               height: height,
               child: LinearProgressIndicator(
                 minHeight: height,
-                color: c.brand,
+                color: c.brandBright,
                 backgroundColor: c.brandSoft,
                 semanticsLabel: 'Yenileniyor',
               ),

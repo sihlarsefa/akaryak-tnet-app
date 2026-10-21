@@ -1,6 +1,7 @@
 import 'package:akaryakitnet/app/splash/splash_screen.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'ui_test_helpers.dart';
@@ -21,7 +22,7 @@ void main() {
       SplashScreen(onFinished: () => finished++),
       scaffold: false,
     );
-    // Frame 0: the full mark at the native size on navy.
+    // Frame 0: the full mark at the native size on white (native splash).
     final mark = find.byWidgetPredicate(
       (w) => w is CustomPaint && w.painter is LogoMarkPainter,
     );
@@ -32,7 +33,12 @@ void main() {
     expect(_markPainter(tester).trackOpacity, 1);
     expect(_markPainter(tester).progress, 0);
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, AknColors.light.navy);
+    expect(scaffold.backgroundColor, const Color(0xFFFFFFFF));
+    // Dark status-bar icons on white (never light icons on white).
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.byType(AnnotatedRegion<SystemUiOverlayStyle>).first,
+    );
+    expect(region.value.statusBarIconBrightness, Brightness.dark);
 
     // Mid-way the chevrons are being drawn over a faint track.
     await tester.pump(const Duration(milliseconds: 400));
@@ -76,12 +82,50 @@ void main() {
     await pumpUi(tester, const SplashScreen(), scaffold: false);
     await tester.pump(SplashScreen.minimumDisplay);
     final p = _markPainter(tester);
-    for (final color in [p.tileColor, p.chevronColor, AknColors.light.navy]) {
+    for (final color in [
+      p.tileColor,
+      p.chevronColor,
+      SplashScreen.background(AknColors.light),
+      SplashScreen.background(AknColors.dark),
+    ]) {
       final hsv = HSVColor.fromColor(color);
       expect(hsv.saturation > 0.2 && hsv.hue >= 255 && hsv.hue <= 320, isFalse);
     }
     expect(p.tileColor, const Color(0xFFFF5001));
+    expect(p.chevronColor, const Color(0xFFFFFFFF));
+    // The wordmark: ink "Akaryakıt" + logo-orange "Net" on white.
+    final mark = tester.widget<Text>(
+      find.descendant(
+        of: find.byType(AknWordmark),
+        matching: find.byType(Text),
+      ),
+    );
+    final span = mark.textSpan! as TextSpan;
+    expect(span.style!.color, AknColors.light.ink);
+    expect(
+      (span.children!.single as TextSpan).style!.color,
+      AknColors.light.logo,
+    );
     // Let the delayed loader timer run out before the tree is disposed.
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('dark mode: charcoal background, light status icons', (
+    tester,
+  ) async {
+    await pumpUi(
+      tester,
+      const SplashScreen(),
+      scaffold: false,
+      brightness: Brightness.dark,
+    );
+    final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
+    expect(scaffold.backgroundColor, AknColors.dark.bg);
+    final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.byType(AnnotatedRegion<SystemUiOverlayStyle>).first,
+    );
+    expect(region.value.statusBarIconBrightness, Brightness.light);
+    await tester.pump(SplashScreen.minimumDisplay);
     await tester.pump(const Duration(seconds: 2));
   });
 }

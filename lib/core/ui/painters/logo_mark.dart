@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../motion.dart';
 import '../tokens.dart';
+import '../widgets/cards.dart' show OnHero;
 import 'path_trim.dart';
 
 /// The AkaryakıtNet mark: white » chevrons in the orange rounded square
-/// (`assets/brand/akaryakitnet-symbol.svg`, drawn as vectors).
+/// (`assets/brand/akaryakitnet-symbol.svg`, drawn as vectors). On the orange
+/// hero ([OnHero]) it flips to a white square with orange chevrons.
 ///
 /// [progress] draws the chevrons in along their strokes (0 = none, 1 = full);
 /// the second chevron trails the first. With [animate] the mark draws itself
@@ -72,15 +74,19 @@ class _LogoMarkState extends State<LogoMark>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
+    const white = Color(0xFFFFFFFF);
+    final onHero = OnHero.isOn(context);
     Widget paint(double p) => CustomPaint(
       size: Size.square(widget.size),
       painter: LogoMarkPainter(
         progress: p,
         showTile: widget.showTile,
-        tileColor: widget.tileColor ?? c.logo,
+        tileColor: widget.tileColor ?? (onHero ? white : c.logo),
         chevronColor:
             widget.chevronColor ??
-            (widget.showTile ? const Color(0xFFFFFFFF) : c.logo),
+            (widget.showTile
+                ? (onHero ? c.logo : white)
+                : (onHero ? white : c.logo)),
         trackOpacity: widget.trackOpacity,
       ),
     );
@@ -186,8 +192,13 @@ class LogoMarkPainter extends CustomPainter {
       old.trackOpacity != trackOpacity;
 }
 
-/// "Akaryakıt**Net**" wordmark. On navy (or dark) "Akaryakıt" is white; on
-/// light surfaces it is the brand navy. "Net" is always the logo orange.
+/// "Akaryakıt**Net**" wordmark.
+///
+/// * Light surfaces: "Akaryakıt" in ink, "Net" in the logo orange.
+/// * Dark surfaces ([onDark] or the dark theme): "Akaryakıt" white, "Net"
+///   logo orange.
+/// * On the orange hero ([OnHero]): "Akaryakıt" white, "Net" a soft peach
+///   (orange on orange would vanish).
 class AknWordmark extends StatelessWidget {
   const AknWordmark({
     super.key,
@@ -205,13 +216,14 @@ class AknWordmark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final dark = onDark ?? c.isDark;
+    final onHero = OnHero.isOn(context);
+    final dark = onHero || (onDark ?? c.isDark);
     final base = TextStyle(
       fontSize: fontSize,
       height: 1.15,
       fontWeight: FontWeight.w700,
       letterSpacing: -0.02 * fontSize,
-      color: dark ? const Color(0xFFFFFFFF) : const Color(0xFF202E3D),
+      color: dark ? const Color(0xFFFFFFFF) : AknColors.light.ink,
     );
     final text = Text.rich(
       TextSpan(
@@ -220,7 +232,9 @@ class AknWordmark extends StatelessWidget {
         children: [
           TextSpan(
             text: 'Net',
-            style: base.copyWith(color: c.logo),
+            style: base.copyWith(
+              color: onHero ? const Color(0xFFFFD9C4) : c.logo,
+            ),
           ),
         ],
       ),
@@ -234,7 +248,9 @@ class AknWordmark extends StatelessWidget {
   }
 }
 
-/// Mark + wordmark lock-up (login header, about screen).
+/// Mark + wordmark lock-up (login header, home app bar, about screen). On the
+/// hero it renders the white square with orange chevrons and a white
+/// wordmark; [onDark] keeps working for dark surfaces.
 class AknLogo extends StatelessWidget {
   const AknLogo({
     super.key,

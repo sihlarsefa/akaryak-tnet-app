@@ -6,9 +6,10 @@ import '../theme.dart';
 import '../tokens.dart';
 import 'buttons.dart';
 
-/// Opens a bottom sheet in the AkaryakıtNet style: 16 px top radius, drag
-/// handle, optional title row with a close button, keyboard-aware padding.
-/// Slides up (320 ms emphasized) over a fading scrim.
+/// Opens a bottom sheet in the AkaryakıtNet style: white, 24 px top radius,
+/// drag handle, optional title row (w800) with a close button,
+/// keyboard-aware padding. Slides up (320 ms emphasized) over a fading
+/// scrim.
 Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -101,7 +102,12 @@ class AppSheet extends StatelessWidget {
                           children: [
                             Semantics(
                               header: true,
-                              child: Text(title!, style: t.headline),
+                              child: Text(
+                                title!,
+                                style: t.headline.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
                             ),
                             if (subtitle != null) ...[
                               const SizedBox(height: 2),
@@ -193,7 +199,7 @@ class ConfirmSheet extends StatelessWidget {
         tone ?? (destructive ? AknTone.danger : AknTone.brand);
     final tc = c.tone(effectiveTone);
     final stacked = MediaQuery.textScalerOf(context).scale(15) > 20;
-    final cancel = AknButton.secondary(
+    final cancel = AknButton.outline(
       label: cancelLabel,
       expand: true,
       onPressed: () => Navigator.of(context).pop(false),
@@ -216,20 +222,24 @@ class ConfirmSheet extends StatelessWidget {
         const SizedBox(height: 4),
         Center(
           child: Container(
-            width: 56,
-            height: 56,
+            width: 60,
+            height: 60,
             decoration: BoxDecoration(color: tc.bg, shape: BoxShape.circle),
             child: Icon(
               icon ?? AknStatus.toneIcon(effectiveTone),
-              color: tc.fg,
-              size: 28,
+              color: effectiveTone == AknTone.brand ? c.brand : tc.fg,
+              size: 30,
             ),
           ),
         ),
         const SizedBox(height: 16),
         Semantics(
           header: true,
-          child: Text(title, style: t.headline, textAlign: TextAlign.center),
+          child: Text(
+            title,
+            style: t.headline.copyWith(fontWeight: FontWeight.w800),
+            textAlign: TextAlign.center,
+          ),
         ),
         if (message != null) ...[
           const SizedBox(height: 8),

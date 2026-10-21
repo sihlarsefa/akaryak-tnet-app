@@ -27,6 +27,7 @@ class _DesignGalleryPageState extends State<DesignGalleryPage> {
 
   static const _tabs = [
     'Renkler',
+    'Kahraman',
     'Yazı',
     'Butonlar',
     'Kartlar',
@@ -98,6 +99,7 @@ class _DesignGalleryPageState extends State<DesignGalleryPage> {
               body: const TabBarView(
                 children: [
                   _ColorsTab(),
+                  _HeroTab(),
                   _TypeTab(),
                   _ButtonsTab(),
                   _CardsTab(),
@@ -152,12 +154,14 @@ class _ColorsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final swatches = <(String, Color, Color)>[
+      ('brandBright', c.brandBright, const Color(0xFFFFFFFF)),
       ('brand', c.brand, c.onBrandFill),
       ('brandFill', c.brandFill, c.onBrandFill),
       ('brandInk', c.brandInk, c.surface),
       ('brandSoft', c.brandSoft, c.brandInk),
-      ('logo', c.logo, const Color(0xFFFFFFFF)),
-      ('navy', c.navy, c.onNavy),
+      ('brandLine', c.brandLine, c.brandInk),
+      ('heroStart', c.heroStart, c.onHero),
+      ('heroEnd', c.heroEnd, c.onHero),
       ('bg', c.bg, c.ink),
       ('surface', c.surface, c.ink),
       ('surfaceAlt', c.surfaceAlt, c.ink),
@@ -218,21 +222,283 @@ class _ColorsTab extends StatelessWidget {
               ],
             ),
           ),
-        const _H('Lacivert kahraman alanı'),
-        AknHeroPanel(
+        const _H('Kahraman gradyanı'),
+        for (final style in AknHeroStyle.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: ClipRRect(
+              borderRadius: AknRadius.card,
+              child: SizedBox(
+                height: 64,
+                child: AknHeroBackground(
+                  style: style,
+                  child: Center(
+                    child: Text(
+                      style == AknHeroStyle.panel
+                          ? 'Panel (sağ üstten ışık)'
+                          : 'Şerit (sağdan ışık)',
+                      style: context.aknText.bodyStrong.copyWith(
+                        color: c.onHero,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ───────────────────────── Kahraman ─────────────────────────
+
+class _HeroTab extends StatefulWidget {
+  const _HeroTab();
+
+  @override
+  State<_HeroTab> createState() => _HeroTabState();
+}
+
+class _HeroTabState extends State<_HeroTab> {
+  int _replay = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 48),
+      children: [
+        // The header block as it sits under `AppScaffold(hero: true)`.
+        AknHeroHeader(
+          key: ValueKey('header$_replay'),
+          title: 'Günaydın, Ayşe',
+          subtitle: 'Demo Petrol · Kartal',
+          trailing: const AknAvatar(name: 'Ayşe Demir', size: 44),
+          chips: const [
+            AknHeroChip(label: 'Sahip', icon: Icons.verified_user_rounded),
+            AknHeroChip(label: 'Finans'),
+            AknHeroChip(label: '3 teklif bekliyor'),
+          ],
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Günaydın, Ahmet', style: context.aknText.title),
-              const SizedBox(height: 4),
-              Text(
-                'Bugün 3 teklif karar bekliyor.',
-                style: context.aknText.body,
+              const _H('Kahraman paneli (durum kartı)'),
+              AknHeroPanel(
+                key: ValueKey('panel$_replay'),
+                child: Builder(
+                  builder: (context) {
+                    final t = context.aknText;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text('SP-2026-0142', style: t.title),
+                            StatusChip.style(
+                              OrderStatus.awaitingApproval.statusStyle,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Motorin · 12.500 L', style: t.headline),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Demo Petrol · Verildi 21.10.2026 09:12',
+                          style: t.bodySmall,
+                        ),
+                        const SizedBox(height: 14),
+                        AnimatedNumber(
+                          value: 538120.5,
+                          format: Fmt.money,
+                          style: t.numberLarge,
+                          fit: true,
+                        ),
+                        const SizedBox(height: 14),
+                        const KpiRow(
+                          children: [
+                            KpiTile(
+                              label: 'Karar bekleyen',
+                              value: 3,
+                              icon: Icons.request_quote_rounded,
+                              tone: AknTone.warn,
+                            ),
+                            KpiTile(
+                              label: 'Bu ay',
+                              value: 512000,
+                              format: Fmt.liters,
+                              icon: Icons.local_gas_station_rounded,
+                              tone: AknTone.info,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        AknButton(
+                          label: 'Sipariş ver',
+                          icon: Icons.add_shopping_cart_rounded,
+                          size: AknButtonSize.large,
+                          expand: true,
+                          onPressed: () {},
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AknButton.secondary(
+                                label: 'Yol tarifi',
+                                icon: Icons.directions_rounded,
+                                expand: true,
+                                onPressed: () {},
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: AknButton.ghost(
+                                label: 'Ayrıntı',
+                                expand: true,
+                                onPressed: () {},
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const UsageBar(
+                          value: 0.73,
+                          label: 'Limit kullanımı',
+                          valueLabel: '%73',
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const _H('Kahraman başlıklı sayfa'),
+              AknButton.secondary(
+                label: 'Kahraman sayfasını aç',
+                icon: Icons.open_in_new_rounded,
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(builder: (_) => const _HeroPage()),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AknButton.outline(
+                  label: 'Yeniden oynat',
+                  icon: Icons.replay_rounded,
+                  size: AknButtonSize.small,
+                  onPressed: () => setState(() => _replay++),
+                ),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// `AppScaffold(hero: true)` + `AknHeroHeader` + white cards (home layout).
+class _HeroPage extends StatelessWidget {
+  const _HeroPage();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    return AppScaffold(
+      hero: true,
+      showBell: false,
+      titleWidget: const AknLogo(markSize: 28, onDark: true),
+      actions: [
+        AknIconButton(
+          icon: Icons.notifications_none_rounded,
+          semanticLabel: 'Bildirimler',
+          badgeCount: 2,
+          onPressed: () {},
+        ),
+      ],
+      body: PullToRefresh(
+        onRefresh: () =>
+            Future<void>.delayed(const Duration(milliseconds: 900)),
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: 32),
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            const AknHeroHeader(
+              title: 'Günaydın, Ayşe',
+              subtitle: 'Demo Petrol · Kartal',
+              chips: [
+                AknHeroChip(label: 'Sahip'),
+                AknHeroChip(label: 'Satış müdürü'),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: AknSpace.pagePadding,
+              child: KpiRow(
+                children: [
+                  KpiTile(
+                    label: 'Bu ay satış',
+                    value: 21500000,
+                    format: Fmt.moneyCompact,
+                    icon: Icons.trending_up_rounded,
+                    tone: AknTone.brand,
+                    trend: 8.6,
+                    caption: 'geçen aya göre',
+                    onTap: () {},
+                  ),
+                  const KpiTile(
+                    label: 'Satılan yakıt',
+                    value: 512000,
+                    format: Fmt.liters,
+                    icon: Icons.local_gas_station_rounded,
+                    tone: AknTone.info,
+                  ),
+                ],
+              ),
+            ),
+            SectionHeader(
+              title: 'Hızlı işlemler',
+              actionLabel: 'Tümü',
+              onAction: () {},
+            ),
+            Padding(
+              padding: AknSpace.pagePadding,
+              child: Row(
+                children: [
+                  for (final (icon, label) in const [
+                    (Icons.request_quote_rounded, 'Teklif'),
+                    (Icons.task_alt_rounded, 'Onaylar'),
+                    (Icons.local_shipping_rounded, 'Sevkiyat'),
+                    (Icons.groups_rounded, 'Cariler'),
+                  ])
+                    Expanded(
+                      child: Column(
+                        children: [
+                          AknIconBox(icon: icon, tone: AknTone.brand, size: 52),
+                          const SizedBox(height: 6),
+                          Text(label, style: t.label),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            for (var i = 0; i < 6; i++)
+              AknCard(
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                onTap: () {},
+                child: Text('Kart ${i + 1}', style: t.bodyStrong),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -257,6 +523,9 @@ class _TypeTab extends StatelessWidget {
         Text('Label 13/18 w600', style: t.label),
         Text('Caption 12/16 · 21.10.2026 14:20', style: t.caption),
         Text('ÜST BAŞLIK · BUGÜN', style: t.overline),
+        const _H('Sayılar (sayarak artar)'),
+        const AnimatedNumber(value: 21500000, format: Fmt.moneyCompact),
+        AnimatedNumber(value: 512000, format: Fmt.liters, style: t.numberLarge),
         const _H('Tutarlar (tabular)'),
         AmountText(Fmt.money(1234567.5), large: true),
         AmountText(Fmt.money(1111.11)),
@@ -266,6 +535,14 @@ class _TypeTab extends StatelessWidget {
         const AknLogo(markSize: 44),
         const SizedBox(height: 12),
         const AknHeroPanel(child: AknLogo(markSize: 44, onDark: true)),
+        const SizedBox(height: 12),
+        const Row(
+          children: [
+            LogoMark(size: 56),
+            SizedBox(width: 16),
+            OnHero(child: LogoMark(size: 56)),
+          ],
+        ),
       ],
     );
   }
@@ -296,6 +573,8 @@ class _ButtonsTabState extends State<_ButtonsTab> {
         ),
         const SizedBox(height: 8),
         AknButton.secondary(label: 'Revize iste', onPressed: () {}),
+        const SizedBox(height: 8),
+        AknButton.outline(label: 'Vazgeç', onPressed: () {}),
         const SizedBox(height: 8),
         AknButton.ghost(label: 'Tümünü gör', onPressed: () {}),
         const SizedBox(height: 8),
@@ -627,6 +906,18 @@ class _FormsTabState extends State<_FormsTab> {
               icon: Icons.money_rounded,
             ),
             FilterOption(value: 'note', label: 'Senet'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        FilterChips<String>(
+          padding: EdgeInsets.zero,
+          tonal: true,
+          selected: _filters,
+          multi: true,
+          onChanged: (s) => setState(() => _filters = s),
+          options: const [
+            FilterOption(value: 'pending', label: 'İkincil filtre'),
+            FilterOption(value: 'overdue', label: 'Vadesi geçen'),
           ],
         ),
         const _H('Alanlar'),
@@ -1060,6 +1351,21 @@ class _MotionTabState extends State<_MotionTab> {
             ChevronSpinner(),
             SizedBox(width: 24),
             ChevronSpinner(size: 18, count: 2),
+          ],
+        ),
+        const _H('Sayarak artan sayı'),
+        Row(
+          key: ValueKey('numbers$_replay'),
+          children: [
+            const Expanded(
+              child: AnimatedNumber(
+                value: 21500000,
+                format: Fmt.moneyCompact,
+                fit: true,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(child: AnimatedNumber(value: 42, format: (v) => '%$v')),
           ],
         ),
         const _H('Eğilim çizgisi'),

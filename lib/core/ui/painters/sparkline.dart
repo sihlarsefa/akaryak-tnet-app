@@ -28,7 +28,7 @@ class Sparkline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = this.color ?? c.brand;
+    final color = this.color ?? c.brandBright;
     return Semantics(
       label: semanticLabel,
       image: true,

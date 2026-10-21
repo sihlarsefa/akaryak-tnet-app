@@ -22,11 +22,12 @@ class FilterOption<T> {
   final IconData? icon;
 }
 
-/// Horizontally scrolling filter chips (status, type, segment).
+/// Horizontally scrolling filter pills (status, type, segment).
 ///
 /// Single-select by default (tapping the selected chip clears it when
-/// [allowEmpty]); [multi] toggles independently. Selection uses a check icon
-/// and a tint, never colour alone.
+/// [allowEmpty]); [multi] toggles independently. Selected = solid orange
+/// pill with a white label and a check icon ([tonal]: soft orange with an
+/// orange label, for secondary filters) — never colour alone.
 class FilterChips<T> extends StatelessWidget {
   const FilterChips({
     super.key,
@@ -36,6 +37,7 @@ class FilterChips<T> extends StatelessWidget {
     this.multi = false,
     this.allowEmpty = true,
     this.padding = const EdgeInsets.symmetric(horizontal: 16),
+    this.tonal = false,
   });
 
   final List<FilterOption<T>> options;
@@ -44,6 +46,9 @@ class FilterChips<T> extends StatelessWidget {
   final bool multi;
   final bool allowEmpty;
   final EdgeInsetsGeometry padding;
+
+  /// Secondary filters: soft orange selection instead of solid.
+  final bool tonal;
 
   void _tap(T value) {
     AknHaptics.selection();
@@ -76,6 +81,7 @@ class FilterChips<T> extends StatelessWidget {
             _FilterChip<T>(
               option: options[i],
               selected: selected.contains(options[i].value),
+              tonal: tonal,
               onTap: () => _tap(options[i].value),
             ),
           ],
@@ -89,11 +95,13 @@ class _FilterChip<T> extends StatelessWidget {
   const _FilterChip({
     required this.option,
     required this.selected,
+    required this.tonal,
     required this.onTap,
   });
 
   final FilterOption<T> option;
   final bool selected;
+  final bool tonal;
   final VoidCallback onTap;
 
   @override
@@ -101,7 +109,22 @@ class _FilterChip<T> extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final duration = AknMotion.of(context, AknMotion.fast);
-    final fg = selected ? c.brandInk : c.text;
+    final solid = selected && !tonal;
+    final fg = solid
+        ? c.onBrandFill
+        : selected
+        ? c.brandInk
+        : c.text;
+    final bg = solid
+        ? c.brandFill
+        : selected
+        ? c.brandSoft
+        : c.surface;
+    final border = solid
+        ? c.brandFill
+        : selected
+        ? c.brandLine
+        : c.line;
     final count = option.count;
     return Semantics(
       button: true,
@@ -127,15 +150,13 @@ class _FilterChip<T> extends StatelessWidget {
                   curve: AknMotion.standard,
                   constraints: const BoxConstraints(minHeight: 36),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
+                    horizontal: 14,
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: selected ? c.brandSoft : c.surface,
+                    color: bg,
                     borderRadius: AknRadius.pillAll,
-                    border: Border.all(
-                      color: selected ? c.brandLine : c.lineStrong,
-                    ),
+                    border: Border.all(color: border),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -168,7 +189,11 @@ class _FilterChip<T> extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6),
                           decoration: BoxDecoration(
-                            color: selected ? c.surface : c.surfaceAlt,
+                            color: solid
+                                ? const Color(0x2E000000)
+                                : selected
+                                ? c.surface
+                                : c.surfaceAlt,
                             borderRadius: AknRadius.pillAll,
                           ),
                           child: Text(
@@ -194,10 +219,11 @@ class _FilterChip<T> extends StatelessWidget {
   }
 }
 
-/// Segmented tabs with a sliding thumb (Bende / Taleplerim / Tümü,
-/// Karar bekleyen / Aktif / Geçmiş). Equal-width segments, 48 dp tall; the
-/// unselected label uses `text` (AA on `surfaceAlt`); each segment is a
-/// screen-reader button with a tap action.
+/// Segmented control: a white thumb that slides (220 ms) on a soft grey
+/// pill track (Bende / Taleplerim / Tümü, Karar bekleyen / Aktif / Geçmiş).
+/// Equal-width segments, 48 dp tall; the unselected label uses `text` (AA
+/// on `surfaceAlt`); each segment is a screen-reader button with a tap
+/// action.
 class AknSegmented<T> extends StatelessWidget {
   const AknSegmented({
     super.key,
@@ -218,16 +244,15 @@ class AknSegmented<T> extends StatelessWidget {
     final t = context.aknText;
     final n = segments.length;
     final index = segments.indexWhere((s) => s.value == value);
-    final duration = AknMotion.of(context, AknMotion.base);
+    final duration = AknMotion.of(context, const Duration(milliseconds: 220));
     final x = n <= 1 || index < 0 ? -1.0 : -1 + 2 * index / (n - 1);
     return Padding(
       padding: margin,
       child: Container(
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: c.isDark ? c.surface : c.surfaceAlt,
-          borderRadius: BorderRadius.circular(AknRadius.md),
-          border: Border.all(color: c.lineSoft),
+          color: c.surfaceAlt,
+          borderRadius: AknRadius.pillAll,
         ),
         child: Stack(
           children: [
@@ -242,9 +267,17 @@ class AknSegmented<T> extends StatelessWidget {
                     heightFactor: 1,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: c.isDark ? c.surfaceAlt : c.surface,
-                        borderRadius: BorderRadius.circular(AknRadius.sm + 1),
-                        boxShadow: AknShadows.card(c),
+                        color: c.isDark ? c.lineStrong : c.surface,
+                        borderRadius: AknRadius.pillAll,
+                        boxShadow: c.isDark
+                            ? null
+                            : const [
+                                BoxShadow(
+                                  color: Color(0x1A101828),
+                                  offset: Offset(0, 2),
+                                  blurRadius: 6,
+                                ),
+                              ],
                       ),
                     ),
                   ),

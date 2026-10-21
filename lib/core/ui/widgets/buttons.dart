@@ -6,15 +6,21 @@ import '../motion.dart';
 import '../painters/chevron_spinner.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import 'cards.dart' show OnHero;
 
-enum AknButtonVariant { primary, secondary, ghost, danger }
+/// Button looks: primary (orange fill, white label), secondary (tonal:
+/// soft orange fill, orange label), outline (white with a grey border, ink
+/// label — neutral actions such as "Vazgeç"), ghost (orange text), danger
+/// (red fill).
+enum AknButtonVariant { primary, secondary, ghost, danger, outline }
 
-/// Visual heights 40 / 48 / 56; every size keeps a 48 dp touch target.
+/// Visual heights 40 / 52 / 56; every size keeps a 48 dp touch target.
 enum AknButtonSize { small, medium, large }
 
-/// The AkaryakıtNet button.
+/// The AkaryakıtNet button (14 px radius, w700 label).
 ///
-/// * Variants: primary (orange), secondary (outlined), ghost (text), danger.
+/// * Variants: primary (orange), secondary (tonal orange), outline
+///   (neutral, bordered), ghost (text), danger.
 /// * Press: scales to 0.97 with a light haptic.
 /// * [loading] morphs the button into a compact spinner; [success] into a
 ///   check. With [onPressedAsync] the button manages both by itself:
@@ -94,6 +100,24 @@ class AknButton extends StatefulWidget {
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
   }) : variant = AknButtonVariant.danger;
+
+  /// Neutral bordered button (ink label on white): cancel / back / "Vazgeç".
+  const AknButton.outline({
+    super.key,
+    required this.label,
+    this.onPressed,
+    this.onPressedAsync,
+    this.size = AknButtonSize.medium,
+    this.icon,
+    this.trailingIcon,
+    this.loading = false,
+    this.success = false,
+    this.showSuccess = true,
+    this.expand = false,
+    this.haptic = true,
+    this.semanticLabel,
+    this.loadingLabel = 'Gönderiliyor',
+  }) : variant = AknButtonVariant.outline;
 
   final String label;
   final VoidCallback? onPressed;
@@ -240,7 +264,7 @@ class _AknButtonState extends State<AknButton> {
 
   double get _height => switch (widget.size) {
     AknButtonSize.small => 40,
-    AknButtonSize.medium => 48,
+    AknButtonSize.medium => 52,
     AknButtonSize.large => 56,
   };
 
@@ -545,7 +569,8 @@ class _AknButtonState extends State<AknButton> {
           c.faint,
           null,
         ),
-        AknButtonVariant.secondary => (c.surface, c.faint, c.line),
+        AknButtonVariant.secondary => (c.surfaceAlt, c.faint, null),
+        AknButtonVariant.outline => (c.surface, c.faint, c.line),
         AknButtonVariant.ghost => (const Color(0x00000000), c.faint, null),
       };
     }
@@ -563,6 +588,11 @@ class _AknButtonState extends State<AknButton> {
         null,
       ),
       AknButtonVariant.secondary => (
+        pressed ? Color.lerp(c.brandSoft, c.brandLine, 0.6)! : c.brandSoft,
+        c.brandInk,
+        null,
+      ),
+      AknButtonVariant.outline => (
         pressed ? c.surfaceAlt : c.surface,
         c.ink,
         c.lineStrong,
@@ -720,7 +750,9 @@ class _AknCountBadgeState extends State<AknCountBadge>
   Widget build(BuildContext context) {
     final c = context.akn;
     final visible = widget.count > 0 || widget.dot;
-    final color = widget.color ?? c.brandFill;
+    final color = widget.color ?? c.dangerFill;
+    // Cut-out ring in the colour behind the badge (white bars, the hero).
+    final ring = OnHero.isOn(context) ? c.heroEnd : c.surface;
     final Widget body = widget.count > 0
         ? Container(
             constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
@@ -729,7 +761,7 @@ class _AknCountBadgeState extends State<AknCountBadge>
             decoration: BoxDecoration(
               color: color,
               borderRadius: AknRadius.pillAll,
-              border: Border.all(color: c.surface, width: 1.5),
+              border: Border.all(color: ring, width: 1.5),
             ),
             child: Text(
               widget.count > widget.max ? '${widget.max}+' : '${widget.count}',
@@ -749,7 +781,7 @@ class _AknCountBadgeState extends State<AknCountBadge>
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
-              border: Border.all(color: c.surface, width: 1.5),
+              border: Border.all(color: ring, width: 1.5),
             ),
           );
     return ExcludeSemantics(

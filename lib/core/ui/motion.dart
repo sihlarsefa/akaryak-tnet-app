@@ -7,9 +7,11 @@ import 'package:flutter/services.dart';
 /// Motion kit (spec C.6): calm and purposeful, never bouncy.
 ///
 /// * Timing: fast 150 ms (press, toggles), base 250 ms (chips, cards),
-///   slow 400 ms (pages), emphasized 600 ms (hero, success).
-/// * Curves: [AknMotion.standard] (easeOutCubic) and
-///   [AknMotion.emphasizedCurve] (`Cubic(0.2, 0, 0, 1)`).
+///   slow 400 ms (pages), emphasized 600 ms (hero, success), count 700 ms
+///   (number count-up).
+/// * Curves: [AknMotion.standard] (easeOutCubic),
+///   [AknMotion.emphasizedCurve] (`Cubic(0.2, 0, 0, 1)`) and a soft
+///   [AknMotion.spring] for selection indicators.
 /// * Reduce motion: when `MediaQuery.disableAnimations` is on, every duration
 ///   here collapses to zero and there is no stagger, shimmer or parallax.
 abstract final class AknMotion {
@@ -21,6 +23,13 @@ abstract final class AknMotion {
   static const Curve standard = Curves.easeOutCubic;
   static const Curve emphasizedCurve = Cubic(0.2, 0, 0, 1);
   static const Curve exit = Curves.easeInCubic;
+
+  /// A soft spring: settles with a ~3 % overshoot (selection pills, the
+  /// bottom bar indicator). Calm, never bouncy.
+  static const Curve spring = Cubic(0.32, 1.28, 0.58, 1);
+
+  /// Count-up of a number (`AnimatedNumber`, KPI tiles): 600–900 ms.
+  static const Duration count = Duration(milliseconds: 700);
 
   /// List items fade up with a 30 ms stagger, capped at 8 items.
   static const Duration staggerStep = Duration(milliseconds: 30);

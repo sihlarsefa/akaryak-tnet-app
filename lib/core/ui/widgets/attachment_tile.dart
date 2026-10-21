@@ -80,21 +80,21 @@ class AttachmentTile extends StatelessWidget {
       AttachmentTileState.idle => null,
     };
     final leading = ClipRRect(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AknRadius.md - 2),
       child: SizedBox(
         width: 48,
         height: 48,
         child:
             thumbnail ??
             ColoredBox(
-              color: _isPdf ? c.danger.bg : c.surfaceAlt,
+              color: _isPdf ? c.danger.bg : c.brandSoft,
               child: Icon(
                 _isPdf
                     ? Icons.picture_as_pdf_rounded
                     : _isImage
                     ? Icons.image_rounded
                     : Icons.insert_drive_file_rounded,
-                color: _isPdf ? c.danger.fg : c.dim,
+                color: _isPdf ? c.danger.fg : c.brand,
                 size: 24,
               ),
             ),
@@ -136,7 +136,9 @@ class AttachmentTile extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: AknRadius.card,
           side: BorderSide(
-            color: state == AttachmentTileState.failed ? c.danger.line : c.line,
+            color: state == AttachmentTileState.failed
+                ? c.danger.line
+                : (c.isDark ? c.line : c.lineSoft),
           ),
         ),
         clipBehavior: Clip.antiAlias,

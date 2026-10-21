@@ -70,7 +70,7 @@ class _FuelDropState extends State<FuelDrop>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = widget.color ?? c.brand;
+    final color = widget.color ?? c.brandBright;
     final f = widget.fill.isNaN ? 0.0 : widget.fill.clamp(0.0, 1.0);
     final size = Size(widget.size * 0.8, widget.size);
     return Semantics(

@@ -13,9 +13,10 @@ import '../theme.dart';
 import '../tokens.dart';
 import 'plate_badge.dart';
 
-/// Text field in the AkaryakıtNet style (floating label, 8 px radius, brand
-/// focus ring, Turkish messages). A thin, typed wrapper over
-/// [TextFormField]; use it inside a [Form] for `validator`.
+/// Text field in the AkaryakıtNet style: soft grey fill, no border until
+/// focused (2 px orange ring), 14 px radius, the label always above the
+/// value, Turkish messages. A thin, typed wrapper over [TextFormField]; use
+/// it inside a [Form] for `validator`.
 class AknTextField extends StatelessWidget {
   const AknTextField({
     super.key,
@@ -774,20 +775,18 @@ class _QuickChip extends StatelessWidget {
             widthFactor: 1,
             child: InkWell(
               onTap: onTap,
-              borderRadius: AknRadius.chip,
+              borderRadius: AknRadius.pillAll,
               child: AnimatedContainer(
                 duration: AknMotion.of(context, AknMotion.fast),
                 constraints: const BoxConstraints(minHeight: 36),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
+                  horizontal: 14,
                   vertical: 7,
                 ),
                 decoration: BoxDecoration(
                   color: selected ? c.brandSoft : c.surface,
-                  borderRadius: AknRadius.chip,
-                  border: Border.all(
-                    color: selected ? c.brandLine : c.lineStrong,
-                  ),
+                  borderRadius: AknRadius.pillAll,
+                  border: Border.all(color: selected ? c.brandLine : c.line),
                 ),
                 child: Text(
                   label,
@@ -804,7 +803,8 @@ class _QuickChip extends StatelessWidget {
   }
 }
 
-/// Pill search box with a debounced [onChanged] (300 ms) and a clear button.
+/// Pill search box (soft grey fill, orange ring when focused) with a
+/// debounced [onChanged] (300 ms) and a clear button.
 class SearchField extends StatefulWidget {
   const SearchField({
     super.key,
@@ -866,9 +866,9 @@ class _SearchFieldState extends State<SearchField> {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final border = OutlineInputBorder(
+    const border = OutlineInputBorder(
       borderRadius: AknRadius.pillAll,
-      borderSide: BorderSide(color: c.line),
+      borderSide: BorderSide(color: Color(0x00000000), width: 0),
     );
     return Row(
       children: [
@@ -889,10 +889,10 @@ class _SearchFieldState extends State<SearchField> {
               hintText: widget.hint,
               isDense: true,
               filled: true,
-              fillColor: c.isDark ? c.surfaceAlt : c.surface,
+              fillColor: c.surfaceAlt,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 12,
+                vertical: 13,
               ),
               prefixIcon: Icon(Icons.search_rounded, color: c.dim, size: 22),
               suffixIcon: _controller.text.isEmpty
@@ -909,7 +909,7 @@ class _SearchFieldState extends State<SearchField> {
               border: border,
               enabledBorder: border,
               focusedBorder: border.copyWith(
-                borderSide: BorderSide(color: c.brand, width: 1.6),
+                borderSide: BorderSide(color: c.brand, width: 2),
               ),
             ),
           ),

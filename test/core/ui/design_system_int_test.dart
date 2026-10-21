@@ -185,19 +185,20 @@ void main() {
         expect(contrast(c.link, c.bg), greaterThanOrEqualTo(4.5));
         final segBg = c.isDark ? c.surface : c.surfaceAlt;
         expect(contrast(c.text, segBg), greaterThanOrEqualTo(4.5));
-        // Lacivert üstünde yalnızca beyaz, #CBD5E1 ve #F08A55.
-        for (final fg in const [
-          Color(0xFFFFFFFF),
-          Color(0xFFCBD5E1),
-          Color(0xFFF08A55),
+        expect(contrast(c.text, c.surfaceAlt), greaterThanOrEqualTo(4.5));
+        // Turuncu kahraman üstünde küçük yazı yalnızca beyaz (ana renk ve koyu cam üstünde).
+        final hero = OnHero.palette(c);
+        for (final bg in [
+          c.heroEnd,
+          AknHeroGradient.deep(c),
+          over(hero.surface, c.heroEnd),
         ]) {
-          expect(
-            contrast(fg, c.navy),
-            greaterThanOrEqualTo(4.5),
-            reason: '$fg',
-          );
+          for (final fg in [hero.ink, hero.text, hero.dim]) {
+            expect(contrast(fg, bg), greaterThanOrEqualTo(4.5), reason: '$bg');
+          }
         }
-        expect(contrast(c.onNavyDim, c.navy), greaterThanOrEqualTo(4.5));
+        // Eski lacivert takma adı artık kahraman rengini gösterir.
+        expect(contrast(c.onNavy, c.navy), greaterThanOrEqualTo(4.5));
       });
     }
 
@@ -493,16 +494,51 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
 
-    testWidgets('lacivert üstünde yazı logosu beyaz', (tester) async {
+    testWidgets(
+      'turuncu kahraman üstünde logo: beyaz kare, turuncu ok, beyaz yazı',
+      (tester) async {
+        await pumpUi(tester, const AknHeroPanel(child: AknLogo(onDark: true)));
+        expect(find.byType(AknWordmark), findsOneWidget);
+        final painter = tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((p) => p.painter)
+            .whereType<LogoMarkPainter>()
+            .single;
+        expect(painter.tileColor, const Color(0xFFFFFFFF));
+        expect(painter.chevronColor, AknColors.light.logo);
+        final text = tester.widget<Text>(
+          find.descendant(
+            of: find.byType(AknWordmark),
+            matching: find.byType(Text),
+          ),
+        );
+        expect(text.textSpan!.style!.color, const Color(0xFFFFFFFF));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets('koyu yüzeyde (onDark) yazı logosu beyaz, "Net" turuncu', (
+      tester,
+    ) async {
       await pumpUi(
         tester,
         const ColoredBox(
-          color: Color(0xFF1F2A37),
+          color: Color(0xFF0F1114),
           child: AknLogo(onDark: true),
         ),
       );
-      expect(find.byType(AknWordmark), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      final text = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(AknWordmark),
+          matching: find.byType(Text),
+        ),
+      );
+      final span = text.textSpan! as TextSpan;
+      expect(span.style!.color, const Color(0xFFFFFFFF));
+      expect(
+        (span.children!.single as TextSpan).style!.color,
+        AknColors.light.logo,
+      );
     });
 
     testWidgets('geniş ekranda içerik en fazla 640 dp', (tester) async {
@@ -525,6 +561,9 @@ void main() {
   test('piksel sayacı mor rengi tanır', () {
     expect(_isPurple(const Color(0xFF7709C7)), isTrue, reason: 'F2GO moru');
     expect(_isPurple(const Color(0xFFC94C0C)), isFalse);
+    expect(_isPurple(AknColors.light.heroStart), isFalse);
+    expect(_isPurple(AknColors.light.heroEnd), isFalse);
+    expect(_isPurple(AknColors.dark.heroEnd), isFalse);
     expect(_isPurple(const Color(0xFF1F2A37)), isFalse);
     expect(_isPurple(const Color(0xFF1D4ED8)), isFalse);
   });

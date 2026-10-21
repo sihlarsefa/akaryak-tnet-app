@@ -4,12 +4,14 @@ import '../../utils/format.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import 'animated_number.dart';
 import 'cards.dart';
 import 'skeletons.dart';
 
-/// KPI tile: label, counting-up value (tabular figures), optional icon,
-/// trend chip and caption. Counts up from 0 on first show and from the old
-/// value on change (emphasized 600 ms); reduce motion shows the value.
+/// KPI tile: label, a big counting-up value (28 w800, tabular figures),
+/// optional tinted icon, trend chip and caption, on a white card. Counts up
+/// from 0 on first show and from the old value on change ([AnimatedNumber],
+/// 600 ms easeOutCubic); reduce motion shows the value.
 class KpiTile extends StatelessWidget {
   const KpiTile({
     super.key,
@@ -74,30 +76,23 @@ class KpiTile extends StatelessWidget {
             ),
             if (icon != null) ...[
               const SizedBox(width: 8),
-              AknIconBox(icon: icon!, tone: tone, size: 30, iconSize: 17),
+              AknIconBox(icon: icon!, tone: tone, size: 32, iconSize: 18),
             ],
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (loading)
           const SkeletonBox(width: 96, height: 28)
         else if (v == null)
-          Text(display, style: t.amountLarge)
+          Text(display, style: t.number)
         else
-          TweenAnimationBuilder<double>(
-            tween: Tween<double>(begin: 0, end: v.toDouble()),
-            duration: AknMotion.of(context, AknMotion.emphasized),
-            curve: AknMotion.emphasizedCurve,
-            builder: (context, x, _) => FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                // Integers count in whole steps; decimals keep the format.
-                _fmt(v is int ? x.round() : x),
-                style: t.amountLarge,
-                maxLines: 1,
-              ),
-            ),
+          // Integers count in whole steps; decimals keep the format.
+          AnimatedNumber(
+            value: v,
+            format: _fmt,
+            style: t.number,
+            duration: AknMotion.emphasized,
+            fit: true,
           ),
         if (trendValue != null || caption != null) ...[
           const SizedBox(height: 6),
@@ -135,7 +130,7 @@ class KpiTile extends StatelessWidget {
       excludeSemantics: true,
       child: AknCard(
         onTap: onTap,
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 16),
         child: body,
       ),
     );

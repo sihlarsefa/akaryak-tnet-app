@@ -1,5 +1,6 @@
-/// AkaryakıtNet design system (M0b): tokens, themes, motion, status styles,
-/// components and painters. Import this one file:
+/// AkaryakıtNet design system — "Turuncu & Beyaz" (redesign R1): tokens,
+/// themes, motion, status styles, components and painters. Import this one
+/// file:
 ///
 /// ```dart
 /// import 'package:akaryakitnet/core/ui/ui.dart';
@@ -7,23 +8,31 @@
 ///
 /// Quick map:
 /// * Theme: `AknTheme.light()` / `.dark()`; tokens via `context.akn`
-///   ([AknColors]) and `context.aknText` ([AknTextStyles]); spacing
-///   [AknSpace], radii [AknRadius], shadows [AknShadows].
-/// * Motion: [AknMotion] timings (reduce-motion aware), [AknHaptics],
-///   [FadeUp], [StaggerScope] + [StaggerItem], [PressScale],
-///   [FadeThroughIndexedStack] (tab switch), [SharedAxisSwitcher] (wizard
-///   steps), [FadeThroughSwitcher], [AknOpenContainer] (container transform,
-///   list → detail), [MorphHero] + [AknHero] + [AknHeroTags] (same-navigator
+///   ([AknColors]: brand, brandInk, brandFill, brandBright, heroStart /
+///   heroEnd / onHero, …) and `context.aknText` ([AknTextStyles], incl.
+///   `number` / `numberLarge`); spacing [AknSpace], radii [AknRadius],
+///   shadows [AknShadows]. System bars: `AknTheme.overlayFor(brightness)`,
+///   `AknTheme.overlayOnHero`.
+/// * Motion: [AknMotion] timings (reduce-motion aware, incl. `spring` and
+///   `count`), [AknHaptics], [FadeUp], [StaggerScope] + [StaggerItem],
+///   [PressScale], [AnimatedNumber] (count-up), [FadeThroughIndexedStack]
+///   (tab switch), [SharedAxisSwitcher] (wizard steps),
+///   [FadeThroughSwitcher], [AknOpenContainer] (container transform, list →
+///   detail), [MorphHero] + [AknHero] + [AknHeroTags] (same-navigator
 ///   heroes), page transitions in the theme.
 /// * Status: `order.status.statusStyle` → [StatusStyle] → [StatusChip.style];
 ///   [AknStatus] maps every server enum, barem bands and server tone keys.
-/// * Actions: [AknButton] (+ `.secondary/.ghost/.danger`, async morph),
-///   [AknIconButton], [SlideToConfirm], [showConfirmSheet], [showAppSheet],
-///   [showAknDialog], [AppToast].
-/// * Content: [AknCard], [AknHeroPanel] (navy, re-themes its content),
-///   [AknListTile], [SectionHeader], [KpiTile] + [KpiRow], [FactRow], [AknBanner],
-///   [UsageBar], [AmountText], [AknAvatar], [AknCountBadge], [PlateBadge],
-///   [AttachmentTile], [StepTimeline], [StepperHeader], [CountdownBadge].
+/// * Actions: [AknButton] (+ `.secondary` tonal / `.outline` / `.ghost` /
+///   `.danger`, async morph), [AknIconButton], [SlideToConfirm],
+///   [showConfirmSheet], [showAppSheet], [showAknDialog], [AppToast].
+/// * Hero (orange): `AppScaffold(hero: true)` (strip app bar),
+///   [AknHeroHeader] (home header block under it), [AknHeroPanel] (status
+///   hero card), [AknHeroChip] (glass pill), [OnHero] (re-themes a subtree;
+///   [OnNavy] is the old name), [AknHeroBackground] / [AknHeroGradient].
+/// * Content: [AknCard], [AknListTile], [SectionHeader], [KpiTile] +
+///   [KpiRow], [FactRow], [AknBanner], [UsageBar], [AmountText], [AknAvatar],
+///   [AknCountBadge], [PlateBadge], [AttachmentTile], [StepTimeline],
+///   [StepperHeader], [CountdownBadge].
 /// * Inputs: [AknTextField], [MoneyField] (+ `.unitPrice`), [LitersField],
 ///   [DateField], [SearchField], [PlateField], [FilterChips], [AknSegmented],
 ///   [ChoiceCard] (payment method, delivery point, driver).
@@ -34,7 +43,7 @@
 ///   [AppChrome] (provided once by the shell), [AnimatedBottomBar].
 /// * Painters: [LogoMark], [AknWordmark], [AknLogo], [ChevronSpinner],
 ///   [SuccessCheck], [ProgressRing], [FuelDrop], [TruckRoute], [Sparkline],
-///   [EmptyIllustration].
+///   [EmptyIllustration], [HeroBackdropPainter].
 /// * Dev: `DesignGalleryPage` at `/dev/gallery` (`gallery/`).
 library;
 
@@ -53,12 +62,14 @@ export 'theme.dart';
 export 'tokens.dart';
 export 'typography.dart';
 export 'widgets/animated_bottom_bar.dart';
+export 'widgets/animated_number.dart';
 export 'widgets/app_scaffold.dart';
 export 'widgets/attachment_tile.dart';
 export 'widgets/buttons.dart';
 export 'widgets/cards.dart';
 export 'widgets/choice_card.dart';
 export 'widgets/filters.dart';
+export 'widgets/hero_header.dart';
 export 'widgets/inputs.dart';
 export 'widgets/kpi_tile.dart';
 export 'widgets/open_container.dart';

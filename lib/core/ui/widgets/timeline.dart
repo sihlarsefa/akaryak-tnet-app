@@ -460,7 +460,9 @@ class StepperHeader extends StatelessWidget {
                               curve: AknMotion.standard,
                               height: 4,
                               decoration: BoxDecoration(
-                                color: s <= i ? c.brand : c.lineSoft,
+                                color: s <= i
+                                    ? c.brandBright
+                                    : (c.isDark ? c.line : c.surfaceAlt),
                                 borderRadius: AknRadius.pillAll,
                               ),
                             ),

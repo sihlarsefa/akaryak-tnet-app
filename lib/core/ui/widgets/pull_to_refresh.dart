@@ -123,7 +123,9 @@ class _PullToRefreshState extends State<PullToRefresh> {
                         decoration: BoxDecoration(
                           color: c.surfaceRaised,
                           shape: BoxShape.circle,
-                          border: Border.all(color: c.line),
+                          border: Border.all(
+                            color: c.isDark ? c.line : c.lineSoft,
+                          ),
                           boxShadow: AknShadows.raised(c),
                         ),
                         alignment: Alignment.center,
@@ -135,7 +137,7 @@ class _PullToRefreshState extends State<PullToRefresh> {
                             : CustomPaint(
                                 size: ChevronRowPainter.sizeFor(18, 3),
                                 painter: ChevronRowPainter(
-                                  color: c.brand,
+                                  color: c.brandBright,
                                   progress: progress,
                                 ),
                               ),

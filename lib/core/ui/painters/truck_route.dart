@@ -79,7 +79,7 @@ class _TruckRouteState extends State<TruckRoute>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = widget.color ?? c.brand;
+    final color = widget.color ?? c.brandBright;
     final labels =
         widget.originLabel != null || widget.destinationLabel != null;
     final t = Theme.of(context).textTheme.bodySmall;

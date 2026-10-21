@@ -26,7 +26,9 @@ enum AknIllustration {
   final IconData icon;
 }
 
-/// Soft disc + orbit with three dots + the subject icon + a small » accent.
+/// Calm orange line art: a soft peach disc, a white inner circle with the
+/// subject icon in orange, an orbit with three dots and a small » accent.
+/// Tones (danger for errors, ok for done) swap the orange for the tone.
 /// Decorative (excluded from semantics).
 class EmptyIllustration extends StatelessWidget {
   const EmptyIllustration({
@@ -39,7 +41,8 @@ class EmptyIllustration extends StatelessWidget {
   final AknIllustration subject;
   final double size;
 
-  /// Tints the disc and icon (danger for errors, ok for done). Null = slate.
+  /// Tints the disc and icon (danger for errors, ok for done). Null = brand
+  /// orange.
   final AknTone? tone;
 
   @override
@@ -51,14 +54,18 @@ class EmptyIllustration extends StatelessWidget {
         dimension: size,
         child: CustomPaint(
           painter: EmptyIllustrationPainter(
-            disc: t?.bg ?? c.surfaceAlt,
-            ring: t?.line ?? c.line,
-            dot: c.lineStrong,
-            accent: c.logo,
+            disc: t?.bg ?? c.brandSoft,
+            ring: t?.line ?? c.brandLine,
+            dot: t?.line ?? c.brandLine,
+            accent: c.brandBright,
             inner: c.surface,
           ),
           child: Center(
-            child: Icon(subject.icon, size: size * 0.34, color: t?.fg ?? c.dim),
+            child: Icon(
+              subject.icon,
+              size: size * 0.34,
+              color: t?.fg ?? c.brand,
+            ),
           ),
         ),
       ),

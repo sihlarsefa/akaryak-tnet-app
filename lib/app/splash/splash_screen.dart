@@ -6,23 +6,26 @@ import 'package:flutter/services.dart';
 
 import '../../core/ui/motion.dart';
 import '../../core/ui/painters/chevron_spinner.dart';
-import '../../core/ui/painters/hero_backdrop.dart';
 import '../../core/ui/painters/logo_mark.dart';
 import '../../core/ui/theme.dart';
 import '../../core/ui/tokens.dart';
 
-/// Flutter splash (spec C.6), continuing the native splash seamlessly.
+/// Flutter splash (spec C.6, redesign §1.3), continuing the native splash
+/// seamlessly.
 ///
-/// The native splash (`flutter_native_splash`, navy #1F2A37 with
-/// `akn-mark-512.png` at 4× → 128 pt, centered) is reproduced exactly on the
-/// first frame. Then, in about 1.1 s:
+/// The native splash (`flutter_native_splash`: white — #0F1114 in dark mode
+/// — with `akn-mark-512.png` at 4× → 128 pt, centered) is reproduced exactly
+/// on the first frame. Then, in about 1.1 s:
 ///
 /// 1. the » chevrons dim to a faint track (180 ms),
-/// 2. they draw in again along their strokes (500 ms),
-/// 3. the mark settles upward and the "AkaryakıtNet" wordmark fades in,
+/// 2. they draw in again along their strokes (500 ms) while a soft peach
+///    glow blooms behind the mark,
+/// 3. the mark settles upward and the "AkaryakıtNet" wordmark fades in (ink
+///    "Akaryakıt" + logo-orange "Net"; white + orange in dark mode),
 /// 4. the tagline appears; [onFinished] fires.
 ///
-/// If the app is still starting after that, a small chevron loader fades in.
+/// If the app is still starting after that, a small orange chevron loader
+/// fades in. Dark status-bar icons on white (light icons in dark mode).
 /// Under reduce motion the final frame shows at once and [onFinished] fires
 /// after 300 ms. Never purple.
 ///
@@ -44,6 +47,11 @@ class SplashScreen extends StatefulWidget {
 
   /// Size of the mark after it settles.
   static const double settledMarkSize = 92;
+
+  /// Splash background: white (the native splash colour), charcoal #0F1114
+  /// in dark mode (the native dark splash colour).
+  static Color background(AknColors c) =>
+      c.isDark ? c.bg : const Color(0xFFFFFFFF);
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -133,9 +141,9 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     final c = context.akn;
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: AknTheme.overlayOnNavy,
+      value: AknTheme.overlayFor(c.brightness),
       child: Scaffold(
-        backgroundColor: c.navy,
+        backgroundColor: SplashScreen.background(c),
         body: Semantics(
           label: 'AkaryakıtNet açılıyor',
           liveRegion: true,
@@ -170,10 +178,25 @@ class _SplashScreenState extends State<SplashScreen>
     return Stack(
       fit: StackFit.expand,
       children: [
-        Opacity(
-          opacity: _light.value,
-          child: CustomPaint(
-            painter: HeroBackdropPainter(navy: c.navy, watermark: false),
+        // A soft peach bloom behind the mark (calm, no motion after).
+        Positioned(
+          left: size.width / 2 - 200,
+          top: centerY - 200,
+          width: 400,
+          height: 400,
+          child: Opacity(
+            opacity: _light.value,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    c.brandBright.withValues(alpha: c.isDark ? 0.16 : 0.10),
+                    c.brandBright.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
         Positioned(
@@ -197,10 +220,10 @@ class _SplashScreenState extends State<SplashScreen>
           top: wordTop + 10 * (1 - _word.value),
           child: Opacity(
             opacity: _word.value,
-            child: const Center(
+            child: Center(
               child: AknWordmark(
                 fontSize: 30,
-                onDark: true,
+                onDark: c.isDark,
                 semanticLabel: null,
               ),
             ),
@@ -217,7 +240,7 @@ class _SplashScreenState extends State<SplashScreen>
               textAlign: TextAlign.center,
               textScaler: scaler,
               style: TextStyle(
-                color: c.onNavyDim,
+                color: c.dim,
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.4,
@@ -233,10 +256,10 @@ class _SplashScreenState extends State<SplashScreen>
             opacity: _wait.value,
             child: _wait.value == 0
                 ? const SizedBox.shrink()
-                : const Center(
+                : Center(
                     child: ChevronSpinner(
                       size: 16,
-                      color: Color(0xCCFFFFFF),
+                      color: c.brandBright,
                       semanticLabel: null,
                     ),
                   ),

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 
-/// AkaryakıtNet design tokens: the web panel's calm corporate identity
-/// (navy #1F2A37 + orange #C94C0C, slate greys, soft status tints).
+/// AkaryakıtNet design tokens — "Turuncu & Beyaz" (redesign R1, 2026-10-21).
 ///
-/// Never purple. `logo` (#FF5001) is for the logo, illustrations and large
-/// accents only; it is never used for text (3.3:1 on white).
+/// Light-first: white surfaces on a cool off-white page, a warm vivid orange
+/// as the hero colour, slate ink only as the text colour. Dark mode is a
+/// neutral charcoal (never navy). Never purple.
+///
+/// * `brandBright` / `logo` (#FF5001): logo, icons, chart bars, progress,
+///   active indicators — never text (3.3:1 on white).
+/// * `brand` (#E8480A): accent glyphs, selected outlines, focus ring.
+/// * `brandInk` (#C2410C): orange TEXT on light surfaces (≥ 4.5:1).
+/// * `brandFill` (#D14408): filled buttons / FAB (white label 4.6:1).
+/// * `heroStart` → `heroEnd`: the orange hero gradient (header strip and
+///   hero panels); content on it uses `onHero` (white).
 ///
 /// Read the active palette with `context.akn` (see `theme.dart`).
 
@@ -61,7 +69,8 @@ class ToneColors {
   int get hashCode => Object.hash(fg, bg, line, solid, onSolid);
 }
 
-/// Colour tokens as a [ThemeExtension] with light and dark values (spec C.5).
+/// Colour tokens as a [ThemeExtension] with light and dark values
+/// (redesign spec §1.1 / §1.2).
 @immutable
 class AknColors extends ThemeExtension<AknColors> {
   const AknColors({
@@ -74,7 +83,12 @@ class AknColors extends ThemeExtension<AknColors> {
     required this.brandFill,
     required this.brandFillPressed,
     required this.onBrandFill,
+    required this.brandBright,
     required this.logo,
+    required this.heroStart,
+    required this.heroEnd,
+    required this.onHero,
+    required this.onHeroDim,
     required this.navy,
     required this.navyRaised,
     required this.onNavy,
@@ -108,52 +122,88 @@ class AknColors extends ThemeExtension<AknColors> {
   final Brightness brightness;
 
   /// Inline links ("Gizlilik · KVKK · Koşullar", "Haritada aç"): #2B5C8A on
-  /// light surfaces (7:1), #93C5FD in dark and on navy. Not orange, so a link
-  /// never reads as a primary action.
+  /// light surfaces (7:1), #93C5FD in dark, white on the hero. Not orange, so
+  /// a link never reads as a primary action.
   final Color link;
 
-  /// Accent for icons, borders, indicators and active states.
+  /// Accent for glyphs, selected outlines, focus rings and active states
+  /// (≥ 3:1 on surfaces; not for small text — use [brandInk]).
   final Color brand;
   final Color brandPressed;
 
-  /// Brand-coloured text (AA on surface and bg).
+  /// Orange text (links, section actions, highlighted amounts): ≥ 4.5:1 on
+  /// `bg`, `surface` and `brandSoft`.
   final Color brandInk;
+
+  /// Tinted backgrounds (selected chip, icon tiles, info banners).
   final Color brandSoft;
+
+  /// Tinted borders.
   final Color brandLine;
 
-  /// Filled primary buttons (white label, 4.6:1 in both themes).
+  /// Filled primary buttons and the FAB (white label, 4.6:1 in both themes).
   final Color brandFill;
   final Color brandFillPressed;
   final Color onBrandFill;
 
-  /// Logo orange: logo, illustrations, large accents only. Never text.
+  /// The logo orange #FF5001: logo, icons, chart bars, progress, active tab
+  /// indicator. Non-text only (3.3:1 on white).
+  final Color brandBright;
+
+  /// Same as [brandBright] (kept for the logo painters).
   final Color logo;
 
-  /// Headers and hero panels.
+  /// Light end of the hero gradient (header strip, hero panels). White large
+  /// text reaches 3:1 on it; small text never sits on it (the DS hero
+  /// painters keep it at the text-free top-right / right edge).
+  final Color heroStart;
+
+  /// Main hero colour: white text reaches 4.5:1 on it.
+  final Color heroEnd;
+
+  /// Text and icons on the hero (white).
+  final Color onHero;
+
+  /// Secondary icons and large text on the hero (white 88 %). Small text on
+  /// the hero uses [onHero]: white 88 % is below 4.5:1 on orange.
+  final Color onHeroDim;
+
+  /// Deprecated alias of [heroEnd] (was the navy header colour). Kept so old
+  /// call-sites compile; new code uses the hero tokens.
   final Color navy;
 
-  /// Elements placed on [navy] (chips, buttons, rings).
+  /// Deprecated alias: white 16 % over the hero (was raised navy).
   final Color navyRaised;
+
+  /// Deprecated alias of [onHero].
   final Color onNavy;
+
+  /// Deprecated alias of [onHeroDim].
   final Color onNavyDim;
 
+  /// Page background.
   final Color bg;
+
+  /// Cards, sheets, bars.
   final Color surface;
+
+  /// Inputs, segmented track, skeleton base.
   final Color surfaceAlt;
 
-  /// Sheets, dialogs, toasts and the bottom bar (lifted above [surface] in dark).
+  /// Sheets, dialogs, toasts and the bottom bar (lifted above [surface] in
+  /// dark).
   final Color surfaceRaised;
 
-  /// Headings and key values.
+  /// Headings and key values (the old panel navy survives only here).
   final Color ink;
 
   /// Body text.
   final Color text;
 
-  /// Secondary text (AA on surface and bg).
+  /// Secondary text (AA on surface, bg and surfaceAlt).
   final Color dim;
 
-  /// Decorative and disabled only; never for readable text.
+  /// Placeholders and disabled only; never informative text.
   final Color faint;
 
   final Color line;
@@ -168,14 +218,18 @@ class AknColors extends ThemeExtension<AknColors> {
   final ToneColors info;
   final ToneColors neutral;
 
-  /// Brand as a tone (InTransit, barem senior/exception).
+  /// Brand as a tone (InTransit, barem senior/exception): brandInk on
+  /// brandSoft.
   final ToneColors brandTone;
 
-  /// Filled destructive buttons (white label in both themes).
+  /// Filled destructive buttons and count badges (white label in both
+  /// themes).
   final Color dangerFill;
   final Color onDangerFill;
 
   final Color scrim;
+
+  /// Elevation shadow colour (#101828 at 6 % in light).
   final Color shadow;
   final Color skeleton;
   final Color skeletonHighlight;
@@ -192,34 +246,47 @@ class AknColors extends ThemeExtension<AknColors> {
   };
 
   static const _white = Color(0xFFFFFFFF);
-  static const _darkInk = Color(0xFF0B1220);
+  static const _charcoal = Color(0xFF0F1114);
+
+  /// White 16 % (glass over the hero).
+  static const _white16 = Color(0x29FFFFFF);
+
+  /// White 88 % (secondary on the hero).
+  static const _white88 = Color(0xE0FFFFFF);
 
   static const AknColors light = AknColors(
     brightness: Brightness.light,
-    brand: Color(0xFFC94C0C),
-    brandPressed: Color(0xFFB4470D),
-    brandInk: Color(0xFFA8420C),
-    brandSoft: Color(0xFFFDF5EF),
-    brandLine: Color(0xFFF3DCCD),
-    brandFill: Color(0xFFC94C0C),
-    brandFillPressed: Color(0xFFB4470D),
+    brand: Color(0xFFE8480A),
+    brandPressed: Color(0xFFD14408),
+    brandInk: Color(0xFFC2410C),
+    brandSoft: Color(0xFFFFF3EC),
+    brandLine: Color(0xFFFFD9C4),
+    brandFill: Color(0xFFD14408),
+    brandFillPressed: Color(0xFFB83C07),
     onBrandFill: _white,
+    brandBright: Color(0xFFFF5001),
     logo: Color(0xFFFF5001),
-    navy: Color(0xFF1F2A37),
-    navyRaised: Color(0xFF283443),
+    heroStart: Color(0xFFF5610F),
+    heroEnd: Color(0xFFD14408),
+    onHero: _white,
+    onHeroDim: _white88,
+    navy: Color(0xFFD14408),
+    navyRaised: _white16,
     onNavy: _white,
-    onNavyDim: Color(0xFFC3CDD9),
-    bg: Color(0xFFF8FAFC),
+    onNavyDim: _white88,
+    bg: Color(0xFFF6F7F9),
     surface: Color(0xFFFFFFFF),
-    surfaceAlt: Color(0xFFF1F5F9),
+    // #F1F3F6 in the spec; one step lighter so `dim` keeps 4.5:1 on it
+    // (input hints, segmented track).
+    surfaceAlt: Color(0xFFF2F4F7),
     surfaceRaised: Color(0xFFFFFFFF),
-    ink: Color(0xFF0F172A),
-    text: Color(0xFF334155),
-    dim: Color(0xFF64748B),
-    faint: Color(0xFF94A3B8),
-    line: Color(0xFFE5E9F0),
-    lineSoft: Color(0xFFEEF1F5),
-    lineStrong: Color(0xFFCBD5E1),
+    ink: Color(0xFF1F2A37),
+    text: Color(0xFF344054),
+    dim: Color(0xFF667085),
+    faint: Color(0xFF98A2B3),
+    line: Color(0xFFE7EAEE),
+    lineSoft: Color(0xFFF0F2F5),
+    lineStrong: Color(0xFFD0D5DD),
     ok: ToneColors(
       fg: Color(0xFF047857),
       bg: Color(0xFFECFDF5),
@@ -249,101 +316,106 @@ class AknColors extends ThemeExtension<AknColors> {
       onSolid: _white,
     ),
     neutral: ToneColors(
-      fg: Color(0xFF475569),
-      bg: Color(0xFFF1F5F9),
-      line: Color(0xFFE2E8F0),
-      solid: Color(0xFF475569),
+      fg: Color(0xFF475467),
+      bg: Color(0xFFF2F4F7),
+      line: Color(0xFFE4E7EC),
+      solid: Color(0xFF475467),
       onSolid: _white,
     ),
     brandTone: ToneColors(
-      fg: Color(0xFFA8420C),
-      bg: Color(0xFFFDF5EF),
-      line: Color(0xFFF3DCCD),
-      solid: Color(0xFFC94C0C),
+      fg: Color(0xFFC2410C),
+      bg: Color(0xFFFFF3EC),
+      line: Color(0xFFFFD9C4),
+      solid: Color(0xFFD14408),
       onSolid: _white,
     ),
     dangerFill: Color(0xFFB91C1C),
     onDangerFill: _white,
-    scrim: Color(0x730F172A),
-    shadow: Color(0x0F0F172A),
-    skeleton: Color(0xFFEBEFF4),
-    skeletonHighlight: Color(0xFFF8FAFC),
+    scrim: Color(0x73101828),
+    shadow: Color(0x0F101828),
+    skeleton: Color(0xFFEDEBE8),
+    skeletonHighlight: Color(0xFFF8F7F5),
   );
 
   static const AknColors dark = AknColors(
     brightness: Brightness.dark,
-    brand: Color(0xFFE8692B),
-    brandPressed: Color(0xFFD95E22),
-    brandInk: Color(0xFFF08A55),
-    brandSoft: Color(0xFF2A1A10),
-    brandLine: Color(0xFF4A2A18),
-    brandFill: Color(0xFFC94C0C),
-    brandFillPressed: Color(0xFFB4470D),
+    brand: Color(0xFFF26B21),
+    brandPressed: Color(0xFFE25F17),
+    brandInk: Color(0xFFFF8A4C),
+    brandSoft: Color(0xFF2A1608),
+    brandLine: Color(0xFF4A2410),
+    brandFill: Color(0xFFD14408),
+    brandFillPressed: Color(0xFFB83C07),
     onBrandFill: _white,
+    brandBright: Color(0xFFFF5001),
     logo: Color(0xFFFF5001),
-    navy: Color(0xFF1F2A37),
-    navyRaised: Color(0xFF2B3747),
+    heroStart: Color(0xFFC2410C),
+    heroEnd: Color(0xFF8F3307),
+    onHero: _white,
+    onHeroDim: _white88,
+    navy: Color(0xFF8F3307),
+    navyRaised: _white16,
     onNavy: _white,
-    onNavyDim: Color(0xFFC3CDD9),
-    bg: Color(0xFF0B1220),
-    surface: Color(0xFF111A27),
-    surfaceAlt: Color(0xFF172131),
-    surfaceRaised: Color(0xFF182233),
-    ink: Color(0xFFF1F5F9),
-    text: Color(0xFFCBD5E1),
-    dim: Color(0xFF94A3B8),
-    faint: Color(0xFF64748B),
-    line: Color(0xFF263244),
-    lineSoft: Color(0xFF1D2836),
-    lineStrong: Color(0xFF334155),
+    onNavyDim: _white88,
+    bg: Color(0xFF0F1114),
+    surface: Color(0xFF16191D),
+    surfaceAlt: Color(0xFF1D2126),
+    surfaceRaised: Color(0xFF1B1F24),
+    ink: Color(0xFFF4F5F7),
+    text: Color(0xFFD0D5DD),
+    dim: Color(0xFF98A2B3),
+    faint: Color(0xFF667085),
+    line: Color(0xFF2A2F36),
+    lineSoft: Color(0xFF21252B),
+    lineStrong: Color(0xFF3A4049),
     ok: ToneColors(
       fg: Color(0xFF34D399),
       bg: Color(0xFF0F2A22),
       line: Color(0xFF1C4A3A),
       solid: Color(0xFF34D399),
-      onSolid: _darkInk,
+      onSolid: _charcoal,
     ),
     warn: ToneColors(
       fg: Color(0xFFFBBF24),
       bg: Color(0xFF2A210C),
       line: Color(0xFF4A3A12),
       solid: Color(0xFFFBBF24),
-      onSolid: _darkInk,
+      onSolid: _charcoal,
     ),
     danger: ToneColors(
       fg: Color(0xFFF87171),
       bg: Color(0xFF2A1214),
       line: Color(0xFF4A1F22),
       solid: Color(0xFFF87171),
-      onSolid: _darkInk,
+      onSolid: _charcoal,
     ),
     info: ToneColors(
       fg: Color(0xFF93C5FD),
       bg: Color(0xFF10203A),
       line: Color(0xFF1E3A5F),
       solid: Color(0xFF93C5FD),
-      onSolid: _darkInk,
+      onSolid: _charcoal,
     ),
     neutral: ToneColors(
-      fg: Color(0xFFCBD5E1),
-      bg: Color(0xFF1B2533),
-      line: Color(0xFF2A3647),
-      solid: Color(0xFFCBD5E1),
-      onSolid: _darkInk,
+      fg: Color(0xFFD0D5DD),
+      bg: Color(0xFF22262C),
+      line: Color(0xFF333840),
+      solid: Color(0xFFD0D5DD),
+      onSolid: _charcoal,
     ),
     brandTone: ToneColors(
-      fg: Color(0xFFF08A55),
-      bg: Color(0xFF2A1A10),
-      line: Color(0xFF4A2A18),
-      solid: Color(0xFFC94C0C),
+      fg: Color(0xFFFF8A4C),
+      bg: Color(0xFF2A1608),
+      line: Color(0xFF4A2410),
+      solid: Color(0xFFD14408),
       onSolid: _white,
     ),
     dangerFill: Color(0xFFB91C1C),
     onDangerFill: _white,
     scrim: Color(0x99000000),
     shadow: Color(0x52000000),
-    skeleton: Color(0xFF1A2432),
-    skeletonHighlight: Color(0xFF243043),
+    skeleton: Color(0xFF24272B),
+    skeletonHighlight: Color(0xFF2F3338),
     link: Color(0xFF93C5FD),
   );
 
@@ -358,7 +430,12 @@ class AknColors extends ThemeExtension<AknColors> {
     Color? brandFill,
     Color? brandFillPressed,
     Color? onBrandFill,
+    Color? brandBright,
     Color? logo,
+    Color? heroStart,
+    Color? heroEnd,
+    Color? onHero,
+    Color? onHeroDim,
     Color? navy,
     Color? navyRaised,
     Color? onNavy,
@@ -398,7 +475,12 @@ class AknColors extends ThemeExtension<AknColors> {
       brandFill: brandFill ?? this.brandFill,
       brandFillPressed: brandFillPressed ?? this.brandFillPressed,
       onBrandFill: onBrandFill ?? this.onBrandFill,
+      brandBright: brandBright ?? this.brandBright,
       logo: logo ?? this.logo,
+      heroStart: heroStart ?? this.heroStart,
+      heroEnd: heroEnd ?? this.heroEnd,
+      onHero: onHero ?? this.onHero,
+      onHeroDim: onHeroDim ?? this.onHeroDim,
       navy: navy ?? this.navy,
       navyRaised: navyRaised ?? this.navyRaised,
       onNavy: onNavy ?? this.onNavy,
@@ -445,7 +527,12 @@ class AknColors extends ThemeExtension<AknColors> {
       brandFill: c(brandFill, other.brandFill),
       brandFillPressed: c(brandFillPressed, other.brandFillPressed),
       onBrandFill: c(onBrandFill, other.onBrandFill),
+      brandBright: c(brandBright, other.brandBright),
       logo: c(logo, other.logo),
+      heroStart: c(heroStart, other.heroStart),
+      heroEnd: c(heroEnd, other.heroEnd),
+      onHero: c(onHero, other.onHero),
+      onHeroDim: c(onHeroDim, other.onHeroDim),
       navy: c(navy, other.navy),
       navyRaised: c(navyRaised, other.navyRaised),
       onNavy: c(onNavy, other.onNavy),
@@ -478,7 +565,7 @@ class AknColors extends ThemeExtension<AknColors> {
   }
 }
 
-/// 4-pt spacing scale (spec C.5).
+/// 4-pt spacing scale.
 abstract final class AknSpace {
   static const double s2 = 2;
   static const double s4 = 4;
@@ -505,50 +592,114 @@ abstract final class AknSpace {
   static const EdgeInsets cardPadding = EdgeInsets.all(s16);
 }
 
-/// Corner radii (spec C.5): 8 chips and inputs, 12 cards, 16 sheets,
-/// 24 hero and bottom bar, pill.
+/// Corner radii — generous and soft: 10 small tiles, 14 buttons and inputs,
+/// 20 cards, 24 hero panels / sheets / dialogs, 28 the home header strip,
+/// pills for chips.
 abstract final class AknRadius {
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
+  static const double sm = 10;
+  static const double md = 14;
+  static const double lg = 20;
   static const double xl = 24;
+  static const double xxl = 28;
   static const double pill = 999;
 
+  /// Small tiles, tags and badges (filter chips are pills).
   static const BorderRadius chip = BorderRadius.all(Radius.circular(sm));
-  static const BorderRadius input = BorderRadius.all(Radius.circular(sm));
-  static const BorderRadius card = BorderRadius.all(Radius.circular(md));
+  static const BorderRadius button = BorderRadius.all(Radius.circular(md));
+  static const BorderRadius input = BorderRadius.all(Radius.circular(md));
+  static const BorderRadius card = BorderRadius.all(Radius.circular(lg));
   static const BorderRadius sheet = BorderRadius.vertical(
-    top: Radius.circular(lg),
+    top: Radius.circular(xl),
   );
-  static const BorderRadius dialog = BorderRadius.all(Radius.circular(lg));
+  static const BorderRadius dialog = BorderRadius.all(Radius.circular(xl));
   static const BorderRadius hero = BorderRadius.all(Radius.circular(xl));
+
+  /// Bottom edge of the orange home header strip (`AknHeroHeader`).
+  static const BorderRadius header = BorderRadius.vertical(
+    bottom: Radius.circular(xxl),
+  );
   static const BorderRadius pillAll = BorderRadius.all(Radius.circular(pill));
 }
 
-/// Elevation is a soft shadow plus a 1 px line, never a heavy drop shadow.
+/// Elevation is a soft, diffuse shadow (no hard borders in light mode).
 abstract final class AknShadows {
-  /// Cards: `0 1 3 rgba(15,23,42,.06)`.
-  static List<BoxShadow> card(AknColors c) => [
-    BoxShadow(color: c.shadow, offset: const Offset(0, 1), blurRadius: 3),
-  ];
+  /// Cards: `0 6 20` at 6 % of #101828 plus a 1 px contact shadow. Dark
+  /// mode relies on the hairline instead.
+  static List<BoxShadow> card(AknColors c) => c.isDark || c.shadow.a == 0
+      ? const []
+      : [
+          BoxShadow(
+            color: c.shadow,
+            offset: const Offset(0, 6),
+            blurRadius: 20,
+          ),
+          BoxShadow(
+            color: c.shadow.withValues(alpha: c.shadow.a * 0.6),
+            offset: const Offset(0, 1),
+            blurRadius: 2,
+          ),
+        ];
+
+  /// Pressed card: the shadow settles closer to the surface.
+  static List<BoxShadow> pressed(AknColors c) => c.isDark || c.shadow.a == 0
+      ? const []
+      : [
+          BoxShadow(
+            color: c.shadow.withValues(alpha: c.shadow.a * 0.8),
+            offset: const Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ];
 
   /// Toasts, menus, floating elements.
   static List<BoxShadow> raised(AknColors c) => [
     BoxShadow(
-      color: c.isDark ? const Color(0x66000000) : const Color(0x1A0F172A),
-      offset: const Offset(0, 8),
-      blurRadius: 24,
+      color: c.isDark ? const Color(0x66000000) : const Color(0x1F101828),
+      offset: const Offset(0, 10),
+      blurRadius: 28,
       spreadRadius: -6,
     ),
-    BoxShadow(color: c.shadow, offset: const Offset(0, 1), blurRadius: 3),
+    BoxShadow(
+      color: c.isDark ? const Color(0x33000000) : const Color(0x0A101828),
+      offset: const Offset(0, 1),
+      blurRadius: 3,
+    ),
   ];
 
-  /// Bottom bar (casts upwards).
+  /// Bottom bar and action bar (soft, casts upwards).
   static List<BoxShadow> bar(AknColors c) => [
     BoxShadow(
-      color: c.isDark ? const Color(0x4D000000) : const Color(0x0F0F172A),
+      color: c.isDark ? const Color(0x59000000) : const Color(0x14101828),
       offset: const Offset(0, -2),
+      blurRadius: 18,
+    ),
+  ];
+
+  /// Warm glow under orange hero panels.
+  static List<BoxShadow> hero(AknColors c) => c.isDark
+      ? const [
+          BoxShadow(
+            color: Color(0x40000000),
+            offset: Offset(0, 8),
+            blurRadius: 20,
+          ),
+        ]
+      : [
+          BoxShadow(
+            color: c.heroEnd.withValues(alpha: 0.24),
+            offset: const Offset(0, 10),
+            blurRadius: 24,
+            spreadRadius: -6,
+          ),
+        ];
+
+  /// Orange glow under the bottom bar's centre action and floating buttons.
+  static List<BoxShadow> glow(Color color) => [
+    BoxShadow(
+      color: color.withValues(alpha: 0.38),
+      offset: const Offset(0, 6),
       blurRadius: 16,
+      spreadRadius: -2,
     ),
   ];
 }

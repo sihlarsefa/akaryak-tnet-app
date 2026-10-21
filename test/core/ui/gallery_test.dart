@@ -24,6 +24,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     const tabs = [
       'Renkler',
+      'Kahraman',
       'Yazı',
       'Butonlar',
       'Kartlar',
@@ -48,6 +49,37 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
       expect(tester.takeException(), isNull, reason: '$tab (scrolled)');
     }
+  });
+
+  testBothThemes('hero page preview opens (hero app bar + header)', (
+    tester,
+    b,
+  ) async {
+    await pumpUi(
+      tester,
+      const DesignGalleryPage(),
+      brightness: b,
+      scaffold: false,
+      size: const Size(400, 860),
+    );
+    await tester.tap(find.widgetWithText(Tab, 'Kahraman'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final open = find.text('Kahraman sayfasını aç');
+    await tester.ensureVisible(open);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(open);
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(AknHeroHeader), findsOneWidget);
+    expect(find.text('Günaydın, Ayşe'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    // Scroll: the header slides under the pinned orange bar.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -400));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('gallery toggles theme, text size and motion', (tester) async {

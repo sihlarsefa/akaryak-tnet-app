@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../motion.dart';
 import '../painters/hero_backdrop.dart';
@@ -7,8 +8,11 @@ import '../theme.dart';
 import '../tokens.dart';
 import '../typography.dart';
 
-/// White content card: 12 px radius, 1 px line, soft shadow. With [onTap]
-/// it gets an ink response and a subtle press scale.
+/// White content card: 20 px radius, soft diffuse shadow, no hard border
+/// (a barely visible `lineSoft` hairline in light mode, `line` in dark).
+///
+/// With [onTap] it gets an ink response, a selection haptic and a press
+/// that scales to 0.985 while the shadow settles closer to the surface.
 class AknCard extends StatelessWidget {
   const AknCard({
     super.key,
@@ -19,10 +23,11 @@ class AknCard extends StatelessWidget {
     this.margin,
     this.color,
     this.borderColor,
-    this.radius = AknRadius.md,
+    this.radius = AknRadius.lg,
     this.accent,
     this.shadow = true,
     this.semanticLabel,
+    this.haptic = true,
   });
 
   final Widget child;
@@ -34,19 +39,22 @@ class AknCard extends StatelessWidget {
   final Color? borderColor;
   final double radius;
 
-  /// A 3 px stripe on the leading edge in this tone (needs attention).
+  /// A 4 px stripe on the leading edge in this tone (needs attention).
   final AknTone? accent;
   final bool shadow;
 
   /// Read as one node by screen readers (whole card is one action).
   final String? semanticLabel;
 
+  /// Selection haptic on tap (primary cards); false for dense lists.
+  final bool haptic;
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radius),
-      side: BorderSide(color: borderColor ?? c.line),
+      side: BorderSide(color: borderColor ?? (c.isDark ? c.line : c.lineSoft)),
     );
     Widget content = Padding(padding: padding, child: child);
     if (accent != null) {
@@ -57,36 +65,27 @@ class AknCard extends StatelessWidget {
             start: 0,
             top: 0,
             bottom: 0,
-            width: 3,
+            width: 4,
             child: ColoredBox(color: c.tone(accent!).fg),
           ),
         ],
       );
     }
     final interactive = onTap != null || onLongPress != null;
-    Widget card = interactive
-        ? _PressableSurface(
-            color: color ?? c.surface,
-            shape: shape,
-            onTap: onTap,
-            onLongPress: onLongPress,
-            child: content,
-          )
-        : Material(
-            color: color ?? c.surface,
-            shape: shape,
-            clipBehavior: Clip.antiAlias,
-            child: content,
-          );
-    if (shadow) {
-      card = DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(radius),
-          boxShadow: AknShadows.card(c),
-        ),
-        child: card,
-      );
-    }
+    Widget card = _CardSurface(
+      color: color ?? c.surface,
+      shape: shape,
+      radius: radius,
+      shadow: shadow,
+      onTap: onTap == null
+          ? null
+          : () {
+              if (haptic) AknHaptics.selection();
+              onTap!();
+            },
+      onLongPress: onLongPress,
+      child: content,
+    );
     if (semanticLabel != null) {
       card = Semantics(
         label: semanticLabel,
@@ -100,12 +99,15 @@ class AknCard extends StatelessWidget {
   }
 }
 
-/// Material surface with ink and a subtle press scale that follows the ink
-/// highlight, so it releases as soon as a scroll takes over the gesture.
-class _PressableSurface extends StatefulWidget {
-  const _PressableSurface({
+/// Material surface with the card shadow; when tappable, ink plus a subtle
+/// press (scale 0.985, shadow down) that follows the ink highlight, so it
+/// releases as soon as a scroll takes over the gesture.
+class _CardSurface extends StatefulWidget {
+  const _CardSurface({
     required this.color,
     required this.shape,
+    required this.radius,
+    required this.shadow,
     required this.child,
     this.onTap,
     this.onLongPress,
@@ -113,55 +115,88 @@ class _PressableSurface extends StatefulWidget {
 
   final Color color;
   final ShapeBorder shape;
+  final double radius;
+  final bool shadow;
   final Widget child;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
   @override
-  State<_PressableSurface> createState() => _PressableSurfaceState();
+  State<_CardSurface> createState() => _CardSurfaceState();
 }
 
-class _PressableSurfaceState extends State<_PressableSurface> {
+class _CardSurfaceState extends State<_CardSurface> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: _pressed && !AknMotion.reduced(context) ? 0.985 : 1,
-      duration: AknMotion.fast,
-      curve: AknMotion.standard,
-      child: Material(
-        color: widget.color,
-        shape: widget.shape,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: widget.onTap,
-          onLongPress: widget.onLongPress,
-          onHighlightChanged: (v) {
-            if (v != _pressed) setState(() => _pressed = v);
-          },
-          child: widget.child,
-        ),
-      ),
+    final c = context.akn;
+    final interactive = widget.onTap != null || widget.onLongPress != null;
+    final reduced = AknMotion.reduced(context);
+    final pressed = _pressed && !reduced;
+    final material = Material(
+      color: widget.color,
+      shape: widget.shape,
+      clipBehavior: Clip.antiAlias,
+      child: interactive
+          ? InkWell(
+              onTap: widget.onTap,
+              onLongPress: widget.onLongPress,
+              onHighlightChanged: (v) {
+                if (v != _pressed) setState(() => _pressed = v);
+              },
+              child: widget.child,
+            )
+          : widget.child,
     );
+    final shadows = !widget.shadow
+        ? const <BoxShadow>[]
+        : pressed
+        ? AknShadows.pressed(c)
+        : AknShadows.card(c);
+    Widget card = shadows.isEmpty && !interactive
+        ? material
+        : AnimatedContainer(
+            duration: AknMotion.of(context, AknMotion.fast),
+            curve: AknMotion.standard,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.radius),
+              boxShadow: shadows,
+            ),
+            child: material,
+          );
+    if (interactive) {
+      card = AnimatedScale(
+        scale: pressed ? 0.985 : 1,
+        duration: AknMotion.fast,
+        curve: AknMotion.standard,
+        child: card,
+      );
+    }
+    return card;
   }
 }
 
-/// Navy hero panel with a subtle diagonal light (home headers, status hero).
+/// Orange hero panel (home headers, status heroes on detail screens): the
+/// hero gradient (light from the top-right corner, deepening toward the
+/// text), a soft white highlight, a faint » watermark and a warm glow under
+/// it. 24 px radius.
 ///
-/// Inside, the theme switches to an on-navy palette: `context.akn.ink` is
-/// white, `dim` is a soft slate, surfaces become raised navy. So text styles,
-/// KPI tiles and cards placed in the hero just work — as long as they read
-/// the styles from a context inside the panel (a child widget or a
-/// `Builder`); styles captured above the panel keep the page colours.
+/// Inside, the theme switches to the on-hero palette ([OnHero]):
+/// `context.akn.ink`, `text` and `dim` are white, surfaces are dark glass,
+/// primary buttons are white with an orange label. Text styles, KPI tiles
+/// and cards placed in the hero just work — as long as they read the styles
+/// from a context inside the panel (a child widget or a `Builder`).
 class AknHeroPanel extends StatelessWidget {
   const AknHeroPanel({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.fromLTRB(16, 16, 16, 20),
+    this.padding = const EdgeInsets.fromLTRB(18, 18, 18, 20),
     this.borderRadius = AknRadius.hero,
     this.watermark = true,
     this.margin,
+    this.highlight = true,
+    this.glow = true,
   });
 
   final Widget child;
@@ -170,113 +205,319 @@ class AknHeroPanel extends StatelessWidget {
   final bool watermark;
   final EdgeInsetsGeometry? margin;
 
+  /// Soft white light in the top-right corner.
+  final bool highlight;
+
+  /// Warm shadow under the panel.
+  final bool glow;
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     Widget panel = ClipRRect(
       borderRadius: borderRadius,
-      child: CustomPaint(
-        painter: HeroBackdropPainter(navy: c.navy, watermark: watermark),
+      child: AknHeroBackground(
+        watermark: watermark,
+        highlight: highlight,
         child: Padding(
           padding: padding,
-          child: OnNavy(child: child),
+          child: OnHero(child: child),
         ),
       ),
     );
+    if (glow) {
+      panel = DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: borderRadius,
+          boxShadow: AknShadows.hero(c),
+        ),
+        child: panel,
+      );
+    }
     if (margin != null) panel = Padding(padding: margin!, child: panel);
     return panel;
   }
 }
 
-/// Re-themes its subtree for content placed on navy.
-class OnNavy extends StatelessWidget {
-  const OnNavy({super.key, required this.child});
+/// Re-themes its subtree for content placed on the orange hero (hero panel,
+/// header strip, hero app bar).
+///
+/// * Text: `ink`, `text` and `dim` are all white — on orange only white
+///   keeps 4.5:1 for small text, so hierarchy comes from size and weight.
+///   `faint` (white 70 %) is decorative only.
+/// * Surfaces (`surface`, `surfaceAlt`, `brandSoft`): dark glass (black 14–
+///   18 %), where white text keeps ≥ 4.5:1 — never white glass under text.
+/// * Accents (`brand`, `brandBright`, `brandInk`, `link`): white.
+/// * Buttons: primary = white fill with an orange label, secondary = dark
+///   glass with a white label, text buttons and icons white.
+/// * Status tones keep their opaque tints (chips read well on orange).
+///
+/// DS widgets that need to know (logo, badges) ask [OnHero.isOn].
+class OnHero extends StatelessWidget {
+  const OnHero({super.key, required this.child});
 
   final Widget child;
 
+  static const _white = Color(0xFFFFFFFF);
+
+  /// Orange label on white controls placed on the hero (5.2:1).
+  static const Color onWhite = Color(0xFFC2410C);
+
+  /// Dark glass (cards, tiles, secondary buttons on the hero).
+  static const Color glass = Color(0x24000000);
+
+  /// Deeper dark glass (pills with small text anywhere on the hero).
+  static const Color glassStrong = Color(0x2E000000);
+
+  /// The on-hero palette derived from [base] (hero tokens are kept).
   static AknColors palette(AknColors base) => base.copyWith(
-    ink: const Color(0xFFFFFFFF),
-    text: const Color(0xFFE2E8F0),
-    dim: base.onNavyDim,
-    faint: const Color(0xFF8A97A8),
-    line: const Color(0x1FFFFFFF),
-    lineSoft: const Color(0x14FFFFFF),
-    lineStrong: const Color(0x33FFFFFF),
-    surface: base.navyRaised,
-    surfaceAlt: const Color(0xFF334155),
-    surfaceRaised: base.navyRaised,
-    bg: base.navy,
-    brand: const Color(0xFFF08A55),
-    brandInk: const Color(0xFFF5A372),
-    brandSoft: const Color(0x29FF5001),
-    brandLine: const Color(0x52FF5001),
+    ink: _white,
+    text: _white,
+    dim: _white,
+    faint: const Color(0xB3FFFFFF),
+    line: const Color(0x33FFFFFF),
+    lineSoft: const Color(0x1FFFFFFF),
+    lineStrong: const Color(0x5CFFFFFF),
+    surface: glass,
+    surfaceAlt: glassStrong,
+    surfaceRaised: glass,
+    bg: base.heroEnd,
+    brand: _white,
+    brandPressed: const Color(0xE6FFFFFF),
+    brandBright: _white,
+    brandInk: _white,
+    brandSoft: glass,
+    brandLine: const Color(0x4DFFFFFF),
+    brandFill: _white,
+    brandFillPressed: const Color(0xFFFFEDE3),
+    onBrandFill: onWhite,
     shadow: const Color(0x00000000),
-    skeleton: const Color(0x1AFFFFFF),
-    skeletonHighlight: const Color(0x2EFFFFFF),
-    link: const Color(0xFF93C5FD),
+    skeleton: const Color(0x26FFFFFF),
+    skeletonHighlight: const Color(0x40FFFFFF),
+    link: _white,
   );
+
+  /// True inside a hero surface.
+  static bool isOn(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_OnHeroScope>() != null;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // [palette] is idempotent: a hero inside a hero keeps the same palette.
     final base = context.akn;
-    final navy = palette(base);
-    final text = AknTextStyles.from(navy);
+    final p = palette(base);
+    final text = AknTextStyles.from(p);
+    const white = _white;
+    const overlay = WidgetStatePropertyAll<Color>(Color(0x1FFFFFFF));
+    ButtonStyle filled(ButtonStyle? s) => (s ?? const ButtonStyle()).copyWith(
+      backgroundColor: WidgetStateProperty.resolveWith(
+        (st) => st.contains(WidgetState.disabled)
+            ? const Color(0x1FFFFFFF)
+            : st.contains(WidgetState.pressed)
+            ? p.brandFillPressed
+            : white,
+      ),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (st) => st.contains(WidgetState.disabled) ? p.faint : onWhite,
+      ),
+      overlayColor: const WidgetStatePropertyAll<Color>(Color(0x14C2410C)),
+    );
     return Theme(
       data: theme.copyWith(
         extensions: theme.extensions.values
             .where((e) => e is! AknColors && e is! AknTextStyles)
-            .followedBy([navy, text]),
-        textTheme: AknTextStyles.textTheme(navy),
-        iconTheme: const IconThemeData(color: Color(0xFFFFFFFF), size: 22),
+            .followedBy([p, text]),
+        textTheme: AknTextStyles.textTheme(p),
+        iconTheme: const IconThemeData(color: white, size: 22),
+        primaryIconTheme: const IconThemeData(color: white, size: 22),
+        splashColor: const Color(0x1FFFFFFF),
+        highlightColor: const Color(0x14FFFFFF),
+        hoverColor: const Color(0x0FFFFFFF),
+        focusColor: const Color(0x33FFFFFF),
+        dividerColor: p.line,
+        dividerTheme: theme.dividerTheme.copyWith(color: p.line),
         iconButtonTheme: IconButtonThemeData(
           style: (theme.iconButtonTheme.style ?? const ButtonStyle()).copyWith(
-            foregroundColor: const WidgetStatePropertyAll<Color>(
-              Color(0xFFFFFFFF),
-            ),
-            overlayColor: const WidgetStatePropertyAll<Color>(
-              Color(0x1FFFFFFF),
-            ),
+            foregroundColor: const WidgetStatePropertyAll<Color>(white),
+            overlayColor: overlay,
           ),
         ),
         textButtonTheme: TextButtonThemeData(
           style: (theme.textButtonTheme.style ?? const ButtonStyle()).copyWith(
-            foregroundColor: WidgetStatePropertyAll<Color>(navy.brandInk),
-            overlayColor: const WidgetStatePropertyAll<Color>(
-              Color(0x1FFFFFFF),
-            ),
+            foregroundColor: const WidgetStatePropertyAll<Color>(white),
+            overlayColor: overlay,
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: (theme.outlinedButtonTheme.style ?? const ButtonStyle())
               .copyWith(
-                foregroundColor: const WidgetStatePropertyAll<Color>(
-                  Color(0xFFFFFFFF),
-                ),
-                backgroundColor: WidgetStatePropertyAll<Color>(navy.surface),
+                foregroundColor: const WidgetStatePropertyAll<Color>(white),
+                backgroundColor: const WidgetStatePropertyAll<Color>(glass),
                 side: WidgetStatePropertyAll<BorderSide>(
-                  BorderSide(color: navy.lineStrong),
+                  BorderSide(color: p.lineStrong),
                 ),
+                overlayColor: overlay,
               ),
         ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: filled(theme.filledButtonTheme.style),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: filled(theme.elevatedButtonTheme.style),
+        ),
+        progressIndicatorTheme: theme.progressIndicatorTheme.copyWith(
+          color: white,
+          linearTrackColor: const Color(0x38FFFFFF),
+          circularTrackColor: const Color(0x00000000),
+        ),
+        tabBarTheme: theme.tabBarTheme.copyWith(
+          labelColor: white,
+          unselectedLabelColor: white,
+          indicator: const UnderlineTabIndicator(
+            borderSide: BorderSide(color: white, width: 3),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
+          ),
+          dividerColor: const Color(0x00000000),
+          overlayColor: overlay,
+        ),
+        appBarTheme: theme.appBarTheme.copyWith(
+          backgroundColor: const Color(0x00000000),
+          foregroundColor: white,
+          iconTheme: const IconThemeData(color: white, size: 24),
+          actionsIconTheme: const IconThemeData(color: white, size: 24),
+          titleTextStyle: theme.appBarTheme.titleTextStyle?.copyWith(
+            color: white,
+          ),
+          systemOverlayStyle: AknTheme.overlayOnHero,
+        ),
+        chipTheme: theme.chipTheme.copyWith(
+          backgroundColor: glass,
+          labelStyle: text.label.copyWith(color: white),
+          side: BorderSide(color: p.line),
+        ),
+        textSelectionTheme: const TextSelectionThemeData(
+          cursorColor: white,
+          selectionColor: Color(0x4DFFFFFF),
+          selectionHandleColor: white,
+        ),
         colorScheme: theme.colorScheme.copyWith(
-          onSurface: const Color(0xFFFFFFFF),
-          onSurfaceVariant: base.onNavyDim,
-          surface: base.navyRaised,
+          primary: white,
+          onPrimary: onWhite,
+          secondary: white,
+          onSecondary: onWhite,
+          onSurface: white,
+          onSurfaceVariant: white,
+          surface: base.heroEnd,
+          outline: p.lineStrong,
+          outlineVariant: p.line,
         ),
       ),
-      child: DefaultTextStyle.merge(
-        style: TextStyle(color: navy.text),
-        child: IconTheme.merge(
-          data: const IconThemeData(color: Color(0xFFFFFFFF)),
-          child: child,
+      child: _OnHeroScope(
+        child: DefaultTextStyle.merge(
+          style: const TextStyle(color: white),
+          child: IconTheme.merge(
+            data: const IconThemeData(color: white),
+            child: child,
+          ),
         ),
       ),
     );
   }
 }
 
-/// Rounded square holding an icon (list leading, KPI icon).
+/// Kept for call-sites written for the navy identity: identical to
+/// [OnHero] (the hero is orange now).
+class OnNavy extends OnHero {
+  const OnNavy({super.key, required super.child});
+
+  /// Same as [OnHero.palette].
+  static AknColors palette(AknColors base) => OnHero.palette(base);
+}
+
+class _OnHeroScope extends InheritedWidget {
+  const _OnHeroScope({required super.child});
+
+  @override
+  bool updateShouldNotify(_OnHeroScope old) => false;
+}
+
+/// Glass pill for small text on the hero (role chips, "Bugün" summary,
+/// weather): dark glass with a white hairline, white 13 px label — AA
+/// anywhere on the gradient. Optional icon and tap.
+class AknHeroChip extends StatelessWidget {
+  const AknHeroChip({
+    super.key,
+    required this.label,
+    this.icon,
+    this.onTap,
+    this.semanticLabel,
+  });
+
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onTap;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    const white = Color(0xFFFFFFFF);
+    final pill = Container(
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: EdgeInsets.fromLTRB(icon == null ? 12 : 9, 5, 12, 5),
+      decoration: BoxDecoration(
+        color: OnHero.glassStrong,
+        borderRadius: AknRadius.pillAll,
+        border: Border.all(color: const Color(0x38FFFFFF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 15, color: white),
+            const SizedBox(width: 5),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: t.label.copyWith(color: white),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (onTap == null) {
+      return Semantics(
+        label: semanticLabel ?? label,
+        excludeSemantics: true,
+        child: pill,
+      );
+    }
+    return Semantics(
+      label: semanticLabel ?? label,
+      button: true,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          AknHaptics.selection();
+          onTap!();
+        },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+          child: Center(widthFactor: 1, child: PressScale(child: pill)),
+        ),
+      ),
+    );
+  }
+}
+
+/// Rounded square holding an icon (list leading, KPI icon, quick actions).
+/// [tone] tints it (brand = orange tile with an orange glyph).
 class AknIconBox extends StatelessWidget {
   const AknIconBox({
     super.key,
@@ -295,15 +536,16 @@ class AknIconBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = tone == null ? null : c.tone(tone!);
+    final glyph = tone == AknTone.brand ? c.brand : (t?.fg ?? c.text);
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: t?.bg ?? c.surfaceAlt,
-        borderRadius: BorderRadius.circular(size * 0.3),
+        borderRadius: BorderRadius.circular(size * 0.32),
       ),
       alignment: Alignment.center,
-      child: Icon(icon, size: iconSize ?? size * 0.5, color: t?.fg ?? c.text),
+      child: Icon(icon, size: iconSize ?? size * 0.5, color: glyph),
     );
   }
 }
@@ -450,7 +692,8 @@ class AknListTile extends StatelessWidget {
   }
 }
 
-/// Section title with an optional count and a trailing action ("Tümü").
+/// Section title (17 w800) with an optional count and a trailing orange
+/// action ("Tümü").
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -497,8 +740,10 @@ class SectionHeader extends StatelessWidget {
                       ],
                     ),
                     style: t.bodyStrong.copyWith(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                      height: 22 / 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
                     ),
                   ),
                 ),
@@ -613,7 +858,8 @@ class FactRow extends StatelessWidget {
   }
 }
 
-/// Inline notice: tinted box with icon, optional title, message and action.
+/// Inline notice: soft tinted box (16 px radius) with icon, optional title,
+/// message and action.
 class AknBanner extends StatelessWidget {
   const AknBanner({
     super.key,
@@ -644,7 +890,7 @@ class AknBanner extends StatelessWidget {
     Widget banner = Container(
       decoration: BoxDecoration(
         color: tc.bg,
-        borderRadius: AknRadius.card,
+        borderRadius: BorderRadius.circular(AknRadius.lg - 4),
         border: Border.all(color: tc.line),
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
@@ -655,7 +901,7 @@ class AknBanner extends StatelessWidget {
             padding: const EdgeInsets.only(top: 1),
             child: Icon(
               icon ?? AknStatus.toneIcon(tone),
-              color: tc.fg,
+              color: tone == AknTone.brand ? c.brand : tc.fg,
               size: 20,
             ),
           ),
@@ -712,8 +958,8 @@ class AknBanner extends StatelessWidget {
   }
 }
 
-/// Horizontal usage meter (limit usage). Brand below [warnAt], warn up to
-/// [dangerAt], danger beyond; the fill animates on change.
+/// Horizontal usage meter (limit usage). Logo orange below [warnAt], warn up
+/// to [dangerAt], danger beyond; the fill animates on change.
 class UsageBar extends StatelessWidget {
   const UsageBar({
     super.key,
@@ -749,7 +995,10 @@ class UsageBar extends StatelessWidget {
             : v >= warnAt
             ? AknTone.warn
             : AknTone.brand);
-    final color = effective == AknTone.brand ? c.brand : c.tone(effective).fg;
+    final color = effective == AknTone.brand
+        ? c.brandBright
+        : c.tone(effective).fg;
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     return Semantics(
       label: label,
       value: valueLabel ?? '%${(v * 100).round()}',
@@ -761,12 +1010,10 @@ class UsageBar extends StatelessWidget {
           if (label != null || valueLabel != null) ...[
             // Büyük yazıda değer etiketin altına iner (spec C.7).
             Flex(
-              direction: MediaQuery.textScalerOf(context).scale(10) >= 13
-                  ? Axis.vertical
-                  : Axis.horizontal,
+              direction: large ? Axis.vertical : Axis.horizontal,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (MediaQuery.textScalerOf(context).scale(10) >= 13)
+                if (large)
                   Text(label ?? '', style: t.caption)
                 else
                   Expanded(child: Text(label ?? '', style: t.caption)),
@@ -789,7 +1036,7 @@ class UsageBar extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  ColoredBox(color: c.lineSoft),
+                  ColoredBox(color: c.isDark ? c.line : c.surfaceAlt),
                   TweenAnimationBuilder<double>(
                     tween: Tween<double>(begin: 0, end: v.clamp(0.0, 1.0)),
                     duration: AknMotion.of(context, AknMotion.slow),
@@ -847,4 +1094,18 @@ class AmountText extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Status-bar style for a hero surface that reaches the top of the screen
+/// (light icons). Most screens get it from `AppScaffold(hero: true)`.
+class HeroStatusBar extends StatelessWidget {
+  const HeroStatusBar({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: AknTheme.overlayOnHero,
+    child: child,
+  );
 }

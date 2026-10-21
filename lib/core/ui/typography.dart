@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 
 import 'tokens.dart';
 
-/// Type scale (spec C.5) on the platform font (SF Pro / Roboto):
-/// display 32/40 w700, title 22/28 w700, headline 18/24 w600,
-/// body 15/22 w400, label 13/18 w600, caption 12/16.
+/// Type scale on the platform font (SF Pro / Roboto; no font assets):
+/// display 32/40 w800, title 22/28 w800 (tight tracking), headline 18/24
+/// w700, body 15/22 w400, label 13/18 w600, caption 12/16, numbers 28 and
+/// 34 w800.
 ///
-/// Amounts use tabular figures so columns of numbers line up and counters do
-/// not jitter. Read with `context.aknText`.
+/// Amounts and numbers use tabular figures so columns line up and counters
+/// do not jitter. Read with `context.aknText`.
 @immutable
 class AknTextStyles extends ThemeExtension<AknTextStyles> {
   const AknTextStyles({
@@ -24,6 +25,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
     required this.overline,
     required this.amount,
     required this.amountLarge,
+    required this.number,
+    required this.numberLarge,
     required this.button,
   });
 
@@ -52,6 +55,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
       overline: x(r.overline),
       amount: x(r.amount),
       amountLarge: d(r.amountLarge),
+      number: d(r.number),
+      numberLarge: d(r.numberLarge),
       button: x(r.button),
     );
   }
@@ -62,22 +67,22 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
       display: TextStyle(
         fontSize: 32,
         height: 40 / 32,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.6,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.8,
         color: c.ink,
       ),
       title: TextStyle(
         fontSize: 22,
         height: 28 / 22,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.3,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.4,
         color: c.ink,
       ),
       headline: TextStyle(
         fontSize: 18,
         height: 24 / 18,
-        fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
         color: c.ink,
       ),
       body: TextStyle(
@@ -133,16 +138,32 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
       amountLarge: TextStyle(
         fontSize: 28,
         height: 34 / 28,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+        fontFeatures: tabular,
+        color: c.ink,
+      ),
+      number: TextStyle(
+        fontSize: 28,
+        height: 34 / 28,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.6,
+        fontFeatures: tabular,
+        color: c.ink,
+      ),
+      numberLarge: TextStyle(
+        fontSize: 34,
+        height: 40 / 34,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.9,
         fontFeatures: tabular,
         color: c.ink,
       ),
       button: const TextStyle(
         fontSize: 15,
         height: 20 / 15,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.1,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.05,
       ),
     );
   }
@@ -164,8 +185,15 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
   /// Amounts and litres in lists (tabular figures).
   final TextStyle amount;
 
-  /// Hero amounts and KPI values (tabular figures).
+  /// Hero amounts and KPI values (28 w800, tabular figures).
   final TextStyle amountLarge;
+
+  /// Big statistic numbers: KPI tiles, deck cards (28 w800, tabular
+  /// figures). Pair with `AnimatedNumber` for a count-up.
+  final TextStyle number;
+
+  /// The biggest numbers (34 w800, tabular figures): a hero total.
+  final TextStyle numberLarge;
   final TextStyle button;
 
   /// Material [TextTheme] carrying the same scale, so stock widgets match.
@@ -204,6 +232,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
     TextStyle? overline,
     TextStyle? amount,
     TextStyle? amountLarge,
+    TextStyle? number,
+    TextStyle? numberLarge,
     TextStyle? button,
   }) {
     return AknTextStyles(
@@ -219,6 +249,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
       overline: overline ?? this.overline,
       amount: amount ?? this.amount,
       amountLarge: amountLarge ?? this.amountLarge,
+      number: number ?? this.number,
+      numberLarge: numberLarge ?? this.numberLarge,
       button: button ?? this.button,
     );
   }
@@ -240,6 +272,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
       overline: l(overline, other.overline),
       amount: l(amount, other.amount),
       amountLarge: l(amountLarge, other.amountLarge),
+      number: l(number, other.number),
+      numberLarge: l(numberLarge, other.numberLarge),
       button: l(button, other.button),
     );
   }

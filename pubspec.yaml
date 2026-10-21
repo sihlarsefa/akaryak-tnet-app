@@ -107,13 +107,19 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app-icon-foreground.png"
   adaptive_icon_monochrome: "assets/icon/app-icon-foreground.png"
 
-# Yerel açılış ekranı (lacivert + » işareti; hiçbir zaman mor değil): `bash $W/akn-flutter.sh splash`
+# Yerel açılış ekranı (beyaz + turuncu » işareti; koyu temada #0F1114; hiçbir zaman mor değil):
+# `bash $W/akn-flutter.sh splash`
 flutter_native_splash:
-  color: "#1F2A37"
+  color: "#FFFFFF"
   image: "assets/brand/akn-mark-512.png"
+  color_dark: "#0F1114"
+  image_dark: "assets/brand/akn-mark-512.png"
   ios_content_mode: center
   android_12:
-    color: "#1F2A37"
+    color: "#FFFFFF"
     image: "assets/icon/app-icon-foreground.png"
     icon_background_color: "#FF5001"
+    color_dark: "#0F1114"
+    image_dark: "assets/icon/app-icon-foreground.png"
+    icon_background_color_dark: "#FF5001"
   web: false

@@ -238,16 +238,18 @@ class _ToastViewState extends State<_ToastView>
                       child: Container(
                         decoration: BoxDecoration(
                           color: c.surfaceRaised,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: c.line),
+                          borderRadius: BorderRadius.circular(AknRadius.md + 2),
+                          border: Border.all(
+                            color: c.isDark ? c.line : c.lineSoft,
+                          ),
                           boxShadow: AknShadows.raised(c),
                         ),
-                        padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                        padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
                         child: Row(
                           children: [
                             Container(
-                              width: 32,
-                              height: 32,
+                              width: 34,
+                              height: 34,
                               decoration: BoxDecoration(
                                 color: tc.bg,
                                 shape: BoxShape.circle,

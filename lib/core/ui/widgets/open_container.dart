@@ -29,7 +29,7 @@ class AknOpenContainer<T extends Object?> extends StatelessWidget {
     required this.closedBuilder,
     required this.openBuilder,
     this.onClosed,
-    this.radius = AknRadius.md,
+    this.radius = AknRadius.lg,
     this.closedColor,
     this.tappable = false,
   });
@@ -63,7 +63,7 @@ class AknOpenContainer<T extends Object?> extends StatelessWidget {
       closedShadows: AknShadows.card(c),
       closedShape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radius),
-        side: BorderSide(color: c.line),
+        side: BorderSide(color: c.isDark ? c.line : c.lineSoft),
       ),
       openShape: const RoundedRectangleBorder(),
       onClosed: onClosed,

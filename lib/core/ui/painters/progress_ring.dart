@@ -53,8 +53,8 @@ class ProgressRing extends StatelessWidget {
           painter: ProgressRingPainter(
             value: animated,
             strokeWidth: strokeWidth,
-            color: color ?? c.brand,
-            trackColor: trackColor ?? c.lineSoft,
+            color: color ?? c.brandBright,
+            trackColor: trackColor ?? (c.isDark ? c.line : c.surfaceAlt),
           ),
           child: child,
         ),

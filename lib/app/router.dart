@@ -28,6 +28,7 @@ import '../features/notifications/api.dart';
 import '../features/onboarding/api.dart';
 import '../features/payments/api.dart';
 import '../features/profile/api.dart';
+import '../features/stats/api.dart';
 import '../features/weather/api.dart';
 import 'destinations.dart';
 import 'dev/dev_menu.dart';
@@ -337,6 +338,7 @@ List<RouteBase> featureRouteTable() => [
   ...assistantRoutes(),
   ...weatherRoutes(),
   ...profileRoutes(),
+  ...statsRoutes(),
 ];
 
 /// Rota tablosu: alt menüdeki hedefler kabuğun sekmeleri olur; diğer özellik rotaları tam ekran açılır.
