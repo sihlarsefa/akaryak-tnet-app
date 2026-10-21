@@ -100,7 +100,8 @@ integration_test/                    cihaz duman testi, mağaza görüntüleri, 
   tek torbadadır (`company.orderRequests`).
 - **Oturum:** `SessionController` (bilinmiyor → oturum yok → açık → kilitli); erişim belirteci yalnızca
   bellekte, yenileme belirteci güvenli depoda. Çıkışta / kullanıcı değişince önbellek, görseller,
-  bildirim merkezi ve simge rozeti temizlenir; erişim belirteci dolmuşsa `auth/revoke`. Kurulumdan
+  bildirim merkezi, simge rozeti ve özelliklerin kullanıcı dosyaları (saklı PDF'ler;
+  `sessionCleanupHooksProvider`, `app/wiring.dart`) temizlenir; erişim belirteci dolmuşsa `auth/revoke`. Kurulumdan
   sonraki ilk açılışta `akn.*` güvenli anahtarları silinir (iOS Anahtar Zinciri yeniden kurulumda kalır).
 - **Kilit:** biyometrik kilit 60 sn arka planda kalınca; kamera, paylaşım, tarayıcı dönüşü kilitlemez
   (`ExternalActivity`); kilit açıkken uygulama değiştiricide lacivert gizlilik örtüsü.
@@ -132,7 +133,7 @@ dart run flutter_native_splash:create      # yerel açılış (lacivert #1F2A37 
 |---|---|
 | `test/core`, `test/core/ui` | çekirdek davranış, tasarım sistemi (mor yok, kontrast, 48 dp, 2,0× yazı) |
 | `test/features/<f>` | özellik ekranları ve sahteleri (C.7 erişilebilirlik dahil) |
-| `test/app` | push rota tablosu, persona geçişi (2,0× koyu + kılavuzlar), duman akışı, ekran görüntüsü |
+| `test/app` | rota ve push rota tablosu, persona geçişi (2,0× koyu + kılavuzlar), duman akışı, 100+ satırlık listeler, çıkış temizliği, ekran görüntüsü |
 | `test/contract` | sözleşme örnekleri (C# DTO anahtarları) ve enum kodları |
 | `integration_test/` | cihazda duman (`app_smoke_test`), mağaza görüntüleri, performans izi |
 
@@ -146,7 +147,8 @@ flutter test integration_test/app_smoke_test.dart --dart-define-from-file=env/de
 
 - **Performans bütçesi** (profil kipi, orta seviye Android API 30 / 4 GB ve iPhone 11 sınıfı): kabuğa
   soğuk açılış ≤ 2,5 sn; 100 satırlık teklif masası / sipariş listesi kaydırmada takılan kare ≤ %1
-  (`flutter drive --profile --target=integration_test/perf_test.dart …`); küçük resimler `cacheWidth` ile
+  (`flutter drive --profile --target=integration_test/perf_test.dart …`, sahte dünyada 120 bekleyen
+  sipariş; soğuk açılış `flutter run --profile --trace-startup`); küçük resimler `cacheWidth` ile
   çözülür; indirme boyutu (≤ 60 MB önerilir) yayın derlemesinden sonra
   `flutter build appbundle --analyze-size` / App Store Connect "App Size" ile kaydedilir.
 - **Mağaza paketi:** `$W/akn-mobile/store/` (inceleme notları, gizlilik formları, kayıt metinleri,

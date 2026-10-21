@@ -1,7 +1,9 @@
 import '../../core/auth/permissions.dart';
 import '../../core/models/json.dart';
 import '../../core/models/me_access.dart';
+import '../../core/network/fake/fake_personas.dart';
 import '../../core/network/fake/fake_server.dart';
+import '../../core/network/fake/fake_world.dart';
 import '../../core/utils/tr_time.dart';
 import '../../core/utils/turkish_text.dart';
 import '../approvals/api.dart';
@@ -15,6 +17,9 @@ import '../approvals/api.dart';
 /// - `POST payments/instruments/{id}/status`
 /// - Yedek: `GET bayi/customers?q` (A4 kaydederse onunki geçerlidir; cari süzgeci için).
 void registerPaymentsFakes(FakeServer server) {
+  // Sunucu gibi: bekleyen ödemeye yöntemin belgesi yüklenince "Belge yüklendi" (bkz. A5FakeStore).
+  server.world.addAttachmentListener(_onDocumentUploaded);
+
   void require(FakeRequest req) {
     final p = req.requireUser();
     if (p.persona != Persona.bayi || !p.can(Pg.stationPayments)) {
@@ -211,3 +216,9 @@ void registerPaymentsFakes(FakeServer server) {
     return req.paged(rows);
   });
 }
+
+void _onDocumentUploaded(
+  FakeWorld world,
+  JsonMap attachment,
+  FakePersona? uploadedBy,
+) => A5FakeStore.of(world).onDocumentUploaded(attachment, uploadedBy);

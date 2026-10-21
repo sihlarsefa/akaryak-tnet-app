@@ -181,8 +181,8 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
       FieldSection.portfolio || FieldSection.forms => (
         'Saha formu',
         AppRoutes.fieldFormNew,
-        // Temsilcinin orta düğmesi zaten "Saha formu" (alt menüde); sekme içinde de kısayol olur.
-        a.canCreateForm,
+        // Temsilcide alt menünün orta düğmesi zaten "Saha formu": aynı eylem iki kez görünmez.
+        a.canCreateForm && !a.hasCenterFormAction,
       ),
       _ => ('', '', false),
     };

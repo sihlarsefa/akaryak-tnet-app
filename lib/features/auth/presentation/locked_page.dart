@@ -104,7 +104,11 @@ class _LockedPageState extends ConsumerState<LockedPage> {
     ref.read(loginPrefillProvider.notifier).set(session.access?.userName);
     await ref
         .read(sessionControllerProvider.notifier)
-        .signOut(message: AuthCopy.passwordFallbackNotice);
+        .signOut(
+          message: AuthCopy.passwordFallbackNotice,
+          // Yeniden giriş: yarım teslim / sipariş taslakları korunur.
+          reason: SignOutReason.lockFallback,
+        );
   }
 
   static String? _message(BiometricOutcome? outcome) => switch (outcome) {

@@ -212,6 +212,60 @@ void main() {
     await tearDownUi(tester);
   });
 
+  // Sunucu her yeni teklifi "seçili" kaydeder (OrderService.SubmitQuoteAsync) ve revize / ret / süre
+  // dolumunda bunu değiştirmez: "Onaylanan teklif" yalnızca onaylanmış siparişte görünmeli.
+  void selectLatestQuote(int id) {
+    final quotes = (env.world.order(id)!['quotes'] as List).cast<Map>();
+    for (final q in quotes) {
+      q['isSelected'] = identical(q, quotes.last);
+    }
+  }
+
+  testWidgets(
+    'revize istenen teklif "Onaylanan teklif" olarak gösterilmez (seçili olsa da)',
+    (tester) async {
+      selectLatestQuote(o2);
+      await open(tester, o2);
+      await tester.tap(find.widgetWithText(AknButton, 'Revize iste'));
+      await pumpReal(tester);
+      await tester.tap(
+        find.widgetWithText(FilterChip, 'Teslim tarihi uygun değil'),
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(AknButton, 'Revize iste').last);
+      await pumpUntil(tester, find.text('Revize teklif bekleniyor'));
+      await pumpReal(tester);
+      expect(env.world.order(o2)!['status'], 5);
+      expect(find.text('Onaylanan teklif'), findsNothing);
+      expect(find.text('Revize istenen teklif'), findsOneWidget);
+      expect(find.text('Teslim tarihi uygun değil'), findsWidgets);
+      await tearDownUi(tester);
+    },
+  );
+
+  for (final (status, title) in const [
+    (4, 'Reddedilen teklif'),
+    (6, 'Süresi dolan teklif'),
+  ]) {
+    testWidgets('durum $status: teklif "$title" başlığıyla, onaylı değil', (
+      tester,
+    ) async {
+      selectLatestQuote(o2);
+      env.world.order(o2)!['status'] = status;
+      await open(tester, o2);
+      expect(find.text('Onaylanan teklif'), findsNothing);
+      expect(find.text(title), findsOneWidget);
+      expect(find.text('42,35 ₺/L'), findsWidgets);
+      await tearDownUi(tester);
+    });
+  }
+
+  testWidgets('onaylı siparişte "Onaylanan teklif"', (tester) async {
+    await open(tester, o3);
+    expect(find.text('Onaylanan teklif'), findsOneWidget);
+    await tearDownUi(tester);
+  });
+
   testWidgets(
     'takip: yoldaki araç, plaka, "canlı konum değildir", sevkiyat kartları',
     (tester) async {

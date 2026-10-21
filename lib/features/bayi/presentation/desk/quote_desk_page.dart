@@ -310,11 +310,16 @@ class _DeskActionBar extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (large) ...[
-          status,
-          Align(alignment: AlignmentDirectional.centerStart, child: selectAll),
-          suggest,
-          const SizedBox(height: 6),
-          same,
+          // Büyük yazıda çubuk listeyi örtmesin: seçim ve toplu araçlar tek düğmeyle açılan sayfada;
+          // ipucu metni o sayfanın alt başlığındadır (seçim yokken burada gösterilmez).
+          if (selected > 0) ...[status, const SizedBox(height: 6)],
+          AknButton.secondary(
+            label: 'Toplu işlemler',
+            icon: Icons.checklist_rounded,
+            size: AknButtonSize.small,
+            expand: true,
+            onPressed: () => _showDeskTools(context, ref),
+          ),
         ] else ...[
           Row(
             children: [
@@ -357,6 +362,69 @@ class _DeskActionBar extends ConsumerWidget {
     );
   }
 }
+
+/// Büyük yazı ölçeğinde alt çubuğun toplu araçları: tümünü seç / seçimi kaldır, önerileri uygula,
+/// seçilenlere aynı fiyat/tarih.
+Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
+    showAppSheet<void>(
+      context: context,
+      title: 'Toplu işlemler',
+      subtitle: BayiCopy.deskSubmitHint,
+      builder: (sheet) => Consumer(
+        builder: (sheet, sheetRef, _) {
+          final s = sheetRef.watch(quoteDeskProvider);
+          final c = sheetRef.read(quoteDeskProvider.notifier);
+          final selected = s.selected.length;
+          final allSelected = selected > 0 && selected == s.rows.length;
+          void close() => Navigator.of(sheet).pop();
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AknButton.secondary(
+                label: allSelected ? 'Seçimi kaldır' : 'Tümünü seç',
+                icon: allSelected
+                    ? Icons.deselect_rounded
+                    : Icons.select_all_rounded,
+                expand: true,
+                onPressed: () {
+                  allSelected ? c.clearSelection() : c.selectAll();
+                  close();
+                },
+              ),
+              const SizedBox(height: 8),
+              AknButton.secondary(
+                label: 'Önerileri uygula',
+                icon: Icons.auto_fix_high_rounded,
+                expand: true,
+                onPressed: () {
+                  final n = c.applySuggestions();
+                  close();
+                  AppToast.info(
+                    n == 0
+                        ? 'Önerisi olan satır yok.'
+                        : '$n satıra önerilen fiyat yazıldı.',
+                    context: context,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              AknButton.secondary(
+                label: 'Aynı fiyat/tarih',
+                icon: Icons.copy_all_rounded,
+                expand: true,
+                onPressed: selected == 0
+                    ? null
+                    : () {
+                        close();
+                        unawaited(showBulkSameSheet(context, ref));
+                      },
+              ),
+            ],
+          );
+        },
+      ),
+    );
 
 /// Rota kurucusu: `/quote-desk?customerId=`.
 Widget buildQuoteDeskPage(BuildContext context, GoRouterState state) =>

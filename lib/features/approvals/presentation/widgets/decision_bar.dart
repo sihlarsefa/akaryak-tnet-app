@@ -25,6 +25,14 @@ String decisionDescription(ApprovalDecision d) => switch (d) {
   ApprovalDecision.unknown => '',
 };
 
+/// Çubuktaki ikincil karar düğmesi.
+typedef _Secondary = ({
+  String label,
+  IconData icon,
+  String? semantic,
+  VoidCallback? onTap,
+});
+
 /// Karar çubuğu (spec A.4): yalnızca sunucunun verdiği [ApprovalDetail.modes].
 ///
 /// - Olumlu karar büyük turuncu düğme; "Reddet" yanında. Üçten fazla karar varsa "Ek bilgi iste" ve
@@ -92,34 +100,47 @@ class DecisionBar extends ConsumerWidget {
     VoidCallback? act(ApprovalDecision m) =>
         online ? () => onDecision(m) : null;
 
-    final secondaryButtons = <Widget>[
+    final secondarySpecs = <_Secondary>[
       for (final m in inline)
-        AknButton.secondary(
+        (
           label: d.modeLabel(m),
           icon: decisionIcon(m),
-          expand: true,
-          onPressed: act(m),
+          semantic: null,
+          onTap: act(m),
         ),
       if (overflow.isNotEmpty)
-        AknButton.secondary(
+        (
           label: 'Diğer',
           icon: Icons.more_horiz_rounded,
-          expand: true,
-          semanticLabel:
-              'Diğer kararlar: ${overflow.map(d.modeLabel).join(', ')}',
-          onPressed: online ? () => _more(context, overflow) : null,
+          semantic: 'Diğer kararlar: ${overflow.map(d.modeLabel).join(', ')}',
+          onTap: online ? () => _more(context, overflow) : null,
         ),
       if (onForward != null && hasApprove)
-        AknButton.secondary(
+        (
           label: 'Merkeze ilet',
           icon: Icons.upload_rounded,
-          expand: true,
-          onPressed: online ? onForward : null,
+          semantic: null,
+          onTap: online ? onForward : null,
         ),
     ];
+    List<Widget> secondaryButtons({required bool icons}) => [
+      for (final b in secondarySpecs)
+        AknButton.secondary(
+          label: b.label,
+          icon: icons ? b.icon : null,
+          expand: true,
+          semanticLabel: b.semantic,
+          onPressed: b.onTap,
+        ),
+    ];
+    final primaryLabel = hasApprove
+        ? d.modeLabel(ApprovalDecision.approve)
+        : onForward != null
+        ? 'Merkeze ilet'
+        : null;
     Widget? primaryButton(AknButtonSize size) => hasApprove
         ? AknButton(
-            label: d.modeLabel(ApprovalDecision.approve),
+            label: primaryLabel!,
             icon: Icons.check_rounded,
             expand: true,
             size: size,
@@ -127,7 +148,7 @@ class DecisionBar extends ConsumerWidget {
           )
         : onForward != null
         ? AknButton(
-            label: 'Merkeze ilet',
+            label: primaryLabel!,
             icon: Icons.upload_rounded,
             expand: true,
             size: size,
@@ -135,43 +156,64 @@ class DecisionBar extends ConsumerWidget {
           )
         : null;
 
-    final Widget bar;
-    final inRow = !large && secondaryButtons.length <= 2;
-    final primary = primaryButton(
-      inRow && secondaryButtons.isNotEmpty
-          ? AknButtonSize.medium
-          : AknButtonSize.large,
-    );
-    if (inRow && primary != null) {
-      bar = Row(
-        children: [
-          for (final b in secondaryButtons) ...[
-            Expanded(child: b),
-            const SizedBox(width: 10),
-          ],
-          Expanded(flex: secondaryButtons.isEmpty ? 1 : 2, child: primary),
-        ],
-      );
-    } else {
-      bar = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (secondaryButtons.isNotEmpty)
-            Row(
-              children: [
-                for (var i = 0; i < secondaryButtons.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 10),
-                  Expanded(child: secondaryButtons[i]),
-                ],
-              ],
-            ),
-          if (secondaryButtons.isNotEmpty && primary != null)
-            const SizedBox(height: 8),
-          ?primary,
-        ],
-      );
+    /// Tek satır (ikinciller simgesiz, olumlu karar iki pay): her etiket tek satırda bütün
+    /// sığıyorsa. Sığmıyorsa ikinciller kendi satırında, olumlu karar tam genişlikte.
+    bool rowFits(double width) {
+      if (large || secondarySpecs.length > 2) return false;
+      if (primaryLabel == null || secondarySpecs.isEmpty) return true;
+      const gap = 10.0;
+      final unit =
+          (width - gap * secondarySpecs.length) / (secondarySpecs.length + 2);
+      return secondarySpecs.every(
+            (b) =>
+                AknButton.fitsOneLine(context, b.label, unit, bordered: true),
+          ) &&
+          AknButton.fitsOneLine(context, primaryLabel, unit * 2, icon: true);
     }
+
+    final bar = LayoutBuilder(
+      builder: (context, constraints) {
+        final inRow =
+            constraints.hasBoundedWidth && rowFits(constraints.maxWidth);
+        if (inRow) {
+          final buttons = secondaryButtons(icons: false);
+          final primary = primaryButton(
+            buttons.isEmpty ? AknButtonSize.large : AknButtonSize.medium,
+          );
+          if (primary != null) {
+            return Row(
+              children: [
+                for (final b in buttons) ...[
+                  Expanded(child: b),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(flex: buttons.isEmpty ? 1 : 2, child: primary),
+              ],
+            );
+          }
+        }
+        final buttons = secondaryButtons(icons: true);
+        final primary = primaryButton(AknButtonSize.large);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (buttons.isNotEmpty)
+              Row(
+                children: [
+                  for (var i = 0; i < buttons.length; i++) ...[
+                    if (i > 0) const SizedBox(width: 10),
+                    Expanded(child: buttons[i]),
+                  ],
+                ],
+              ),
+            if (buttons.isNotEmpty && primary != null)
+              const SizedBox(height: 8),
+            ?primary,
+          ],
+        );
+      },
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,

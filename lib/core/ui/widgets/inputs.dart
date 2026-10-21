@@ -92,10 +92,21 @@ class AknTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
+    final doneBar = _numericKeyboard && KeyboardDoneAccessory.isShown;
     final field = TextFormField(
       controller: controller,
       initialValue: controller == null ? initialValue : null,
       focusNode: focusNode,
+      // iOS'ta klavyenin üstündeki "Bitti" çubuğu: alan klavyeye kaydırılırken çubuğun da üstünde
+      // kalır (yazılan sayı çubuğun altında kalmaz).
+      scrollPadding: doneBar
+          ? const EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + KeyboardDoneAccessory.barHeight,
+            )
+          : const EdgeInsets.all(20),
       enabled: enabled,
       readOnly: readOnly,
       obscureText: obscureText,
@@ -144,6 +155,12 @@ class KeyboardDoneAccessory extends StatefulWidget {
   /// "Bitti" düğmesinin metni.
   static const label = 'Bitti';
 
+  /// Çubuğun yüksekliği (klavyenin hemen üstünde; alanlar bu kadar ek payla kaydırılır).
+  static const double barHeight = 48;
+
+  /// Çubuk bu platformda gösterilir mi (yalnızca iOS).
+  static bool get isShown => defaultTargetPlatform == TargetPlatform.iOS;
+
   @override
   State<KeyboardDoneAccessory> createState() => _KeyboardDoneAccessoryState();
 }
@@ -152,7 +169,7 @@ class _KeyboardDoneAccessoryState extends State<KeyboardDoneAccessory> {
   OverlayEntry? _entry;
 
   void _onFocus(bool focused) {
-    if (focused && defaultTargetPlatform == TargetPlatform.iOS) {
+    if (focused && KeyboardDoneAccessory.isShown) {
       if (_entry != null) return;
       final overlay = Overlay.maybeOf(context, rootOverlay: true);
       if (overlay == null) return;
@@ -202,11 +219,14 @@ class _DoneBar extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: c.line)),
           ),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
-              child: const Text(KeyboardDoneAccessory.label),
+          child: SizedBox(
+            height: KeyboardDoneAccessory.barHeight,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
+                child: const Text(KeyboardDoneAccessory.label),
+              ),
             ),
           ),
         ),

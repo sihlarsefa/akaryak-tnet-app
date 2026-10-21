@@ -3305,6 +3305,65 @@ class A5FakeStore {
     }
   }
 
+  /// Sunucunun `PaymentDocumentUploadListener` → `PaymentTrackingService.OnDocumentUploadedAsync`
+  /// aynası: bekleyen ödemeye yöntemin belgesi (dekont, POS slibi, çek / senet görseli…) yüklenince
+  /// ödeme ve aynı ödeme grubundaki bekleyen siparişler "Belge yüklendi" olur; her siparişin sürüm
+  /// belirteci yenilenir (eski belirteçle durum değişikliği 409 alır).
+  void onDocumentUploaded(JsonMap attachment, FakePersona? by) {
+    final ownerType = attachment['ownerType'] as int?;
+    final ownerId = attachment['ownerId'] as int?;
+    int? orderId;
+    if (ownerType == AttachmentOwnerType.order.code) {
+      orderId = ownerId;
+    } else if (ownerType == AttachmentOwnerType.paymentInstrument.code) {
+      for (final i in instruments) {
+        if (i['id'] == ownerId) orderId = i['orderId'] as int?;
+      }
+    }
+    final o = world.order(orderId);
+    if (o == null) return;
+    bool pendingOpen(JsonMap x) =>
+        x['paymentStatus'] == PaymentStatus.pending.code &&
+        x['status'] != OrderStatus.rejected.code &&
+        x['status'] != OrderStatus.expired.code;
+    if (!pendingOpen(o)) return;
+    final method = o['paymentMethodCode'] as String?;
+    final (docKind, _) = documentOf(method);
+    if (docKind == null || docKind != attachment['kind']) return;
+    final group = o['paymentGroupKey'];
+    final targets = [
+      o,
+      if (group != null)
+        for (final x in world.orders)
+          if (!identical(x, o) &&
+              x['paymentGroupKey'] == group &&
+              x['stationId'] == o['stationId'] &&
+              x['paymentMethodCode'] == method &&
+              pendingOpen(x))
+            x,
+    ];
+    final now = DateTime.now().toUtc();
+    final kindLabel = AttachmentKind.fromCode(docKind).label;
+    for (final t in targets) {
+      final id = t['id'] as int;
+      t['paymentStatus'] = PaymentStatus.documentUploaded.code;
+      orderTokens[id] = newToken();
+      (paymentHistory[id] ??= []).add({
+        'fromStatus': PaymentStatus.pending.code,
+        'toStatus': PaymentStatus.documentUploaded.code,
+        'note': 'Belge yüklendi: $kindLabel',
+        'attachmentId': null,
+        'attachmentPublicId': attachment['publicId'],
+        'changedByUserId': by?.userId,
+        'changedByDisplay': by?.displayName,
+        'changedAt': utc(now),
+        'changedAtUtc': utc(now),
+        'fromStatusLabel': PaymentStatus.pending.label,
+        'toStatusLabel': PaymentStatus.documentUploaded.label,
+      });
+    }
+  }
+
   /// `POST payments/instruments/{id}/status`.
   void changeInstrumentStatus(FakePersona p, JsonMap i, JsonReader body) {
     final from = i['status'] as int;

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/auth/session_cleanup.dart';
 import '../../../core/utils/log.dart';
 
 /// Cihazda saklanan belge (çevrimdışı paylaşım).
@@ -260,3 +261,10 @@ class MemoryPdfCache implements PdfCache {
 }
 
 final pdfCacheProvider = Provider<PdfCache>((ref) => FilePdfCache());
+
+/// Oturum kapanınca ya da kullanıcı değişince o kullanıcının saklı PDF belgelerini siler (ortak
+/// telefon; spec D.7). Uygulama katmanı `sessionCleanupHooksProvider`'a ekler.
+SessionCleanup customerMoreSessionCleanup(Ref ref) => (userId) async {
+  if (userId == null) return;
+  await ref.read(pdfCacheProvider).clear(userId);
+};

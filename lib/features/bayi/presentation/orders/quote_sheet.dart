@@ -9,6 +9,7 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../application/bayi_actions.dart';
+import '../../application/bayi_runtime.dart';
 import '../../application/desk_controller.dart';
 import '../../data/bayi_repository.dart';
 import '../widgets/bayi_widgets.dart';
@@ -65,24 +66,30 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
     final o = widget.order;
     setState(() => _busy = true);
     try {
-      await ref
+      final outcome = await ref
           .read(bayiActionsProvider)
           .quoteOrder(
             o.id,
             unitPrice: MoneyField.parse(_price.text)!,
             deliveryDate: _date,
+            wasAwaitingFinance: o.financeStatus.isAwaitingDecision,
           );
-      // Teklif kaydedildi; sonucu (finansa gitti mi) okumak başarısız olsa da işlem başarılıdır.
+      // Teklif kaydedildi ya da sipariş finansa gitti; sonucu okumak başarısız olsa da işlem
+      // başarılıdır.
       OrderDetail? fresh;
-      try {
-        fresh = await ref.read(bayiRepositoryProvider).order(o.id);
-      } catch (_) {
-        fresh = null;
+      if (outcome != BayiOutcome.routedToFinance) {
+        try {
+          fresh = await ref.read(bayiRepositoryProvider).order(o.id);
+        } catch (_) {
+          fresh = null;
+        }
       }
       if (!mounted) return;
-      if (fresh?.financeStatus.isAwaitingDecision ?? false) {
+      if (outcome == BayiOutcome.routedToFinance ||
+          (fresh?.financeStatus.isAwaitingDecision ?? false)) {
+        AknHaptics.warning();
         AppToast.warning(
-          'Teklif cari limitini aştığı için sipariş finans onayına gönderildi. Finans onaylayınca yeniden teklif verebilirsiniz.',
+          'Teklif cari limitini aştığı için kaydedilmedi; sipariş finans onayına gönderildi. Finans onaylayınca yeniden teklif verebilirsiniz.',
           context: context,
         );
       } else {

@@ -293,9 +293,17 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         d.status == OrderStatus.awaitingQuote ||
         d.status == OrderStatus.revisionRequested ||
         d.status == OrderStatus.created;
-    final selected = d.status == OrderStatus.awaitingApproval
-        ? null
-        : d.quotes.where((q) => q.isSelected).firstOrNull;
+    // Sunucu her yeni teklifi "seçili" kaydeder ve revize / ret / süre dolumunda bunu değiştirmez:
+    // "Onaylanan teklif" yalnızca onaylanmış ve tamamlanmış siparişte; reddedilen, revizesi istenen
+    // ya da süresi dolan teklif kendi adıyla gösterilir.
+    final quoteCard = switch (d.status) {
+      OrderStatus.approved || OrderStatus.completed => _QuoteKind.approved,
+      OrderStatus.revisionRequested => _QuoteKind.revisionRequested,
+      OrderStatus.rejected => _QuoteKind.rejected,
+      OrderStatus.expired => _QuoteKind.expired,
+      _ => null,
+    };
+    final shownQuote = quoteCard == null ? null : d.currentQuote;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -335,8 +343,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
                 ? () => _upload(v)
                 : null,
           )
-        else if (selected != null)
-          _SelectedQuote(quote: selected, detail: d),
+        else if (shownQuote != null && quoteCard != null)
+          _QuoteSummary(quote: shownQuote, detail: d, kind: quoteCard),
         if (awaitingQuote && !d.financeStatus.isAwaitingDecision)
           SectionCard(
             title: d.status == OrderStatus.revisionRequested
@@ -619,16 +627,34 @@ class _DeliveryFacts extends StatelessWidget {
   }
 }
 
-class _SelectedQuote extends StatelessWidget {
-  const _SelectedQuote({required this.quote, required this.detail});
+/// Karar ekranı dışındaki teklif kartının anlamı (başlık ve simge).
+enum _QuoteKind {
+  approved('Onaylanan teklif', Icons.verified_rounded),
+  revisionRequested('Revize istenen teklif', Icons.edit_note_rounded),
+  rejected('Reddedilen teklif', Icons.do_not_disturb_on_rounded),
+  expired('Süresi dolan teklif', Icons.timer_off_rounded);
+
+  const _QuoteKind(this.title, this.icon);
+
+  final String title;
+  final IconData icon;
+}
+
+class _QuoteSummary extends StatelessWidget {
+  const _QuoteSummary({
+    required this.quote,
+    required this.detail,
+    required this.kind,
+  });
 
   final Quote quote;
   final OrderDetail detail;
+  final _QuoteKind kind;
 
   @override
   Widget build(BuildContext context) => SectionCard(
-    title: 'Onaylanan teklif',
-    icon: Icons.verified_rounded,
+    title: kind.title,
+    icon: kind.icon,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -639,6 +665,8 @@ class _SelectedQuote extends StatelessWidget {
           value: Fmt.date(quote.deliveryDate ?? detail.requestedDeliveryDate),
         ),
         FactRow(label: 'Sürüm', value: 'v${quote.version}'),
+        if (kind == _QuoteKind.revisionRequested && quote.revisionNote != null)
+          FactRow(label: 'Revize notunuz', value: quote.revisionNote!),
       ],
     ),
   );

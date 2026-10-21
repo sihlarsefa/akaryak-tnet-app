@@ -7,6 +7,7 @@ import '../auth/session_controller.dart';
 import '../auth/session_state.dart';
 import '../env/app_config_controller.dart';
 import '../routing/route_access.dart';
+import '../storage/prefs_store.dart';
 import '../utils/app_messenger.dart';
 import '../utils/log.dart';
 import 'push_payload.dart';
@@ -16,7 +17,17 @@ import 'push_service.dart';
 final firebaseAvailableProvider = Provider<bool>((ref) => false);
 
 final pushServiceProvider = Provider<PushService>((ref) {
-  final s = PushService(available: ref.watch(firebaseAvailableProvider));
+  PrefsStore? prefs;
+  try {
+    prefs = ref.watch(prefsStoreProvider);
+  } catch (_) {
+    // Tercihler yok (bazı testler): izin "bir kez soruldu" bilgisi saklanmaz.
+    prefs = null;
+  }
+  final s = PushService(
+    available: ref.watch(firebaseAvailableProvider),
+    prefs: prefs,
+  );
   ref.onDispose(s.dispose);
   return s;
 });
@@ -102,12 +113,22 @@ class PushCoordinator {
               .show(AppMessage(text, title: p.title, route: route));
         }
       case PushOrigin.tap:
-        final route = RouteAccess.resolvePushRoute(
-          p.route,
-          ref.read(accessPolicyProvider),
-          ref.read(appConfigProvider).features,
-        );
-        ref.read(pendingDeepLinkProvider.notifier).set(route);
+        final pending = ref.read(pendingDeepLinkProvider.notifier);
+        final session = ref.read(sessionControllerProvider);
+        if (session is SessionAuthenticated || session is SessionLocked) {
+          pending.set(
+            RouteAccess.resolvePushRoute(
+              p.route,
+              ref.read(accessPolicyProvider),
+              ref.read(appConfigProvider).features,
+            ),
+          );
+        } else {
+          // Soğuk açılış: dokunuş oturum geri yüklenmeden gelebilir (kişi henüz bilinmiyor). Rota
+          // olduğu gibi saklanır; yönlendirici oturum açılınca kullanıcının yetkisiyle denetler,
+          // izin yoksa `/notifications` açar. Şimdi denetlemek her rotayı reddederdi.
+          pending.set(RouteAccess.sanitizePushRoute(p.route), fromPush: true);
+        }
     }
   }
 

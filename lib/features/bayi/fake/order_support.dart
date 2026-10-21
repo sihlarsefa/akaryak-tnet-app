@@ -314,7 +314,8 @@ void addTimeline(
   });
 }
 
-/// Teklif ekler (sürüm +1) ve durumu "Onay bekleniyor" yapar.
+/// Teklif ekler (sürüm +1) ve durumu "Onay bekleniyor" yapar. Sunucu gibi (`SubmitQuoteAsync`) yeni
+/// teklif seçili kaydedilir, öncekilerin seçimi kalkar; revize, ret ve süre dolumu seçimi değiştirmez.
 JsonMap addQuote(
   FakeWorld w,
   JsonMap o,
@@ -323,6 +324,9 @@ JsonMap addQuote(
 ) {
   final qs = quotesOf(o);
   final version = qs.isEmpty ? 1 : (qs.last['version'] as num).toInt() + 1;
+  for (final old in qs) {
+    old['isSelected'] = false;
+  }
   final q = w.newQuote(
     id: w.nextId('quote', start: 30001),
     version: version,
@@ -330,6 +334,7 @@ JsonMap addQuote(
     liters: qty(o),
     deliveryDate: deliveryDay,
     createdAt: TrTime.now(),
+    selected: true,
   );
   o['quotes'] = [...qs, q];
   o['status'] = 2;
@@ -393,6 +398,22 @@ void routeToFinance(FakeWorld w, JsonMap o, double total, FakePersona actor) {
     entityType: 'ApprovalRequest',
     entityId: id,
   );
+}
+
+/// Sunucunun limit aşımı yönlendirme metni (bayinin tekil teklifi; `RouteLimitOverrunToFinanceAsync`).
+String limitRoutedMessage(FakeWorld w, JsonMap o, double total) {
+  final link = w.link(o['stationId'] as int, o['customerId'] as int);
+  final limit = (link?['limitAmount'] as num?)?.toDouble() ?? 0;
+  final used = (link?['used'] as num?)?.toDouble() ?? 0;
+  final litre = link?['limitType'] == 'Litre';
+  final available = (limit - used) < 0 ? 0.0 : limit - used;
+  final unit = litre ? 'L' : 'TL';
+  final availableText = litre
+      ? '${_money(available).replaceAll(' ₺', '')} $unit'
+      : _money(available).replaceAll('₺', unit);
+  return 'Teklif tutarı (${_money(total).replaceAll('₺', 'TL')}) cari limitini aşıyor '
+      '(kullanılabilir $availableText); sipariş finans onayına gönderildi. '
+      'Finans onaylayınca teklifi yeniden girin.';
 }
 
 String _money(double v) {

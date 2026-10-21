@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/models.dart';
+import '../../../core/network/app_failure.dart';
 import '../../../core/network/idempotency.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
@@ -27,29 +28,52 @@ class BayiActions {
 
   // ------------------------------------------------------------------ Sipariş
 
-  /// Tekil teklif (sipariş ayrıntısı). Sunucu limit aşımında siparişi finans onayına gönderebilir:
-  /// çağıran siparişi yeniden okuyup finans durumunu gösterir.
+  /// Tekil teklif (sipariş ayrıntısı).
+  ///
+  /// Teklif cari limitini aşıyorsa ve bayi kuralı aşımı finansa gönderiyorsa sunucu siparişi finans
+  /// onayına alır, bunu kaydeder ve ardından 400 iş kuralı döner ("…sipariş finans onayına
+  /// gönderildi. Finans onaylayınca teklifi yeniden girin."; teklif kaydedilmez). Bu durumda sipariş
+  /// yeniden okunur: [wasAwaitingFinance] değilken artık finans kararı bekleniyorsa sonuç
+  /// [BayiOutcome.routedToFinance] olur (hata değil). Her sonuçta, hata da olsa, sipariş ve teklif
+  /// ekranları tazelenir.
   Future<BayiOutcome> quoteOrder(
     int orderId, {
     required double unitPrice,
     required DateTime deliveryDate,
+    bool wasAwaitingFinance = false,
   }) async {
-    final outcome = await runTransition(
-      call: () => _repo.quoteOrder(
-        orderId,
-        unitPrice: unitPrice,
-        deliveryDate: deliveryDate,
-      ),
-      reconcile: () async {
-        final o = await _repo.order(orderId);
-        final q = o.currentQuote;
-        return o.status == OrderStatus.awaitingApproval &&
-            q != null &&
-            (q.unitPriceTry - unitPrice).abs() < 0.00005;
-      },
-    );
-    _emit(const [BayiChange.quotes, BayiChange.orders]);
-    return outcome;
+    try {
+      final outcome = await runTransition(
+        call: () => _repo.quoteOrder(
+          orderId,
+          unitPrice: unitPrice,
+          deliveryDate: deliveryDate,
+        ),
+        reconcile: () async {
+          final o = await _repo.order(orderId);
+          final q = o.currentQuote;
+          return o.status == OrderStatus.awaitingApproval &&
+              q != null &&
+              (q.unitPriceTry - unitPrice).abs() < 0.00005;
+        },
+      );
+      return outcome;
+    } on AppFailure catch (f) {
+      if (!wasAwaitingFinance &&
+          (f is BusinessFailure || f is ConflictFailure)) {
+        try {
+          final o = await _repo.order(orderId);
+          if (o.financeStatus.isAwaitingDecision) {
+            return BayiOutcome.routedToFinance;
+          }
+        } on AppFailure catch (_) {
+          // Okunamadı: asıl hata gösterilir.
+        }
+      }
+      rethrow;
+    } finally {
+      _emit(const [BayiChange.quotes, BayiChange.orders]);
+    }
   }
 
   /// Siparişi tamamla (tüm litre teslim alındı).

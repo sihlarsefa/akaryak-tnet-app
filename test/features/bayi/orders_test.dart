@@ -244,7 +244,17 @@ void main() {
       await tester.enterText(_inSheet(find.byType(TextField)).first, '41,9');
       await BayiTestApp.settle(tester);
       await scrollTap(tester, find.text('Teklifi gönder'));
-      expect(find.textContaining('finans onayına gönderildi'), findsOneWidget);
+      // Sunucu siparişi finansa alıp 400 iş kuralı döner: hata değil, sonuç (uyarı, sayfa kapanır,
+      // sipariş ve masa tazelenir).
+      expect(
+        find.text('Teklifi gönder'),
+        findsNothing,
+        reason: 'sayfa kapandı',
+      );
+      expect(
+        find.textContaining('kaydedilmedi; sipariş finans onayına gönderildi'),
+        findsOneWidget,
+      );
       final held = app.container.read(bayiOrderProvider(marmara)).data!.order;
       expect(held.financeStatus.isAwaitingDecision, isTrue);
       expect(held.currentQuote, isNull, reason: 'teklif kaydedilmedi');

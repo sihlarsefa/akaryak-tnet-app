@@ -5,6 +5,10 @@ import '../../models/me_access.dart';
 import '../../utils/tr_time.dart';
 import 'fake_personas.dart';
 
+/// Belge yüklendi dinleyicisi ([FakeWorld.addAttachmentListener]).
+typedef FakeAttachmentListener =
+    void Function(FakeWorld world, JsonMap attachment, FakePersona? uploadedBy);
+
 /// Sahte kipin ortak, durumlu veri dünyası (spec D.4). Tüm özellik sahteleri aynı dünyayı okur ve
 /// değiştirir; böylece uçtan uca akışlar çalışır: müşterinin verdiği sipariş teklif masasına düşer,
 /// şoförün teslimatı müşterinin "Teslimatı onaylayın" kartına dönüşür.
@@ -113,6 +117,23 @@ class FakeWorld {
   void ensureLazySeeds() {
     for (final s in List.of(_lazySeeders)) {
       s(this);
+    }
+  }
+
+  /// Belge yükleme dinleyicileri (sunucunun `IAttachmentUploadListener` karşılığı; ör. tahsilat
+  /// sahtesi bekleyen ödemeyi "Belge yüklendi" yapar). Kayıt [reset] ile silinmez (yapılandırmadır).
+  final List<FakeAttachmentListener> _attachmentListeners = [];
+
+  void addAttachmentListener(FakeAttachmentListener listener) {
+    if (!_attachmentListeners.contains(listener)) {
+      _attachmentListeners.add(listener);
+    }
+  }
+
+  /// Yükleme kaydedildikten sonra (`POST attachments`) dinleyicilere haber verir.
+  void notifyAttachmentUploaded(JsonMap attachment, FakePersona? uploadedBy) {
+    for (final l in List.of(_attachmentListeners)) {
+      l(this, attachment, uploadedBy);
     }
   }
 
@@ -225,6 +246,41 @@ class FakeWorld {
 
   DateTime _h(num hours) =>
       seededAt.add(Duration(minutes: (hours * 60).round()));
+
+  /// Performans senaryosu (spec D.7.8, `integration_test/perf_test.dart`): [stationId] bayisine
+  /// [count] adet teklif bekleyen sipariş ekler; teklif masası ve sipariş listesi 100+ satırla kaydırılır.
+  /// Normal tohumlamada çağrılmaz.
+  void addBulkPendingOrders(int count, {int stationId = 1}) {
+    final points = [
+      for (final dp in deliveryPoints)
+        if (links.any(
+          (l) =>
+              l['stationId'] == stationId &&
+              l['customerId'] == dp['customerId'],
+        ))
+          dp,
+    ];
+    if (points.isEmpty || products.isEmpty) return;
+    for (var i = 0; i < count; i++) {
+      final dp = points[i % points.length];
+      final product = products[i % products.length];
+      orders.add(
+        newOrder(
+          id: nextId('order'),
+          customerId: dp['customerId'] as int,
+          stationId: stationId,
+          deliveryPointId: dp['id'] as int,
+          productId: product['id'] as int,
+          liters: 5000.0 + (i % 12) * 1000,
+          status: 1,
+          createdAt: _h(-(i % 48) - 1),
+          expiresAt: _h(2 + i % 40),
+          requestedDeliveryDate: _h(24 + (i % 5) * 24),
+          createdByUserId: 'u-musteri',
+        ),
+      );
+    }
+  }
 
   /// Türkiye yerel, ofsetsiz (eski DTO alanları).
   static String local(DateTime instant) => TrTime.isoLocal(instant);
@@ -1106,7 +1162,8 @@ class FakeWorld {
     n(
       ['onay', 'musteri'],
       'approvals',
-      'company_request.created',
+      // Sunucu şirket içi talep için ayrı olay göndermez; onaylayanlara approval.pending gider (spec A.5).
+      'approval.pending',
       'Onayınızı bekleyen talep',
       'Burak Yılmaz 30.000 L Motorin talep etti.',
       '/approvals/${company['id']}',

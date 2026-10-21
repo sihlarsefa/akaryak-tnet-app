@@ -19,6 +19,7 @@ import '../data/payment_models.dart';
 import '../data/place_models.dart';
 import 'home_controller.dart';
 import 'loadable.dart';
+import 'order_submitter.dart';
 import 'wizard_models.dart';
 import 'wizard_rules.dart';
 import 'wizard_store.dart';
@@ -145,6 +146,14 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
   bool _disposed = false;
   WizardDraftStore? _store;
 
+  /// Gönderimin aşaması (dinleyiciyle güncellenir; kapanırken `ref` okunmadan bakılır).
+  SubmitPhase _submitPhase = SubmitPhase.idle;
+
+  /// Gönderim sonuçlandı (başarı, kısmi sonuç, ret): taslak deposu artık gönderimin sahibidir
+  /// (başarıda silinmiştir, kısmi sonuçta kalan satırları tutar). Bellekteki taslak, kullanıcı
+  /// düzenlemeye dönene kadar ([reloadFromStore]) depoya yazılmaz.
+  bool _frozen = false;
+
   /// Son durum (kapanırken saklamak için; `state` atfı burada da güncellenir).
   WizardState _mirror = const WizardState();
 
@@ -157,15 +166,55 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
   @override
   WizardState build() {
     _store = ref.watch(wizardDraftStoreProvider);
+    _frozen = false;
+    _submitPhase = ref.read(orderSubmitProvider).phase;
+    ref.listen<SubmitState>(orderSubmitProvider, _onSubmitChanged);
     ref.onDispose(() {
       _disposed = true;
       _saveTimer?.cancel();
-      // Kapanırken son hâl saklanır (başarıdan sonra taslak zaten silinmiştir).
+      // Kapanırken düzenlenen son hâl saklanır. Gönderim sürerken ya da sonuçlandıysa saklanmaz:
+      // gönderilen taslak "yarım kalan sipariş" olarak geri gelmemeli, kısmi sonucun kalan
+      // satırları ve ödeme grubu eski taslakla ezilmemeli.
       final last = _mirror;
-      if (last.draft.dirty && last.ready) unawaited(_saveNow(last.draft));
+      if (last.draft.dirty && last.ready && !_persistBlocked) {
+        unawaited(_saveNow(last.draft));
+      }
     });
     _mirror = const WizardState();
     return _mirror;
+  }
+
+  /// Taslak şu an depoya yazılamaz (gönderim sürüyor ya da sonuçlandı).
+  bool get _persistBlocked => _frozen || _submitPhase != SubmitPhase.idle;
+
+  void _onSubmitChanged(SubmitState? prev, SubmitState next) {
+    _submitPhase = next.phase;
+    if (_disposed || prev?.phase == next.phase) return;
+    switch (next.phase) {
+      case SubmitPhase.success:
+      case SubmitPhase.failed:
+        _freeze();
+      case SubmitPhase.partial:
+        _freeze();
+        // Depoda kalan satırlar, oluşan siparişler ve dönen ödeme grubu var: bellekteki taslak
+        // onlara eşitlenir ("Kalan satırları gönder" ve kapanış bu hâli görür).
+        unawaited(_adoptStore(editing: false));
+      case SubmitPhase.idle:
+      case SubmitPhase.sending:
+      case SubmitPhase.checking:
+      case SubmitPhase.uncertain:
+      case SubmitPhase.reconciling:
+      case SubmitPhase.askNewKey:
+        break;
+    }
+  }
+
+  /// Sonuçtan sonra: bekleyen kayıt iptal, bellekteki taslak "kaydedilmemiş değişiklik" sayılmaz.
+  void _freeze() {
+    _frozen = true;
+    _saveTimer?.cancel();
+    final d = state.draft;
+    if (d.dirty) state = state.copyWith(draft: d.copyWith(dirty: false));
   }
 
   CustomerOrdersRepository get _repo =>
@@ -178,6 +227,7 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
 
   /// Bağlamı yükler ve taslağı kurar. Bekleyen bir gönderim varsa onu bozmaz.
   Future<void> init(WizardLaunch launch, {bool hasPending = false}) async {
+    _frozen = false;
     try {
       final h = await _ensureHome();
       final f = await ref.read(orderFormProvider.notifier).ensure();
@@ -231,13 +281,21 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
     return s.data;
   }
 
-  /// Taslağı yeniden okur (kısmi sonuçtan sonra kalan satırlar).
-  Future<void> reloadFromStore() async {
+  /// Taslağı depodan yeniden okur ve düzenlemeye döner (kısmi sonuçtan sonra kalan satırlar,
+  /// reddedilen gönderimin taslağı): oluşan siparişler ve ödeme grubu da alınır.
+  Future<void> reloadFromStore() => _adoptStore(editing: true);
+
+  Future<void> _adoptStore({required bool editing}) async {
     final snap = await _store?.load();
-    if (snap == null || _disposed) return;
+    if (_disposed) return;
+    if (editing) _frozen = false;
+    if (snap == null) return;
     _created = snap.created;
     _docGroup = snap.documentUploadedGroup;
-    state = state.copyWith(draft: snap.draft, showErrors: false);
+    state = state.copyWith(
+      draft: editing ? snap.draft : snap.draft.copyWith(dirty: false),
+      showErrors: false,
+    );
   }
 
   OrderDraft _fresh(CustomerHomeData h, OrderFormOptions f) {
@@ -973,11 +1031,12 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
 
   Future<void> _saveNow([OrderDraft? draft]) async {
     final store = _store;
-    if (store == null) return;
+    if (store == null || _persistBlocked) return;
     final d = draft ?? _mirror.draft;
     if (!d.dirty) return;
     final existing = await store.load();
-    if (existing?.pending != null) return; // gönderim sürerken taslak sabit
+    // Gönderim sürerken taslak sabit; okuma beklenirken gönderim başlamış ya da sonuçlanmış olabilir.
+    if (existing?.pending != null || _persistBlocked) return;
     await store.save(
       WizardSnapshot(
         draft: d,

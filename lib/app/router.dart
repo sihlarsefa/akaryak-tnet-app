@@ -120,6 +120,10 @@ class AppRouter {
   String? _redirect(Uri uri) {
     final session = ref.read(sessionControllerProvider);
     final pending = ref.read(pendingDeepLinkProvider);
+    final pushLink =
+        _deferred == null &&
+        pending != null &&
+        ref.read(pendingDeepLinkProvider.notifier).fromPush;
     final result = computeRedirect(
       uri: uri,
       session: session,
@@ -128,10 +132,15 @@ class AppRouter {
       onboardingDone: ref.read(onboardingDoneProvider),
       splashDone: ref.read(splashDoneProvider),
       layout: ref.read(navLayoutProvider),
-      policy: ref.read(accessPolicyProvider),
+      // Oturumdan doğrudan: yönlendirme oturum dinleyicisinde çalışır ve Riverpod dinleyicileri
+      // türetilmiş sağlayıcılar (accessPolicyProvider) tazelenmeden çağırır; girişten sonra saklanan
+      // bağlantı eski (oturumsuz) yetkiyle reddedilirdi.
+      policy: AccessPolicy(session.access),
       features: ref.read(appConfigProvider).features,
       devRoutesEnabled: _devRoutes,
       deferred: _deferred ?? pending,
+      // Oturum açılmadan dokunulan push: izin yoksa gelen kutusu (spec C.4).
+      deferredFallback: pushLink ? AppRoutes.notifications : null,
     );
     if (result.defer != null) _deferred = result.defer;
     if (result.consumedDeferred) {
@@ -194,6 +203,7 @@ RedirectResult computeRedirect({
   ServerAvailability availability = ServerAvailability.unknown,
   bool devRoutesEnabled = false,
   String? deferred,
+  String? deferredFallback,
 }) {
   final path = uri.path.isEmpty ? '/' : uri.path;
   final location = uri.toString();
@@ -264,11 +274,21 @@ RedirectResult computeRedirect({
         ? stay()
         : RedirectResult(target, defer: isAppTarget ? location : null);
   }
-  if (onGatePage) {
+  // Saklanan konum: izin varsa o, yoksa [deferredFallback] (push: gelen kutusu), o da yoksa null.
+  String? deferredTarget() {
     final target = deferred;
-    if (target != null && RouteAccess.isAllowed(target, policy, features)) {
-      return RedirectResult(target, consumedDeferred: true);
+    if (target == null) return null;
+    if (RouteAccess.isAllowed(target, policy, features)) return target;
+    final fallback = deferredFallback;
+    if (fallback != null && RouteAccess.isAllowed(fallback, policy, features)) {
+      return fallback;
     }
+    return null;
+  }
+
+  if (onGatePage) {
+    final target = deferredTarget();
+    if (target != null) return RedirectResult(target, consumedDeferred: true);
     return go(layout.initialLocation);
   }
 
@@ -284,13 +304,11 @@ RedirectResult computeRedirect({
 
   // 5. Oturum açık.
   if (isEntry) {
-    final target = deferred;
-    if (target != null && RouteAccess.isAllowed(target, policy, features)) {
-      return RedirectResult(target, consumedDeferred: true);
-    }
+    final target = deferredTarget();
+    if (target != null) return RedirectResult(target, consumedDeferred: true);
     return RedirectResult(
       layout.initialLocation,
-      consumedDeferred: target != null,
+      consumedDeferred: deferred != null,
     );
   }
   if (path == AppRoutes.home && !layout.inBar(DestinationId.home)) {
@@ -302,32 +320,34 @@ RedirectResult computeRedirect({
   return stay();
 }
 
+/// Özelliklerin rotaları (her özellik kendi `<f>_routes.dart` dosyasında tanımlar; spec C.3).
+List<RouteBase> featureRouteTable() => [
+  ...authRoutes(),
+  ...onboardingRoutes(),
+  ...customerHomeRoutes(),
+  ...customerOrdersRoutes(),
+  ...customerMoreRoutes(),
+  ...bayiRoutes(),
+  ...approvalsRoutes(),
+  ...financeRoutes(),
+  ...paymentsRoutes(),
+  ...fieldRoutes(),
+  ...driverRoutes(),
+  ...notificationsRoutes(),
+  ...assistantRoutes(),
+  ...weatherRoutes(),
+  ...profileRoutes(),
+];
+
 /// Rota tablosu: alt menüdeki hedefler kabuğun sekmeleri olur; diğer özellik rotaları tam ekran açılır.
 List<RouteBase> buildAppRoutes(
   NavLayout layout, {
   bool devRoutes = false,
   VoidCallback? onSplashFinished,
 }) {
-  final featureRoutes = <RouteBase>[
-    ...authRoutes(),
-    ...onboardingRoutes(),
-    ...customerHomeRoutes(),
-    ...customerOrdersRoutes(),
-    ...customerMoreRoutes(),
-    ...bayiRoutes(),
-    ...approvalsRoutes(),
-    ...financeRoutes(),
-    ...paymentsRoutes(),
-    ...fieldRoutes(),
-    ...driverRoutes(),
-    ...notificationsRoutes(),
-    ...assistantRoutes(),
-    ...weatherRoutes(),
-    ...profileRoutes(),
-  ];
   final byPath = <String, GoRoute>{};
   final other = <RouteBase>[];
-  for (final r in featureRoutes) {
+  for (final r in featureRouteTable()) {
     if (r is GoRoute && !byPath.containsKey(r.path)) {
       byPath[r.path] = r;
     } else {

@@ -66,8 +66,10 @@ void registerBayiOrderFakes(FakeServer s) {
     final total = roundTo(price! * qty(o), 2);
     final from = st(o);
     if (exceedsLimit(w, o, total)) {
+      // Sunucu gibi (`SubmitQuoteAsync`): sipariş finans onayına alınıp kaydedilir, teklif
+      // kaydedilmez ve yanıt 400 iş kuralıdır.
       routeToFinance(w, o, total, p);
-      return {'message': 'Teklif gönderildi.'};
+      throw FakeResponse.business(limitRoutedMessage(w, o, total));
     }
     addQuote(w, o, price, day!);
     addTimeline(w, o, from, 2, p.userId);

@@ -107,6 +107,29 @@ void main() {
       await finish(tester);
     });
 
+    testWidgets(
+      'temsilci: "Saha formu" yalnızca alt menünün ortasında; ön kayıtta düğme var',
+      (tester) async {
+        await pumpField(tester, persona: 'saha', location: '/field');
+        expect(find.byType(FloatingActionButton), findsNothing);
+        await tapText(tester, FieldCopy.myLeads);
+        expect(
+          find.widgetWithText(FloatingActionButton, 'Ön kayıt'),
+          findsOneWidget,
+        );
+        await finish(tester);
+      },
+    );
+
+    testWidgets('satış müdürü: sekmede "Saha formu" düğmesi', (tester) async {
+      await pumpField(tester, persona: 'satis', location: '/field');
+      expect(
+        find.widgetWithText(FloatingActionButton, 'Saha formu'),
+        findsOneWidget,
+      );
+      await finish(tester);
+    });
+
     testWidgets('derin bağlantı: ?tab=leads&status=info', (tester) async {
       final app = await pumpField(
         tester,

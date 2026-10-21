@@ -33,12 +33,17 @@ class SubmissionView extends ConsumerStatefulWidget {
     required this.onSendRemaining,
     required this.onBackToEditing,
     required this.onClose,
+    required this.onOpen,
   });
 
   final Future<void> Function() onEditRemaining;
   final Future<void> Function() onSendRemaining;
   final Future<void> Function() onBackToEditing;
   final VoidCallback onClose;
+
+  /// Sonuç ekranından çıkıp sayfa açar ("Siparişi görüntüle", "Siparişlerime git"): gönderim
+  /// onaylanır, sihirbaz kapanır; çıkış sayfası gösterilmez.
+  final void Function(String route) onOpen;
 
   @override
   ConsumerState<SubmissionView> createState() => _SubmissionViewState();
@@ -168,7 +173,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
             await widget.onEditRemaining();
             await ctrl.backToEditing();
           },
-          onClose: widget.onClose,
+          onOpen: widget.onOpen,
         );
       case SubmitPhase.success:
         final r = s.result;
@@ -182,7 +187,11 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
             (_) => unawaited(_maybePushPrimer()),
           );
         }
-        return _Success(state: s, onClose: widget.onClose);
+        return _Success(
+          state: s,
+          onClose: widget.onClose,
+          onOpen: widget.onOpen,
+        );
     }
   }
 }
@@ -285,10 +294,15 @@ class _CreatedList extends StatelessWidget {
 }
 
 class _Success extends ConsumerWidget {
-  const _Success({required this.state, required this.onClose});
+  const _Success({
+    required this.state,
+    required this.onClose,
+    required this.onOpen,
+  });
 
   final SubmitState state;
   final VoidCallback onClose;
+  final void Function(String route) onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -297,7 +311,9 @@ class _Success extends ConsumerWidget {
     final r = state.result ?? const PlaceOrderResult();
     final config = ref.watch(orderingConfigValueProvider);
     final home = ref.watch(customerHomeProvider).data;
-    final wizard = ref.watch(orderWizardProvider);
+    final receiptPath = ref.watch(
+      orderWizardProvider.select((w) => w.draft.payment.receiptPath),
+    );
     final submitter = ref.read(orderSubmitProvider.notifier);
     final orders = state.created.isNotEmpty ? state.created : r.orders;
     final expiryOn = config.expiryEnabled(
@@ -316,12 +332,7 @@ class _Success extends ConsumerWidget {
         (doc.kind == AttachmentKind.chequeImage ||
             doc.kind == AttachmentKind.promissoryNoteImage);
 
-    void finish(String route) {
-      final router = GoRouter.of(context);
-      submitter.acknowledge();
-      if (router.canPop()) router.pop();
-      unawaited(router.push(route));
-    }
+    void finish(String route) => onOpen(route);
 
     return ListView(
       children: [
@@ -372,24 +383,12 @@ class _Success extends ConsumerWidget {
                   margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                 ),
               if (doc != null && doc.isUploadable && !docDone)
-                FutureBuilder<CapturedImageOrNull>(
-                  future: _receipt(wizard.draft.payment.receiptPath, doc),
-                  builder: (context, snap) => Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: AknCard(
-                      accent: doc.required ? AknTone.warn : null,
-                      child: PaymentDocumentPanel(
-                        target: doc,
-                        embedded: true,
-                        orderNumber: orders.isEmpty
-                            ? null
-                            : orders.first.orderNumber,
-                        preselected: snap.data?.image,
-                        onDone: () =>
-                            unawaited(submitter.markDocumentUploaded(group)),
-                      ),
-                    ),
-                  ),
+                _DocumentCard(
+                  target: doc,
+                  receiptPath: receiptPath,
+                  orderNumber: orders.isEmpty ? null : orders.first.orderNumber,
+                  onDone: () =>
+                      unawaited(submitter.markDocumentUploaded(group)),
                 ),
               if (doc != null && docDone)
                 AknBanner(
@@ -473,22 +472,62 @@ class _Success extends ConsumerWidget {
       ],
     );
   }
-
-  static Future<CapturedImageOrNull> _receipt(
-    String? path,
-    PaymentUploadTarget doc,
-  ) async {
-    if (doc.kind != AttachmentKind.transferReceipt) {
-      return const CapturedImageOrNull(null);
-    }
-    return CapturedImageOrNull(await readLocalImage(path));
-  }
 }
 
-/// FutureBuilder için sarmalayıcı (null değer = görsel yok).
-class CapturedImageOrNull {
-  const CapturedImageOrNull(this.image);
-  final CapturedImage? image;
+/// Sonuç ekranındaki ödeme belgesi kartı. Sihirbazın ödeme adımında seçilen dekont ("sipariş oluşunca
+/// yüklenecek") bir kez okunur, önceden seçili gelir ve kendiliğinden yüklenir (tek Idempotency-Key);
+/// ilerleme ve sonuç kartta görünür, hata olursa "Tekrar yükle". Dosya bulunamazsa seçim düğmeleri.
+class _DocumentCard extends StatefulWidget {
+  const _DocumentCard({
+    required this.target,
+    required this.receiptPath,
+    required this.onDone,
+    this.orderNumber,
+  });
+
+  final PaymentUploadTarget target;
+  final String? receiptPath;
+  final String? orderNumber;
+  final VoidCallback onDone;
+
+  @override
+  State<_DocumentCard> createState() => _DocumentCardState();
+}
+
+class _DocumentCardState extends State<_DocumentCard> {
+  /// Sihirbazda seçilen dekont (yalnızca havale dekontu hedefinde; bir kez okunur).
+  late final Future<CapturedImage?>? _receipt =
+      widget.target.kind == AttachmentKind.transferReceipt &&
+          widget.receiptPath != null
+      ? readLocalImage(widget.receiptPath)
+      : null;
+
+  @override
+  Widget build(BuildContext context) {
+    final receipt = _receipt;
+    if (receipt == null) return _card(null);
+    return FutureBuilder<CapturedImage?>(
+      future: receipt,
+      builder: (context, snap) => snap.connectionState == ConnectionState.done
+          ? _card(snap.data)
+          : const SizedBox.shrink(),
+    );
+  }
+
+  Widget _card(CapturedImage? image) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    child: AknCard(
+      accent: widget.target.required ? AknTone.warn : null,
+      child: PaymentDocumentPanel(
+        target: widget.target,
+        embedded: true,
+        orderNumber: widget.orderNumber,
+        preselected: image,
+        autoUpload: image != null,
+        onDone: widget.onDone,
+      ),
+    ),
+  );
 }
 
 class _Partial extends ConsumerWidget {
@@ -496,18 +535,21 @@ class _Partial extends ConsumerWidget {
     required this.state,
     required this.onSendRemaining,
     required this.onEditRemaining,
-    required this.onClose,
+    required this.onOpen,
   });
 
   final SubmitState state;
   final Future<void> Function() onSendRemaining;
   final Future<void> Function() onEditRemaining;
-  final VoidCallback onClose;
+  final void Function(String route) onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = state.result ?? const PlaceOrderResult();
     final submitter = ref.read(orderSubmitProvider.notifier);
+    final receiptPath = ref.watch(
+      orderWizardProvider.select((w) => w.draft.payment.receiptPath),
+    );
     final doc = r.paymentDocument;
     final group = r.paymentGroupKey;
     final docDone = state.documentUploadedGroup == (group ?? '-');
@@ -529,20 +571,14 @@ class _Partial extends ConsumerWidget {
                 details: _CreatedList(orders: state.created),
               ),
               if (doc != null && doc.isUploadable && !docDone)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: AknCard(
-                    accent: doc.required ? AknTone.warn : null,
-                    child: PaymentDocumentPanel(
-                      target: doc,
-                      embedded: true,
-                      orderNumber: state.created.isEmpty
-                          ? null
-                          : state.created.first.orderNumber,
-                      onDone: () =>
-                          unawaited(submitter.markDocumentUploaded(group)),
-                    ),
-                  ),
+                _DocumentCard(
+                  target: doc,
+                  receiptPath: receiptPath,
+                  orderNumber: state.created.isEmpty
+                      ? null
+                      : state.created.first.orderNumber,
+                  onDone: () =>
+                      unawaited(submitter.markDocumentUploaded(group)),
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -564,13 +600,11 @@ class _Partial extends ConsumerWidget {
                       showSuccess: false,
                     ),
                     const SizedBox(height: 4),
+                    // Kalan satırlar ödeme grubuyla depoda kalır ("Yarım kalan siparişiniz").
                     AknButton.ghost(
                       label: OrdersCopy.viewOrders,
                       expand: true,
-                      onPressed: () {
-                        submitter.acknowledge();
-                        onClose();
-                      },
+                      onPressed: () => onOpen(AppRoutes.orders),
                     ),
                   ],
                 ),

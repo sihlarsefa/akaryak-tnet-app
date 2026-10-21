@@ -22,6 +22,7 @@ RedirectResult _redirect(
   bool onboardingDone = true,
   bool splashDone = true,
   String? deferred,
+  String? deferredFallback,
   bool dev = false,
 }) {
   final access = session.access;
@@ -38,6 +39,7 @@ RedirectResult _redirect(
     features: features,
     devRoutesEnabled: dev,
     deferred: deferred,
+    deferredFallback: deferredFallback,
   );
 }
 
@@ -146,6 +148,37 @@ void main() {
       expect(denied.location, '/driver');
       expect(denied.consumedDeferred, isTrue);
     });
+
+    test(
+      'oturumsuzken dokunulan push: izin varsa rota, yoksa gelen kutusu (ilk sekme değil)',
+      () {
+        final ok = _redirect(
+          '/login',
+          session: SessionAuthenticated(_access('musteri')),
+          deferred: '/orders/12',
+          deferredFallback: '/notifications',
+        );
+        expect(ok.location, '/orders/12');
+        expect(ok.consumedDeferred, isTrue);
+        final denied = _redirect(
+          '/splash',
+          session: SessionAuthenticated(_access('musteri')),
+          deferred: '/bayi/orders/12',
+          deferredFallback: '/notifications',
+        );
+        expect(denied.location, '/notifications');
+        expect(denied.consumedDeferred, isTrue);
+        // Saklanan bağlantı yoksa yedek kullanılmaz.
+        expect(
+          _redirect(
+            '/login',
+            session: SessionAuthenticated(_access('musteri')),
+            deferredFallback: '/notifications',
+          ).location,
+          '/home',
+        );
+      },
+    );
 
     test('yetkisiz rota ilk sekmeye döner', () {
       expect(

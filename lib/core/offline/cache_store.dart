@@ -41,11 +41,13 @@ abstract interface class CacheStore {
 
   Future<void> remove(String key);
 
-  Future<void> clearUser(String userId);
+  /// Kullanıcının kayıtlarını siler; anahtarı [keepPrefixes] öneklerinden biriyle başlayanlar kalır
+  /// (istem dışı çıkışta yarım işler, bkz. `UserDrafts`).
+  Future<void> clearUser(String userId, {Set<String> keepPrefixes = const {}});
 
   /// Oturuma ait her şeyi siler; yalnızca cihaz geneli kayıtlar ([CacheKeys.deviceWide], ör. app/config)
-  /// kalır. Çıkışta ve kullanıcı değişince çağrılır (spec D.7).
-  Future<void> clearSessionData();
+  /// ve anahtarı [keepPrefixes] ile başlayanlar kalır. Çıkışta ve kullanıcı değişince çağrılır (spec D.7).
+  Future<void> clearSessionData({Set<String> keepPrefixes = const {}});
 
   Future<void> clearAll();
 }
@@ -128,26 +130,53 @@ class SqfliteCacheStore implements CacheStore {
   }
 
   @override
-  Future<void> clearUser(String userId) async {
+  Future<void> clearUser(
+    String userId, {
+    Set<String> keepPrefixes = const {},
+  }) async {
     try {
-      await db.delete(
-        'cache_entries',
-        where: 'user_id = ? OR key LIKE ?',
-        whereArgs: [userId, '$userId:%'],
-      );
+      await _delete('user_id = ? OR key LIKE ?', [
+        userId,
+        '$userId:%',
+      ], keepPrefixes);
     } catch (_) {}
   }
 
   @override
-  Future<void> clearSessionData() async {
+  Future<void> clearSessionData({Set<String> keepPrefixes = const {}}) async {
     try {
       final keep = CacheKeys.deviceWide.toList();
-      await db.delete(
-        'cache_entries',
-        where: 'key NOT IN (${List.filled(keep.length, '?').join(', ')})',
-        whereArgs: keep,
+      await _delete(
+        'key NOT IN (${List.filled(keep.length, '?').join(', ')})',
+        keep,
+        keepPrefixes,
       );
     } catch (_) {}
+  }
+
+  /// [where] koşulundaki kayıtları siler; anahtarı [keepPrefixes] ile başlayanlar kalır.
+  Future<void> _delete(
+    String where,
+    List<Object?> args,
+    Set<String> keepPrefixes,
+  ) async {
+    if (keepPrefixes.isEmpty) {
+      await db.delete('cache_entries', where: where, whereArgs: args);
+      return;
+    }
+    final rows = await db.query(
+      'cache_entries',
+      columns: ['key'],
+      where: where,
+      whereArgs: args,
+    );
+    final batch = db.batch();
+    for (final r in rows) {
+      final key = r['key']! as String;
+      if (keepPrefixes.any(key.startsWith)) continue;
+      batch.delete('cache_entries', where: 'key = ?', whereArgs: [key]);
+    }
+    await batch.commit(noResult: true);
   }
 
   @override
@@ -189,13 +218,22 @@ class MemoryCacheStore implements CacheStore {
   Future<void> remove(String key) async => _entries.remove(key);
 
   @override
-  Future<void> clearUser(String userId) async => _entries.removeWhere(
-    (k, v) => v.$2 == userId || k.startsWith('$userId:'),
+  Future<void> clearUser(
+    String userId, {
+    Set<String> keepPrefixes = const {},
+  }) async => _entries.removeWhere(
+    (k, v) =>
+        (v.$2 == userId || k.startsWith('$userId:')) &&
+        !keepPrefixes.any(k.startsWith),
   );
 
   @override
-  Future<void> clearSessionData() async =>
-      _entries.removeWhere((k, _) => !CacheKeys.deviceWide.contains(k));
+  Future<void> clearSessionData({Set<String> keepPrefixes = const {}}) async =>
+      _entries.removeWhere(
+        (k, _) =>
+            !CacheKeys.deviceWide.contains(k) &&
+            !keepPrefixes.any(k.startsWith),
+      );
 
   @override
   Future<void> clearAll() async => _entries.clear();

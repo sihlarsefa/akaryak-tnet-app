@@ -68,6 +68,22 @@ const _table = <(String event, String audience, String route, List<String>)>[
   ('company_request.decided', 'creator', '/company/requests/3001', ['talep']),
   ('limit_request.decided', 'creator', '/customers/102', ['sahip', 'satis']),
   ('system.test', 'any', '/notifications', ['sofor', 'musteri', 'merkez']),
+  // Sunucu yedekleri: kimlik yoksa liste kökü (`Orders()`, `BayiOrders()`, `Payments()`, `Approvals()`).
+  ('order.quote_ready', 'customer', '/orders', ['musteri', 'talep']),
+  ('order.created', 'bayi', '/bayi/orders', ['sahip', 'siparis']),
+  ('payment.document_uploaded', 'bayi', '/payments', ['muhasebe', 'sahip']),
+  ('approval.reminder', 'approver', '/approvals', ['finans', 'mudur']),
+  // Diğer olay × taraf satırları (A.5 tablosu).
+  ('order.expired', 'bayi', '/bayi/orders/12', ['sahip', 'siparis']),
+  ('order.completed', 'customer', '/orders/12', ['musteri', 'onay']),
+  ('order.finance_pending', 'customer', '/orders/12', ['musteri', 'talep']),
+  ('order.finance_approved', 'bayi', '/bayi/orders/12', ['sahip', 'mudur']),
+  ('payment.due_soon', 'customer', '/orders/12', ['musteri', 'talep']),
+  ('shipment.accepted', 'bayi', '/bayi/orders/12', ['sahip', 'sevkiyat']),
+  ('shipment.accepted', 'driver', '/driver/shipments/5', ['sofor']),
+  ('approval.escalated', 'approver', '/approvals/9001', ['finans', 'satis']),
+  ('approval.decided', 'creator', '/approvals/9002', ['saha', 'satis']),
+  ('approval.decided', 'customer', '/approvals/9002', ['musteri', 'talep']),
 ];
 
 void main() {

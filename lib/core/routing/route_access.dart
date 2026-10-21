@@ -158,11 +158,17 @@ abstract final class RouteAccess {
     AccessPolicy policy,
     AppFeatures features,
   ) {
+    final r = sanitizePushRoute(route);
+    return isAllowed(r, policy, features) ? r : AppRoutes.notifications;
+  }
+
+  /// Push rotasının biçimi (yetki denetimi yok): boş ya da göreli rota `/notifications`.
+  static String sanitizePushRoute(String? route) {
     final r = route?.trim();
     if (r == null || r.isEmpty || !r.startsWith('/')) {
       return AppRoutes.notifications;
     }
-    return isAllowed(r, policy, features) ? r : AppRoutes.notifications;
+    return r;
   }
 }
 
@@ -173,14 +179,24 @@ final pendingDeepLinkProvider = NotifierProvider<PendingDeepLink, String?>(
 );
 
 class PendingDeepLink extends Notifier<String?> {
+  bool _fromPush = false;
+
   @override
   String? build() => null;
 
-  void set(String? location) => state = location;
+  /// Bekleyen bağlantı, oturum açılmadan dokunulan bir push'tan: yetki oturum açılınca denetlenir,
+  /// izin yoksa `/notifications` açılır (spec C.4).
+  bool get fromPush => _fromPush && state != null;
+
+  void set(String? location, {bool fromPush = false}) {
+    _fromPush = location != null && fromPush;
+    state = location;
+  }
 
   /// Bağlantıyı alır ve temizler.
   String? take() {
     final l = state;
+    _fromPush = false;
     state = null;
     return l;
   }

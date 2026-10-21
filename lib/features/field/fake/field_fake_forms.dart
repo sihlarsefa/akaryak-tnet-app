@@ -809,6 +809,8 @@ void _convert(FieldFakeState state, JsonMap f, DateTime now) {
           liters: liters,
           deliveryDate: date,
           createdAt: now,
+          // Sunucu yeni teklifi seçili kaydeder (`SubmitQuoteAsync`).
+          selected: true,
         ),
       ],
       createdByUserId: f['_createdBy'] as String?,

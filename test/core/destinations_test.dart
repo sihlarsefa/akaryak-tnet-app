@@ -135,6 +135,52 @@ void main() {
       );
       expect(p.rolePreset, RolePreset.owner);
     });
+
+    // Sunucunun eski türetmesi: rol ataması olmayan bayi sahibi `owner` yetkinliklerini alır, ama
+    // `bayiRoleCodes` boş gelir (`isStationOwner: true`).
+    MeAccess ownerWithoutCodes({List<String> roles = const [Roles.station]}) =>
+        MeAccess(
+          userId: 'u-eski-sahip',
+          userName: 'eski.sahip',
+          displayName: 'Eski Sahip',
+          persona: Persona.bayi,
+          roles: roles,
+          isStationOwner: true,
+          pages: FakeRoleTemplates.grants(const [BayiRoleCodes.owner]),
+          capabilities: [
+            for (final e
+                in FakeRoleTemplates.capabilities[BayiRoleCodes.owner]!.entries)
+              Capability(e.key, e.value),
+          ],
+        );
+
+    test('rol kodu olmayan bayi sahibi sahip ön ayarını alır', () {
+      final p = AccessPolicy(ownerWithoutCodes());
+      expect(p.access!.bayiRoleCodes, isEmpty);
+      expect(p.rolePreset, RolePreset.owner);
+      final layout = buildNavLayout(p, noAssistant);
+      expect(layout.bar.first.id, DestinationId.home);
+      expect(
+        layout.bar.skip(1).map((d) => d.id),
+        containsAllInOrder(presetTabs[RolePreset.owner]!.where(layout.inBar)),
+      );
+      expect(layout.bar[1].id, presetTabs[RolePreset.owner]!.first);
+    });
+
+    test('sahip bayrağı saha satışçıya sahip menüsü vermez', () {
+      final p = AccessPolicy(
+        ownerWithoutCodes(roles: const [Roles.station, Roles.fieldSales]),
+      );
+      expect(p.isFieldSales, isTrue);
+      expect(p.rolePreset, RolePreset.generic);
+    });
+
+    test('sahip bayrağı menü imzasına girer (yeniden kurulum)', () {
+      final a = ownerWithoutCodes();
+      final b = MeAccess.fromJson({...a.toJson(), 'isStationOwner': false});
+      expect(b.isStationOwner, isFalse);
+      expect(a.layoutKey, isNot(b.layoutKey));
+    });
   });
 
   group('Alt menü (Asistan açık)', () {

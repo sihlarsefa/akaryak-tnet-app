@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../storage/prefs_store.dart';
 import '../utils/log.dart';
 import 'local_notifications.dart';
 import 'push_payload.dart';
@@ -21,6 +23,45 @@ Future<void> aknFirebaseBackgroundHandler(RemoteMessage message) async {
 /// Push izni durumu.
 enum PushPermission { unavailable, notDetermined, granted, denied }
 
+/// Bildirim izninin platform çağrıları (FCM; testler geçersiz kılar).
+abstract interface class PushPermissionPlatform {
+  /// Mevcut izin (`getNotificationSettings`).
+  Future<AuthorizationStatus> status();
+
+  /// Sistem izin penceresi (`requestPermission`; Android 13+'ta POST_NOTIFICATIONS).
+  Future<AuthorizationStatus> request();
+
+  /// Android API düzeyi (Android değilse ya da okunamazsa null).
+  Future<int?> androidSdkInt();
+}
+
+class _FirebasePermissionPlatform implements PushPermissionPlatform {
+  const _FirebasePermissionPlatform();
+
+  @override
+  Future<AuthorizationStatus> status() async =>
+      (await FirebaseMessaging.instance.getNotificationSettings())
+          .authorizationStatus;
+
+  @override
+  Future<AuthorizationStatus> request() async =>
+      (await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      )).authorizationStatus;
+
+  @override
+  Future<int?> androidSdkInt() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return (await DeviceInfoPlugin().androidInfo).version.sdkInt;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
 /// FCM sarmalayıcısı (F2GO `notification_service.dart` uyarlaması, spec C.4).
 ///
 /// - `GoogleService-Info.plist` / `google-services.json` yoksa Firebase başlatılamaz: [available] false,
@@ -28,10 +69,18 @@ enum PushPermission { unavailable, notDetermined, granted, denied }
 /// - Ön planda gelen push uygulama içi bildirim olur (sistem bildirimi gösterilmez); dokunulan push ve
 ///   ilk mesaj [events] ile `PushRouter`'a gider.
 class PushService {
-  PushService({required this.available});
+  PushService({
+    required this.available,
+    PrefsStore? prefs,
+    PushPermissionPlatform? permissions,
+  }) : _prefs = prefs,
+       _permissions = permissions ?? const _FirebasePermissionPlatform();
 
   /// Firebase başlatıldı mı.
   final bool available;
+
+  final PrefsStore? _prefs;
+  final PushPermissionPlatform _permissions;
 
   final _events = StreamController<PushEvent>.broadcast();
   final _tokens = StreamController<String>.broadcast();
@@ -110,35 +159,50 @@ class PushService {
   );
 
   /// Mevcut izin durumu.
+  ///
+  /// Android 13+ (API 33) çalışma zamanı izninde eklenti henüz sorulmamış izni de "reddedildi"
+  /// bildirir (`checkSelfPermission` → 0). Uygulama izni bir kez sorduğunu saklar
+  /// ([PrefKeys.pushPermissionRequested]); hiç sormadıysa durum "belirlenmedi" sayılır ki ön sayfa
+  /// ve sistem penceresi açılabilsin. Android 12 ve öncesinde izin varsayılan açıktır; "kapalı"
+  /// kullanıcının ayarlardan kapattığı anlamına gelir.
   Future<PushPermission> permission() async {
     if (!available) return PushPermission.unavailable;
     try {
-      final s = await FirebaseMessaging.instance.getNotificationSettings();
-      return switch (s.authorizationStatus) {
+      final status = await _permissions.status();
+      final mapped = switch (status) {
         AuthorizationStatus.authorized ||
         AuthorizationStatus.provisional => PushPermission.granted,
         AuthorizationStatus.denied => PushPermission.denied,
         AuthorizationStatus.notDetermined => PushPermission.notDetermined,
       };
+      if (mapped == PushPermission.denied && await _notAskedYet()) {
+        return PushPermission.notDetermined;
+      }
+      return mapped;
     } catch (_) {
       return PushPermission.unavailable;
     }
   }
 
-  /// Sistem izin penceresi (ön sayfadan sonra).
+  Future<bool> _notAskedYet() async {
+    if (defaultTargetPlatform != TargetPlatform.android) return false;
+    if (_prefs?.getBool(PrefKeys.pushPermissionRequested) ?? false) {
+      return false;
+    }
+    final sdk = await _permissions.androidSdkInt();
+    return sdk != null && sdk >= 33;
+  }
+
+  /// Sistem izin penceresi (ön sayfadan sonra). Bir kez sorulur: FCM'in isteği Android 13+'ta
+  /// POST_NOTIFICATIONS penceresini açar; yerel bildirimler aynı izni kullandığından ikinci bir
+  /// istek (ve "İzin verme"den sonra aynı pencerenin yeniden çıkması) yoktur.
   Future<bool> requestPermission() async {
     if (!available) return false;
     try {
-      final s = await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        await LocalNotifications.requestAndroidPermission();
-      }
-      return s.authorizationStatus == AuthorizationStatus.authorized ||
-          s.authorizationStatus == AuthorizationStatus.provisional;
+      await _prefs?.setBool(PrefKeys.pushPermissionRequested, true);
+      final s = await _permissions.request();
+      return s == AuthorizationStatus.authorized ||
+          s == AuthorizationStatus.provisional;
     } catch (e) {
       AppLog.warn('Bildirim izni istenemedi', error: e);
       return false;

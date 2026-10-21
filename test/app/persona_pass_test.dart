@@ -64,6 +64,7 @@ void main() {
           );
           await pumpSteps(tester, const Duration(milliseconds: 1500));
         }
+        await settleIo(tester);
         expectNoLayoutErrors(tester);
         await expectA11yGuidelines(tester);
       }
@@ -73,6 +74,7 @@ void main() {
       for (final d in layout.more) {
         unawaited(router.push(d.path));
         await pumpSteps(tester, const Duration(milliseconds: 1500));
+        await settleIo(tester);
         expectNoLayoutErrors(tester);
         router.pop();
         await pumpSteps(tester, const Duration(milliseconds: 800));

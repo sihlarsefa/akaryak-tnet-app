@@ -77,6 +77,9 @@ void main() {
       testWidgets('${persona.key} $tag ekran görüntüleri', (tester) async {
         setA11yPhone(tester);
         setA11yPlatform(tester, variant);
+        // Test ortamı gölgeleri siyah çerçeve olarak çizer; görüntüde gerçek gölge olsun.
+        debugDisableShadows = false;
+        addTearDown(() => debugDisableShadows = true);
         // Gerçek telefondaki gibi durum çubuğu (Android 24 dp): üst çubuk ve ortam şeridi yerinde durur.
         tester.view.padding = const FakeViewPadding(top: 24);
         tester.view.viewPadding = const FakeViewPadding(top: 24);
@@ -118,6 +121,8 @@ void main() {
             );
             await pumpSteps(tester, const Duration(seconds: 2));
           }
+          await settleIo(tester);
+          await pumpSteps(tester, const Duration(milliseconds: 800));
           await _capture(
             tester,
             key,
@@ -136,6 +141,7 @@ void main() {
           );
         }
         await tester.pumpWidget(const SizedBox());
+        debugDisableShadows = true;
       }, skip: _outDir.isEmpty);
     }
   }

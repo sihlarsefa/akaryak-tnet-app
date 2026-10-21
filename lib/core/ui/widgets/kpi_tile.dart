@@ -197,28 +197,55 @@ class _TrendChip extends StatelessWidget {
 }
 
 /// A row of [KpiTile]s with equal widths and equal heights (12 px gaps).
+///
+/// Reflows to one tile per line when the text is large (≥ 1.6×) and a tile
+/// would be narrower than [minTileWidth]: labels such as "Planlanacak" then
+/// wrap at word boundaries instead of breaking mid-word (WCAG 1.4.10).
 class KpiRow extends StatelessWidget {
   const KpiRow({
     super.key,
     required this.children,
     this.spacing = AknSpace.s12,
+    this.minTileWidth = 220,
   });
 
   final List<Widget> children;
   final double spacing;
+  final double minTileWidth;
 
   @override
   Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) SizedBox(width: spacing),
-            Expanded(child: children[i]),
-          ],
-        ],
-      ),
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 16;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final n = children.length;
+        final perTile = n == 0
+            ? constraints.maxWidth
+            : (constraints.maxWidth - spacing * (n - 1)) / n;
+        if (large && n > 1 && perTile < minTileWidth) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < n; i++) ...[
+                if (i > 0) SizedBox(height: spacing),
+                children[i],
+              ],
+            ],
+          );
+        }
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < n; i++) ...[
+                if (i > 0) SizedBox(width: spacing),
+                Expanded(child: children[i]),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

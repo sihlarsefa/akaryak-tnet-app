@@ -291,47 +291,38 @@ class _StaffCard extends ConsumerWidget {
           ],
           if (manage && !me) ...[
             const Divider(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: MergeSemantics(
-                    child: Row(
-                      children: [
-                        Semantics(
-                          label: '${m.displayName} hesabı',
-                          child: Switch(
-                            value: m.isActive,
-                            onChanged: busy || !online
-                                ? null
-                                : (v) => unawaited(_toggle(context, ref, v)),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            m.isActive ? 'Aktif' : 'Pasif',
-                            style: t.label,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (m.isActive)
-                  Flexible(
-                    child: TextButton.icon(
-                      onPressed: busy || !online
+            // Anahtar ve "Şifre bağlantısı gönder" alt alta: dar telefonda da etiket bütün kalır.
+            MergeSemantics(
+              child: Row(
+                children: [
+                  Semantics(
+                    label: '${m.displayName} hesabı',
+                    child: Switch(
+                      value: m.isActive,
+                      onChanged: busy || !online
                           ? null
-                          : () => unawaited(_sendLink(context, ref)),
-                      icon: const Icon(
-                        Icons.mark_email_read_outlined,
-                        size: 18,
-                      ),
-                      label: const Text('Şifre bağlantısı gönder'),
+                          : (v) => unawaited(_toggle(context, ref, v)),
                     ),
                   ),
-              ],
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(m.isActive ? 'Aktif' : 'Pasif', style: t.label),
+                  ),
+                ],
+              ),
             ),
+            if (m.isActive)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: AknButton.ghost(
+                  label: 'Şifre bağlantısı gönder',
+                  icon: Icons.mark_email_read_outlined,
+                  size: AknButtonSize.small,
+                  onPressed: busy || !online
+                      ? null
+                      : () => unawaited(_sendLink(context, ref)),
+                ),
+              ),
           ],
         ],
       ),

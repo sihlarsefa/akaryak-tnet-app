@@ -7,12 +7,14 @@ import 'package:akaryakitnet/app/app.dart';
 import 'package:akaryakitnet/app/destinations.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../test/support/a11y.dart' show settleIo;
 import '../test/support/test_app.dart';
 
 /// Ekran görüntüsü alıcı (cihazda `binding.takeScreenshot`, ana makinede yok).
@@ -25,9 +27,16 @@ Future<void> pumpFor(WidgetTester tester, Duration total) async {
   }
 }
 
-/// Uygulamayı sahte sunucuyla açar (tanıtım görülmüş) ve kapsayıcıyı döndürür.
-Future<ProviderContainer> launchFakeApp(WidgetTester tester) async {
-  final h = await TestHarness.create(prefs: const {'akn.onboardingDone': true});
+/// Uygulamayı sahte sunucuyla açar (tanıtım görülmüş) ve kapsayıcıyı döndürür. [world] verilirse o
+/// dünya kullanılır (ör. performans senaryosunda 100+ sipariş).
+Future<ProviderContainer> launchFakeApp(
+  WidgetTester tester, {
+  FakeWorld? world,
+}) async {
+  final h = await TestHarness.create(
+    prefs: const {'akn.onboardingDone': true},
+    world: world,
+  );
   await tester.pumpWidget(
     ProviderScope(overrides: h.overrides, child: const AknApp()),
   );
@@ -51,7 +60,17 @@ Future<void> signInAs(
   await pumpFor(tester, const Duration(seconds: 2));
 }
 
-/// Tek personanın duman akışı. Her adımda yerleşim hatası olmadığını denetler.
+/// Sayfa ya da bölüm hata durumu görünmüyor (sahte sunucuda her uç personanın yetkisiyle yanıt verir).
+void expectNoErrorState(String where) {
+  expect(find.byType(ErrorState), findsNothing, reason: '$where: hata durumu');
+  expect(
+    find.textContaining('Bu bölüm yüklenemedi'),
+    findsNothing,
+    reason: '$where: bölüm yüklenemedi',
+  );
+}
+
+/// Tek personanın duman akışı. Her adımda yerleşim hatası ve hata durumu olmadığını denetler.
 Future<void> runPersonaSmoke(
   WidgetTester tester,
   String persona, {
@@ -64,6 +83,8 @@ Future<void> runPersonaSmoke(
   final layout = c.read(navLayoutProvider);
   final bar = find.byType(AnimatedBottomBar);
   expect(bar, findsOneWidget);
+  await settleIo(tester);
+  expectNoErrorState('$persona ${layout.bar.first.label}');
   await shot?.call('${persona}_1_${layout.bar.first.id.name}');
 
   for (var i = 1; i < layout.bar.length; i++) {
@@ -71,7 +92,9 @@ Future<void> runPersonaSmoke(
       find.descendant(of: bar, matching: find.text(layout.bar[i].barLabel)),
     );
     await pumpFor(tester, const Duration(milliseconds: 1200));
+    await settleIo(tester);
     expect(tester.takeException(), isNull, reason: layout.bar[i].label);
+    expectNoErrorState('$persona ${layout.bar[i].label}');
     await shot?.call('${persona}_${i + 1}_${layout.bar[i].id.name}');
   }
 
@@ -91,7 +114,9 @@ Future<void> runPersonaSmoke(
     for (final d in layout.more) {
       unawaited(router.push(d.path));
       await pumpFor(tester, const Duration(milliseconds: 1200));
+      await settleIo(tester);
       expect(tester.takeException(), isNull, reason: d.label);
+      expectNoErrorState('$persona ${d.label}');
       router.pop();
       await pumpFor(tester, const Duration(milliseconds: 600));
     }
@@ -103,4 +128,22 @@ Future<void> runPersonaSmoke(
   await pumpFor(tester, const Duration(seconds: 1));
   expect(find.text('Giriş yap'), findsOneWidget);
   await tester.pumpWidget(const SizedBox());
+}
+
+/// Ekrandaki en büyük dikey kaydırılabilir alan (filtre çipleri gibi yatay listeler değil).
+Finder mainVerticalList(WidgetTester tester) {
+  final all = find.byType(Scrollable);
+  var best = all.first;
+  var bestArea = -1.0;
+  for (var i = 0; i < all.evaluate().length; i++) {
+    final f = all.at(i);
+    final s = tester.widget<Scrollable>(f);
+    if (axisDirectionToAxis(s.axisDirection) != Axis.vertical) continue;
+    final size = tester.getSize(f);
+    if (size.width * size.height > bestArea) {
+      bestArea = size.width * size.height;
+      best = f;
+    }
+  }
+  return best;
 }

@@ -16,11 +16,18 @@ abstract final class PrefKeys {
   /// Bildirim izni ön sayfası gösterildi.
   static const pushPrimerShown = 'akn.pushPrimerShown';
 
+  /// Sistem bildirim izni bir kez soruldu (Android 13+ "sorulmadı" ile "reddedildi"yi ayırmaz).
+  static const pushPermissionRequested = 'akn.pushPermissionRequested';
+
   /// Son açılan sürüm (isteğe bağlı güncelleme "sonra hatırlat" için).
   static const lastSeenBuild = 'akn.lastSeenBuild';
 
   /// İsteğe bağlı güncellemenin ertelendiği derleme.
   static const updateSnoozedBuild = 'akn.updateSnoozedBuild';
+
+  /// İstem dışı çıkışta yarım işleri korunan kullanıcı (`UserDrafts`): aynı kullanıcı girerse
+  /// sürer, başka kullanıcı girerse silinir.
+  static const draftsOwner = 'akn.draftsOwner';
 
   /// Kullanıcıya özel anahtar (ör. son teslimat noktası): `akn.u.<userId>.<name>`.
   static String user(String userId, String name) => 'akn.u.$userId.$name';
@@ -49,11 +56,15 @@ class PrefsStore {
 
   Future<void> remove(String key) => _prefs.remove(key);
 
-  /// Kullanıcıya özel tercihleri siler (çıkış).
-  Future<void> clearUser(String userId) async {
+  /// Kullanıcıya özel tercihleri siler (çıkış). [keep] içindeki tam anahtarlar kalır (yarım işler,
+  /// bkz. `UserDrafts`).
+  Future<void> clearUser(String userId, {Set<String> keep = const {}}) async {
     final prefix = 'akn.u.$userId.';
     for (final k
-        in _prefs.getKeys().where((k) => k.startsWith(prefix)).toList()) {
+        in _prefs
+            .getKeys()
+            .where((k) => k.startsWith(prefix) && !keep.contains(k))
+            .toList()) {
       await _prefs.remove(k);
     }
   }

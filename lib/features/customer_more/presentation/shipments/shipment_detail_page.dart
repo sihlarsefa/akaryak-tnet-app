@@ -193,12 +193,30 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onAccept;
   final VoidCallback onDispute;
 
+  static const _disputeLabel = 'İtiraz et';
+  static const _acceptLabel = 'Teslimatı onayla';
+
+  /// Yan yana (itiraz 2, onay 3 pay) yalnızca iki etiket de simgesiyle tek satırda bütün sığıyorsa;
+  /// dar telefonda onay üstte, itiraz altında tam genişlikte (itiraz hiç kısalmaz).
+  static bool _fitsRow(BuildContext context, double width) {
+    if (MediaQuery.textScalerOf(context).scale(15) > 22) return false;
+    const gap = 12.0;
+    final unit = (width - gap) / 5;
+    return AknButton.fitsOneLine(
+          context,
+          _disputeLabel,
+          unit * 2,
+          icon: true,
+          bordered: true,
+        ) &&
+        AknButton.fitsOneLine(context, _acceptLabel, unit * 3, icon: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
-    final stacked = MediaQuery.textScalerOf(context).scale(15) > 22;
     final dispute = AknButton.secondary(
-      label: 'İtiraz et',
+      label: _disputeLabel,
       icon: Icons.report_rounded,
       expand: true,
       onPressed: online && !accepting && detail.actions.canDispute
@@ -206,7 +224,7 @@ class _ActionBar extends StatelessWidget {
           : null,
     );
     final accept = AknButton(
-      label: 'Teslimatı onayla',
+      label: _acceptLabel,
       icon: Icons.verified_rounded,
       expand: true,
       loading: accepting,
@@ -238,18 +256,23 @@ class _ActionBar extends StatelessWidget {
               ),
             ),
           ),
-        if (stacked) ...[
-          accept,
-          const SizedBox(height: 8),
-          dispute,
-        ] else
-          Row(
-            children: [
-              Expanded(child: dispute),
-              const SizedBox(width: 12),
-              Expanded(flex: 3, child: accept),
-            ],
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) =>
+              constraints.hasBoundedWidth &&
+                  _fitsRow(context, constraints.maxWidth)
+              ? Row(
+                  children: [
+                    Expanded(flex: 2, child: dispute),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 3, child: accept),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [accept, const SizedBox(height: 8), dispute],
+                ),
+        ),
       ],
     );
   }

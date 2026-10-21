@@ -118,3 +118,15 @@ Future<void> pumpSteps(WidgetTester tester, Duration total) async {
     await tester.pump(step);
   }
 }
+
+/// Gerçek zamanlı kısa beklemelerle kare çizer. Dio 50 KB üstü yanıtları arka plan isolate'unda çözer
+/// (`BackgroundTransformer`); sahte zamanda bu yanıtlar ancak böyle tamamlanır (yoksa sayfa iskelet
+/// durumunda kalır ve denetim yüklenmiş içeriği görmez).
+Future<void> settleIo(WidgetTester tester, {int rounds = 6}) async {
+  for (var i = 0; i < rounds; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 40)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+}

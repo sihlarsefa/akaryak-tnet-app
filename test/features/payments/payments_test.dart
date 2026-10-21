@@ -2,6 +2,7 @@
 // `attachmentPublicId`, yetkisi olmayana durum değiştirme yok, çek / senet durumları, cari ve durum
 // süzgeçleri → sorgu parametreleri; C.7 erişilebilirlik matrisi.
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/features/approvals/api.dart';
 import 'package:akaryakitnet/features/payments/presentation/payment_detail_page.dart';
 import 'package:akaryakitnet/features/payments/presentation/widgets/payment_cards.dart';
 import 'package:dio/dio.dart';
@@ -78,19 +79,19 @@ void main() {
     });
 
     testWidgets(
-      '"Dekont ekle" siparişe yükler ve attachmentPublicId gönderir',
+      '"Dekont ekle" siparişe yükler; ödeme "Belge yüklendi" olur, kayıt tazelenir ve '
+      '"Tahsil edildi" ilk denemede (409 olmadan) belgeyle kaydedilir',
       (tester) async {
         final app = await pumpA5(
           tester,
           persona: 'muhasebe',
           location: '/payments/12001',
         );
+        final order = app.server.world.order(12001)!;
+        expect(order['paymentStatus'], PaymentStatus.pending.code);
         await openStatusSheet(tester);
-        await tapFinder(
-          tester,
-          inSheet(find.text(PaymentStatus.documentUploaded.label)),
-        );
         await tapText(tester, 'Dekont ekle');
+        await pumpFor(tester);
         expect(app.files.lastKind, AttachmentKind.transferReceipt);
         final upload = app.log.last('POST', 'attachments')!;
         final fields = {
@@ -100,10 +101,66 @@ void main() {
         expect(fields['ownerId'], '12001');
         expect(fields['kind'], '${AttachmentKind.transferReceipt.code}');
         final uploaded = app.server.world.attachments.last;
+        // Sunucu (sahte de) bekleyen ödemeyi kendiliğinden "Belge yüklendi" yaptı; sayfa kaydı
+        // yeniden okudu: "Belge yüklendi" artık seçenek değil, yeni sürüm belirteciyle kaydedilir.
+        expect(order['paymentStatus'], PaymentStatus.documentUploaded.code);
+        expect(
+          inSheet(find.text(PaymentStatus.documentUploaded.label)),
+          findsOneWidget,
+          reason: 'yalnızca "Şu an" çipi',
+        );
+        await tapFinder(
+          tester,
+          inSheet(find.text(PaymentStatus.collected.label)),
+        );
         await tapText(tester, 'Durumu kaydet');
-        final body = app.log.last('POST', 'payments/12001/status')!.data as Map;
-        expect(body['toStatus'], PaymentStatus.documentUploaded.code);
+        await pumpFor(tester);
+        final posts = app.log.all('POST', 'payments/12001/status');
+        expect(posts, hasLength(1), reason: 'ilk kayıt 409 almamalı');
+        final body = posts.single.data as Map;
+        expect(body['toStatus'], PaymentStatus.collected.code);
         expect(body['attachmentPublicId'], uploaded['publicId']);
+        expect(order['paymentStatus'], PaymentStatus.collected.code);
+        expect(
+          find.text('Ödeme durumu'),
+          findsNothing,
+          reason: 'sayfa kapandı',
+        );
+        await finish(tester);
+      },
+    );
+
+    testWidgets(
+      'sayfa açıkken belge başka yerden yüklenirse eski sürümle kayıt bir kez yenisiyle denenir',
+      (tester) async {
+        final app = await pumpA5(
+          tester,
+          persona: 'muhasebe',
+          location: '/payments/12001',
+        );
+        await openStatusSheet(tester);
+        await tapFinder(
+          tester,
+          inSheet(find.text(PaymentStatus.collected.label)),
+        );
+        // Müşteri dekontu yükledi (sayfa eski sürümü tutuyor).
+        final store = A5FakeStore.of(app.server.world);
+        final dekont = {
+          'publicId': 'harici-dekont',
+          'ownerType': AttachmentOwnerType.order.code,
+          'ownerId': 12001,
+          'kind': AttachmentKind.transferReceipt.code,
+        };
+        store.onDocumentUploaded(dekont, null);
+        await tapText(tester, 'Durumu kaydet');
+        await pumpFor(tester);
+        final posts = app.log.all('POST', 'payments/12001/status');
+        expect(posts, hasLength(2), reason: '409 → yeni sürümle bir kez');
+        expect(
+          app.server.world.order(12001)!['paymentStatus'],
+          PaymentStatus.collected.code,
+        );
+        expect(find.text('Ödeme durumu'), findsNothing);
         await finish(tester);
       },
     );

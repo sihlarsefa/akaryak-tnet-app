@@ -41,6 +41,10 @@ class FieldAccess {
   // ---- Saha formları
   bool get canSeeForms => policy.can(Pg.stationFieldOrders);
   bool get canCreateForm => policy.can(Pg.stationFieldOrders, Perm.create);
+
+  /// Alt menünün ortasında "Saha formu" düğmesi var (spec A.2: FieldSales + `StationFieldOrders:Ekler`);
+  /// sekme içinde ikinci bir "Saha formu" düğmesi gösterilmez.
+  bool get hasCenterFormAction => isRep && canCreateForm;
   bool get canEditForm => policy.can(Pg.stationFieldOrders, Perm.edit);
 
   /// "E-posta ile gönder": web `EmailForm` ile aynı (Saha Siparişleri "Ekler").

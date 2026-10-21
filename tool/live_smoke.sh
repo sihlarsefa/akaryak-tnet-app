@@ -27,9 +27,10 @@ pass() { printf '  ✓ %s\n' "$1"; }
 warn() { printf '  ~ %s\n' "$1"; [ "$STRICT" = 1 ] && FAIL=1; }
 fail() { printf '  ✗ %s\n' "$1"; FAIL=1; }
 
-code() { curl -s -o /tmp/akn_smoke_body.$$ -w '%{http_code}' --max-time 20 "$@"; }
-body() { cat /tmp/akn_smoke_body.$$; }
-trap 'rm -f /tmp/akn_smoke_body.$$' EXIT
+BODY=$(mktemp "${TMPDIR:-/tmp}/akn_smoke.XXXXXX")
+code() { curl -s -o "$BODY" -w '%{http_code}' --max-time 20 "$@"; }
+body() { cat "$BODY"; }
+trap 'rm -f "$BODY"' EXIT
 
 echo "== $API"
 c=$(code "$API/swagger/index.html"); [ "$c" = 200 ] && pass "swagger 200" || warn "swagger $c (Swagger:Enabled kapalı olabilir)"

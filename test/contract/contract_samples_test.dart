@@ -635,7 +635,9 @@ void main() {
         index.files.toSet(),
         reason: 'index.json ile klasördeki dosyalar aynı olmalı',
       );
-      final unread = index.files.toSet().difference(_serverParsers.keys.toSet());
+      final unread = index.files.toSet().difference(
+        _serverParsers.keys.toSet(),
+      );
       expect(unread, isEmpty, reason: 'Okuyucusu olmayan sunucu örneği');
       expect(
         _serverChecks.keys.toSet(),
@@ -645,10 +647,14 @@ void main() {
     });
 
     for (final e in index.entries) {
-      test('${e.file} (${e.dto})', () {
-        final parsed = _serverParsers[e.file]!(e.read(dir), e.endpoint);
-        _serverChecks[e.file]!(parsed);
-      }, skip: _serverParsers.containsKey(e.file) ? false : 'okuyucu yok');
+      test(
+        '${e.file} (${e.dto})',
+        () {
+          final parsed = _serverParsers[e.file]!(e.read(dir), e.endpoint);
+          _serverChecks[e.file]!(parsed);
+        },
+        skip: _serverParsers.containsKey(e.file) ? false : 'okuyucu yok',
+      );
     }
 
     test('429: Retry-After başlığı gövdeden önce gelir', () {

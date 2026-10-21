@@ -222,4 +222,45 @@ void main() {
     expect(app.container.read(quoteDeskProvider).customerId, isNull);
     await app.finish(tester);
   });
+
+  testWidgets(
+    '2,0× yazıda toplu araçlar tek düğmede; çubuk listeyi örtmez (A-INT)',
+    (tester) async {
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'siparis',
+        location: '/quote-desk',
+        textScale: 2,
+        size: const Size(360, 640),
+      );
+      expect(find.text('Toplu işlemler'), findsOneWidget);
+      expect(find.text('Önerileri uygula'), findsNothing);
+      // Çubuk ekranın yarısından azını kaplar.
+      final bar = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Toplu işlemler'),
+              matching: find.byType(Column),
+            )
+            .first,
+      );
+      expect(bar.height, lessThan(320));
+
+      await tester.tap(find.text('Toplu işlemler'));
+      await BayiTestApp.settle(tester);
+      expect(find.text('Önerileri uygula'), findsOneWidget);
+      expect(find.text('Tümünü seç'), findsOneWidget);
+      await tester.tap(find.text('Önerileri uygula'));
+      await BayiTestApp.settle(tester);
+      final s = app.container.read(quoteDeskProvider);
+      expect(s.selected, isNotEmpty, reason: 'öneriler yazıldı ve seçildi');
+      expect(
+        find.text('Önerileri uygula'),
+        findsNothing,
+        reason: 'sayfa kapandı',
+      );
+      expect(tester.takeException(), isNull);
+      await app.finish(tester);
+    },
+  );
 }

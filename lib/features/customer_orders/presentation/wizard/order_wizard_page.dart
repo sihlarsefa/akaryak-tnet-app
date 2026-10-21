@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../application/home_controller.dart';
 import '../../application/order_submitter.dart';
@@ -86,18 +87,41 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
     }
   }
 
+  /// Sonuç ekranı (başarı, kısmi sonuç, ret): kapanınca gönderim onaylanır.
+  static bool _isResult(SubmitPhase p) =>
+      p == SubmitPhase.success ||
+      p == SubmitPhase.partial ||
+      p == SubmitPhase.failed;
+
   Future<void> _close() async {
-    if (await _confirmExit() && mounted) {
-      final phase = ref.read(orderSubmitProvider).phase;
-      if (phase == SubmitPhase.success) {
-        ref.read(orderSubmitProvider.notifier).acknowledge();
-      }
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go('/home');
-      }
+    if (_isResult(ref.read(orderSubmitProvider).phase)) {
+      _leaveResult();
+      return;
     }
+    if (!await _confirmExit() || !mounted) return;
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.home);
+    }
+  }
+
+  /// Sonuç ekranından ayrılır: gönderim onaylanır, sihirbaz kapanır ve [route] verildiyse o sayfa
+  /// açılır. Çıkış sayfası ("Girdiğiniz bilgiler kaydedilmedi") gösterilmez ve bellekteki taslak
+  /// yazılmaz: başarıda taslak silinmiştir, kısmi sonuçta kalan satırlar ödeme grubuyla depodadır
+  /// (ana sayfadaki "Yarım kalan siparişiniz" kartından sürdürülür), retten sonra taslak korunur.
+  void _leaveResult([String? route]) {
+    final router = GoRouter.of(context);
+    ref.read(orderSubmitProvider.notifier).acknowledge();
+    if (!router.canPop()) {
+      router.go(route ?? AppRoutes.home);
+      return;
+    }
+    router.pop();
+    if (route == null) return;
+    // Sihirbaz hedef sayfanın üstünde açıldıysa (ör. Siparişlerim) aynı sayfa ikinci kez açılmaz.
+    final here = router.routerDelegate.currentConfiguration.uri.path;
+    if (here != Uri.parse(route).path) unawaited(router.push(route));
   }
 
   void _next() {
@@ -180,6 +204,7 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
           await ref.read(orderWizardProvider.notifier).reloadFromStore();
         },
         onClose: _close,
+        onOpen: _leaveResult,
       );
     } else if (w.loadError != null && !w.ready) {
       body = Center(

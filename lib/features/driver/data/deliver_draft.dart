@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/models/json.dart';
 import '../../../core/storage/prefs_store.dart';
+import '../../../core/storage/user_drafts.dart';
 import '../../../core/utils/log.dart';
 import 'driver_models.dart';
 
@@ -200,7 +201,9 @@ class DeliverDraft {
   };
 }
 
-/// Kullanıcının teslim taslakları (tercihlerde tek anahtar; çıkışta `PrefsStore.clearUser` siler).
+/// Kullanıcının teslim taslakları (tercihlerde tek anahtar). "Çıkış yap"ta ve başka kullanıcı
+/// girince silinir; istem dışı çıkışta (oturum süresi doldu, kilitten şifreyle giriş) korunur
+/// (`UserDrafts`).
 class DeliverDraftStore {
   DeliverDraftStore(this.prefs, this.files, {DateTime Function()? clock})
     : _clock = clock ?? _utcNow;
@@ -212,7 +215,7 @@ class DeliverDraftStore {
   static DateTime _utcNow() => DateTime.now().toUtc();
 
   static String keyFor(String userId) =>
-      PrefKeys.user(userId, 'driver.deliverDrafts');
+      PrefKeys.user(userId, UserDrafts.deliverDrafts);
 
   /// Süresi geçmemiş taslaklar. Süresi geçenler (ve dosyaları) silinir.
   Map<int, DeliverDraft> all(String userId) {

@@ -3,3 +3,4 @@
 library;
 
 export 'customer_more_routes.dart' show customerMoreRoutes;
+export 'data/pdf_cache.dart' show customerMoreSessionCleanup;

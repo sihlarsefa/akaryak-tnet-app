@@ -20,6 +20,11 @@ enum AknButtonSize { small, medium, large }
 ///   check. With [onPressedAsync] the button manages both by itself:
 ///   spinner while the future runs, then a short check (when [showSuccess]).
 /// * Disabled when both callbacks are null.
+/// * A full-width ([expand]) button never breaks a word or cuts its label:
+///   when the label does not fit on one line it first tightens the padding,
+///   then drops the icons, then wraps onto two lines at word boundaries and,
+///   as a last resort, scales the single line down ([AknButton.fitsOneLine]
+///   lets a parent choose a roomier layout before that happens).
 class AknButton extends StatefulWidget {
   const AknButton({
     super.key,
@@ -113,8 +118,110 @@ class AknButton extends StatefulWidget {
   final String? semanticLabel;
   final String loadingLabel;
 
+  /// Icon + gap beside the label.
+  static const double _iconSpace = 28;
+
+  /// Rounding tolerance when deciding whether a label fits.
+  static const double _fitSlack = 1;
+
+  /// Horizontal padding (full / tightened).
+  static double _padding(AknButtonSize size) =>
+      size == AknButtonSize.small ? 14 : 20;
+  static double _tightPadding(AknButtonSize size) =>
+      size == AknButtonSize.small ? 10 : 12;
+
+  /// Whether [label] fits on one line with the full padding (and [icon] when
+  /// true) in a button [width] wide. Measured with the button's own text style
+  /// and the current text scale. Parents use it to pick a layout (row vs.
+  /// stacked) so that labels stay whole and readable.
+  static bool fitsOneLine(
+    BuildContext context,
+    String label,
+    double width, {
+    bool icon = false,
+    bool bordered = false,
+    AknButtonSize size = AknButtonSize.medium,
+  }) {
+    final w = _labelWidth(context, label, labelStyle(context, size));
+    return w +
+            (icon ? _iconSpace : 0) +
+            2 * _padding(size) +
+            (bordered ? 2 : 0) <=
+        width - _fitSlack;
+  }
+
+  /// The label style as rendered (inherited style, bold-text setting).
+  static TextStyle labelStyle(BuildContext context, AknButtonSize size) {
+    var style = DefaultTextStyle.of(context).style.merge(
+      context.aknText.button.copyWith(
+        fontSize: size == AknButtonSize.small ? 14 : 15,
+      ),
+    );
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.merge(const TextStyle(fontWeight: FontWeight.bold));
+    }
+    return style;
+  }
+
+  static double _labelWidth(
+    BuildContext context,
+    String text,
+    TextStyle style,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: 1,
+    )..layout();
+    final w = tp.width;
+    tp.dispose();
+    return w;
+  }
+
+  static int _lineCount(
+    BuildContext context,
+    String text,
+    TextStyle style,
+    double maxWidth,
+  ) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+      textAlign: TextAlign.center,
+    )..layout(maxWidth: maxWidth);
+    final n = tp.computeLineMetrics().length;
+    tp.dispose();
+    return n;
+  }
+
   @override
   State<AknButton> createState() => _AknButtonState();
+}
+
+/// How the label is laid out in the available width.
+enum _LabelFit {
+  /// Width unknown (natural-width button): label up to two lines.
+  natural,
+
+  /// One line, full padding, icons.
+  full,
+
+  /// One line, tightened padding, icons.
+  tight,
+
+  /// One line, tightened padding, no icons.
+  noIcon,
+
+  /// Two lines broken at word boundaries, tightened padding, no icons.
+  twoLines,
+
+  /// One line scaled down to fit (last resort), tightened padding, no icons.
+  scaled;
+
+  bool get showsIcons => this == natural || this == full || this == tight;
+  bool get tightPadding => index >= tight.index;
 }
 
 class _AknButtonState extends State<AknButton> {
@@ -205,7 +312,7 @@ class _AknButtonState extends State<AknButton> {
       fontSize: widget.size == AknButtonSize.small ? 14 : 15,
     );
 
-    final Widget content = AnimatedSwitcher(
+    Widget content(_LabelFit fit) => AnimatedSwitcher(
       duration: AknMotion.of(context, AknMotion.fast),
       switchInCurve: AknMotion.standard,
       switchOutCurve: AknMotion.exit,
@@ -240,20 +347,34 @@ class _AknButtonState extends State<AknButton> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (widget.icon != null) ...[
+                if (fit.showsIcons && widget.icon != null) ...[
                   Icon(widget.icon, size: 20, color: fg),
                   const SizedBox(width: 8),
                 ],
                 Flexible(
-                  child: Text(
-                    widget.label,
-                    style: textStyle,
-                    maxLines: 2,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: switch (fit) {
+                    _LabelFit.natural || _LabelFit.twoLines => Text(
+                      widget.label,
+                      style: textStyle,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    // One line that is known to fit; the scale-down only absorbs
+                    // rounding (and is the last resort for [_LabelFit.scaled]).
+                    _ => FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        widget.label,
+                        style: textStyle,
+                        maxLines: 1,
+                        softWrap: false,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  },
                 ),
-                if (widget.trailingIcon != null) ...[
+                if (fit.showsIcons && widget.trailingIcon != null) ...[
                   const SizedBox(width: 8),
                   Icon(widget.trailingIcon, size: 20, color: fg),
                 ],
@@ -261,7 +382,7 @@ class _AknButtonState extends State<AknButton> {
             ),
     );
 
-    Widget surface(double? width) => AnimatedContainer(
+    Widget surface(double? width, _LabelFit fit) => AnimatedContainer(
       duration: duration,
       curve: AknMotion.emphasizedCurve,
       width: width,
@@ -269,9 +390,9 @@ class _AknButtonState extends State<AknButton> {
       padding: EdgeInsets.symmetric(
         horizontal: compact
             ? 0
-            : widget.size == AknButtonSize.small
-            ? 14
-            : 20,
+            : fit.tightPadding
+            ? AknButton._tightPadding(widget.size)
+            : AknButton._padding(widget.size),
         vertical: 6,
       ),
       decoration: BoxDecoration(
@@ -288,7 +409,7 @@ class _AknButtonState extends State<AknButton> {
             : null,
       ),
       // Shrink-wraps unless the width is forced ([AknButton.expand]).
-      child: Center(widthFactor: 1, heightFactor: 1, child: content),
+      child: Center(widthFactor: 1, heightFactor: 1, child: content(fit)),
     );
 
     // Width is only ever animated between two finite values: the expanded
@@ -305,13 +426,16 @@ class _AknButtonState extends State<AknButton> {
                 constraints.hasBoundedWidth
                     ? (compact ? height : constraints.maxWidth)
                     : null,
+                constraints.hasBoundedWidth
+                    ? _fit(context, constraints.maxWidth, border != null)
+                    : _LabelFit.natural,
               ),
             ),
           )
         : AknAnimatedSize(
             duration: duration,
             curve: AknMotion.emphasizedCurve,
-            child: surface(null),
+            child: surface(null, _LabelFit.natural),
           );
 
     return Semantics(
@@ -364,6 +488,53 @@ class _AknButtonState extends State<AknButton> {
         ),
       ),
     );
+  }
+
+  /// Label measurements for the current label / style / text scale.
+  ({String label, TextStyle style, TextScaler scaler, double one, double word})?
+  _measured;
+
+  /// Picks the label layout for a button [maxWidth] wide (see [_LabelFit]).
+  _LabelFit _fit(BuildContext context, double maxWidth, bool bordered) {
+    final style = AknButton.labelStyle(context, widget.size);
+    final scaler = MediaQuery.textScalerOf(context);
+    var m = _measured;
+    if (m == null ||
+        m.label != widget.label ||
+        m.style != style ||
+        m.scaler != scaler) {
+      final words = widget.label.split(RegExp(r'\s+'));
+      var word = 0.0;
+      for (final w in words) {
+        if (w.isEmpty) continue;
+        final width = AknButton._labelWidth(context, w, style);
+        if (width > word) word = width;
+      }
+      m = (
+        label: widget.label,
+        style: style,
+        scaler: scaler,
+        one: AknButton._labelWidth(context, widget.label, style),
+        word: word,
+      );
+      _measured = m;
+    }
+    final border = bordered ? 2.0 : 0.0;
+    final room = maxWidth - AknButton._fitSlack - border;
+    final icons =
+        (widget.icon != null ? AknButton._iconSpace : 0) +
+        (widget.trailingIcon != null ? AknButton._iconSpace : 0);
+    final pad = AknButton._padding(widget.size);
+    final tight = AknButton._tightPadding(widget.size);
+    if (m.one + icons + 2 * pad <= room) return _LabelFit.full;
+    if (m.one + icons + 2 * tight <= room) return _LabelFit.tight;
+    final text = room - 2 * tight;
+    if (m.one <= text) return _LabelFit.noIcon;
+    if (m.word <= text &&
+        AknButton._lineCount(context, widget.label, style, text) <= 2) {
+      return _LabelFit.twoLines;
+    }
+    return _LabelFit.scaled;
   }
 
   (Color, Color, Color?) _colors(AknColors c, bool enabled, bool pressed) {

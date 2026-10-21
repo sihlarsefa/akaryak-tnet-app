@@ -119,7 +119,10 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     final session = ref.read(sessionControllerProvider.notifier);
     if (phoneChanged) {
       // Sunucu güvenlik damgasını yeniledi: bu oturum da kapandı.
-      await session.signOut(message: ProfileCopy.securityChanged);
+      await session.signOut(
+        message: ProfileCopy.securityChanged,
+        reason: SignOutReason.securityChanged,
+      );
       return;
     }
     _loaded = null;

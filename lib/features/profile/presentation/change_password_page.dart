@@ -89,7 +89,10 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
     AppToast.success(ProfileCopy.passwordDoneTitle);
     await ref
         .read(sessionControllerProvider.notifier)
-        .signOut(message: ProfileCopy.securityChanged);
+        .signOut(
+          message: ProfileCopy.securityChanged,
+          reason: SignOutReason.securityChanged,
+        );
   }
 
   Widget _toggle() => IconButton(

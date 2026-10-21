@@ -38,6 +38,9 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
   PaymentStatus? _to;
   String? _attachmentId;
   bool _busy = false;
+
+  /// Belge yüklendikten sonra kayıt yeniden okunuyor ("Durumu kaydet" kapalı).
+  bool _refreshing = false;
   ActionOutcome? _problem;
   Map<String, String> _errors = const {};
 
@@ -61,9 +64,26 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
     if (a != null && mounted) setState(() => _attachmentId = a.publicId);
   }
 
+  /// Bekleyen ödemeye yöntemin belgesi yüklenince sunucu ödemeyi kendiliğinden "Belge yüklendi" yapar
+  /// ve siparişin sürüm belirtecini yeniler. Kayıt yeniden okunmazsa ilk kayıt eski belirteçle 409
+  /// alırdı; izin verilen durumlar da değişir. Okuma sürerken kayıt düğmesi kapalıdır.
+  Future<void> _refreshAfterUpload(PaymentStatus before) async {
+    if (!mounted) return;
+    setState(() => _refreshing = true);
+    final fresh = await _reload();
+    if (!mounted) return;
+    setState(() => _refreshing = false);
+    if (fresh != null && fresh.row.paymentStatus != before) {
+      AppToast.info(
+        'Belge eklendi; ödeme durumu "${fresh.row.paymentStatusLabel ?? fresh.row.paymentStatus.label}" olarak güncellendi.',
+        context: context,
+      );
+    }
+  }
+
   Future<void> _submit(PaymentDetail d) async {
     final to = _to;
-    if (to == null || _busy) return;
+    if (to == null || _busy || _refreshing) return;
     final note = _note.text.trim();
     if (d.noteRequiredFor.contains(to) && note.length < 3) {
       setState(
@@ -109,24 +129,44 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
     }
   }
 
-  Future<void> _reload() async {
+  /// Kaydı yeniden okur; seçilen durum artık izinli değilse seçim kalkar. Okunan kayıt (hata: null).
+  Future<PaymentDetail?> _reload() async {
     setState(() => _problem = null);
     ref.invalidate(paymentDetailProvider(widget.orderId));
     try {
       final fresh = await ref.read(
         paymentDetailProvider(widget.orderId).future,
       );
-      if (!mounted) return;
+      if (!mounted) return fresh;
       if (_to != null && !fresh.allowedTransitions.contains(_to)) {
         setState(() => _to = null);
       }
-    } catch (_) {}
+      return fresh;
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(paymentDetailProvider(widget.orderId));
     final d = async.valueOrNull;
+    // Yeni yüklenen her belgeden sonra (ilk yükleme ya da "tekrar dene") kayıt tazelenir.
+    ref.listen<List<UploadItem>>(uploadsProvider(_target), (prev, next) {
+      final before = {
+        for (final u in prev ?? const <UploadItem>[])
+          if (u.attachment != null) u.localId,
+      };
+      final uploaded = next.any(
+        (u) => u.attachment != null && !before.contains(u.localId),
+      );
+      final current = ref
+          .read(paymentDetailProvider(widget.orderId))
+          .valueOrNull;
+      if (uploaded && current != null) {
+        unawaited(_refreshAfterUpload(current.row.paymentStatus));
+      }
+    });
     if (d == null) return const SizedBox(height: 160, child: LoadingView());
     final t = context.aknText;
     final c = context.akn;
@@ -257,8 +297,11 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
           icon: Icons.check_rounded,
           expand: true,
           size: AknButtonSize.large,
-          loading: _busy,
-          onPressed: to != null && online && !_busy ? () => _submit(d) : null,
+          loading: _busy || _refreshing,
+          loadingLabel: _refreshing ? 'Ödeme güncelleniyor' : 'Gönderiliyor',
+          onPressed: to != null && online && !_busy && !_refreshing
+              ? () => _submit(d)
+              : null,
         ),
       ],
     );

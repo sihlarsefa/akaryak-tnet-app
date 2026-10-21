@@ -84,6 +84,20 @@ class PaymentActions {
     PaymentStatus to, {
     String? note,
     String? attachmentPublicId,
+  }) => _changeStatus(
+    d,
+    to,
+    note: note,
+    attachmentPublicId: attachmentPublicId,
+    retried: false,
+  );
+
+  Future<ActionOutcome> _changeStatus(
+    PaymentDetail d,
+    PaymentStatus to, {
+    String? note,
+    String? attachmentPublicId,
+    required bool retried,
   }) async {
     final done = 'Ödeme durumu "${to.label}" olarak güncellendi.';
     final ledger = ref.read(a5IdempotencyLedgerProvider);
@@ -121,14 +135,36 @@ class PaymentActions {
       }
       // Belirsiz sonuç ya da çakışma: kayıt yeniden okunur; hedef duruma ulaşıldıysa başarı.
       if (isRetryable(f) || f.isUncertain || f is ConflictFailure) {
+        PaymentDetail? fresh;
         try {
-          final fresh = await _repo.detail(d.orderId);
-          if (fresh.row.paymentStatus == to &&
-              fresh.concurrencyToken != d.concurrencyToken) {
-            _invalidate(d.orderId);
-            return ActionDone(done);
-          }
-        } catch (_) {}
+          fresh = await _repo.detail(d.orderId);
+        } catch (_) {
+          fresh = null;
+        }
+        if (fresh != null &&
+            fresh.row.paymentStatus == to &&
+            fresh.concurrencyToken != d.concurrencyToken) {
+          _invalidate(d.orderId);
+          return ActionDone(done);
+        }
+        // Belge yüklenince sunucu bekleyen ödemeyi kendiliğinden "Belge yüklendi" yapar ve sürümü
+        // yeniler (ör. dekontu müşteri ya da başka bir personel ekledi). Başka bir değişiklik yoksa
+        // ve seçilen geçiş hâlâ izinliyse yeni sürümle bir kez yeniden denenir.
+        if (!retried &&
+            fresh != null &&
+            f is ConflictFailure &&
+            f.isConcurrency &&
+            d.row.paymentStatus == PaymentStatus.pending &&
+            fresh.row.paymentStatus == PaymentStatus.documentUploaded &&
+            fresh.allowedTransitions.contains(to)) {
+          return _changeStatus(
+            fresh,
+            to,
+            note: note,
+            attachmentPublicId: attachmentPublicId,
+            retried: true,
+          );
+        }
       }
       if (f is ConflictFailure && f.isConcurrency) {
         return const ActionConflict(conflictText);

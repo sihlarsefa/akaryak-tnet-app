@@ -17,6 +17,7 @@ import '../../../core/offline/connectivity.dart';
 import '../../../core/offline/outbox_files.dart';
 import '../../../core/offline/outbox_op.dart';
 import '../../../core/offline/outbox_store.dart';
+import '../../../core/storage/user_drafts.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
@@ -161,10 +162,10 @@ class LeadWizardArgs {
   final String? queuedOpId;
 
   String get storageKey => leadId != null
-      ? 'field.wizard.lead.$leadId'
+      ? '${UserDrafts.fieldWizardPrefix}lead.$leadId'
       : queuedOpId != null
-      ? 'field.wizard.leadop.$queuedOpId'
-      : 'field.wizard.lead.new';
+      ? '${UserDrafts.fieldWizardPrefix}leadop.$queuedOpId'
+      : '${UserDrafts.fieldWizardPrefix}lead.new';
 
   @override
   bool operator ==(Object other) =>

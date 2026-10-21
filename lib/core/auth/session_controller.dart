@@ -11,6 +11,7 @@ import '../network/interceptors/auth_interceptor.dart';
 import '../network/network_providers.dart';
 import '../offline/cache_store.dart';
 import '../storage/prefs_store.dart';
+import '../storage/user_drafts.dart';
 import '../utils/app_messenger.dart';
 import '../utils/external_activity.dart';
 import '../utils/log.dart';
@@ -42,6 +43,28 @@ final accessPolicyProvider = Provider<AccessPolicy>((ref) {
 final currentUserIdProvider = Provider<String?>(
   (ref) => ref.watch(sessionControllerProvider).access?.userId,
 );
+
+/// Çıkışın nedeni (spec D.7). Kullanıcı çıkarsa kullanıcı verisinin tümü silinir. Yeniden giriş
+/// gerekiyorsa yarım işler ([UserDrafts]: teslim taslakları, sipariş sihirbazı ve sonucu belirsiz
+/// gönderimin anahtarı, saha taslakları) korunur; aynı kullanıcı girince kaldığı yerden sürer, başka
+/// kullanıcı girerse silinir. Belirteçler, yetkiler, önbellek, görseller, bildirimler ve rozet her
+/// durumda silinir.
+enum SignOutReason {
+  /// "Çıkış yap", tüm cihazlardan çıkış, hesap kapatma.
+  explicit,
+
+  /// Oturum sona erdi ya da sunucuda kapatıldı (yenileme reddedildi).
+  expired,
+
+  /// Kilit ekranında "Şifreyle giriş yap".
+  lockFallback,
+
+  /// Şifre ya da telefon değişti; yeniden giriş.
+  securityChanged;
+
+  /// Yarım işler korunur (yalnızca kullanıcı çıkmadıysa).
+  bool get keepsDrafts => this != explicit;
+}
 
 class SessionController extends Notifier<SessionState> {
   static const sessionExpiredMessage =
@@ -98,7 +121,7 @@ class SessionController extends Notifier<SessionState> {
       _startTimers();
     } on AppFailure catch (f) {
       if (f is UnauthorizedFailure) {
-        await _clearLocal(userId);
+        await _clearLocal(userId, keepDrafts: true);
         state = const SessionUnauthenticated(message: sessionExpiredMessage);
       } else {
         // Çevrimdışı ve önbellek yok: giriş ekranı; belirteç bir sonraki açılış için korunur.
@@ -148,9 +171,11 @@ class SessionController extends Notifier<SessionState> {
       if (previousUser != null && previousUser != access.userId) {
         // Kullanıcı değişti: önceki kullanıcının önbelleği, görselleri ve bildirimleri temizlenir.
         await ref.read(cacheStoreProvider).clearUser(previousUser);
+        await ref.read(prefsStoreProvider).clearUser(previousUser);
         await ref.read(cacheStoreProvider).clearSessionData();
         await ref.read(sessionCleanupProvider)(previousUser);
       }
+      await _settleKeptDrafts(access.userId);
       await _cacheAccess(access);
       state = SessionAuthenticated(access);
       _startTimers();
@@ -211,6 +236,7 @@ class SessionController extends Notifier<SessionState> {
     String? message,
     bool allDevices = false,
     bool callServer = true,
+    SignOutReason reason = SignOutReason.explicit,
   }) async {
     if (_signingOut) return;
     _signingOut = true;
@@ -230,7 +256,10 @@ class SessionController extends Notifier<SessionState> {
           // Sunucuya ulaşılamasa da yerel oturum kapanır.
         }
       }
-      await _clearLocal(tokens.userId);
+      await _clearLocal(
+        tokens.userId,
+        keepDrafts: reason.keepsDrafts && !allDevices,
+      );
       state = SessionUnauthenticated(message: message);
     } finally {
       _signingOut = false;
@@ -240,22 +269,54 @@ class SessionController extends Notifier<SessionState> {
   /// Yerel oturum verisi (spec D.7): belirteçler, önbellek (yetkiler dahil), kullanıcı tercihleri,
   /// görsel önbelleği, gösterilen bildirimler ve uygulama simgesi rozeti. Bekleyen işlemler kalır;
   /// yalnızca sahibinin oturumunda çalışır (silmek için Profil → "Yine de çık").
-  Future<void> _clearLocal(String? userId) async {
+  ///
+  /// [keepDrafts] (istem dışı çıkış): kullanıcının yarım işleri ([UserDrafts]) kalır ve sahibi
+  /// [PrefKeys.draftsOwner]'a yazılır; girişte [_settleKeptDrafts] karar verir.
+  Future<void> _clearLocal(String? userId, {bool keepDrafts = false}) async {
     _periodic?.cancel();
     _periodic = null;
     _lastAccessFetch = null;
     await ref.read(tokenStoreProvider).clear();
     final cache = ref.read(cacheStoreProvider);
+    final prefs = ref.read(prefsStoreProvider);
+    final keep = keepDrafts && userId != null;
+    final keepCache = keep
+        ? UserDrafts.cacheKeyPrefixes(userId)
+        : const <String>{};
     if (userId != null) {
-      await cache.clearUser(userId);
-      await ref.read(prefsStoreProvider).clearUser(userId);
+      await cache.clearUser(userId, keepPrefixes: keepCache);
+      await prefs.clearUser(
+        userId,
+        keep: keep ? UserDrafts.prefKeys(userId) : const {},
+      );
     }
-    await cache.clearSessionData();
+    await cache.clearSessionData(keepPrefixes: keepCache);
+    if (keep) {
+      await prefs.setString(PrefKeys.draftsOwner, userId);
+    } else {
+      // "Çıkış yap": önceden korunmuş yarım işler de gider.
+      await _dropKeptDrafts(except: null);
+    }
     try {
       await ref.read(sessionCleanupProvider)(userId);
     } catch (e) {
       AppLog.debug('Oturum temizliği tamamlanamadı: $e');
     }
+  }
+
+  /// Girişte: istem dışı çıkışta korunan yarım işler aynı kullanıcınınsa sürer, başkasınınsa silinir.
+  Future<void> _settleKeptDrafts(String userId) =>
+      _dropKeptDrafts(except: userId);
+
+  Future<void> _dropKeptDrafts({required String? except}) async {
+    final prefs = ref.read(prefsStoreProvider);
+    final owner = prefs.getString(PrefKeys.draftsOwner);
+    if (owner == null) return;
+    if (owner != except) {
+      await ref.read(cacheStoreProvider).clearUser(owner);
+      await prefs.clearUser(owner);
+    }
+    await prefs.setString(PrefKeys.draftsOwner, null);
   }
 
   // ------------------------------------------------------------------ Yaşam döngüsü
@@ -309,6 +370,7 @@ class SessionController extends Notifier<SessionState> {
                   ? sessionRevokedMessage
                   : sessionExpiredMessage,
               callServer: false,
+              reason: SignOutReason.expired,
             ),
           );
         }

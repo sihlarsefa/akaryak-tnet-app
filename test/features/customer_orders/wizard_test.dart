@@ -4,14 +4,19 @@
 // "Şablon olarak kaydet", gönderim (başarı / kısmi → kalanları yeni anahtar + aynı ödeme grubuyla),
 // şablondan / talepten / tekrarla açılış, çıkışta taslak sakla / çık, C.7 erişilebilirlik.
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:akaryakitnet/core/media/image_capture.dart';
+import 'package:akaryakitnet/core/models/enums.dart';
 import 'package:akaryakitnet/core/models/json.dart';
+import 'package:akaryakitnet/core/routing/app_routes.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/core/utils/format.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/customer_orders/api.dart';
+import 'package:akaryakitnet/features/customer_orders/application/wizard_models.dart';
+import 'package:akaryakitnet/features/customer_orders/presentation/wizard/order_wizard_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -482,6 +487,210 @@ void main() {
     expect(snap, isNull);
     await tearDownUi(tester);
   });
+
+  String location(GoRouter router) =>
+      router.routerDelegate.currentConfiguration.uri.path;
+
+  /// Şablon 702 (iki satır) ikinci satırda düşer: kısmi sonuç ekranı.
+  Future<(ProviderContainer, GoRouter)> toPartial(WidgetTester tester) async {
+    env.controls.failLineAt = 1;
+    final opened = await openWizard(
+      tester,
+      location: '/orders/new?fromTemplate=702',
+      waitFor: find.textContaining('şablonu yüklendi'),
+    );
+    await next(tester, deliveryTitle);
+    await next(tester, paymentTitle);
+    await next(tester, summaryMarker);
+    await tapVisible(tester, find.widgetWithText(AknButton, OrdersCopy.send));
+    await pumpUntil(tester, find.text(OrdersCopy.partialTitle));
+    await pumpReal(tester);
+    return opened;
+  }
+
+  for (final exit in [OrdersCopy.backHome, OrdersCopy.viewOrder]) {
+    testWidgets(
+      'başarıdan sonra "$exit": gönderilen taslak geri yazılmaz; sonraki "Sipariş ver" boş açılır',
+      (tester) async {
+        final c = (await tester.runAsync(() => env.signedIn('musteri')))!;
+        addTearDown(c.dispose);
+        // Uygulamadaki gibi: ana sayfadan sihirbaz açılır.
+        final router = await pumpA2(tester, c, initialLocation: '/home');
+        await pumpReal(tester, rounds: 10);
+        unawaited(router.push('/orders/new'));
+        await pumpUntil(tester, productsTitle);
+        await pumpReal(tester);
+        await toSummary(tester, '4200');
+        await tapVisible(
+          tester,
+          find.widgetWithText(AknButton, OrdersCopy.send),
+        );
+        await pumpUntil(tester, find.text(OrdersCopy.successTitle));
+        // Bekleyen otomatik kayıt zamanlayıcısı da taslağı geri getirmemeli.
+        await tester.pump(const Duration(seconds: 1));
+        await pumpReal(tester);
+        await tapVisible(tester, find.widgetWithText(AknButton, exit));
+        await pumpUntilGone(tester, find.text(OrdersCopy.successTitle));
+        // Sayfa kapanır, sihirbaz sağlayıcısı atılır (kapanış kaydı burada çalışırdı).
+        await tester.pump(const Duration(seconds: 1));
+        await pumpReal(tester, rounds: 10);
+        expect(find.byType(OrderWizardPage), findsNothing);
+        final snap = await tester.runAsync(
+          () => c.read(wizardDraftStoreProvider)!.load(),
+        );
+        expect(snap, isNull, reason: 'gönderilen taslak saklanmamalı');
+        c.invalidate(draftSummaryProvider);
+        final summary = await tester.runAsync(
+          () => c.read(draftSummaryProvider.future),
+        );
+        expect(summary, isNull, reason: '"Yarım kalan siparişiniz" kartı yok');
+
+        unawaited(router.push('/orders/new'));
+        await pumpUntil(tester, productsTitle);
+        await pumpReal(tester);
+        expect(productsTitle, findsOneWidget);
+        expect(summaryMarker, findsNothing);
+        expect(find.widgetWithText(AknButton, OrdersCopy.send), findsNothing);
+        expect(env.controls.placeRequests, hasLength(1));
+        await tearDownUi(tester);
+      },
+    );
+  }
+
+  testWidgets(
+    'kısmi sonuç → Kapat: kalan satır, oluşan sipariş ve ödeme grubu korunur; '
+    'yeniden açınca yalnızca kalan satır aynı grupla gönderilir',
+    (tester) async {
+      final (c, router) = await toPartial(tester);
+      final atPartial = (await tester.runAsync(
+        () => c.read(wizardDraftStoreProvider)!.load(),
+      ))!;
+      expect(atPartial.draft.lines, hasLength(1));
+      expect(atPartial.created, hasLength(1));
+      final group = atPartial.draft.paymentGroupKey;
+      expect(group, isNotNull);
+
+      await tester.tap(find.byTooltip('Kapat').first);
+      await pumpUntilGone(tester, find.text(OrdersCopy.partialTitle));
+      // Sayfa kapanır, sihirbaz sağlayıcısı atılır (kapanış kaydı burada çalışırdı).
+      await tester.pump(const Duration(seconds: 1));
+      await pumpReal(tester, rounds: 10);
+      expect(find.text(OrdersCopy.exitTitle), findsNothing);
+      expect(find.byType(OrderWizardPage), findsNothing);
+      final closed = (await tester.runAsync(
+        () => c.read(wizardDraftStoreProvider)!.load(),
+      ))!;
+      expect(
+        closed.draft.lines,
+        hasLength(1),
+        reason: 'eski taslakla ezilmedi',
+      );
+      expect(closed.draft.lines.single.liters, 8000);
+      expect(closed.created, hasLength(1));
+      expect(closed.draft.paymentGroupKey, group);
+      expect(closed.draft.origin, DraftOrigin.partial);
+
+      // "Yarım kalan siparişiniz" → sihirbaz kalan satırın özetiyle açılır.
+      unawaited(router.push('/orders/new'));
+      await pumpUntil(
+        tester,
+        find.textContaining('Önceki gönderimde 1 sipariş'),
+      );
+      await pumpReal(tester);
+      await tapVisible(tester, find.widgetWithText(AknButton, OrdersCopy.send));
+      await pumpUntil(tester, find.text(OrdersCopy.successTitle));
+      expect(env.controls.placeRequests, hasLength(2));
+      final second = env.controls.placeRequests.last;
+      final lines = (second.body['lines'] as List).cast<JsonMap>();
+      expect(lines, hasLength(1), reason: 'oluşan satır yeniden gönderilmez');
+      expect(lines.single['quantityLiters'], 8000);
+      expect(second.body['paymentGroupKey'], group);
+      expect(second.key, isNot(env.controls.placeRequests.first.key));
+      await tearDownUi(tester);
+    },
+  );
+
+  testWidgets(
+    'kısmi sonuç → "Siparişlerime git": siparişler açılır (çıkış sayfası yok); kalanlar taslakta',
+    (tester) async {
+      final (c, router) = await toPartial(tester);
+      await tapVisible(
+        tester,
+        find.widgetWithText(AknButton, OrdersCopy.viewOrders),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await pumpReal(tester, rounds: 10);
+      expect(find.text(OrdersCopy.exitTitle), findsNothing);
+      expect(find.byType(OrderWizardPage), findsNothing);
+      expect(location(router), AppRoutes.orders);
+      expect(find.text(OrdersCopy.partialTitle), findsNothing);
+      expect(productsTitle, findsNothing);
+      final snap = (await tester.runAsync(
+        () => c.read(wizardDraftStoreProvider)!.load(),
+      ))!;
+      expect(snap.draft.lines, hasLength(1));
+      expect(snap.draft.lines.single.liters, 8000);
+      expect(snap.created, hasLength(1));
+      expect(snap.draft.paymentGroupKey, isNotNull);
+      expect(env.controls.placeRequests, hasLength(1));
+      expect(c.read(orderSubmitProvider).phase, SubmitPhase.idle);
+      await tearDownUi(tester);
+    },
+  );
+
+  testWidgets(
+    'havale: sihirbazda eklenen dekont sipariş oluşunca kendiliğinden yüklenir (bir kez)',
+    (tester) async {
+      final jpeg = Uint8List.fromList(const [0xFF, 0xD8, 0xFF, 0xD9]);
+      final dir = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('akn_dekont'),
+      ))!;
+      final path = '${dir.path}${Platform.pathSeparator}dekont.jpg';
+      await tester.runAsync(() => File(path).writeAsBytes(jpeg));
+      final uploads = <(PaymentUploadTarget, String, String)>[];
+      await openWizard(
+        tester,
+        extra: [
+          a2DocumentPickerProvider.overrideWithValue(
+            (context, source, kind) async =>
+                CapturedImage(path: path, bytes: jpeg, fileName: 'dekont.jpg'),
+          ),
+          a2DocumentUploaderProvider.overrideWithValue(({
+            required target,
+            required image,
+            required idempotencyKey,
+            onProgress,
+          }) async {
+            onProgress?.call(1);
+            uploads.add((target, image.fileName, idempotencyKey));
+          }),
+        ],
+      );
+      await fillLine(tester, '3000');
+      await next(tester, deliveryTitle);
+      await next(tester, paymentTitle);
+      await tapVisible(tester, find.text('Galeriden seç'));
+      await pumpUntil(
+        tester,
+        find.text('Dekont eklendi; sipariş oluşunca yüklenecek.'),
+      );
+      await next(tester, summaryMarker);
+      await tapVisible(tester, find.widgetWithText(AknButton, OrdersCopy.send));
+      await pumpUntil(tester, find.text(OrdersCopy.successTitle));
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 400));
+        await pumpReal(tester, rounds: 2);
+      }
+      expect(uploads, hasLength(1), reason: 'dekont kendiliğinden yüklendi');
+      expect(uploads.single.$1.kind, AttachmentKind.transferReceipt);
+      expect(uploads.single.$1.isUploadable, isTrue);
+      expect(uploads.single.$2, 'dekont.jpg');
+      expect(find.text('Havale / EFT dekontu yüklendi.'), findsOneWidget);
+      expect(find.text('Galeriden seç'), findsNothing);
+      await tearDownUi(tester);
+      await tester.runAsync(() => dir.delete(recursive: true));
+    },
+  );
 
   for (final scale in [1.0, 2.0]) {
     for (final b in Brightness.values) {

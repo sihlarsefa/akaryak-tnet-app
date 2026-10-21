@@ -195,13 +195,20 @@ class PaymentDocumentPanel extends ConsumerStatefulWidget {
     required this.target,
     this.orderNumber,
     this.preselected,
+    this.autoUpload = false,
     this.onDone,
     this.embedded = false,
   });
 
   final PaymentUploadTarget target;
   final String? orderNumber;
+
+  /// Önceden seçili görsel (sihirbazda eklenen dekont). Panel henüz seçim aşamasındayken sonradan
+  /// verilirse de alınır.
   final CapturedImage? preselected;
+
+  /// [preselected] alınınca kendiliğinden yüklenir ("sipariş oluşunca yüklenecek").
+  final bool autoUpload;
   final VoidCallback? onDone;
 
   /// Başarı ekranında kart içinde (başlık panel içinde gösterilir).
@@ -225,9 +232,35 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
   void initState() {
     super.initState();
     final pre = widget.preselected;
-    if (pre != null) {
-      _image = pre;
-      _phase = _UploadPhase.ready;
+    if (pre != null) _adopt(pre);
+  }
+
+  @override
+  void didUpdateWidget(PaymentDocumentPanel old) {
+    super.didUpdateWidget(old);
+    final pre = widget.preselected;
+    // Önceden seçili görsel sonradan geldi (ör. dosya okunması sürüyordu): kullanıcı henüz bir şey
+    // seçmediyse alınır.
+    if (pre != null &&
+        pre.path != old.preselected?.path &&
+        _phase == _UploadPhase.pick &&
+        _image == null) {
+      setState(() => _adopt(pre));
+    }
+  }
+
+  void _adopt(CapturedImage image) {
+    _image = image;
+    _key = null;
+    _phase = _UploadPhase.ready;
+    if (widget.autoUpload) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            _phase == _UploadPhase.ready &&
+            identical(_image, image)) {
+          unawaited(_upload());
+        }
+      });
     }
   }
 

@@ -13,6 +13,7 @@ import '../../../core/offline/cache_store.dart';
 import '../../../core/offline/connectivity.dart';
 import '../../../core/offline/outbox_op.dart';
 import '../../../core/offline/outbox_store.dart';
+import '../../../core/storage/user_drafts.dart';
 import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
@@ -85,10 +86,10 @@ class FormWizardArgs {
   final String? queuedOpId;
 
   String get storageKey => formId != null
-      ? 'field.wizard.form.$formId'
+      ? '${UserDrafts.fieldWizardPrefix}form.$formId'
       : queuedOpId != null
-      ? 'field.wizard.op.$queuedOpId'
-      : 'field.wizard.form.new';
+      ? '${UserDrafts.fieldWizardPrefix}op.$queuedOpId'
+      : '${UserDrafts.fieldWizardPrefix}form.new';
 
   @override
   bool operator ==(Object other) =>

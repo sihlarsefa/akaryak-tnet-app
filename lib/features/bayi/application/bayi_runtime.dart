@@ -51,8 +51,9 @@ final bayiChangesProvider = Provider<BayiChanges>((ref) {
   return c;
 });
 
-/// İşlemin sonucu: sunucu onayladı ya da yeniden okumada hedef duruma ulaşıldığı görüldü.
-enum BayiOutcome { confirmed, reconciled }
+/// İşlemin sonucu: sunucu onayladı, yeniden okumada hedef duruma ulaşıldığı görüldü ya da (tekil
+/// teklif) teklif limit aşımı yüzünden kaydedilmedi ve sipariş finans onayına gönderildi.
+enum BayiOutcome { confirmed, reconciled, routedToFinance }
 
 /// İdempotent çalıştırıcı (spec C.4a).
 ///

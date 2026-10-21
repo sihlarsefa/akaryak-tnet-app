@@ -211,6 +211,7 @@ void registerCoreFakes(FakeServer s) {
       note: form.fields['note'],
       uploadedBy: p,
     );
+    s.world.notifyAttachmentUploaded(dto, p);
     return {
       'attachment': dto,
       'isDuplicate': false,

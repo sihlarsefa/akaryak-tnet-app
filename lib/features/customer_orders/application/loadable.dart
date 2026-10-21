@@ -5,6 +5,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
 import '../../../core/storage/prefs_store.dart';
+import '../../../core/storage/user_drafts.dart';
 
 /// Önbellekli ekran verisi: ilk yüklemede iskelet, yenilemede içerik kalır (üstte ince çubuk),
 /// çevrimdışıyken son kayıt "Son güncelleme" ile gösterilir (spec C.4a, C.6).
@@ -65,7 +66,10 @@ abstract final class A2Keys {
       CacheKeys.user(uid, 'a2.order.$id');
   static String recentOrders(String uid) =>
       CacheKeys.user(uid, 'a2.order.recent');
-  static String wizard(String uid) => CacheKeys.user(uid, 'a2.wizard');
+
+  /// İstem dışı çıkışta korunur (bekleyen gönderim anahtarı dahil; `UserDrafts`).
+  static String wizard(String uid) =>
+      CacheKeys.user(uid, UserDrafts.orderWizard);
 
   // Tercihler
   static String tipFirstOrder(String uid) =>

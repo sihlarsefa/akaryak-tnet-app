@@ -414,6 +414,34 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('2,0× yazıda KPI satırı alt alta dizilir; 1,0×\'da yan yana', (
+      tester,
+    ) async {
+      Widget row() => const KpiRow(
+        children: [
+          KpiTile(label: 'Planlanacak', value: 3, icon: Icons.event_note),
+          KpiTile(label: 'Şoför hesabı yok', value: 0, icon: Icons.person),
+        ],
+      );
+      await pumpUi(
+        tester,
+        row(),
+        textScale: 2,
+        size: const Size(360, 900),
+        scroll: true,
+      );
+      expect(tester.takeException(), isNull);
+      final a = tester.getRect(find.byType(KpiTile).first);
+      final b = tester.getRect(find.byType(KpiTile).last);
+      expect(b.top, greaterThanOrEqualTo(a.bottom), reason: 'alt alta');
+      expect(a.width, greaterThan(300), reason: 'tam genişlik');
+
+      await pumpUi(tester, row(), size: const Size(360, 900), scroll: true);
+      final c = tester.getRect(find.byType(KpiTile).first);
+      final d = tester.getRect(find.byType(KpiTile).last);
+      expect(c.top, d.top, reason: 'yan yana');
+    });
+
     testWidgets('iOS sayı klavyesinde "Bitti" çubuğu', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
