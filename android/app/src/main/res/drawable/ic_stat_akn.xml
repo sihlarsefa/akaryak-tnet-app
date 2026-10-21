@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bildirim çubuğu ikonu: » işareti (tek renk; sistem renklendirir). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="80"
+    android:viewportHeight="80">
+    <path
+        android:pathData="M22,23.5 L38.3,39.8 L22,56.1 M41.6,23.5 L57.9,39.8 L41.6,56.1"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+</vector>

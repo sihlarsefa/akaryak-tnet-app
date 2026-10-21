@@ -1,0 +1,5 @@
+{
+  "status": "twoFactorRequired",
+  "tokens": null,
+  "challenge": {"challengeId": "3f1b5c2a-8f0e-4c1d-9e7a-2b6d4c8e1a00", "maskedPhone": "0532 *** ** 01", "expiresInSeconds": 300, "resendInSeconds": 60}
+}

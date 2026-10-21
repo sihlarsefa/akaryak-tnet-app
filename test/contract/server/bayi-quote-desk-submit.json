@@ -1,0 +1,16 @@
+[
+  {
+    "orderId": 101,
+    "outcome": "quoted",
+    "outcomeLabel": "Teklif g\u00F6nderildi",
+    "success": true,
+    "message": "Teklif g\u00F6nderildi."
+  },
+  {
+    "orderId": 102,
+    "outcome": "routedToFinance",
+    "outcomeLabel": "Finans onay\u0131na g\u00F6nderildi",
+    "success": false,
+    "message": "Cari limit a\u015F\u0131m\u0131 nedeniyle sipari\u015F finans onay\u0131na g\u00F6nderildi; teklif kaydedilmedi."
+  }
+]

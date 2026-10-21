@@ -1,0 +1,12 @@
+{
+  "title": "Ge\u00E7ersiz istek",
+  "status": 400,
+  "detail": "L\u00FCtfen i\u015Faretli alanlar\u0131 kontrol edin.",
+  "code": "validation",
+  "traceId": "ornek-iz-0001",
+  "errors": {
+    "quantityLiters": [
+      "Miktar 0\u0027dan b\u00FCy\u00FCk olmal\u0131."
+    ]
+  }
+}

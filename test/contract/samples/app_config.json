@@ -1,0 +1,26 @@
+{
+  "minBuild": 3,
+  "latestBuild": 5,
+  "storeUrl": "https://apps.apple.com/app/id0000000000",
+  "updateTitle": "Yeni sürüm hazır",
+  "updateMessage": "Daha hızlı teslimat ekranı için güncelleyin.",
+  "features": {
+    "otpLogin": false,
+    "assistant": true,
+    "weather": true,
+    "payments": true,
+    "push": false,
+    "orderExpiry": true,
+    "deliveryPhotoRequired": true,
+    "deliverySignatureRequired": false,
+    "deliveryGpsRequired": true
+  },
+  "support": {"phone": "08501112233", "whatsapp": "908501112233", "email": "destek@akaryakitnet.example", "url": "http://134.149.201.54:3108/legal/support"},
+  "legal": {"privacyUrl": "http://134.149.201.54:3108/legal/privacy", "kvkkUrl": "http://134.149.201.54:3108/legal/kvkk", "termsUrl": "http://134.149.201.54:3108/legal/terms", "accountDeletionUrl": "http://134.149.201.54:3108/legal/account-deletion"},
+  "leadKvkkVersion": "2026-10",
+  "assistantConsentVersion": "2",
+  "maintenance": {"active": false, "message": null},
+  "apiBuild": "fd59cc7",
+  "contractVersion": "mobile-v1",
+  "serverTimeUtc": "2026-10-21T09:15:00+00:00"
+}

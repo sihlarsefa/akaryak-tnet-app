@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Marka (web paneliyle aynı; mor yok). -->
+    <color name="akn_brand">#C94C0C</color>
+    <color name="akn_logo">#FF5001</color>
+    <color name="akn_navy">#1F2A37</color>
+</resources>

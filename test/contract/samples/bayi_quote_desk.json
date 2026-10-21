@@ -1,0 +1,27 @@
+{
+  "header": {"expiryEnabled": true, "financeHeld": 1, "quotingBlocked": false, "quotingBlockedReason": null, "canSubmit": true, "epdkWarning": null, "soonMinutes": 30, "maxBatch": 50},
+  "rows": [
+    {
+      "orderId": 4003, "orderNumber": "SIP-2026-004003", "status": 1, "statusLabel": "Teklif bekliyor",
+      "stationId": 12, "stationTitle": "Demir Petrol Akaryakıt Ltd. Şti.", "customerId": 101, "customerTitle": "Anadolu Lojistik A.Ş.", "customerCode": "C-101",
+      "productId": 1, "productName": "Motorin", "productCode": "MOT", "quantityLiters": 15000.000,
+      "deliveryPointName": "Pendik Lojistik Merkezi", "deliveryPointCity": "İstanbul", "deliveryPointDistrict": "Pendik",
+      "requestedDeliveryDate": "2026-10-23T00:00:00+03:00", "expiresAt": "2026-10-21T23:59:59+03:00", "createdAt": "2026-10-21T08:10:00+03:00",
+      "latestQuoteVersion": null, "latestUnitPriceTry": null, "latestQuoteDeliveryDate": null, "latestRevisionNote": null,
+      "recentPrices": [{"orderId": 3990, "orderNumber": "SIP-2026-003990", "orderDate": "2026-10-14T09:00:00+03:00", "quantityLiters": 12000.000, "unitPriceTry": 41.8500}],
+      "paymentMethodCode": "HAVALE", "paymentMethodName": "Havale / EFT", "paymentTermDays": null, "paymentDueDate": null, "paymentInstallments": null,
+      "paymentStatus": 1, "financeStatus": 0,
+      "suggestedUnitPrice": 42.1000, "suggestedSource": "list", "suggestedLabel": "Liste fiyatı", "defaultDeliveryDate": "2026-10-23",
+      "secondsLeft": 46800,
+      "payChip": {"line": "Havale / EFT · peşin", "methodName": "Havale / EFT", "statusLabel": "Bekliyor", "tone": "neutral", "financeLabel": null, "financeTone": "neutral"}
+    }
+  ],
+  "totalCount": 1,
+  "page": 1,
+  "pageSize": 25,
+  "view": "all",
+  "sort": "expiry",
+  "counts": {"all": 1, "awaitingQuote": 1, "revision": 0, "expiringSoon": 0, "financeHeld": 1},
+  "today": {"ordersToday": 4, "quotedToday": 2, "avgFirstQuoteMinutes": 37},
+  "serverTime": "2026-10-21T10:00:00+03:00"
+}

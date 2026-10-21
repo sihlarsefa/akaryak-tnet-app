@@ -1,0 +1,10 @@
+{
+  "status": "twoFactorRequired",
+  "tokens": null,
+  "challenge": {
+    "challengeId": "7b0c1f4a-52d9-4c3e-8f1d-0e6c5a9b2d31",
+    "maskedPhone": "9053*****07",
+    "expiresInSeconds": 300,
+    "resendInSeconds": 60
+  }
+}

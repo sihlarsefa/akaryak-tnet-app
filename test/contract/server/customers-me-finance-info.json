@@ -1,0 +1,62 @@
+{
+  "links": [
+    {
+      "stationId": 1,
+      "stationTitle": "\u00D6rnek Petrol",
+      "status": {
+        "stationId": 1,
+        "customerId": 1,
+        "stationCustomerId": 1,
+        "canOrder": false,
+        "blockReason": "Finans ek bilgi istedi; istenen belgeyi y\u00FCkleyip yan\u0131tlay\u0131n.",
+        "isGrandfathered": false,
+        "profileStatus": 3,
+        "infoRequested": true,
+        "openApprovalRequestId": 1
+      },
+      "requestId": 1,
+      "requestStatus": 4,
+      "requestStatusLabel": "Ek bilgi istendi",
+      "infoNote": "G\u00FCncel vergi levhas\u0131n\u0131 ekleyin",
+      "requiredKind": 10,
+      "requiredKindLabel": "Vergi levhas\u0131",
+      "requestedAt": "2026-10-21T07:16:42.022366+00:00",
+      "canReply": true
+    },
+    {
+      "stationId": 2,
+      "stationTitle": "Ege Akaryak\u0131t",
+      "status": {
+        "stationId": 2,
+        "customerId": 1,
+        "stationCustomerId": null,
+        "canOrder": true,
+        "blockReason": null,
+        "isGrandfathered": false,
+        "profileStatus": null,
+        "infoRequested": false,
+        "openApprovalRequestId": null
+      },
+      "requestId": null,
+      "requestStatus": null,
+      "requestStatusLabel": null,
+      "infoNote": null,
+      "requiredKind": null,
+      "requiredKindLabel": null,
+      "requestedAt": null,
+      "canReply": false
+    }
+  ],
+  "orders": [
+    {
+      "orderId": 1,
+      "orderNumber": "AYN-20261021-0107",
+      "stationTitle": "\u00D6rnek Petrol",
+      "requestId": 2,
+      "infoNote": "\u00C7ek g\u00F6rselini y\u00FCkleyin",
+      "requiredKind": 1,
+      "requiredKindLabel": "\u00C7ek g\u00F6rseli",
+      "createdAt": "2026-10-21T08:30:00+03:00"
+    }
+  ]
+}

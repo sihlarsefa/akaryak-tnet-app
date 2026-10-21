@@ -1,0 +1,70 @@
+{
+  "id": 9001,
+  "type": 4,
+  "typeLabel": "Sipariş finans onayı",
+  "status": 0,
+  "statusLabel": "Bekliyor",
+  "isMirror": false,
+  "stationId": 12,
+  "stationTitle": "Demir Petrol Akaryakıt Ltd. Şti.",
+  "customerId": 102,
+  "customerTitle": "Marmara İnşaat Taahhüt Ltd. Şti.",
+  "subjectType": "Order",
+  "subjectId": 4005,
+  "subjectNumber": "SIP-2026-004005",
+  "title": "Sipariş finans onayı",
+  "summaryText": "Çek · 60 gün vade · limit aşımı",
+  "amount": 1052500.00,
+  "liters": 25000.000,
+  "requestedByUserId": null,
+  "requestedByName": "Marmara İnşaat (müşteri siparişi)",
+  "createdAt": "2026-10-21T06:00:00+00:00",
+  "dueAt": "2026-10-21T14:00:00+00:00",
+  "slaState": 2,
+  "currentLevelNo": 1,
+  "levelCount": 1,
+  "canDecide": true,
+  "concurrencyToken": "6f1e2d3c-4b5a-4968-8776-655443322110",
+  "contextJson": null,
+  "decidedAt": null,
+  "decidedByUserId": null,
+  "decidedByName": null,
+  "decisionNote": null,
+  "steps": [
+    {"id": 90011, "levelNo": 1, "name": "Finans onayı", "capabilityCode": "approve.finance.order", "minAmount": null, "status": 1, "statusLabel": "Bekliyor", "dueAt": "2026-10-21T14:00:00", "remindedAt": null, "escalatedAt": null, "decidedByUserId": null, "decidedByName": null, "onBehalfOfUserId": null, "onBehalfOfName": null, "decidedAt": null, "note": null}
+  ],
+  "events": [
+    {"id": 1, "eventType": 1, "label": "Oluşturuldu", "stepId": null, "userId": null, "userName": "Sistem", "onBehalfOfUserId": null, "onBehalfOfName": null, "attachmentPublicId": null, "attachmentFileName": null, "note": null, "occurredAt": "2026-10-21T06:00:00"}
+  ],
+  "attachments": [],
+  "modes": [1, 2, 3, 4],
+  "modeLabels": ["Onayla", "Koşullu onayla", "Ek bilgi iste", "Reddet"],
+  "onBehalfOfUserId": null,
+  "onBehalfOfName": null,
+  "canProvideInfo": false,
+  "canResumeInfo": false,
+  "summary": {
+    "headline": "SIP-2026-004005 · Marmara İnşaat",
+    "subline": "25.000 L Motorin",
+    "amount": 1052500.00,
+    "liters": 25000.000,
+    "facts": [{"label": "Ödeme", "value": "Çek · 60 gün", "tone": "warn"}],
+    "lines": [{"title": "Motorin", "subtitle": "25.000 L", "value": "1.052.500,00 ₺"}],
+    "warnings": ["Limit 120.000 ₺ aşılıyor."],
+    "band": {"key": "mid", "label": "Mümkün", "tone": "warn"},
+    "links": {"orderId": 4005, "fieldOrderId": null, "leadId": null, "customerId": 102, "stationCustomerId": 502, "limitRequestId": null, "companyRequestId": null}
+  },
+  "customerView": false,
+  "infoRequest": null,
+  "conditionForm": {
+    "fields": [
+      {"key": "methodCode", "label": "Ödeme yöntemi", "type": "method", "required": true, "min": null, "max": null, "current": "CEK", "currentLabel": "Çek", "suggestion": "HAVALE", "suggestionLabel": "Havale / EFT", "hint": null},
+      {"key": "termDays", "label": "Vade (gün)", "type": "int", "required": true, "min": 0, "max": 90, "current": "60", "currentLabel": "60 gün", "suggestion": "30", "suggestionLabel": "30 gün", "hint": "En fazla 90 gün"}
+    ],
+    "methodOptions": [{"code": "HAVALE", "name": "Havale / EFT", "isDeferred": false, "minTermDays": null, "maxTermDays": null}, {"code": "CEK", "name": "Çek", "isDeferred": true, "minTermDays": 0, "maxTermDays": 120}],
+    "periodOptions": [{"code": "Aylik", "label": "Aylık"}],
+    "riskClassOptions": [{"code": "B", "label": "B"}],
+    "hint": "Yalnızca değiştirmek istediğiniz koşulları girin."
+  },
+  "decisionHint": null
+}

@@ -1,0 +1,114 @@
+{
+  "contractVersion": "mobile-v1",
+  "generatedBy": "tests/AkaryakitNet.Tests/MobileContractSamplesTests.cs",
+  "samples": [
+    {
+      "file": "shipments-id-detail.bayi.json",
+      "endpoint": "GET api/v1/shipments/{id}/detail",
+      "dto": "ShipmentMobileDetailDto",
+      "note": "Bayi personeli (sevk sorumlusu); teslim bildirilmi\u015F, imza al\u0131namam\u0131\u015F (imzadan imtina)"
+    },
+    {
+      "file": "shipments-id-detail.customer.json",
+      "endpoint": "GET api/v1/shipments/{id}/detail",
+      "dto": "ShipmentMobileDetailDto",
+      "note": "Cari kullan\u0131c\u0131s\u0131: \u015Fof\u00F6r hesab\u0131, cihaz konumu ve bildiren bo\u015F"
+    },
+    {
+      "file": "bayi-quote-desk.json",
+      "endpoint": "GET api/v1/bayi/quote-desk",
+      "dto": "BayiQuoteDeskDto",
+      "note": "S\u00FCre dolumu a\u00E7\u0131k; 2 sat\u0131r (yeni \u002B revize)"
+    },
+    {
+      "file": "bayi-quote-desk-counts.json",
+      "endpoint": "GET api/v1/bayi/quote-desk/counts",
+      "dto": "BayiQuoteDeskCountsResultDto",
+      "note": "S\u00FCre dolumu a\u00E7\u0131k"
+    },
+    {
+      "file": "bayi-quote-desk-submit.json",
+      "endpoint": "POST api/v1/bayi/quote-desk/submit",
+      "dto": "BayiQuoteDeskSubmitResultDto[]",
+      "note": "Sat\u0131r ba\u015F\u0131na sonu\u00E7 (quoted, routedToFinance; ayr\u0131ca conflict, invalid, error)"
+    },
+    {
+      "file": "customers-me-finance-info.json",
+      "endpoint": "GET api/v1/customers/me/finance-info",
+      "dto": "CustomerFinanceInfoDto",
+      "note": "Ana bayide yeni cari de\u011Ferlendirmesi ek bilgi bekliyor (vergi levhas\u0131); bir sipari\u015F finans\u0131 \u00E7ek g\u00F6rseli bekliyor"
+    },
+    {
+      "file": "approvals-id.order-finance.json",
+      "endpoint": "GET api/v1/approvals/{id}",
+      "dto": "ApprovalMobileDetailDto",
+      "note": "Bayi onayc\u0131s\u0131; conditionForm = ApprovalConditionForms.PaymentChange (ger\u00E7ek kurucu)"
+    },
+    {
+      "file": "approvals-condition-form.customer-onboarding.json",
+      "endpoint": "GET api/v1/approvals/{id} \u2192 conditionForm",
+      "dto": "ApprovalConditionFormDto",
+      "note": "Yeni cari (CustomerOnboarding): ApprovalConditionForms.Credit (ger\u00E7ek kurucu)"
+    },
+    {
+      "file": "me-access.bayi.json",
+      "endpoint": "GET api/v1/me/access",
+      "dto": "MeAccessDto",
+      "note": "Bayi sahibi (Station.UserId)"
+    },
+    {
+      "file": "me-access.customer.json",
+      "endpoint": "GET api/v1/me/access",
+      "dto": "MeAccessDto",
+      "note": "Cari kullan\u0131c\u0131s\u0131, Talep eden (customerUserRole 1)"
+    },
+    {
+      "file": "app-config.json",
+      "endpoint": "GET api/v1/app/config?platform=android",
+      "dto": "AppConfigDto",
+      "note": "Yasal / destek ba\u011Flant\u0131lar\u0131 bo\u015F ayarda API\u0027nin /legal sayfalar\u0131na d\u00FC\u015Fer; telefonla giri\u015F ayar\u0131 a\u00E7\u0131k kurulum"
+    },
+    {
+      "file": "auth-login.ok.json",
+      "endpoint": "POST api/v1/auth/login",
+      "dto": "AuthResultDto",
+      "note": "Ba\u015Far\u0131l\u0131 giri\u015F (anahtarlar yer tutucu)"
+    },
+    {
+      "file": "auth-login.two-factor.json",
+      "endpoint": "POST api/v1/auth/login",
+      "dto": "AuthResultDto",
+      "note": "SMS do\u011Frulamas\u0131 gerekli"
+    },
+    {
+      "file": "problem.validation.json",
+      "endpoint": "400 validation",
+      "dto": "ValidationProblemDetails",
+      "note": "Alan hatalar\u0131 errors alt\u0131nda"
+    },
+    {
+      "file": "problem.business-rule.json",
+      "endpoint": "400 business_rule",
+      "dto": "ProblemDetails",
+      "note": "T\u00FCrk\u00E7e i\u015F kural\u0131 mesaj\u0131 detail\u0027de"
+    },
+    {
+      "file": "problem.concurrency-conflict.json",
+      "endpoint": "409 concurrency_conflict",
+      "dto": "ProblemDetails",
+      "note": "Yeniden y\u00FCkle \u002B tekrar dene"
+    },
+    {
+      "file": "problem.rate-limited.json",
+      "endpoint": "429 rate_limited",
+      "dto": "ProblemDetails",
+      "note": "retryAfter (sn) \u002B Retry-After ba\u015Fl\u0131\u011F\u0131"
+    },
+    {
+      "file": "problem.session-revoked.json",
+      "endpoint": "401 session_revoked",
+      "dto": "ProblemDetails",
+      "note": "Yeniden giri\u015F gerekir"
+    }
+  ]
+}

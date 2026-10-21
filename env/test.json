@@ -1,0 +1,7 @@
+{
+  "AKN_ENV": "test",
+  "API_MODE": "live",
+  "API_BASE_URL": "http://134.149.201.54:3108/",
+  "PORTAL_BASE_URL": "http://134.149.201.54:3107/",
+  "MAPS_ENABLED": false
+}

@@ -1,0 +1,7 @@
+{
+  "AKN_ENV": "prod",
+  "API_MODE": "live",
+  "API_BASE_URL": "https://api.akaryakitnet.example/",
+  "PORTAL_BASE_URL": "https://portal.akaryakitnet.example/",
+  "MAPS_ENABLED": false
+}

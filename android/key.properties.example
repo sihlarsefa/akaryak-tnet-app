@@ -1,0 +1,5 @@
+# android/key.properties olarak kopyalayın (git dışıdır). Değerleri yalnızca bu Mac'te tutun.
+storeFile=app/upload-keystore.jks
+storePassword=
+keyAlias=upload
+keyPassword=

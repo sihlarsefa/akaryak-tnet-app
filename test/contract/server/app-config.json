@@ -1,0 +1,39 @@
+{
+  "minBuild": 1,
+  "latestBuild": 1,
+  "storeUrl": "https://play.google.com/store/apps/details?id=com.ortakplatform.akaryakitnet",
+  "updateTitle": "Yeni s\u00FCr\u00FCm haz\u0131r",
+  "updateMessage": "Uygulaman\u0131n yeni bir s\u00FCr\u00FCm\u00FC var. Kesintisiz kullan\u0131m i\u00E7in l\u00FCtfen g\u00FCncelleyin.",
+  "features": {
+    "otpLogin": true,
+    "assistant": false,
+    "weather": false,
+    "payments": true,
+    "push": false,
+    "orderExpiry": true,
+    "deliveryPhotoRequired": false,
+    "deliverySignatureRequired": false,
+    "deliveryGpsRequired": false
+  },
+  "support": {
+    "phone": null,
+    "whatsapp": null,
+    "email": null,
+    "url": "http://134.149.201.54:3108/legal/support"
+  },
+  "legal": {
+    "privacyUrl": "http://134.149.201.54:3108/legal/privacy",
+    "kvkkUrl": "http://134.149.201.54:3108/legal/kvkk",
+    "termsUrl": "http://134.149.201.54:3108/legal/terms",
+    "accountDeletionUrl": "http://134.149.201.54:3108/legal/account-deletion"
+  },
+  "leadKvkkVersion": "1.0",
+  "assistantConsentVersion": "1",
+  "maintenance": {
+    "active": false,
+    "message": null
+  },
+  "apiBuild": "17.11.1",
+  "contractVersion": "mobile-v1",
+  "serverTimeUtc": "2026-10-21T07:16:42.61812+00:00"
+}

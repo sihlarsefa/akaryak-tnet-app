@@ -1,0 +1,10 @@
+{
+  "items": [
+    {"id": 50001, "category": "quotes", "categoryLabel": "Teklifler", "eventCode": "order.quote_ready", "title": "Teklif hazır: SIP-2026-004002", "body": "Demir Petrol teklifini gönderdi. İnceleyip onaylayın ya da revize isteyin.", "severity": 1, "route": "/orders/4002", "entityType": "Order", "entityId": 4002, "createdAt": "2026-10-21T07:10:00+00:00", "readAt": null, "isRead": false},
+    {"id": 50000, "category": "shipments", "categoryLabel": "Teslimatlar", "eventCode": "shipment.reported", "title": "Teslimatı onaylayın: SIP-2026-004001", "body": "11.950 L teslim edildi. Kontrol edip onaylayın.", "severity": 2, "route": "/shipments/5002", "entityType": "Shipment", "entityId": 5002, "createdAt": "2026-10-20T15:00:00+00:00", "readAt": "2026-10-20T15:30:00+00:00", "isRead": true}
+  ],
+  "totalCount": 2,
+  "pageNumber": 1,
+  "pageSize": 25,
+  "totalPages": 1
+}

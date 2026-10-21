@@ -1,0 +1,8 @@
+{
+  "title": "\u00C7ok fazla istek",
+  "status": 429,
+  "detail": "\u00C7ok fazla deneme yap\u0131ld\u0131; l\u00FCtfen biraz sonra yeniden deneyin.",
+  "code": "rate_limited",
+  "traceId": "ornek-iz-0001",
+  "retryAfter": 42
+}

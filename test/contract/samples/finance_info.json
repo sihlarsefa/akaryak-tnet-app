@@ -1,0 +1,39 @@
+{
+  "links": [
+    {
+      "stationId": 12,
+      "stationTitle": "Demir Petrol Akaryakıt Ltd. Şti.",
+      "status": {
+        "stationId": 12,
+        "customerId": 101,
+        "stationCustomerId": 501,
+        "canOrder": false,
+        "blockReason": "Finans ek bilgi istedi.",
+        "isGrandfathered": false,
+        "profileStatus": 3,
+        "infoRequested": true,
+        "openApprovalRequestId": 9004
+      },
+      "requestId": 9004,
+      "requestStatus": 4,
+      "requestStatusLabel": "Ek bilgi istendi",
+      "infoNote": "Güncel imza sirkülerini ekleyin.",
+      "requiredKind": 11,
+      "requiredKindLabel": "İmza sirküleri",
+      "requestedAt": "2026-10-20T13:00:00+00:00",
+      "canReply": true
+    }
+  ],
+  "orders": [
+    {
+      "orderId": 4005,
+      "orderNumber": "SIP-2026-004005",
+      "stationTitle": "Demir Petrol Akaryakıt Ltd. Şti.",
+      "requestId": 9001,
+      "infoNote": "Çek görselinin arka yüzünü ekleyin.",
+      "requiredKind": 1,
+      "requiredKindLabel": "Çek görseli",
+      "createdAt": "2026-10-21T10:30:00+03:00"
+    }
+  ]
+}

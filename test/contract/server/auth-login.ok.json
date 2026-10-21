@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "tokens": {
+    "accessToken": "\u003Ceri\u015Fim-anahtar\u0131\u003E",
+    "accessExpiresAt": "2026-10-21T10:45:00+00:00",
+    "refreshToken": "\u003Cyenileme-anahtar\u0131\u003E",
+    "refreshExpiresAt": "2026-10-22T10:30:00+00:00",
+    "userId": "4d70e58b-f794-492a-a028-e3736b5c104a",
+    "displayName": "BAYI"
+  },
+  "challenge": null
+}

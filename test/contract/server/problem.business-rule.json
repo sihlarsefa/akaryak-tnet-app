@@ -1,0 +1,7 @@
+{
+  "title": "\u0130\u015F kural\u0131 hatas\u0131",
+  "status": 400,
+  "detail": "Bu sipari\u015F \u015Firket i\u00E7i onaya tabidir; uygulamadan sipari\u015F talebi olarak g\u00F6nderin.",
+  "code": "business_rule",
+  "traceId": "ornek-iz-0001"
+}
