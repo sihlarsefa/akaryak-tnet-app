@@ -71,6 +71,14 @@ class FakeAuth {
   static const password = 'demo';
   static const code = '123456';
 
+  /// Sahte kipte değiştirilen şifreler (persona → yeni şifre; QA SC-04). `demo` her zaman geçer,
+  /// demo hesapları tek dokunuşla girişte çalışmaya devam eder.
+  final Map<String, String> changedPasswords = {};
+
+  /// [personaKey] için [value] geçerli şifre mi (`demo` ya da değiştirilmiş şifre).
+  bool acceptsPassword(String personaKey, String value) =>
+      value == password || changedPasswords[personaKey] == value;
+
   /// Erişim belirteci ömrü (gerçek: `Jwt:AccessTokenMinutes` = 15).
   Duration accessLifetime = const Duration(minutes: 15);
 
@@ -122,11 +130,33 @@ class FakeAuth {
     };
   }
 
+  /// Bu çalıştırmada döndürülmüş yenileme belirteçleri: aynı belirteç ikinci kez kullanılamaz.
+  final Set<String> _spent = {};
+
   /// Yenileme: eski belirteç geçersizleşir (rotasyon). Geçersizse null.
+  ///
+  /// Demo uygulama kapatılıp açılınca sahte sunucu bellekten sıfırlanır ve önceki çalıştırmanın
+  /// belirteci burada bulunmaz; biçimi doğruysa (`fr.<persona>.…`), bu çalıştırmada harcanmamışsa ve
+  /// cihaz oturumu kapatılmamışsa oturum aynı personayla sürer ("Oturumunuz sona erdi" çıkmaz).
   JsonMap? rotate(String refreshToken, String deviceId) {
     refreshCalls++;
-    final r = _refresh.remove(refreshToken);
-    if (r == null || r.revoked) return null;
+    var r = _refresh.remove(refreshToken);
+    if (r == null) {
+      final parts = refreshToken.split('.');
+      if (_spent.contains(refreshToken) ||
+          parts.length != 4 ||
+          parts[0] != 'fr') {
+        return null;
+      }
+      final restored = findFakePersona(parts[1]);
+      if (restored == null ||
+          (sessions[restored.key]?[deviceId]?.revoked ?? false)) {
+        return null;
+      }
+      r = _FakeRefresh(restored.key, deviceId);
+    }
+    _spent.add(refreshToken);
+    if (r.revoked) return null;
     final p = findFakePersona(r.personaKey);
     if (p == null) return null;
     final session = sessions[p.key]?[r.deviceId];
@@ -176,23 +206,20 @@ class FakeAuth {
   ) {
     final c = challenges[challengeId];
     if (c == null || c.consumed) {
-      return (persona: null, error: 'Kod geçersiz. Lütfen yeni kod isteyin.');
+      return (persona: null, error: 'Kod geçersiz. Yeni kod isteyin.');
     }
     if (DateTime.now().toUtc().isAfter(c.expiresAt)) {
-      return (
-        persona: null,
-        error: 'Kodun süresi doldu. Lütfen yeni kod isteyin.',
-      );
+      return (persona: null, error: 'Kodun süresi doldu. Yeni kod isteyin.');
     }
     if (c.attempts >= 5) {
       return (
         persona: null,
-        error: 'Çok fazla hatalı deneme. Lütfen yeni kod isteyin.',
+        error: 'Çok fazla hatalı deneme. Yeni kod isteyin.',
       );
     }
     c.attempts++;
     if (input.trim() != code || c.personaKey == null) {
-      return (persona: null, error: 'Kod hatalı. Lütfen tekrar deneyin.');
+      return (persona: null, error: 'Kod hatalı. Tekrar deneyin.');
     }
     c.consumed = true;
     return (persona: findFakePersona(c.personaKey), error: null);

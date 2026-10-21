@@ -156,7 +156,7 @@ class _FieldFormsViewState extends ConsumerState<FieldFormsView> {
 
     final header = <Widget>[
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
         child: SearchField(
           hint: 'Form no, cari ünvanı ya da kodu',
           onChanged: (s) => setState(() => _search = s),
@@ -178,15 +178,13 @@ class _FieldFormsViewState extends ConsumerState<FieldFormsView> {
       if (cfg.repFilter)
         _RepChips(value: _rep, onChanged: (v) => setState(() => _rep = v)),
       if (state.cachedAt != null) FieldCachedNote(at: state.cachedAt!),
-      for (final q in queued)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: FieldQueuedTile(
-            item: q,
-            onEdit: () =>
-                context.push('${AppRoutes.fieldFormNew}?op=${q.op.id}'),
-          ),
+      for (final q in queued) ...[
+        FieldQueuedTile(
+          item: q,
+          onEdit: () => context.push('${AppRoutes.fieldFormNew}?op=${q.op.id}'),
         ),
+        const AknLedgerDivider(),
+      ],
     ];
 
     Widget list;
@@ -238,12 +236,12 @@ class _FieldFormsViewState extends ConsumerState<FieldFormsView> {
                 shown: items.length,
               );
             }
-            return Padding(
-              padding: EdgeInsets.fromLTRB(16, index == 0 ? 12 : 0, 16, 8),
-              child: StaggerItem(
-                index: index,
-                child: FieldFormTile(row: items[index], showRep: cfg.showRep),
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (index > 0) const AknLedgerDivider(),
+                FieldFormTile(row: items[index], showRep: cfg.showRep),
+              ],
             );
           },
         ),

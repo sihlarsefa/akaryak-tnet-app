@@ -187,7 +187,7 @@ final class OfflineFailure extends AppFailure {
 /// Zaman aşımı.
 final class TimeoutFailure extends AppFailure {
   const TimeoutFailure([
-    super.message = 'Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.',
+    super.message = 'Sunucu zamanında yanıt vermedi. Tekrar deneyin.',
   ]);
 
   @override
@@ -200,7 +200,7 @@ final class TimeoutFailure extends AppFailure {
 final class UnauthorizedFailure extends AppFailure {
   const UnauthorizedFailure(this.reason, {String? message, super.problem})
     : super(
-        message ?? 'Oturumunuz sona erdi. Lütfen yeniden giriş yapın.',
+        message ?? 'Oturumunuz sona erdi. Yeniden giriş yapın.',
         statusCode: 401,
       );
 
@@ -235,7 +235,7 @@ final class ConflictFailure extends AppFailure {
     'already_reported' =>
       'Bu teslimat daha önce farklı bilgilerle bildirilmiş.',
     _ =>
-      'Kayıt siz bakarken değişti. Güncel hâli yüklendi; lütfen tekrar deneyin.',
+      'Kayıt siz bakarken değişti. Güncel hâli yüklendi; kontrol edip tekrar deneyin.',
   };
 
   bool get isInProgress => conflictCode == 'idempotency_in_progress';
@@ -250,10 +250,7 @@ final class ConflictFailure extends AppFailure {
 /// 400 `validation`: alan → mesajlar.
 final class ValidationFailure extends AppFailure {
   const ValidationFailure(this.fieldErrors, {String? message, super.problem})
-    : super(
-        message ?? 'Lütfen işaretli alanları kontrol edin.',
-        statusCode: 400,
-      );
+    : super(message ?? 'İşaretli alanları kontrol edin.', statusCode: 400);
 
   final Map<String, List<String>> fieldErrors;
 
@@ -278,8 +275,8 @@ final class RateLimitedFailure extends AppFailure {
     : super(
         message ??
             (wait == null
-                ? 'Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar deneyin.'
-                : 'Çok fazla deneme yapıldı. Lütfen ${wait.inSeconds} saniye sonra tekrar deneyin.'),
+                ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.'
+                : 'Çok fazla deneme yapıldı. ${wait.inSeconds} saniye sonra tekrar deneyin.'),
         statusCode: 429,
       );
 
@@ -313,7 +310,7 @@ final class ServerFailure extends AppFailure {
   }) : _retryAfter = retryAfter,
        super(
          message ??
-             'Beklenmeyen bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.',
+             'Sunucu isteği tamamlayamadı. Birkaç dakika sonra tekrar deneyin.',
        );
 
   final Duration? _retryAfter;
@@ -329,9 +326,8 @@ final class ServerFailure extends AppFailure {
 
 /// Sınıflandırılamayan hata.
 final class UnknownFailure extends AppFailure {
-  const UnknownFailure([
-    super.message = 'Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.',
-  ]) : cancelled = false;
+  const UnknownFailure([super.message = 'İşlem tamamlanamadı. Tekrar deneyin.'])
+    : cancelled = false;
 
   /// İstek bilerek iptal edildi.
   const UnknownFailure.cancelled()

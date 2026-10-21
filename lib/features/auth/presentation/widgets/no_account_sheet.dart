@@ -29,7 +29,7 @@ class _NoAccountBody extends ConsumerWidget {
         Text(AuthCopy.noAccountBody, style: t.body),
         const SizedBox(height: 16),
         const _Point(
-          icon: Icons.storefront_rounded,
+          icon: Icons.business_outlined,
           text: AuthCopy.noAccountCustomer,
         ),
         const SizedBox(height: 10),
@@ -58,12 +58,15 @@ class _Point extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AknIconBox(icon: icon, tone: AknTone.brand, size: 32),
-        const SizedBox(width: 12),
-        Expanded(child: Text(text, style: t.bodySmall)),
+        Icon(icon, size: 24, color: c.dim),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(text, style: t.body.copyWith(color: c.ink)),
+        ),
       ],
     );
   }

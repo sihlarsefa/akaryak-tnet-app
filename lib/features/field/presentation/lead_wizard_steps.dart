@@ -167,7 +167,7 @@ class _CompanyStep extends ConsumerWidget {
                     if (s.resumeCandidate!.companyTitle.isNotEmpty)
                       s.resumeCandidate!.companyTitle,
                     if (s.resumeSavedAt != null) Fmt.relative(s.resumeSavedAt),
-                  ].join(' · '),
+                  ].join(', '),
                   style: context.aknText.bodySmall,
                 ),
                 const SizedBox(height: 8),
@@ -817,7 +817,7 @@ class _VisitStepState extends ConsumerState<_VisitStep> {
                         Text(
                           d.hasVisitLocation
                               ? '${Fmt.number(d.visitLatitude, maxFraction: 6)}, ${Fmt.number(d.visitLongitude, maxFraction: 6)}'
-                              : 'İsteğe bağlı · konum yalnızca bu kayda eklenir',
+                              : 'İsteğe bağlı; konum yalnızca bu kayda eklenir',
                           style: t.bodySmall,
                         ),
                       ],
@@ -1373,7 +1373,7 @@ class _KindRow extends StatelessWidget {
                   [
                     status,
                     if (uploaded + local > 0) '${uploaded + local} dosya',
-                  ].join(' · '),
+                  ].join(', '),
                   style: t.caption,
                 ),
               ],

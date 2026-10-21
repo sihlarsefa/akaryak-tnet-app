@@ -9,6 +9,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/push/unread_count_provider.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/routing/route_access.dart';
 import '../../../core/ui/ui.dart';
@@ -20,7 +21,7 @@ import '../data/notification_models.dart';
 import '../notifications_paths.dart';
 import 'widgets/notification_tile.dart';
 
-/// Bildirimler (spec A.4 A8): güne göre gruplu liste, okunmamış noktası, kaydırınca okundu, dokununca
+/// Bildirimler (spec A.4 A8; tasarım v2 §7.7, §7.17): güne göre gruplu defter satırları, okunmamış noktası, kaydırınca okundu, dokununca
 /// derin bağlantı (erişim yoksa burada kalır), "Tümü / Okunmamış", tümünü okundu say, ayarlar.
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
@@ -70,10 +71,10 @@ class NotificationsPage extends ConsumerWidget {
           if (s.fromCache)
             AknBanner(
               tone: AknTone.neutral,
-              icon: Icons.cloud_off_rounded,
+              icon: Icons.cloud_off_outlined,
               message:
                   '${NotificationsCopy.offlineCached} ${NotificationsCopy.lastUpdated} ${Fmt.time(s.loadedAt)}',
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             ),
           Expanded(child: _Body(state: s)),
         ],
@@ -190,12 +191,7 @@ class _Body extends ConsumerWidget {
                 );
               }
               final e = entries[i];
-              if (e.header != null) {
-                return SectionHeader(
-                  title: e.header!,
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
-                );
-              }
+              if (e.header != null) return _DayHeader(e.header!);
               final n = e.item!;
               return StaggerItem(
                 index: i,
@@ -207,8 +203,7 @@ class _Body extends ConsumerWidget {
                       onTap: () => _open(context, ref, n),
                       onMarkRead: () => unawaited(_markRead(ref, n)),
                     ),
-                    if (e.dividerAfter)
-                      const Divider(height: 1, indent: 68, endIndent: 16),
+                    if (e.dividerAfter) const AknLedgerDivider(),
                   ],
                 ),
               );
@@ -238,7 +233,31 @@ class _Body extends ConsumerWidget {
       }
       return;
     }
-    context.push(target);
+    // Sekme rotaları `go` ile açılır (QA SC-01).
+    context.openAppLocation(target);
+  }
+}
+
+/// Gün başlığı (tasarım v2 §7.7): "Bugün", "Dün", "18 Ekim" — `label` 13/18 600 dim, sola dayalı.
+class _DayHeader extends StatelessWidget {
+  const _DayHeader(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 20, AknSpace.page, 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          label,
+          style: t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim),
+        ),
+      ),
+    );
   }
 }
 

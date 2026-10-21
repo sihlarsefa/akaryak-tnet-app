@@ -5,6 +5,7 @@ import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../field/fake/field_fake_state.dart' show FieldFakeState;
 import 'fake_support.dart';
 import 'order_support.dart';
 import 'seed.dart';
@@ -350,7 +351,7 @@ JsonMap _summary(
     if (customerId == 101)
       {
         'name': 'Selin Aydın',
-        'role': 'Yetkili · Satın alma',
+        'role': 'Yetkili, satın alma',
         'phone': '5320000101',
         'email': c['email'],
       },
@@ -358,7 +359,7 @@ JsonMap _summary(
       if (dp['contactName'] != null)
         {
           'name': dp['contactName'],
-          'role': 'Teslimat sorumlusu · ${dp['name']}',
+          'role': 'Teslimat sorumlusu, ${dp['name']}',
           'phone': dp['contactPhone'],
           'email': null,
         },
@@ -367,7 +368,8 @@ JsonMap _summary(
     if (customerId == 103)
       {
         'id': 7001,
-        'formNumber': 'SF-2026-00007',
+        // QA LF-4: saha sahtesindeki formla aynı numara.
+        'formNumber': FieldFakeState.seedFormNumber(w, 7001),
         'customerTitle': c['title'],
         'status': 1,
         'statusLabel': 'Onay bekliyor',

@@ -228,7 +228,12 @@ class DriverCommands {
     await ref
         .read(deliverDraftStoreProvider)
         .remove(uid, draft.shipmentId, keep: files.toSet());
-    ref.read(driverDraftsProvider.notifier).reload();
+    // Dosya G/Ç'si sürerken uygulama kapanmış olabilir (kapsayıcı atıldı): işlem zaten kuyrukta.
+    try {
+      ref.read(driverDraftsProvider.notifier).reload();
+    } on StateError catch (e) {
+      AppLog.warn('Taslak listesi tazelenemedi (kapsayıcı kapandı)', error: e);
+    }
     return op;
   }
 

@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../utils/format.dart';
 import '../../utils/turkish_text.dart';
-import '../motion.dart';
-import '../painters/progress_ring.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import 'buttons.dart';
+import 'skeletons.dart';
+import 'status_widgets.dart';
 
 enum AttachmentTileState { idle, uploading, failed, done }
 
-/// A document or photo row: thumbnail or type icon, name, kind and size,
-/// and an upload state (progress ring, retry, done check) or actions.
+/// A document or photo (design v2 §6.27) in a group box (white, 1 px
+/// hairline, r12): `description_outlined` 24 dim (or a thumbnail), the name
+/// (15/22 600), a meta line (kind, size) and a status lamp, and a small
+/// secondary button on the right ("Yükle", "Tekrar dene", "Görüntüle").
+/// While uploading, a 2.5 px orange progress bar runs along the bottom.
 class AttachmentTile extends StatelessWidget {
   const AttachmentTile({
     super.key,
@@ -26,6 +30,8 @@ class AttachmentTile extends StatelessWidget {
     this.onTap,
     this.onRetry,
     this.onDelete,
+    this.onUpload,
+    this.actionLabel,
   });
 
   final String fileName;
@@ -47,9 +53,17 @@ class AttachmentTile extends StatelessWidget {
   /// 0..1 while uploading.
   final double? progress;
   final String? errorText;
+
+  /// Opens the file ("Görüntüle").
   final VoidCallback? onTap;
   final VoidCallback? onRetry;
   final VoidCallback? onDelete;
+
+  /// Picks and uploads a file ("Yükle") while the slot is empty.
+  final VoidCallback? onUpload;
+
+  /// Replaces the trailing button's label.
+  final String? actionLabel;
 
   bool get _isPdf =>
       (contentType ?? '').contains('pdf') ||
@@ -69,129 +83,156 @@ class AttachmentTile extends StatelessWidget {
     final details = [
       ?kindLabel,
       if (sizeBytes != null) Fmt.fileSize(sizeBytes),
-    ].join(' · ');
-    final stateText = switch (state) {
-      AttachmentTileState.uploading =>
+    ].join(', ');
+    final (String? stateText, AknTone tone) = switch (state) {
+      AttachmentTileState.uploading => (
         progress == null
             ? 'Yükleniyor'
             : 'Yükleniyor %${((progress ?? 0) * 100).round()}',
-      AttachmentTileState.failed => errorText ?? 'Yüklenemedi',
-      AttachmentTileState.done => 'Yüklendi',
-      AttachmentTileState.idle => null,
+        AknTone.info,
+      ),
+      AttachmentTileState.failed => (
+        errorText ?? 'Yüklenemedi',
+        AknTone.danger,
+      ),
+      AttachmentTileState.done => ('Yüklendi', AknTone.ok),
+      AttachmentTileState.idle => (null, AknTone.neutral),
     };
-    final leading = ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child:
-            thumbnail ??
-            ColoredBox(
-              color: _isPdf ? c.danger.bg : c.surfaceAlt,
-              child: Icon(
-                _isPdf
-                    ? Icons.picture_as_pdf_rounded
-                    : _isImage
-                    ? Icons.image_rounded
-                    : Icons.insert_drive_file_rounded,
-                color: _isPdf ? c.danger.fg : c.dim,
-                size: 24,
-              ),
-            ),
+    final (String? buttonLabel, VoidCallback? buttonAction) = switch (state) {
+      AttachmentTileState.failed when onRetry != null => (
+        actionLabel ?? 'Tekrar dene',
+        onRetry,
       ),
-    );
-    final Widget trailing = switch (state) {
-      AttachmentTileState.uploading => ProgressRing(
-        value: progress ?? 0,
-        size: 30,
-        strokeWidth: 3,
-        semanticLabel: 'Yükleme',
+      AttachmentTileState.idle when onUpload != null => (
+        actionLabel ?? 'Yükle',
+        onUpload,
       ),
-      AttachmentTileState.failed => IconButton(
-        tooltip: 'Tekrar dene',
-        onPressed: onRetry,
-        icon: Icon(Icons.refresh_rounded, color: c.danger.fg),
-      ),
-      AttachmentTileState.done => Icon(
-        Icons.check_circle_rounded,
-        color: c.ok.fg,
-        size: 24,
-      ),
-      AttachmentTileState.idle =>
-        onDelete != null
-            ? IconButton(
-                tooltip: 'Kaldır',
-                onPressed: onDelete,
-                icon: Icon(Icons.delete_outline_rounded, color: c.dim),
-              )
-            : onTap != null
-            ? Icon(Icons.open_in_new_rounded, color: c.faint, size: 20)
-            : const SizedBox.shrink(),
+      AttachmentTileState.idle || AttachmentTileState.done when onTap != null =>
+        (actionLabel ?? 'Görüntüle', onTap),
+      _ => (null, null),
     };
-    return Semantics(
-      label: [fileName, if (details.isNotEmpty) details, ?stateText].join(', '),
+    final leading = thumbnail != null
+        ? ClipRRect(
+            borderRadius: const BorderRadius.all(Radius.circular(8)),
+            child: SizedBox.square(dimension: 40, child: thumbnail),
+          )
+        : Icon(
+            _isPdf
+                ? Icons.picture_as_pdf_outlined
+                : _isImage
+                ? Icons.image_outlined
+                : Icons.description_outlined,
+            color: c.dim,
+            size: 24,
+          );
+
+    final info = Semantics(
+      container: true,
       button: onTap != null,
-      child: Material(
-        color: c.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: AknRadius.card,
-          side: BorderSide(
-            color: state == AttachmentTileState.failed ? c.danger.line : c.line,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 10, 6, 10),
-            child: Row(
+      label: [
+        fileName,
+        if (details.isNotEmpty) details,
+        ?subtitle,
+        ?stateText,
+      ].join(', '),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                leading,
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        fileName,
-                        style: t.bodyStrong.copyWith(fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (details.isNotEmpty)
-                        Text(details, style: t.caption, maxLines: 1),
-                      if (subtitle != null)
-                        Text(subtitle!, style: t.caption, maxLines: 1),
-                      if (stateText != null &&
-                          state != AttachmentTileState.idle)
-                        AnimatedSwitcher(
-                          duration: AknMotion.of(context, AknMotion.fast),
-                          child: Text(
-                            stateText,
-                            key: ValueKey(stateText),
-                            style: t.captionStrong.copyWith(
-                              color: state == AttachmentTileState.failed
-                                  ? c.danger.fg
-                                  : state == AttachmentTileState.done
-                                  ? c.ok.fg
-                                  : c.brandInk,
-                            ),
-                          ),
-                        ),
-                    ],
+                Text(
+                  fileName,
+                  style: t.bodyStrong,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (details.isNotEmpty)
+                  Text(
+                    details,
+                    style: t.label.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: c.dim,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                const SizedBox(width: 6),
-                ExcludeSemantics(
-                  excluding:
-                      state != AttachmentTileState.failed && onDelete == null,
-                  child: trailing,
-                ),
-                const SizedBox(width: 4),
+                if (subtitle != null)
+                  Text(
+                    subtitle!,
+                    style: t.label.copyWith(
+                      fontWeight: FontWeight.w400,
+                      color: c.dim,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                if (stateText != null) ...[
+                  const SizedBox(height: 4),
+                  StatusChip(
+                    label: stateText,
+                    tone: tone,
+                    size: StatusChipSize.small,
+                  ),
+                ],
               ],
             ),
           ),
+        ],
+      ),
+    );
+
+    return Material(
+      color: c.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: AknRadius.card,
+        side: BorderSide(color: c.line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashFactory: NoSplash.splashFactory,
+        highlightColor: c.surfaceAlt,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                14,
+                12,
+                buttonLabel == null && onDelete == null ? 14 : 8,
+                12,
+              ),
+              child: Row(
+                children: [
+                  Expanded(child: info),
+                  if (buttonLabel != null) ...[
+                    const SizedBox(width: 8),
+                    AknButton.secondary(
+                      label: buttonLabel,
+                      size: AknButtonSize.small,
+                      onPressed: buttonAction,
+                    ),
+                  ],
+                  if (onDelete != null &&
+                      state != AttachmentTileState.uploading)
+                    IconButton(
+                      tooltip: 'Kaldır',
+                      onPressed: onDelete,
+                      icon: Icon(Icons.delete_outline_rounded, color: c.dim),
+                    ),
+                ],
+              ),
+            ),
+            if (state == AttachmentTileState.uploading)
+              TopProgressBar(active: true, value: progress),
+          ],
         ),
       ),
     );

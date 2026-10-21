@@ -72,7 +72,7 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
                   FactRow(label: 'Sürüm', value: info.versionLabel),
                   FactRow(
                     label: 'Cihaz',
-                    value: '${info.platform} · ${info.model ?? '—'}',
+                    value: '${info.platform}, ${info.model ?? '—'}',
                   ),
                 ],
               ),
@@ -129,8 +129,7 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
             ),
             const SectionHeader(
               title: 'Demo hesapları',
-              subtitle:
-                  'Şifre ${FakeAuth.password} · SMS kodu ${FakeAuth.code}',
+              subtitle: 'Şifre ${FakeAuth.password}, SMS kodu ${FakeAuth.code}',
             ),
             for (final p in fakePersonas)
               AknListTile(

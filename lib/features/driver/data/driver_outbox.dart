@@ -6,6 +6,7 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/offline/outbox_op.dart';
 import '../../../core/offline/outbox_runner.dart';
 import '../../../core/utils/format.dart';
+import '../../../core/utils/turkish_text.dart';
 import 'deliver_draft.dart';
 import 'driver_models.dart';
 
@@ -58,7 +59,7 @@ abstract final class DriverOutbox {
       'code': draft.code,
       'body': {
         'deliveredLiters': double.parse(liters.toStringAsFixed(3)),
-        'deliveryDocumentNo': draft.documentNo.trim(),
+        'deliveryDocumentNo': draft.documentNo.trim().asciiUpper,
         if (recipient.isNotEmpty) 'recipientName': recipient,
         if (note.isNotEmpty) 'note': note,
         'deviceTime': deviceTime.toUtc().toIso8601String(),

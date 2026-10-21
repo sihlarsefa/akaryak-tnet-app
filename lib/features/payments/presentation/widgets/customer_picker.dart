@@ -66,21 +66,23 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 AppFailure.from(e) is ForbiddenFailure
-                    ? 'Cari listesini görme yetkiniz yok; aramayla süzebilirsiniz.'
-                    : 'Cariler yüklenemedi.',
-                style: t.bodySmall,
+                    ? 'Cari listesini görme yetkiniz yok. Aramayla süzebilirsiniz.'
+                    : 'Cariler yüklenemedi. Bağlantınızı kontrol edip sayfayı yeniden açın.',
+                style: t.bodySmall.copyWith(color: c.dim),
                 textAlign: TextAlign.center,
               ),
             ),
-            data: (list) => ListView(
-              shrinkWrap: true,
-              children: [
+            data: (list) {
+              const pad = EdgeInsets.symmetric(vertical: 10);
+              Widget check(bool on) => on
+                  ? Icon(Icons.check_circle_rounded, color: c.ink, size: 22)
+                  : const SizedBox(width: 22);
+              final rows = <Widget>[
                 AknListTile(
-                  leadingIcon: Icons.groups_rounded,
+                  leadingIcon: Icons.groups_outlined,
                   title: 'Tüm cariler',
-                  trailing: widget.current == null
-                      ? Icon(Icons.check_rounded, color: c.brandInk)
-                      : null,
+                  padding: pad,
+                  trailing: check(widget.current == null),
                   onTap: () =>
                       Navigator.of(context).pop(const CustomerCleared()),
                 ),
@@ -89,22 +91,30 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                     leading: AknAvatar(name: o.title, size: 36),
                     title: o.title,
                     subtitle: o.city,
-                    trailing: widget.current == o
-                        ? Icon(Icons.check_rounded, color: c.brandInk)
-                        : null,
+                    padding: pad,
+                    trailing: check(widget.current == o),
                     onTap: () => Navigator.of(context).pop(CustomerPicked(o)),
                   ),
-                if (list.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'Aramaya uyan cari yok.',
-                      style: t.bodySmall,
-                      textAlign: TextAlign.center,
+              ];
+              return ListView(
+                shrinkWrap: true,
+                children: [
+                  for (var i = 0; i < rows.length; i++) ...[
+                    if (i > 0) const AknLedgerDivider(indent: 0),
+                    rows[i],
+                  ],
+                  if (list.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Aramaya uyan cari yok. Ünvanın bir bölümünü yazmayı deneyin.',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
-                  ),
-              ],
-            ),
+                ],
+              );
+            },
           ),
         ),
       ],

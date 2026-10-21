@@ -173,7 +173,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
     final options = turkeyDistrictsByProvince[_city] ?? const <String>[];
     final v = await showSearchPicker(
       context,
-      title: _city.isEmpty ? 'İlçe seçin' : '$_city · ilçe seçin',
+      title: _city.isEmpty ? 'İlçe seçin' : '$_city, ilçe seçin',
       options: options,
       selected: _district.isEmpty ? null : _district,
       allowCustom: true,
@@ -325,29 +325,30 @@ class _EditFormState extends ConsumerState<_EditForm> {
                     ),
                   AknButton(
                     label: _isNew ? 'Noktayı ekle' : 'Kaydet',
-                    icon: Icons.check_rounded,
                     expand: true,
                     loading: _saving,
                     onPressed: online && !_saving ? _save : null,
                   ),
-                  if (!_isNew && policy.cmPointDelete)
-                    AknButton.ghost(
+                  if (!_isNew && policy.cmPointDelete) ...[
+                    const SizedBox(height: 8),
+                    AknButton.danger(
                       label: 'Pasifleştir',
-                      icon: Icons.location_off_rounded,
+                      size: AknButtonSize.medium,
                       expand: true,
                       onPressed: online && !_saving ? _deactivate : null,
                     ),
+                  ],
                 ],
               )
             : null,
         body: Form(
           key: _form,
           child: ListView(
-            padding: const EdgeInsets.only(top: 12, bottom: 24),
+            padding: const EdgeInsets.only(top: 0, bottom: 24),
             children: [
               if (_error != null)
                 AknBanner(
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                   tone: AknTone.danger,
                   message: _error!,
                   onClose: () => setState(() => _error = null),
@@ -435,7 +436,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
                             label: 'Başlangıç',
                             value: _start?.label,
                             enabled: enabled,
-                            icon: Icons.schedule_rounded,
+                            icon: Icons.schedule_outlined,
                             onTap: () => _pickTime(start: true),
                           ),
                         ),
@@ -445,7 +446,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
                             label: 'Bitiş',
                             value: _end?.label,
                             enabled: enabled,
-                            icon: Icons.schedule_rounded,
+                            icon: Icons.schedule_outlined,
                             onTap: () => _pickTime(start: false),
                           ),
                         ),
@@ -470,7 +471,6 @@ class _EditFormState extends ConsumerState<_EditForm> {
                         alignment: Alignment.centerLeft,
                         child: AknButton.ghost(
                           label: 'Saat aralığını kaldır',
-                          icon: Icons.backspace_rounded,
                           size: AknButtonSize.small,
                           onPressed: enabled
                               ? () => setState(() {

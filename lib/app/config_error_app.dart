@@ -52,7 +52,7 @@ class ConfigErrorApp extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Bu derleme güvenli bir sunucu adresiyle yapılandırılmamış. Lütfen uygulamanın güncel '
+                  'Bu derleme güvenli bir sunucu adresiyle yapılandırılmamış. Uygulamanın güncel '
                   'sürümünü mağazadan indirin.',
                   style: t.body.copyWith(color: c.dim),
                   textAlign: TextAlign.center,

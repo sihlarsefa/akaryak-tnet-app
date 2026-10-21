@@ -8,12 +8,11 @@ import '../../../core/ui/ui.dart';
 /// sunucudan olduğu gibi; ham yanıt asla gösterilmez.
 String failureText(AppFailure f) => switch (f) {
   OfflineFailure() => 'İnternet bağlantısı yok. Bağlantınızı kontrol edin.',
-  TimeoutFailure() => 'Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.',
-  ServerFailure() =>
-    'Beklenmeyen bir hata oluştu. Lütfen biraz sonra tekrar deneyin.',
+  TimeoutFailure() => 'Sunucu zamanında yanıt vermedi. Tekrar deneyin.',
+  ServerFailure() => 'İşlem tamamlanamadı. Birkaç dakika sonra tekrar deneyin.',
   RateLimitedFailure(:final retryAfter) =>
     retryAfter == null
-        ? 'Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar deneyin.'
+        ? 'Çok fazla deneme yapıldı. Biraz bekleyip tekrar deneyin.'
         : 'Çok fazla deneme. ${retryAfter.inSeconds} sn sonra tekrar deneyin.',
   ConflictFailure(:final conflictCode)
       when conflictCode == 'concurrency_conflict' =>
@@ -81,7 +80,7 @@ class A5FailureView extends StatelessWidget {
         return ErrorState(
           compact: compact,
           title: 'Sunucu zamanında yanıt vermedi',
-          message: 'Bağlantı yavaş olabilir. Lütfen tekrar deneyin.',
+          message: 'Bağlantı yavaş olabilir. Tekrar deneyin.',
           onRetry: onRetry,
         );
       case ServerFailure():
@@ -91,9 +90,9 @@ class A5FailureView extends StatelessWidget {
           children: [
             ErrorState(
               compact: compact,
-              title: 'Beklenmeyen bir hata oluştu',
+              title: 'Bilgiler yüklenemedi',
               message:
-                  'Bilgiler yüklenemedi. Lütfen biraz sonra tekrar deneyin.',
+                  'Sunucuda geçici bir sorun var. Birkaç dakika sonra tekrar deneyin.',
               onRetry: onRetry,
             ),
             if (code != null) SupportCode(code: code),

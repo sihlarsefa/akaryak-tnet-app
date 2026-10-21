@@ -64,28 +64,16 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: c.brandSoft,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(Icons.my_location_rounded, color: c.brandInk),
-              ),
-            ),
-            const SizedBox(height: 16),
+            Icon(Icons.my_location_outlined, size: 32, color: c.ink),
+            const SizedBox(height: 14),
             Text(
               CmCopy.locationPrimerTitle,
-              style: t.headline,
-              textAlign: TextAlign.center,
+              style: t.title.copyWith(color: c.ink),
             ),
             const SizedBox(height: 8),
             Text(
               CmCopy.locationPrimerMessage,
-              style: t.body,
-              textAlign: TextAlign.center,
+              style: t.body.copyWith(color: c.text),
             ),
             const SizedBox(height: 20),
             AknButton(
@@ -184,7 +172,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.place_rounded, color: c.brand),
+                  Icon(Icons.place_outlined, color: c.ink),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -210,7 +198,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
             mapsEnabled
                 ? 'Haritayı kaydırıp iğneyi teslimat noktasına getirin.'
                 : 'Konum kayıtlı değil. Şoförün noktayı bulması için konum eklemeniz önerilir.',
-            style: t.bodySmall,
+            style: t.bodySmall.copyWith(color: c.dim),
           ),
         if (v != null && imprecise) ...[
           const SizedBox(height: 8),

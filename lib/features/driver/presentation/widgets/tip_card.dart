@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 
-/// İlk girişte bir kez gösterilen ipucu kartı ("Teslimatı kaydırarak onaylayın"); "Anladım" ile kapanır.
+/// İlk girişte bir kez gösterilen ipucu ("Teslimatı kaydırarak onaylayın"): Beton kuyu (§4.5),
+/// mürekkep simge ve yazı, "Anladım" ile kapanır. Turuncu zemin yok.
 class DriverTipCard extends StatelessWidget {
   const DriverTipCard({super.key, required this.onDismiss});
 
@@ -15,20 +16,19 @@ class DriverTipCard extends StatelessWidget {
     final t = context.aknText;
     return Semantics(
       container: true,
-      child: AknCard(
-        color: c.brandSoft,
-        borderColor: c.brandLine,
-        shadow: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 8, 6),
+        decoration: BoxDecoration(
+          color: c.surfaceAlt,
+          borderRadius: AknRadius.card,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const AknIconBox(
-                  icon: Icons.swipe_right_rounded,
-                  tone: AknTone.brand,
-                ),
+                Icon(Icons.swipe_right_outlined, size: 24, color: c.ink),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -36,16 +36,20 @@ class DriverTipCard extends StatelessWidget {
                     children: [
                       Semantics(
                         header: true,
-                        child: Text(DriverCopy.tipTitle, style: t.bodyStrong),
+                        child: Text(
+                          DriverCopy.tipTitle,
+                          style: t.bodyStrong.copyWith(color: c.ink),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         DriverCopy.tipBody,
-                        style: t.bodySmall.copyWith(color: c.text),
+                        style: t.bodySmall.copyWith(color: c.ink),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 6),
               ],
             ),
             Align(

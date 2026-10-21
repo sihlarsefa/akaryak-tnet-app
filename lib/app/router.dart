@@ -8,6 +8,7 @@ import '../core/auth/session_state.dart';
 import '../core/env/app_config_controller.dart';
 import '../core/env/app_env.dart';
 import '../core/models/app_config.dart';
+import '../core/routing/app_location.dart';
 import '../core/routing/app_routes.dart';
 import '../core/routing/nav_keys.dart';
 import '../core/routing/route_access.dart';
@@ -28,6 +29,7 @@ import '../features/notifications/api.dart';
 import '../features/onboarding/api.dart';
 import '../features/payments/api.dart';
 import '../features/profile/api.dart';
+import '../features/stats/api.dart';
 import '../features/weather/api.dart';
 import 'destinations.dart';
 import 'dev/dev_menu.dart';
@@ -74,7 +76,16 @@ class AppRouter {
     );
     // Rota tablosu yönlendirmeden önce güncellenir: giriş anında kabuk hazır olur.
     _subs.addAll([
-      ref.listen(sessionControllerProvider, (_, _) {
+      ref.listen(sessionControllerProvider, (prev, next) {
+        // QA LF-3: çıkışta (ya da oturum kapanınca) bulunulan konum saklanmaz; sonra giren
+        // kullanıcı (aynı telefonda başka biri olabilir) kendi ilk sekmesinde açılır.
+        if (next is SessionUnauthenticated &&
+            (prev is SessionAuthenticated || prev is SessionLocked)) {
+          _deferred = null;
+          _signedOut = true;
+        } else if (next is SessionAuthenticated) {
+          _signedOut = false;
+        }
         _syncLayout();
         _refresh.ping();
       }),
@@ -106,6 +117,9 @@ class AppRouter {
 
   /// Oturum açılmadan istenen konum (giriş sonrası açılır).
   String? _deferred;
+
+  /// Oturum bu çalışmada kapandı (çıkış, iptal): bulunulan konum girişten sonra açılmaz (QA LF-3).
+  bool _signedOut = false;
 
   RoutingConfig _routingConfig(NavLayout layout) => RoutingConfig(
     routes: buildAppRoutes(
@@ -142,7 +156,10 @@ class AppRouter {
       // Oturum açılmadan dokunulan push: izin yoksa gelen kutusu (spec C.4).
       deferredFallback: pushLink ? AppRoutes.notifications : null,
     );
-    if (result.defer != null) _deferred = result.defer;
+    if (result.defer != null &&
+        !(_signedOut && session is SessionUnauthenticated)) {
+      _deferred = result.defer;
+    }
     if (result.consumedDeferred) {
       _deferred = null;
       if (pending != null) {
@@ -158,7 +175,8 @@ class AppRouter {
   void _consumePendingLink() {
     if (ref.read(sessionControllerProvider) is! SessionAuthenticated) return;
     final link = ref.read(pendingDeepLinkProvider.notifier).take();
-    if (link != null) router.push(link);
+    // Sekme rotaları `go` ile açılır (QA SC-01: `push` kabuğu ikinci kez kurardı).
+    if (link != null) openAppLocation(router, link);
   }
 
   void dispose() {
@@ -337,6 +355,7 @@ List<RouteBase> featureRouteTable() => [
   ...assistantRoutes(),
   ...weatherRoutes(),
   ...profileRoutes(),
+  ...statsRoutes(),
 ];
 
 /// Rota tablosu: alt menüdeki hedefler kabuğun sekmeleri olur; diğer özellik rotaları tam ekran açılır.

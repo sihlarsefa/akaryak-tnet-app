@@ -40,7 +40,6 @@ class FieldLeadDetailPage extends ConsumerWidget {
     final access = ref.watch(fieldAccessProvider);
     return AppScaffold(
       title: d.leadNumber,
-      subtitle: d.companyTitle,
       refreshing: async.isRefreshing,
       body: PullToRefresh(
         onRefresh: () =>
@@ -83,7 +82,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
                         ?c.title,
                         ?c.email,
                         if (c.isInviteRecipient) 'Portal daveti bu kişiye',
-                      ].join(' · '),
+                      ].join(', '),
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       trailing: c.phone == null
                           ? null
@@ -114,7 +113,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
                     (
                       p.productName ?? 'Ürün #${p.productId}',
                       '${Fmt.liters(p.monthlyLiters)}/ay'
-                          '${p.committedMonthlyLiters == null ? '' : ' · taahhüt ${Fmt.liters(p.committedMonthlyLiters)}'}',
+                          '${p.committedMonthlyLiters == null ? '' : ', taahhüt ${Fmt.liters(p.committedMonthlyLiters)}'}',
                     ),
                   ('Toplam', '${Fmt.liters(d.totalMonthlyLiters)}/ay'),
                   (
@@ -123,7 +122,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
                       ?d.firstOrderProductName,
                       if (draft.firstOrderLiters != null)
                         Fmt.liters(draft.firstOrderLiters),
-                    ].join(' · '),
+                    ].join(', '),
                   ),
                   (
                     'İlk sevk',
@@ -165,7 +164,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
                       if (draft.collateralOfferAmount != null)
                         Fmt.money(draft.collateralOfferAmount),
                       ?draft.collateralOfferNote,
-                    ].join(' · '),
+                    ].join(', '),
                   ),
                   (
                     'Teminat oranı',
@@ -191,12 +190,12 @@ class FieldLeadDetailPage extends ConsumerWidget {
                       if (draft.vehicleCount != null)
                         '${draft.vehicleCount} araç',
                       ?draft.vehicleTypes,
-                    ].join(' · '),
+                    ].join(', '),
                   ),
                   (
                     'Depo',
                     draft.hasTank
-                        ? 'Var${draft.tankCapacityLiters == null ? '' : ' · ${Fmt.liters(draft.tankCapacityLiters)}'}'
+                        ? 'Var${draft.tankCapacityLiters == null ? '' : ', ${Fmt.liters(draft.tankCapacityLiters)}'}'
                         : null,
                   ),
                 ],
@@ -289,7 +288,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
     LeadDetail d,
     FieldAccess access,
   ) {
-    const m = EdgeInsets.fromLTRB(16, 0, 16, 12);
+    const m = EdgeInsets.fromLTRB(20, 12, 20, 0);
     return [
       if (d.status == LeadStatus.infoRequested)
         AknBanner(
@@ -385,6 +384,8 @@ class FieldLeadDetailPage extends ConsumerWidget {
   }
 }
 
+/// Sayfanın başı (tasarım v2 §5.2: ön kayıt ayrıntısında plaka yok): `display` başlıkta firma, altında
+/// kayıt no, temsilci, tarih ve aylık litre; durum lambaları.
 class _Hero extends StatelessWidget {
   const _Hero({required this.detail});
 
@@ -393,56 +394,47 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = detail;
-    return AknHeroPanel(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          final c = context.akn;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final t = context.aknText;
+    final c = context.akn;
+    final status = d.status.statusStyle.withLabel(d.statusLabel);
+    final approval = d.approvalStatus != null && d.status != LeadStatus.draft
+        ? d.approvalStatus!.statusStyle
+        : null;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              d.companyTitle.isEmpty ? 'Ünvansız ön kayıt' : d.companyTitle,
+              style: t.display.copyWith(color: c.ink),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            [
+              d.leadNumber,
+              ?d.salesRepName,
+              if (d.createdAt != null) Fmt.date(d.createdAt),
+              if (d.totalMonthlyLiters > 0)
+                'ayda ${Fmt.liters(d.totalMonthlyLiters)}',
+            ].join(', '),
+            style: t.bodySmall.copyWith(color: c.dim),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 16,
+            runSpacing: 6,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    d.leadNumber,
-                    style: t.label.copyWith(color: c.brandInk),
-                  ),
-                  StatusChip.style(
-                    d.status.statusStyle.withLabel(d.statusLabel),
-                    size: StatusChipSize.small,
-                  ),
-                  if (d.approvalStatus != null && d.status != LeadStatus.draft)
-                    StatusChip.style(
-                      d.approvalStatus!.statusStyle,
-                      size: StatusChipSize.small,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Semantics(
-                header: true,
-                child: Text(
-                  d.companyTitle.isEmpty ? 'Ünvansız ön kayıt' : d.companyTitle,
-                  style: t.title,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                [
-                  ?d.salesRepName,
-                  if (d.createdAt != null) Fmt.date(d.createdAt),
-                  if (d.totalMonthlyLiters > 0)
-                    '${Fmt.liters(d.totalMonthlyLiters)}/ay',
-                ].join(' · '),
-                style: t.bodySmall,
-              ),
+              AknLamp.style(status),
+              // Onay durumu, kaydın durumuyla aynı kelimeyse ikinci kez yazılmaz.
+              if (approval != null && approval.label != status.label)
+                AknLamp.style(approval),
             ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }

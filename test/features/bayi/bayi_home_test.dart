@@ -1,5 +1,5 @@
-// Bayi ana sayfası: yetkiye göre bölümler (yük ne getirirse), yüklenemeyen bölüm, rol ipucu, kurulum
-// uyarıları ve bölümlerden gezinme.
+// Bayi ana sayfası (tasarım v2 §7.5 / §7.6): yetkiye göre bölümler (yük ne getirirse), sipariş hattı,
+// yüklenemeyen bölüm, rol ipucu, kurulum uyarıları ve bölümlerden gezinme.
 import 'dart:async';
 
 import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
@@ -10,6 +10,8 @@ import 'package:akaryakitnet/features/bayi/application/role_tip.dart';
 import 'package:akaryakitnet/features/bayi/copy.dart';
 import 'package:akaryakitnet/features/bayi/fake/home_fake.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/home_sections.dart';
+import 'package:akaryakitnet/features/bayi/presentation/home/order_pipeline.dart';
+import 'package:akaryakitnet/features/bayi/presentation/home/role_plate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,14 +19,20 @@ import 'support/bayi_app.dart';
 
 void main() {
   testWidgets(
-    'bayi sahibi: teklif, sevkiyat, tahsilat, kurulum bölümleri ve rol ipucu',
+    'bayi sahibi: sipariş hattı, sevkiyat, tahsilat, kurulum bölümleri ve rol ipucu',
     (tester) async {
       final app = await BayiTestApp.start(
         tester,
         persona: 'sahip',
         location: '/home-bayi',
       );
-      expect(find.byType(DeskSectionView), findsOneWidget);
+      expect(find.byType(OrderPipeline), findsOneWidget);
+      expect(
+        find.byType(DeskSectionView),
+        findsNothing,
+        reason: 'sahip için masa satırları yerine hat ve acil satır (§7.5)',
+      );
+      expect(find.byType(BayiRolePlate), findsNothing, reason: 'deste var');
       expect(
         find.text('Teklif masası tek ekranda'),
         findsOneWidget,
@@ -64,6 +72,8 @@ void main() {
         location: '/home-bayi',
       );
       expect(find.text('Sevkiyat panosu'), findsOneWidget);
+      expect(find.byType(BayiRolePlate), findsOneWidget);
+      expect(find.text('Bugün planlı'), findsOneWidget);
       expect(find.byType(ShipmentsSectionView), findsOneWidget);
       expect(find.byType(CollectionsSectionView), findsNothing);
       expect(find.byType(FinanceSectionView), findsNothing);
@@ -110,27 +120,26 @@ void main() {
         return bayiHomeJson(req.world, findFakePersona('sahip')!);
       }),
     );
-    expect(find.byType(DeskSectionView), findsOneWidget);
+    expect(find.byType(OrderPipeline), findsOneWidget);
     fail = true;
     unawaited(app.container.read(bayiHomeProvider.notifier).refresh());
     await BayiTestApp.settle(tester);
-    expect(
-      find.byType(DeskSectionView),
-      findsOneWidget,
-      reason: 'içerik kalır',
-    );
+    expect(find.byType(OrderPipeline), findsOneWidget, reason: 'içerik kalır');
     expect(find.textContaining('son güncelleme'), findsOneWidget);
     await app.finish(tester);
   });
 
-  testWidgets('süresi yaklaşan siparişten sipariş ayrıntısına gidilir', (
+  testWidgets('sipariş masası: süresi yaklaşan siparişten ayrıntıya gidilir', (
     tester,
   ) async {
     final app = await BayiTestApp.start(
       tester,
-      persona: 'mudur',
+      persona: 'siparis',
       location: '/home-bayi',
     );
+    expect(find.byType(BayiRolePlate), findsOneWidget);
+    expect(find.text('Teklif bekleyen'), findsOneWidget);
+    expect(find.byType(DeskSectionView), findsOneWidget);
     final countdown = find.byType(CountdownBadge);
     expect(countdown, findsWidgets);
     await scrollTap(tester, countdown.first);

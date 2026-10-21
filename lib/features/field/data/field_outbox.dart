@@ -238,7 +238,7 @@ class FieldOutbox {
     idempotencyKey: idempotencyKey,
     label: formNumber != null
         ? '$formNumber taslağı'
-        : 'Saha formu taslağı${customerTitle == null ? '' : ' · $customerTitle'}',
+        : 'Saha formu taslağı${customerTitle == null ? '' : ', $customerTitle'}',
   );
 
   /// Ön kayıt taslağı.
@@ -261,7 +261,7 @@ class FieldOutbox {
     idempotencyKey: idempotencyKey,
     label: leadNumber != null
         ? '$leadNumber ön kaydı'
-        : 'Ön kayıt${(companyTitle ?? '').isEmpty ? '' : ' · $companyTitle'}',
+        : 'Ön kayıt${(companyTitle ?? '').isEmpty ? '' : ', $companyTitle'}',
   );
 
   /// Ön kayıt belgesi. [filePath] kalıcı klasörde olmalıdır (`OutboxFiles.persist`).
@@ -286,7 +286,7 @@ class FieldOutbox {
     files: [filePath],
     dependsOn: dependsOn,
     label:
-        '${kind.label}${(companyTitle ?? '').isEmpty ? '' : ' · $companyTitle'}',
+        '${kind.label}${(companyTitle ?? '').isEmpty ? '' : ', $companyTitle'}',
   );
 
   /// Vazgeç: kayıt işleminde aynı taslağın gönderilmemiş tüm halkaları ve onlara bağlı işlemler (ör.

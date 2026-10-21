@@ -56,7 +56,7 @@ class _ChevronSpinnerState extends State<ChevronSpinner>
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = widget.color ?? c.brand;
+    final color = widget.color ?? c.brandBright;
     final size = ChevronRowPainter.sizeFor(widget.size, widget.count);
     final Widget painted = _reduced
         ? CustomPaint(

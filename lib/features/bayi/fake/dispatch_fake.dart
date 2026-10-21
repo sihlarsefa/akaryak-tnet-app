@@ -130,7 +130,7 @@ void registerBayiDispatchFakes(FakeServer s) {
         eventCode: 'shipment.assigned',
         title: 'Yeni teslimat atandı',
         body:
-            '${o['orderNumber']} · ${_fmtLiters(liters)} · ${o['deliveryPointName']}',
+            '${o['orderNumber']}, ${_fmtLiters(liters)}, ${o['deliveryPointName']}',
         route: '/driver/shipments/$id',
         entityType: 'Shipment',
         entityId: id,
@@ -193,7 +193,7 @@ void registerBayiDispatchFakes(FakeServer s) {
         eventCode: 'shipment.assigned',
         title: 'Yeni teslimat atandı',
         body:
-            '${ship['orderNumber']} · ${_fmtLiters((ship['plannedLiters'] as num).toDouble())}',
+            '${ship['orderNumber']}, ${_fmtLiters((ship['plannedLiters'] as num).toDouble())}',
         route: '/driver/shipments/${ship['id']}',
         entityType: 'Shipment',
         entityId: ship['id'] as int,
@@ -285,7 +285,7 @@ void registerBayiDispatchFakes(FakeServer s) {
         eventCode: 'shipment.reported',
         title: 'Teslimatı onaylayın',
         body:
-            '${o['orderNumber']} için ${_fmtLiters(liters)} teslim edildi. Lütfen kontrol edip onaylayın.',
+            '${o['orderNumber']} için ${_fmtLiters(liters)} teslim edildi. Kontrol edip onaylayın.',
         route: '/shipments/${ship['id']}',
         severity: 2,
         entityType: 'Shipment',

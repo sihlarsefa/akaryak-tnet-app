@@ -188,14 +188,14 @@ class TemplateListItem {
   final int lineCount;
   final double totalLiters;
 
-  /// "Motorin 10.000 L · 2 nokta".
+  /// "Motorin 10.000 L, 2 nokta".
   final String summary;
   final DateTime? lastUsedAt;
   final DateTime? createdAt;
 
   String get subtitle => summary.isNotEmpty
       ? summary
-      : '$lineCount satır · ${Fmt.liters(totalLiters)}';
+      : '$lineCount satır, ${Fmt.liters(totalLiters)}';
 }
 
 /// Şablon satırı (`OrderTemplateLineDto`).

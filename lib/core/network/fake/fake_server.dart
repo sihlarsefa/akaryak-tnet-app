@@ -49,7 +49,7 @@ class FakeResponse implements Exception {
   /// 400 `validation`.
   factory FakeResponse.validation(
     Map<String, List<String>> errors, [
-    String detail = 'Lütfen alanları kontrol edin.',
+    String detail = 'İşaretli alanları kontrol edin.',
   ]) => FakeResponse.problem(400, 'validation', detail, errors: errors);
 
   /// 400 `business_rule` (ServiceException).
@@ -72,7 +72,8 @@ class FakeResponse implements Exception {
       FakeResponse.problem(409, code, detail);
 
   factory FakeResponse.server([
-    String detail = 'Beklenmeyen bir sunucu hatası oluştu.',
+    String detail =
+        'Sunucu isteği tamamlayamadı. Birkaç dakika sonra tekrar deneyin.',
   ]) => FakeResponse.problem(500, 'server_error', detail);
 
   final int status;

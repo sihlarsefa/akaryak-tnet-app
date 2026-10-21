@@ -109,8 +109,8 @@ class AppEnv {
   Uri get forgotPasswordUrl =>
       Uri.parse('${portalBaseUrl}Account/ForgotPassword');
 
-  /// Profil → Hakkında rozeti: "Test · sahte API".
-  String get badge => isFake ? '${env.label} · sahte API' : env.label;
+  /// Profil → Hakkında rozeti: "Test, sahte API".
+  String get badge => isFake ? '${env.label}, sahte API' : env.label;
 
   /// Canlı olmayan derlemelerde köşedeki şerit: sahte veride "DEMO", test sunucusunda "TEST" (canlıda
   /// yok).

@@ -33,11 +33,13 @@ typedef _Secondary = ({
   VoidCallback? onTap,
 });
 
-/// Karar çubuğu (spec A.4): yalnızca sunucunun verdiği [ApprovalDetail.modes].
+/// Karar çubuğu (spec A.4, tasarım v2 §7.13 / §7.8 karar rıhtımı): yalnızca sunucunun verdiği
+/// [ApprovalDetail.modes].
 ///
-/// - Olumlu karar büyük turuncu düğme; "Reddet" yanında. Üçten fazla karar varsa "Ek bilgi iste" ve
-///   "Koşullu onayla" "Diğer kararlar" sayfasında (çubuk tek satır kalır).
-/// - Büyük yazıda düğmeler iki satıra dizilir.
+/// - Üstte tam genişlik birincil "Onayla" (turuncu, siyah yazı); altında ikinciller yan yana:
+///   "Ek bilgi iste" / "Koşullu onayla" ikincil, "Reddet" tehlike düğmesi (48 yüksek). Üçten fazla
+///   karar varsa fazlası "Diğer kararlar" sayfasında.
+/// - Büyük yazıda ikinciller alt alta dizilir.
 /// - Çevrimdışıyken düğmeler kapalıdır (spec C.4a).
 class DecisionBar extends ConsumerWidget {
   const DecisionBar({
@@ -123,93 +125,87 @@ class DecisionBar extends ConsumerWidget {
           onTap: online ? onForward : null,
         ),
     ];
-    List<Widget> secondaryButtons({required bool icons}) => [
-      for (final b in secondarySpecs)
-        AknButton.secondary(
-          label: b.label,
-          icon: icons ? b.icon : null,
-          expand: true,
-          semanticLabel: b.semantic,
-          onPressed: b.onTap,
-        ),
-    ];
     final primaryLabel = hasApprove
         ? d.modeLabel(ApprovalDecision.approve)
         : onForward != null
         ? 'Merkeze ilet'
         : null;
-    Widget? primaryButton(AknButtonSize size) => hasApprove
+    final primary = hasApprove
         ? AknButton(
             label: primaryLabel!,
-            icon: Icons.check_rounded,
             expand: true,
-            size: size,
             onPressed: act(ApprovalDecision.approve),
           )
         : onForward != null
         ? AknButton(
             label: primaryLabel!,
-            icon: Icons.upload_rounded,
             expand: true,
-            size: size,
             onPressed: online ? onForward : null,
           )
         : null;
+    // "Reddet" sağda (en sonda): olumludan olumsuza.
+    final rejectLabel = d.modeLabel(ApprovalDecision.reject);
+    final ordered = [
+      for (final b in secondarySpecs)
+        if (b.label != rejectLabel) b,
+      for (final b in secondarySpecs)
+        if (b.label == rejectLabel) b,
+    ];
+    final secondaries = [
+      for (final b in ordered)
+        b.label == rejectLabel
+            ? AknButton.danger(
+                label: b.label,
+                expand: true,
+                size: AknButtonSize.medium,
+                semanticLabel: b.semantic,
+                onPressed: b.onTap,
+              )
+            : AknButton.secondary(
+                label: b.label,
+                expand: true,
+                size: AknButtonSize.medium,
+                semanticLabel: b.semantic,
+                onPressed: b.onTap,
+              ),
+    ];
 
-    /// Tek satır (ikinciller simgesiz, olumlu karar iki pay): her etiket tek satırda bütün
-    /// sığıyorsa. Sığmıyorsa ikinciller kendi satırında, olumlu karar tam genişlikte.
+    /// İkinciller yan yana sığıyor mu (her etiket kendi payında tek satır).
     bool rowFits(double width) {
-      if (large || secondarySpecs.length > 2) return false;
-      if (primaryLabel == null || secondarySpecs.isEmpty) return true;
+      if (large || secondarySpecs.isEmpty) return false;
       const gap = 10.0;
       final unit =
-          (width - gap * secondarySpecs.length) / (secondarySpecs.length + 2);
+          (width - gap * (secondarySpecs.length - 1)) / secondarySpecs.length;
       return secondarySpecs.every(
-            (b) =>
-                AknButton.fitsOneLine(context, b.label, unit, bordered: true),
-          ) &&
-          AknButton.fitsOneLine(context, primaryLabel, unit * 2, icon: true);
+        (b) => AknButton.fitsOneLine(context, b.label, unit, bordered: true),
+      );
     }
 
     final bar = LayoutBuilder(
       builder: (context, constraints) {
         final inRow =
             constraints.hasBoundedWidth && rowFits(constraints.maxWidth);
-        if (inRow) {
-          final buttons = secondaryButtons(icons: false);
-          final primary = primaryButton(
-            buttons.isEmpty ? AknButtonSize.large : AknButtonSize.medium,
-          );
-          if (primary != null) {
-            return Row(
-              children: [
-                for (final b in buttons) ...[
-                  Expanded(child: b),
-                  const SizedBox(width: 10),
-                ],
-                Expanded(flex: buttons.isEmpty ? 1 : 2, child: primary),
-              ],
-            );
-          }
-        }
-        final buttons = secondaryButtons(icons: true);
-        final primary = primaryButton(AknButtonSize.large);
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (buttons.isNotEmpty)
+            ?primary,
+            if (primary != null && secondaries.isNotEmpty)
+              const SizedBox(height: 10),
+            if (secondaries.isNotEmpty && inRow)
               Row(
                 children: [
-                  for (var i = 0; i < buttons.length; i++) ...[
+                  for (var i = 0; i < secondaries.length; i++) ...[
                     if (i > 0) const SizedBox(width: 10),
-                    Expanded(child: buttons[i]),
+                    Expanded(child: secondaries[i]),
                   ],
                 ],
-              ),
-            if (buttons.isNotEmpty && primary != null)
-              const SizedBox(height: 8),
-            ?primary,
+              )
+            else
+              for (var i = 0; i < secondaries.length; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                secondaries[i],
+              ],
           ],
         );
       },

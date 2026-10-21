@@ -11,23 +11,41 @@ import '../../../approvals/api.dart';
 import '../../application/payments_providers.dart';
 import '../../copy.dart';
 import '../../data/payment_models.dart';
+import 'payment_cards.dart';
 
-/// Ödeme durumu sayfası: yalnızca sunucunun izin verdiği geçişler (`allowedTransitions`), gerekçe
-/// zorunlu durumlarda not (`noteRequiredFor`, en az 3 karakter), dayanak belge ("Dekont ekle").
+/// Geri alınması zor geçişler: kayıt düğmesi kırmızı dolgulu (§6.21 yıkıcı onay).
+bool _destructivePayment(PaymentStatus s) =>
+    s == PaymentStatus.bounced ||
+    s == PaymentStatus.refunded ||
+    s == PaymentStatus.cancelled;
+
+bool _destructiveInstrument(InstrumentStatus s) =>
+    s == InstrumentStatus.bounced ||
+    s == InstrumentStatus.returned ||
+    s == InstrumentStatus.protested;
+
+/// Ödeme durumu sayfası (tasarım v2 §6.21): yalnızca sunucunun izin verdiği geçişler
+/// (`allowedTransitions`), gerekçe zorunlu durumlarda not (`noteRequiredFor`, en az 3 karakter),
+/// dayanak belge ("Dekont ekle"). [initial] izinliyse seçili açılır ("Tahsil edildi olarak
+/// işaretle").
 Future<String?> showPaymentStatusSheet(
   BuildContext context, {
   required int orderId,
+  PaymentStatus? initial,
 }) => showAppSheet<String>(
   context: context,
   title: 'Ödeme durumu',
   subtitle: 'Yalnızca bu ödemede izin verilen durumlar listelenir.',
-  builder: (_) => PaymentStatusSheet(orderId: orderId),
+  builder: (_) => PaymentStatusSheet(orderId: orderId, initial: initial),
 );
 
 class PaymentStatusSheet extends ConsumerStatefulWidget {
-  const PaymentStatusSheet({super.key, required this.orderId});
+  const PaymentStatusSheet({super.key, required this.orderId, this.initial});
 
   final int orderId;
+
+  /// Açılışta seçili yeni durum (izinli değilse yok sayılır).
+  final PaymentStatus? initial;
 
   @override
   ConsumerState<PaymentStatusSheet> createState() => _PaymentStatusSheetState();
@@ -35,7 +53,7 @@ class PaymentStatusSheet extends ConsumerStatefulWidget {
 
 class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
   final _note = TextEditingController();
-  PaymentStatus? _to;
+  late PaymentStatus? _to = _initialChoice();
   String? _attachmentId;
   bool _busy = false;
 
@@ -46,6 +64,13 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
 
   UploadTarget get _target =>
       UploadTarget(AttachmentOwnerType.order, widget.orderId);
+
+  PaymentStatus? _initialChoice() {
+    final i = widget.initial;
+    if (i == null) return null;
+    final d = ref.read(paymentDetailProvider(widget.orderId)).valueOrNull;
+    return d != null && d.allowedTransitions.contains(i) ? i : null;
+  }
 
   @override
   void dispose() {
@@ -75,7 +100,7 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
     setState(() => _refreshing = false);
     if (fresh != null && fresh.row.paymentStatus != before) {
       AppToast.info(
-        'Belge eklendi; ödeme durumu "${fresh.row.paymentStatusLabel ?? fresh.row.paymentStatus.label}" olarak güncellendi.',
+        'Belge eklendi. Ödeme durumu "${fresh.row.paymentStatusLabel ?? fresh.row.paymentStatus.label}" oldu.',
         context: context,
       );
     }
@@ -97,7 +122,7 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
         .read(uploadsProvider(_target))
         .any((u) => u.phase == UploadPhase.uploading)) {
       AppToast.info(
-        'Belge yüklemesi sürüyor; birazdan kaydedin.',
+        'Belge yüklemesi sürüyor. Bitince durumu kaydedin.',
         context: context,
       );
       return;
@@ -188,37 +213,40 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
     final addLabel = d.uploadKind == AttachmentKind.transferReceipt
         ? 'Dekont ekle'
         : '${d.uploadKind.label} ekle';
+    final amount = d.row.displayAmount;
+    final canSave = to != null && online && !_busy && !_refreshing;
+    final saveLabel = to == null ? 'Durum seçin' : 'Durumu kaydet';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Text('Şu an', style: t.label),
-            const SizedBox(width: 8),
-            StatusChip.style(current, size: StatusChipSize.small),
-            const Spacer(),
-            Flexible(
-              child: Text(
-                d.row.orderNumber,
-                style: t.caption,
-                textAlign: TextAlign.end,
-              ),
-            ),
-          ],
+        _SheetSummary(
+          title: d.row.customerTitle,
+          meta: [
+            d.row.orderNumber,
+            if (amount != null) Fmt.money(amount),
+          ].join(', '),
+          lamp: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Şu an', style: t.bodySmall.copyWith(color: c.dim)),
+              const SizedBox(width: 10),
+              Flexible(child: AknLamp.style(current)),
+            ],
+          ),
         ),
         if (problem != null) ...[
           const SizedBox(height: 12),
           _Problem(outcome: problem, onReload: _reload),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Text('Yeni durum', style: t.label),
         const SizedBox(height: 8),
         for (final s in d.allowedTransitions)
           ChoiceCard(
             title: s.label,
             subtitle: PaymentsCopy.paymentHint(s),
-            leadingIcon: AknStatus.payment(s).icon,
+            leading: _ToneDot(tone: AknStatus.payment(s).tone),
             selected: to == s,
             margin: const EdgeInsets.only(bottom: 8),
             onTap: () => setState(() {
@@ -229,10 +257,7 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
             }),
           ),
         if (_errors['toStatus'] != null)
-          Text(
-            _errors['toStatus']!,
-            style: t.captionStrong.copyWith(color: c.danger.fg),
-          ),
+          _FieldError(text: _errors['toStatus']!),
         const SizedBox(height: 8),
         AknTextField(
           controller: _note,
@@ -245,64 +270,72 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
           maxLength: 500,
           textCapitalization: TextCapitalization.sentences,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Text('Dayanak belge (isteğe bağlı)', style: t.label),
-        const SizedBox(height: 6),
-        if (docs.isNotEmpty)
+        const SizedBox(height: 4),
+        Text(
+          'Seçtiğiniz belge durum geçmişinde bu değişikliğin yanında görünür.',
+          style: t.bodySmall.copyWith(color: c.dim),
+        ),
+        if (docs.isNotEmpty) ...[
+          const SizedBox(height: 4),
           FilterChips<String>(
             padding: EdgeInsets.zero,
             options: [
               for (final a in docs)
                 FilterOption(
                   value: a.publicId,
-                  label: '${a.kindLabel} · ${a.fileName}',
-                  icon: AknStatus.attachmentKind(a.kind).icon,
+                  label: '${a.kindLabel}, ${a.fileName}',
                 ),
             ],
             selected: {?_attachmentId},
             onChanged: (s) =>
                 setState(() => _attachmentId = s.isEmpty ? null : s.first),
           ),
+        ],
         if (_errors['attachmentPublicId'] != null)
-          Text(
-            _errors['attachmentPublicId']!,
-            style: t.captionStrong.copyWith(color: c.danger.fg),
-          ),
+          _FieldError(text: _errors['attachmentPublicId']!),
         UploadTiles(target: _target),
         const SizedBox(height: 8),
         Align(
           alignment: Alignment.centerLeft,
           child: AknButton.secondary(
             label: addLabel,
-            icon: Icons.add_a_photo_rounded,
+            icon: Icons.add_a_photo_outlined,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_addDocument(d)),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         if (!online)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              PaymentsCopy.offline,
-              style: t.bodySmall,
-              textAlign: TextAlign.center,
-            ),
+            child: Text(PaymentsCopy.offline, style: t.bodySmall),
           ),
-        AknButton(
-          label: to == null ? 'Durum seçin' : 'Durumu kaydet',
-          semanticLabel: to == null
-              ? null
-              : 'Durumu "${to.label}" olarak kaydet',
-          icon: Icons.check_rounded,
-          expand: true,
-          size: AknButtonSize.large,
-          loading: _busy || _refreshing,
-          loadingLabel: _refreshing ? 'Ödeme güncelleniyor' : 'Gönderiliyor',
-          onPressed: to != null && online && !_busy && !_refreshing
-              ? () => _submit(d)
-              : null,
-        ),
+        if (to != null && _destructivePayment(to) && !_busy && !_refreshing)
+          Semantics(
+            label: 'Durumu "${to.label}" olarak kaydet',
+            excludeSemantics: true,
+            button: true,
+            enabled: canSave,
+            onTap: canSave ? () => _submit(d) : null,
+            child: DestructiveButton(
+              label: saveLabel,
+              onPressed: canSave ? () => _submit(d) : null,
+            ),
+          )
+        else
+          AknButton(
+            label: saveLabel,
+            semanticLabel: to == null
+                ? null
+                : 'Durumu "${to.label}" olarak kaydet',
+            expand: true,
+            size: AknButtonSize.large,
+            loading: _busy || _refreshing,
+            loadingLabel: _refreshing ? 'Ödeme güncelleniyor' : 'Gönderiliyor',
+            onPressed: canSave ? () => _submit(d) : null,
+          ),
       ],
     );
   }
@@ -315,7 +348,7 @@ Future<String?> showInstrumentSheet(
   required bool canChange,
 }) => showAppSheet<String>(
   context: context,
-  title: '${instrument.displayKindLabel} · ${instrument.headline}',
+  title: [instrument.displayKindLabel, ?instrument.serialNo].join(' '),
   subtitle: instrument.customerTitle,
   builder: (_) => InstrumentSheet(instrument: instrument, canChange: canChange),
 );
@@ -395,68 +428,67 @@ class _InstrumentSheetState extends ConsumerState<InstrumentSheet> {
     final c = context.akn;
     final i = widget.instrument;
     final online = ref.watch(isOnlineProvider);
-    final status = AknStatus.instrument(i.status).withLabel(i.statusLabel);
+    final status = instrumentLamp(i);
     final to = _to;
     final noteRequired = to != null && i.noteRequiredFor.contains(to);
     final actions = widget.canChange
         ? i.allowedTransitions
         : const <InstrumentStatus>[];
     final problem = _problem;
+    final hint = i.isOpen ? i.dueHint : null;
+    final canSave = to != null && online && !_busy;
+    final saveLabel = to == null ? 'Durum seçin' : 'Durumu kaydet';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            StatusChip.style(status),
-            if (i.dueHint != null)
-              StatusChip(
-                label: i.dueHint!,
-                tone: i.isOverdue ? AknTone.danger : AknTone.neutral,
-                icon: Icons.event_rounded,
-              ),
-          ],
+        Semantics(
+          label: 'Tutar ${Fmt.money(i.amount)}',
+          excludeSemantics: true,
+          child: AmountText(Fmt.money(i.amount), large: true),
         ),
-        const SizedBox(height: 8),
-        AknCard(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-          child: Column(
-            children: [
-              FactRow(label: 'Tutar', value: Fmt.money(i.amount)),
-              FactRow(label: 'Vade', value: Fmt.date(i.dueDate)),
-              if (i.serialNo != null)
-                FactRow(label: 'Seri no', value: i.serialNo!),
-              if (i.bankName != null)
-                FactRow(
-                  label: 'Banka',
-                  value: [i.bankName!, ?i.branchName].join(' · '),
+        const SizedBox(height: 10),
+        AknStatusLine(
+          lamp: AknLamp.style(status),
+          trailing: hint == null
+              ? null
+              : DueHint(
+                  text: dueHintText(hint),
+                  tone: dueTone(overdue: i.isOverdue, due: i.dueDate),
                 ),
-              if (i.drawerName != null)
-                FactRow(label: 'Keşideci', value: i.drawerName!),
-              if (i.debtorName != null)
-                FactRow(label: 'Borçlu', value: i.debtorName!),
-              if (i.guarantorName != null)
-                FactRow(label: 'Kefil', value: i.guarantorName!),
-              if (i.orderNumber != null)
-                FactRow(label: 'Sipariş', value: i.orderNumber!),
-              if (i.note != null) FactRow(label: 'Not', value: i.note!),
-            ],
-          ),
+        ),
+        const SizedBox(height: 12),
+        FactList(
+          facts: [
+            FactRow(label: 'Vade', value: Fmt.longDate(i.dueDate)),
+            if (i.bankName != null)
+              FactRow(
+                label: 'Banka',
+                value: [i.bankName!, ?i.branchName].join(', '),
+              ),
+            if (i.drawerName != null)
+              FactRow(label: 'Keşideci', value: i.drawerName!),
+            if (i.debtorName != null)
+              FactRow(label: 'Borçlu', value: i.debtorName!),
+            if (i.guarantorName != null)
+              FactRow(label: 'Kefil', value: i.guarantorName!),
+            if (i.orderNumber != null)
+              FactRow(label: 'Sipariş', value: i.orderNumber!),
+            if (i.note != null) FactRow(label: 'Not', value: i.note!),
+          ],
         ),
         if (problem != null) ...[
           const SizedBox(height: 12),
           _Problem(outcome: problem, onReload: null),
         ],
         if (actions.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text('Durumu değiştir', style: t.label),
-          const SizedBox(height: 8),
+          const SizedBox(height: 20),
+          Text('Durumu değiştir', style: t.title),
+          const SizedBox(height: 10),
           for (final s in actions)
             ChoiceCard(
               title: s.label,
               subtitle: PaymentsCopy.instrumentHint(s),
-              leadingIcon: AknStatus.instrument(s).icon,
+              leading: _ToneDot(tone: AknStatus.instrument(s).tone),
               selected: to == s,
               margin: const EdgeInsets.only(bottom: 8),
               onTap: () => setState(() {
@@ -465,10 +497,7 @@ class _InstrumentSheetState extends ConsumerState<InstrumentSheet> {
               }),
             ),
           if (_errors['toStatus'] != null)
-            Text(
-              _errors['toStatus']!,
-              style: t.captionStrong.copyWith(color: c.danger.fg),
-            ),
+            _FieldError(text: _errors['toStatus']!),
           const SizedBox(height: 8),
           AknTextField(
             controller: _note,
@@ -481,34 +510,126 @@ class _InstrumentSheetState extends ConsumerState<InstrumentSheet> {
             maxLength: 500,
             textCapitalization: TextCapitalization.sentences,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           if (!online)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                PaymentsCopy.offline,
-                style: t.bodySmall,
-                textAlign: TextAlign.center,
-              ),
+              child: Text(PaymentsCopy.offline, style: t.bodySmall),
             ),
-          AknButton(
-            label: to == null ? 'Durum seçin' : 'Durumu kaydet',
-            semanticLabel: to == null
-                ? null
-                : 'Durumu "${to.label}" olarak kaydet',
-            icon: Icons.check_rounded,
-            expand: true,
-            loading: _busy,
-            onPressed: to != null && online && !_busy ? _submit : null,
-          ),
+          if (to != null && _destructiveInstrument(to) && !_busy)
+            Semantics(
+              label: 'Durumu "${to.label}" olarak kaydet',
+              excludeSemantics: true,
+              button: true,
+              enabled: canSave,
+              onTap: canSave ? _submit : null,
+              child: DestructiveButton(
+                label: saveLabel,
+                onPressed: canSave ? _submit : null,
+              ),
+            )
+          else
+            AknButton(
+              label: saveLabel,
+              semanticLabel: to == null
+                  ? null
+                  : 'Durumu "${to.label}" olarak kaydet',
+              expand: true,
+              loading: _busy,
+              onPressed: canSave ? _submit : null,
+            ),
         ] else if (!widget.canChange && i.isOpen) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
-            'Durum değişikliği için muhasebe yetkisi gerekir.',
-            style: t.bodySmall,
+            'Durumu değiştirmek için muhasebe yetkisi gerekir. Yöneticinizden yetki isteyin.',
+            style: t.bodySmall.copyWith(color: c.dim),
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Sayfanın üstündeki kısa özet: kayıt adı, kimlik ve tutar, şu anki durum.
+class _SheetSummary extends StatelessWidget {
+  const _SheetSummary({
+    required this.title,
+    required this.meta,
+    required this.lamp,
+  });
+
+  final String title;
+  final String meta;
+  final Widget lamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: t.headline),
+        const SizedBox(height: 2),
+        Text(meta, style: t.bodySmall.copyWith(color: c.dim)),
+        const SizedBox(height: 10),
+        lamp,
+      ],
+    );
+  }
+}
+
+/// Seçenek kartının başındaki durum noktası (lambanın noktası; kapalı durumlar halka).
+class _ToneDot extends StatelessWidget {
+  const _ToneDot({required this.tone});
+
+  final AknTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final hollow = tone == AknTone.neutral;
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: 20,
+        height: 20,
+        child: Center(
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: hollow ? null : c.tone(tone).solid,
+              border: hollow ? Border.all(color: c.faint, width: 1.5) : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldError extends StatelessWidget {
+  const _FieldError({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_rounded, size: 16, color: c.danger.fg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text, style: t.label.copyWith(color: c.danger.fg)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -523,7 +644,7 @@ class _Problem extends StatelessWidget {
   Widget build(BuildContext context) => switch (outcome) {
     ActionConflict(:final message) => AknBanner(
       tone: AknTone.warn,
-      title: 'Bu kayıt sizden sonra güncellendi',
+      title: 'Bu kayıt siz bakarken değişti',
       message: message,
       actionLabel: onReload == null ? null : 'Yenile',
       onAction: onReload,

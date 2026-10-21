@@ -392,7 +392,7 @@ void routeToFinance(FakeWorld w, JsonMap o, double total, FakePersona actor) {
     category: 'approvals',
     eventCode: 'approval.pending',
     title: 'Finans onayı bekliyor',
-    body: '${o['orderNumber']} · teklif cari limitini aşıyor',
+    body: '${o['orderNumber']}: teklif cari limitini aşıyor',
     route: '/approvals/$id',
     severity: 2,
     entityType: 'ApprovalRequest',

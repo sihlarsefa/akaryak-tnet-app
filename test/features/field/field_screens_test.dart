@@ -113,20 +113,16 @@ void main() {
         await pumpField(tester, persona: 'saha', location: '/field');
         expect(find.byType(FloatingActionButton), findsNothing);
         await tapText(tester, FieldCopy.myLeads);
-        expect(
-          find.widgetWithText(FloatingActionButton, 'Ön kayıt'),
-          findsOneWidget,
-        );
+        // Yüzen düğme yok (tasarım v2 §4.2): ekleme üst çubukta.
+        expect(find.byType(FloatingActionButton), findsNothing);
+        expect(find.widgetWithText(AknButton, 'Ön kayıt'), findsOneWidget);
         await finish(tester);
       },
     );
 
     testWidgets('satış müdürü: sekmede "Saha formu" düğmesi', (tester) async {
       await pumpField(tester, persona: 'satis', location: '/field');
-      expect(
-        find.widgetWithText(FloatingActionButton, 'Saha formu'),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(AknButton, 'Saha formu'), findsOneWidget);
       await finish(tester);
     });
 
@@ -154,22 +150,26 @@ void main() {
       expect(find.text('Taslak'), findsWidgets);
       expect(find.text('Onayda'), findsWidgets);
       expect(find.text('Portföy'), findsWidgets);
-      await scrollToFind(
-        tester,
-        find.textContaining('Ek bilgi bekleyen ön kayıtlar'),
-      );
-      expect(find.text('Başkent Yapı Market'), findsOneWidget);
+      // Tasarım v2 §7.16 sırası: deste → Saha formlarım (onay bekleyen, taslak, reddedilen) →
+      // Ön kayıtlarım (ek bilgi bekleyenler) → Tüpraş.
       await scrollToFind(
         tester,
         find.textContaining('Onay bekleyen formlarım'),
       );
-      expect(find.text('SF-2026-00007'), findsOneWidget);
+      // Form no defter satırının ikinci satırında: 'SSF-…-000007, 18.000 L, 30 gün vade' (QA LF-4:
+      // tohum formları sunucu biçimiyle numaralanır, Onaylarım aynı numarayı gösterir).
+      expect(find.textContaining(RegExp(r'SSF-\d{8}-000007')), findsOneWidget);
       await scrollToFind(tester, find.textContaining('Taslaklarım'));
       await scrollToFind(
         tester,
         find.textContaining('Son 30 günde reddedilenler'),
       );
-      expect(find.text('SF-2026-00004'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'SSF-\d{8}-000009')), findsOneWidget);
+      await scrollToFind(
+        tester,
+        find.textContaining('Ek bilgi bekleyen ön kayıtlar'),
+      );
+      expect(find.text('Başkent Yapı Market'), findsOneWidget);
       final drafts = app.log
           .exact('GET', 'field-orders')
           .where(

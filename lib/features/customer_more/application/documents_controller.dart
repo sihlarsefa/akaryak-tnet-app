@@ -247,7 +247,7 @@ final class ReceiptDocRequest extends DocRequest {
   @override
   String get fileName => kind.fileName(DocCodes.receipt(shipmentId));
   @override
-  String get label => 'Teslim tutanağı · ${DocCodes.receipt(shipmentId)}';
+  String get label => 'Teslim tutanağı, ${DocCodes.receipt(shipmentId)}';
 
   @override
   bool operator ==(Object other) =>
@@ -264,7 +264,7 @@ final class WaybillDocRequest extends DocRequest {
   @override
   String get fileName => kind.fileName(DocCodes.shipment(shipmentId));
   @override
-  String get label => 'Sevk belgesi · ${DocCodes.shipment(shipmentId)}';
+  String get label => 'Sevk belgesi, ${DocCodes.shipment(shipmentId)}';
 
   @override
   bool operator ==(Object other) =>
@@ -361,7 +361,7 @@ class DocumentPdfService {
       return GeneratedDoc(
         fileName: spec.fileName,
         bytes: bytes,
-        title: '${spec.title} · ${spec.code}',
+        title: '${spec.title}, ${spec.code}',
       );
     } catch (e) {
       final user = _user;

@@ -7,7 +7,7 @@ import '../../../core/utils/tr_time.dart';
 
 /// Sihirbaz adımları.
 enum WizardStep {
-  products('Ürünler'),
+  products('Ürün'),
   delivery('Teslimat'),
   payment('Ödeme'),
   summary('Özet');

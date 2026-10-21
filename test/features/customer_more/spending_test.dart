@@ -27,11 +27,19 @@ void main() {
     await pumpCmApp(tester, env, location: '/spending');
     await pumpFor(tester, const Duration(seconds: 2));
 
-    // KPI'lar sunucu değerleri.
-    expect(find.text(Fmt.moneyCompact(report.totalAmount)), findsOneWidget);
-    expect(find.text(Fmt.liters(report.totalLiters)), findsOneWidget);
-    expect(find.text(Fmt.unitPrice(report.avgUnitPrice)), findsOneWidget);
-    expect(find.text(Fmt.integer(report.totalOrders)), findsOneWidget);
+    // Plaka (tek): sunucu toplamları; okumalar litre, ortalama ₺/L ve sipariş.
+    expect(find.byType(AknPlate), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(
+        RegExp(
+          '^Toplam harcama ${RegExp.escape(Fmt.money(report.totalAmount))}.*'
+          'ortalama ${RegExp.escape(Fmt.unitPrice(report.avgUnitPrice))}, '
+          '${report.totalOrders} sipariş',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text(Fmt.integer(report.totalOrders)), findsWidgets);
     expect(find.text(CmCopy.spendingCaption), findsOneWidget);
 
     // Sütun başına semantik: "Ekim 2026: 1.234,56 ₺" (Tutar ölçüsü).

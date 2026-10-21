@@ -1,0 +1,155 @@
+{
+  "customerId": 1,
+  "customerTitle": "Acar Nakliyat",
+  "generatedAt": "2026-10-20T11:00:00+00:00",
+  "period": {
+    "key": "month",
+    "label": "Bu ay",
+    "from": "2026-10-01",
+    "to": "2026-10-20",
+    "compareLabel": "Ge\u00E7en ay\u0131n ayn\u0131 d\u00F6nemi",
+    "compareFrom": "2026-09-01",
+    "compareTo": "2026-09-20"
+  },
+  "spending": {
+    "orders": 3,
+    "liters": 16000.0,
+    "amount": 655000.0,
+    "prevOrders": 1,
+    "prevLiters": 6000.0,
+    "prevAmount": 234000.0,
+    "avgUnitPrice": 40.94,
+    "prevAvgUnitPrice": 39
+  },
+  "months": [
+    {
+      "year": 2026,
+      "month": 5,
+      "label": "May",
+      "orders": 0,
+      "liters": 0,
+      "amount": 0
+    },
+    {
+      "year": 2026,
+      "month": 6,
+      "label": "Haz",
+      "orders": 0,
+      "liters": 0,
+      "amount": 0
+    },
+    {
+      "year": 2026,
+      "month": 7,
+      "label": "Tem",
+      "orders": 0,
+      "liters": 0,
+      "amount": 0
+    },
+    {
+      "year": 2026,
+      "month": 8,
+      "label": "A\u011Fu",
+      "orders": 1,
+      "liters": 1000.0,
+      "amount": 42000.0
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "label": "Eyl",
+      "orders": 1,
+      "liters": 6000.0,
+      "amount": 234000.0
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "label": "Eki",
+      "orders": 3,
+      "liters": 16000.0,
+      "amount": 655000.0
+    }
+  ],
+  "products": [
+    {
+      "productId": 1,
+      "name": "Motorin",
+      "liters": 13000.0,
+      "amount": 523000.0,
+      "share": 0.7985
+    },
+    {
+      "productId": 2,
+      "name": "Benzin",
+      "liters": 3000.0,
+      "amount": 132000.0,
+      "share": 0.2015
+    }
+  ],
+  "stations": [
+    {
+      "stationId": 1,
+      "title": "Merkez Petrol",
+      "liters": 13000.0,
+      "amount": 532000.0,
+      "share": 0.8122
+    },
+    {
+      "stationId": 2,
+      "title": "Kuzey Petrol",
+      "liters": 3000.0,
+      "amount": 123000.0,
+      "share": 0.1878
+    }
+  ],
+  "deliveryPoints": [
+    {
+      "deliveryPointId": 1,
+      "name": "Tuzla Depo",
+      "city": "\u0130stanbul",
+      "liters": 13000.0,
+      "amount": 523000.0,
+      "share": 0.7985
+    },
+    {
+      "deliveryPointId": 2,
+      "name": "Gebze \u015Eantiye",
+      "city": "Kocaeli",
+      "liters": 3000.0,
+      "amount": 132000.0,
+      "share": 0.2015
+    }
+  ],
+  "orders": {
+    "awaitingQuote": 2,
+    "awaitingDecision": 1,
+    "awaitingCompanyApproval": 1,
+    "inTransit": 1,
+    "delivered": 2,
+    "disputed": 1
+  },
+  "limits": [
+    {
+      "stationId": 2,
+      "stationTitle": "Kuzey Petrol",
+      "limit": 20000.0,
+      "used": 5000,
+      "available": 15000.0,
+      "usageRate": 0.25,
+      "unit": "L",
+      "periodLabel": "Bu ay"
+    },
+    {
+      "stationId": 1,
+      "stationTitle": "Merkez Petrol",
+      "limit": 100000.0,
+      "used": 560200,
+      "available": 0,
+      "usageRate": 5.602,
+      "unit": "TL",
+      "periodLabel": "Bu ay"
+    }
+  ],
+  "failedSections": []
+}

@@ -9,7 +9,10 @@ import 'paged_list.dart';
 
 /// Spec C.5 liste tarifi: başlık parçaları (arama, çipler) içerikle birlikte kayar; ilk yüklemede
 /// iskelet, aşağı çekip yenileme (» döner), sonsuz kaydırma alt satırı, boş / hata durumları.
-/// Öğeler ilk görünüşte 30 ms aralıkla belirir (ilk 8 öğe; azaltılmış harekette hiç).
+///
+/// [ledger] (tasarım v2 §4.4 "beyaz defter"): öğeler tam genişlik defter satırlarıdır; yatay boşluk ve
+/// öğe aralığı yerine satırlar arasında 20 px içeriden ince çizgi, iskelet de defter satırı biçiminde.
+/// Kapalıyken eski düzen (kenar boşluklu, aralıklı öğeler) sürer.
 class A5PagedListView<T> extends StatefulWidget {
   const A5PagedListView({
     super.key,
@@ -24,6 +27,7 @@ class A5PagedListView<T> extends StatefulWidget {
     this.skeletonLines = 3,
     this.staggerKey,
     this.footer,
+    this.ledger = false,
   });
 
   final PagedState<T> state;
@@ -46,6 +50,9 @@ class A5PagedListView<T> extends StatefulWidget {
   /// Listenin sonuna eklenen parça (ör. açıklama).
   final Widget? footer;
 
+  /// Tam genişlik defter satırları, aralarında ince çizgi.
+  final bool ledger;
+
   @override
   State<A5PagedListView<T>> createState() => _A5PagedListViewState<T>();
 }
@@ -65,7 +72,16 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
     final s = widget.state;
     final children = <Widget>[...widget.header];
 
-    if (s.isFirstLoad) {
+    if (s.isFirstLoad && widget.ledger) {
+      children.add(
+        SkeletonList(
+          itemCount: 5,
+          lines: widget.skeletonLines.clamp(2, 3),
+          padding: const EdgeInsets.only(top: 4),
+          shrinkWrap: true,
+        ),
+      );
+    } else if (s.isFirstLoad) {
       children.add(
         Padding(
           padding: widget.padding,
@@ -95,7 +111,12 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
       if (s.error != null) {
         children.add(
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: EdgeInsets.fromLTRB(
+              widget.ledger ? 20 : 16,
+              8,
+              widget.ledger ? 20 : 16,
+              0,
+            ),
             child: AknBanner(
               tone: AknTone.warn,
               message: failureText(s.error!),
@@ -106,29 +127,42 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
         );
       }
       final resolved = widget.padding.resolve(Directionality.of(context));
-      children.add(
-        StaggerScope(
-          key: ValueKey(widget.staggerKey),
-          child: Padding(
-            padding: resolved.copyWith(bottom: 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (var i = 0; i < s.items.length; i++)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: i == s.items.length - 1 ? 0 : widget.itemSpacing,
+      if (widget.ledger) {
+        children.add(
+          AknLedger(
+            children: [
+              for (var i = 0; i < s.items.length; i++)
+                widget.itemBuilder(context, s.items[i], i),
+            ],
+          ),
+        );
+      } else {
+        children.add(
+          StaggerScope(
+            key: ValueKey(widget.staggerKey),
+            child: Padding(
+              padding: resolved.copyWith(bottom: 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < s.items.length; i++)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == s.items.length - 1
+                            ? 0
+                            : widget.itemSpacing,
+                      ),
+                      child: StaggerItem(
+                        index: i,
+                        child: widget.itemBuilder(context, s.items[i], i),
+                      ),
                     ),
-                    child: StaggerItem(
-                      index: i,
-                      child: widget.itemBuilder(context, s.items[i], i),
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-      );
+        );
+      }
       children.add(
         _Footer(
           loading: s.loadingMore,

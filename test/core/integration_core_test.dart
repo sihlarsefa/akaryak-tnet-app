@@ -502,7 +502,7 @@ void main() {
           traceId: '1a2b3c4d5e6f7a8b',
         ),
       );
-      expect(FailureCopy.title(server), 'Beklenmeyen bir hata oluştu');
+      expect(FailureCopy.title(server), 'İşlem tamamlanamadı');
       expect(FailureCopy.supportCodeOf(server), '1a2b3c4d');
       expect(FailureCopy.supportLine('1a2b3c4d'), 'Destek kodu: 1a2b3c4d');
       expect(

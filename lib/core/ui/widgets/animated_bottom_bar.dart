@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../driver_mode.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
@@ -21,13 +22,16 @@ class AknNavItem {
     this.tooltip,
   });
 
+  /// At rest: the outlined icon (`*_outlined`).
   final IconData icon;
+
+  /// Active: the filled icon (`*_rounded`).
   final IconData? selectedIcon;
 
-  /// Short bar label (≤ 10 characters, spec C.7).
+  /// Short bar label (≤ 10 characters).
   final String label;
 
-  /// Count bubble (Onaylarım). 0 hides it.
+  /// Count badge (Onaylarım). 0 hides it.
   final int badgeCount;
 
   /// Small dot without a number ("Diğer" when a hidden item has a badge).
@@ -42,7 +46,7 @@ class AknNavItem {
   final String? tooltip;
 }
 
-/// The raised action in the bar's notch ("Sipariş ver", "Saha formu").
+/// The key in the bar ("Sipariş ver", "Saha formu").
 @immutable
 class AknCenterAction {
   const AknCenterAction({
@@ -56,14 +60,22 @@ class AknCenterAction {
   final VoidCallback onPressed;
 }
 
-/// Bottom navigation (spec A.2 bar rules, C.6 motion).
+/// Bottom navigation (design v2 §6.4): docked, full width, 56 + safe area,
+/// `surfaceRaised` (dark: `surface`) with a 1 px hairline on top — no
+/// shadow, no floating pill, no bulging centre button.
 ///
-/// * 4 destinations + "Diğer", or 3 + a [centerAction] in a notch + "Diğer" —
-///   the shell builds the list; "Diğer" is an ordinary item with [AknNavItem.showDot].
-/// * Long-press shows the full name of a shortened label; the center action's
-///   label is tappable too.
-/// * The selection pill slides between tabs; badges pop; tab changes give a
-///   selection haptic. Labels always show (clamped to 1.3× text scale).
+/// * Items share the width; a 30 px icon box (icon 24) keeps every label on
+///   one baseline; labels `navLabel` 11/14, clamped at 1.2× (long-press
+///   shows the full name).
+/// * Active: the filled icon, an ink label 600 and the **needle** — a
+///   22 × 3 logo-orange mark on the bar's top edge that slides between items
+///   ([AknMotion.needle], spring; instant under reduce motion). Inactive:
+///   the outlined icon and label in `navInactive`.
+/// * [centerAction] ("Sipariş ver"): a 48 × 30 r10 orange-gradient key with a
+///   white icon in the icon box, its label in ink 600 — an item like the
+///   others.
+/// * Badges: Asfalt count pills (§6.3) or a logo dot.
+/// * Driver mode: item height 64, icon 26, label 12/15.
 /// * [currentIndex] may be -1 (nothing selected).
 class AnimatedBottomBar extends StatelessWidget {
   const AnimatedBottomBar({
@@ -81,15 +93,15 @@ class AnimatedBottomBar extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final AknCenterAction? centerAction;
 
-  static const double _barHeight = 64;
-  static const double _pillWidth = 56;
-  static const double _pillHeight = 30;
-  static const double _centerSize = 56;
-  static const double _centerRise = 22;
+  /// Height above the safe area (56; driver mode 64).
+  static const double barHeight = 56;
+  static const double _maxWidth = 640;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final driver = context.driverMode;
+    final fill = c.isDark ? c.surface : c.surfaceRaised;
     final center = centerAction;
     final slots = items.length + (center == null ? 0 : 1);
     final centerSlot = center == null ? -1 : (items.length / 2).ceil();
@@ -97,105 +109,110 @@ class AnimatedBottomBar extends StatelessWidget {
         center == null || itemIndex < centerSlot ? itemIndex : itemIndex + 1;
     int itemAt(int slot) =>
         center == null || slot < centerSlot ? slot : slot - 1;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final itemHeight = driver?.navItemHeight ?? barHeight;
+    final selectedSlot = currentIndex >= 0 && currentIndex < items.length
+        ? slotOf(currentIndex)
+        : -1;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // Kenardan kenara: alttaki sistem gezinme çubuğu simgeleri bu yüzeye göre.
+      // Kenardan kenara: alttaki sistem gezinme çubuğu simgeleri çubuğa göre.
       value: AknTheme.overlayFor(c.brightness),
       child: MediaQuery.withClampedTextScaling(
-        maxScaleFactor: 1.3,
-        child: Semantics(
-          container: true,
-          explicitChildNodes: true,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final slotWidth = width / math.max(slots, 1);
-              final selectedSlot =
-                  currentIndex >= 0 && currentIndex < items.length
-                  ? slotOf(currentIndex)
-                  : -1;
-              final notchX = center == null
-                  ? null
-                  : slotWidth * centerSlot + slotWidth / 2;
-              // With a center action the widget is taller by the button's rise
-              // (transparent band), so the whole button stays tappable.
-              final rise = center == null ? 0.0 : _centerRise;
-              return CustomPaint(
-                painter: _BarPainter(
-                  color: c.surfaceRaised,
-                  line: c.line,
-                  shadow: c.isDark
-                      ? const Color(0x66000000)
-                      : const Color(0x1A0F172A),
-                  top: rise,
-                  notchX: notchX,
-                  notchRadius: _centerSize / 2 + 6,
-                  notchCenterY: _centerSize / 2,
-                ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(top: rise, bottom: bottomInset),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minHeight: _barHeight,
-                        ),
-                        child: Stack(
+        maxScaleFactor: 1.2,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: fill,
+            border: Border(top: BorderSide(color: c.line)),
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(bottom: safeBottom),
+            child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: _maxWidth),
+                child: Semantics(
+                  container: true,
+                  explicitChildNodes: true,
+                  // 6 px side padding (board): the outer items do not sit on
+                  // the screen edge.
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        final slotWidth = width / math.max(slots, 1);
+                        return Stack(
+                          clipBehavior: Clip.none,
                           children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: itemHeight,
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (var s = 0; s < slots; s++)
+                                    Expanded(
+                                      child: s == centerSlot
+                                          ? _NavKey(
+                                              action: center!,
+                                              height: itemHeight,
+                                              iconSize:
+                                                  driver?.navIconSize ?? 24,
+                                            )
+                                          : _NavButton(
+                                              item: items[itemAt(s)],
+                                              selected: s == selectedSlot,
+                                              height: itemHeight,
+                                              iconSize:
+                                                  driver?.navIconSize ?? 24,
+                                              ring: fill,
+                                              onTap: () {
+                                                final i = itemAt(s);
+                                                if (i != currentIndex) {
+                                                  AknHaptics.selection();
+                                                }
+                                                onSelected(i);
+                                              },
+                                            ),
+                                    ),
+                                ],
+                              ),
+                            ),
                             if (selectedSlot >= 0)
                               AnimatedPositioned(
-                                duration: AknMotion.of(context, AknMotion.base),
-                                curve: AknMotion.emphasizedCurve,
+                                duration: AknMotion.of(
+                                  context,
+                                  AknMotion.needle,
+                                ),
+                                curve: AknMotion.spring,
                                 left:
                                     slotWidth * selectedSlot +
-                                    (slotWidth - _pillWidth) / 2,
-                                top: 8,
-                                width: _pillWidth,
-                                height: _pillHeight,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    color: c.brandSoft,
-                                    borderRadius: AknRadius.pillAll,
+                                    slotWidth / 2 -
+                                    11,
+                                top: -1,
+                                width: 22,
+                                height: 3,
+                                child: IgnorePointer(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      color: c.logo,
+                                      borderRadius: const BorderRadius.vertical(
+                                        bottom: Radius.circular(2),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                for (var s = 0; s < slots; s++)
-                                  Expanded(
-                                    child: s == centerSlot
-                                        ? _CenterLabel(action: center!)
-                                        : _NavButton(
-                                            item: items[itemAt(s)],
-                                            selected: s == selectedSlot,
-                                            onTap: () {
-                                              final i = itemAt(s);
-                                              if (i != currentIndex) {
-                                                AknHaptics.selection();
-                                              }
-                                              onSelected(i);
-                                            },
-                                          ),
-                                  ),
-                              ],
-                            ),
                           ],
-                        ),
-                      ),
+                        );
+                      },
                     ),
-                    if (center != null)
-                      Positioned(
-                        left: notchX! - _centerSize / 2,
-                        top: 0,
-                        child: _CenterButton(action: center, size: _centerSize),
-                      ),
-                  ],
+                  ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
         ),
       ),
@@ -207,19 +224,24 @@ class _NavButton extends StatelessWidget {
   const _NavButton({
     required this.item,
     required this.selected,
+    required this.height,
+    required this.iconSize,
+    required this.ring,
     required this.onTap,
   });
 
   final AknNavItem item;
   final bool selected;
+  final double height;
+  final double iconSize;
+  final Color ring;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final duration = AknMotion.of(context, AknMotion.base);
-    final color = selected ? c.brand : c.dim;
+    final color = selected ? c.ink : c.navInactive;
     final badge = item.badgeCount;
     final semantic =
         item.semanticLabel ??
@@ -228,66 +250,65 @@ class _NavButton extends StatelessWidget {
             : item.showDot
             ? '${item.label}, yeni öğe var'
             : item.label);
-    final tooltip = item.tooltip;
+    final tooltip = item.tooltip ?? item.label;
     final Widget button = InkResponse(
       onTap: onTap,
-      containedInkWell: false,
-      highlightShape: BoxShape.circle,
-      radius: 32,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 8, bottom: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 30,
-              child: Center(
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    TweenAnimationBuilder<Color?>(
-                      tween: ColorTween(end: color),
-                      duration: duration,
-                      builder: (context, col, _) => AnimatedSwitcher(
-                        duration: AknMotion.of(context, AknMotion.fast),
-                        child: Icon(
-                          selected
-                              ? (item.selectedIcon ?? item.icon)
-                              : item.icon,
-                          key: ValueKey(selected),
-                          size: 24,
-                          color: col,
+      containedInkWell: true,
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: height),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 9),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: iconSize + 6,
+                child: Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        selected ? (item.selectedIcon ?? item.icon) : item.icon,
+                        size: iconSize,
+                        color: color,
+                      ),
+                      if (badge > 0 || item.showDot)
+                        Positioned(
+                          right: badge > 0 ? -12 : -4,
+                          top: badge > 0 ? -5 : -2,
+                          child: AknCountBadge(
+                            count: badge,
+                            dot: badge <= 0 && item.showDot,
+                            ringColor: ring,
+                          ),
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      right: badge > 0 ? -10 : -3,
-                      top: badge > 0 ? -6 : -1,
-                      child: AknCountBadge(
-                        count: badge,
-                        dot: badge <= 0 && item.showDot,
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 3),
-            AnimatedDefaultTextStyle(
-              duration: duration,
-              style: t.captionStrong.copyWith(
-                color: selected ? c.brandInk : c.dim,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                fontSize: 11.5,
+              const SizedBox(height: 3),
+              // A long label (large text) shrinks to its slot instead of
+              // touching the neighbour or ending in "…".
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    item.label,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: t.navLabel.copyWith(
+                      color: color,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -297,168 +318,99 @@ class _NavButton extends StatelessWidget {
       label: semantic,
       excludeSemantics: true,
       onTap: onTap,
-      child: tooltip == null || tooltip == item.label
-          ? button
-          : Tooltip(
-              message: tooltip,
-              triggerMode: TooltipTriggerMode.longPress,
-              excludeFromSemantics: true,
-              preferBelow: false,
-              child: button,
-            ),
+      child: Tooltip(
+        message: tooltip,
+        triggerMode: TooltipTriggerMode.longPress,
+        excludeFromSemantics: true,
+        preferBelow: false,
+        child: button,
+      ),
     );
   }
 }
 
-class _CenterLabel extends StatelessWidget {
-  const _CenterLabel({required this.action});
+/// The "Sipariş ver" key: a 48 × 30 r10 orange-gradient key with a white icon in
+/// the icon box, the label in ink 600 under it.
+class _NavKey extends StatelessWidget {
+  const _NavKey({
+    required this.action,
+    required this.height,
+    required this.iconSize,
+  });
 
   final AknCenterAction action;
+  final double height;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    // The label sits under the raised button, inside the bar; tapping it
-    // runs the action too (the button above carries the semantics).
-    return ExcludeSemantics(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          AknHaptics.medium();
-          action.onPressed();
-        },
-        child: Padding(
-          padding: const EdgeInsets.only(top: 41, bottom: 8),
-          child: Text(
-            action.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: t.captionStrong.copyWith(
-              color: c.brandInk,
-              fontWeight: FontWeight.w700,
-              fontSize: 11.5,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+    void run() {
+      AknHaptics.medium();
+      action.onPressed();
+    }
 
-class _CenterButton extends StatelessWidget {
-  const _CenterButton({required this.action, required this.size});
-
-  final AknCenterAction action;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
     return Semantics(
       button: true,
       label: action.label,
       excludeSemantics: true,
       onTap: action.onPressed,
-      child: PressScale(
-        scale: 0.94,
-        child: GestureDetector(
-          onTap: () {
-            AknHaptics.medium();
-            action.onPressed();
-          },
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: c.brandFill,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: c.brandFill.withValues(alpha: 0.35),
-                  blurRadius: 14,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: run,
+        child: PressScale(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: height),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 9),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: iconSize + 6,
+                    child: Center(
+                      child: Container(
+                        width: 48,
+                        height: iconSize + 6,
+                        // Owner decision G: the key wears the primary
+                        // button's orange gradient with a white glyph.
+                        decoration: BoxDecoration(
+                          gradient: c.buttonGradient,
+                          borderRadius: AknRadius.chip,
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          action.icon,
+                          size: iconSize,
+                          color: c.onBrandFill,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        action.label,
+                        maxLines: 1,
+                        softWrap: false,
+                        textAlign: TextAlign.center,
+                        style: t.navLabel.copyWith(
+                          color: c.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Icon(action.icon, color: c.onBrandFill, size: 28),
           ),
         ),
       ),
     );
   }
-}
-
-/// Bar surface with rounded top corners, a soft upward shadow, a hairline
-/// and an optional circular notch for the center action.
-class _BarPainter extends CustomPainter {
-  _BarPainter({
-    required this.color,
-    required this.line,
-    required this.shadow,
-    required this.top,
-    required this.notchX,
-    required this.notchRadius,
-    required this.notchCenterY,
-  });
-
-  final Color color;
-  final Color line;
-  final Color shadow;
-
-  /// Transparent band above the bar (center button rise).
-  final double top;
-  final double? notchX;
-  final double notchRadius;
-  final double notchCenterY;
-
-  Path _path(Size size) {
-    const r = AknRadius.xl;
-    final rect = Rect.fromLTWH(0, top, size.width, size.height - top);
-    final base = Path()
-      ..addRRect(
-        RRect.fromRectAndCorners(
-          rect,
-          topLeft: const Radius.circular(r),
-          topRight: const Radius.circular(r),
-        ),
-      );
-    final x = notchX;
-    if (x == null) return base;
-    final notched = const CircularNotchedRectangle().getOuterPath(
-      rect,
-      Rect.fromCircle(center: Offset(x, notchCenterY), radius: notchRadius),
-    );
-    return Path.combine(PathOperation.intersect, base, notched);
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = _path(size);
-    canvas.drawPath(
-      path.shift(const Offset(0, -2)),
-      Paint()
-        ..color = shadow
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
-    );
-    canvas.drawPath(path, Paint()..color = color);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = line,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_BarPainter old) =>
-      old.color != color ||
-      old.line != line ||
-      old.shadow != shadow ||
-      old.top != top ||
-      old.notchX != notchX ||
-      old.notchRadius != notchRadius ||
-      old.notchCenterY != notchCenterY;
 }

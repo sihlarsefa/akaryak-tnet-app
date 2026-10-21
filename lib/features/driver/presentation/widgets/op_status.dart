@@ -115,13 +115,11 @@ class _OpStatusChipState extends ConsumerState<OpStatusChip> {
         key: ValueKey('queued'),
         label: DriverCopy.opWaiting,
         tone: AknTone.warn,
-        icon: Icons.schedule_rounded,
       ),
       OpPhase.attention => const _PhaseChip(
         key: ValueKey('attention'),
         label: DriverCopy.opAttention,
         tone: AknTone.danger,
-        icon: Icons.error_outline_rounded,
       ),
     };
     return AnimatedSwitcher(
@@ -131,51 +129,43 @@ class _OpStatusChipState extends ConsumerState<OpStatusChip> {
   }
 }
 
+/// İşlem lambası (§6.12): nokta (gönderilirken dönen ok başı) + etiket; zemin, çerçeve yok.
 class _PhaseChip extends StatelessWidget {
   const _PhaseChip({
     super.key,
     required this.label,
     required this.tone,
-    this.icon,
     this.spinner = false,
   });
 
   final String label;
   final AknTone tone;
-  final IconData? icon;
   final bool spinner;
 
   @override
   Widget build(BuildContext context) {
-    final tc = context.akn.tone(tone);
+    final c = context.akn;
+    if (!spinner) {
+      return AknLamp(label: label, tone: tone, semanticLabel: label);
+    }
     return Semantics(
       label: label,
       excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
-        decoration: BoxDecoration(
-          color: tc.bg,
-          borderRadius: AknRadius.pillAll,
-          border: Border.all(color: tc.line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (spinner)
-              ChevronSpinner(size: 12, color: tc.fg, semanticLabel: null)
-            else if (icon != null)
-              Icon(icon, size: 14, color: tc.fg),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: context.aknText.captionStrong.copyWith(color: tc.fg),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ChevronSpinner(size: 14, color: c.ink, semanticLabel: null),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: context.aknText.bodySmall.copyWith(
+                color: c.ink,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -186,28 +176,23 @@ class _SentChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tc = context.akn.ok;
+    final c = context.akn;
     return Semantics(
       label: DriverCopy.opSent,
       excludeSemantics: true,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 2, 9, 2),
-        decoration: BoxDecoration(
-          color: tc.bg,
-          borderRadius: AknRadius.pillAll,
-          border: Border.all(color: tc.line),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SuccessCheck(size: 18, haptic: false, semanticLabel: null),
-            const SizedBox(width: 4),
-            Text(
-              DriverCopy.opSent,
-              style: context.aknText.captionStrong.copyWith(color: tc.fg),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SuccessCheck(size: 18, haptic: false, semanticLabel: null),
+          const SizedBox(width: 6),
+          Text(
+            DriverCopy.opSent,
+            style: context.aknText.bodySmall.copyWith(
+              color: c.ok.fg,
+              fontWeight: FontWeight.w600,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -249,7 +234,7 @@ class OpOutcomePanel extends ConsumerWidget {
       OpPhase.sending => (AknTone.info, DriverCopy.sendingTitle, null),
       OpPhase.queued => (
         AknTone.warn,
-        DriverCopy.queuedTitle,
+        deliver ? DriverCopy.queuedDeliverTitle : DriverCopy.queuedStartTitle,
         deliver ? DriverCopy.queuedDeliverBody : DriverCopy.queuedStartBody,
       ),
       OpPhase.sent => (
@@ -267,10 +252,10 @@ class OpOutcomePanel extends ConsumerWidget {
     final Widget leading = switch (phase) {
       OpPhase.sending => ChevronSpinner(
         size: 22,
-        color: tc.fg,
+        color: c.ink,
         semanticLabel: null,
       ),
-      OpPhase.sent => const SuccessCheck(size: 36, semanticLabel: null),
+      OpPhase.sent => const SuccessCheck(size: 32, semanticLabel: null),
       OpPhase.queued => Icon(Icons.schedule_rounded, color: tc.fg, size: 24),
       OpPhase.attention => Icon(
         Icons.error_outline_rounded,
@@ -294,7 +279,7 @@ class OpOutcomePanel extends ConsumerWidget {
       if (phase == OpPhase.attention && onFix != null)
         AknButton(
           label: DriverCopy.opFix,
-          icon: Icons.edit_rounded,
+          icon: Icons.edit_outlined,
           size: AknButtonSize.small,
           onPressed: onFix,
         ),
@@ -318,11 +303,15 @@ class OpOutcomePanel extends ConsumerWidget {
       liveRegion: true,
       child: AnimatedContainer(
         duration: AknMotion.of(context, AknMotion.base),
-        padding: EdgeInsets.all(compact ? 12 : 16),
+        padding: EdgeInsets.fromLTRB(
+          14,
+          compact ? 12 : 14,
+          14,
+          compact ? 12 : 14,
+        ),
         decoration: BoxDecoration(
-          color: tc.bg,
+          color: c.surfaceAlt,
           borderRadius: AknRadius.card,
-          border: Border.all(color: tc.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -338,17 +327,16 @@ class OpOutcomePanel extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(title, style: t.bodyStrong.copyWith(color: tc.fg)),
-                      if (body != null && !compact) ...[
+                      Text(title, style: t.bodyStrong.copyWith(color: c.ink)),
+                      if (body != null &&
+                          (!compact || phase == OpPhase.attention)) ...[
                         const SizedBox(height: 2),
-                        Text(body, style: t.bodySmall.copyWith(color: c.text)),
+                        Text(body, style: t.bodySmall.copyWith(color: c.ink)),
                       ],
-                      if (body != null && compact && phase == OpPhase.attention)
-                        Text(body, style: t.bodySmall.copyWith(color: c.text)),
                       if (retryLine != null)
                         Text(
                           retryLine,
-                          style: t.caption.copyWith(color: c.text),
+                          style: t.caption.copyWith(color: c.dim),
                         ),
                     ],
                   ),
@@ -399,16 +387,13 @@ class DriverOutboxStrip extends ConsumerWidget {
         onTap: () => showPendingOpsSheet(context),
         excludeSemantics: true,
         child: Material(
-          color: tc.bg,
-          shape: RoundedRectangleBorder(
-            borderRadius: AknRadius.card,
-            side: BorderSide(color: tc.line),
-          ),
+          color: context.akn.surfaceAlt,
+          shape: const RoundedRectangleBorder(borderRadius: AknRadius.card),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () => showPendingOpsSheet(context),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+              constraints: BoxConstraints(minHeight: context.minTap),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -429,14 +414,23 @@ class DriverOutboxStrip extends ConsumerWidget {
                     Expanded(
                       child: Text(
                         text,
-                        style: context.aknText.label.copyWith(color: tc.fg),
+                        style: context.aknText.label.copyWith(
+                          color: context.akn.ink,
+                        ),
                       ),
                     ),
                     Text(
                       DriverCopy.opsShow,
-                      style: context.aknText.label.copyWith(color: tc.fg),
+                      style: context.aknText.label.copyWith(
+                        color: context.akn.ink,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    Icon(Icons.chevron_right_rounded, size: 20, color: tc.fg),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: context.akn.ink,
+                    ),
                   ],
                 ),
               ),

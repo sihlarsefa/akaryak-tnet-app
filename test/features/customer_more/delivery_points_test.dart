@@ -148,7 +148,7 @@ void main() {
     await tester.tap(find.text('Gebze').last);
     await pumpFor(tester, const Duration(milliseconds: 600));
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Açık adres *'),
+      fieldLabeled('Açık adres *'),
       'Güzeller OSB 4. Cadde No:7',
     );
     await scrollTo(tester, find.text('Gün sonuna kadar (24:00)'));

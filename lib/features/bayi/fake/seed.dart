@@ -276,7 +276,7 @@ void _seedOrders(FakeWorld w) {
       deliveryDocumentNo: 'IRS-779001',
       recipientName: 'Serkan Polat',
       disputeNote:
-          'Sayaçta 6.650 L görünüyor; irsaliyedeki 6.800 L ile uyuşmuyor. Lütfen kontrol edin.',
+          'Sayaçta 6.650 L görünüyor; irsaliyedeki 6.800 L ile uyuşmuyor. Kontrol edin.',
     ),
     w.newShipment(
       id: sid(),

@@ -3,9 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
+import 'auth_header.dart';
 
-/// Tam ekran durum düzeni (güncelleme, "Sunucu güncel değil", "Bakımdayız", kilit): üstte sakin işaret,
-/// ortada simge + başlık + açıklama, altta eylemler. Büyük yazıda kaydırılır; taşmaz.
+/// Tam ekran durum düzeni (tasarım v2 §7.2: güncelleme, "Sunucu güncel değil", "Bakımdayız", kilit):
+/// beyaz sayfa, solda 40 px logo karosu, `display` başlık, tek cümle; eylemler başparmağın eriştiği
+/// altta (birincil tam genişlik, altında ikincil). Bant yok, renkli simge dairesi yok. Büyük yazıda
+/// sayfa kayar; taşmaz.
 class GateView extends StatelessWidget {
   const GateView({
     super.key,
@@ -19,7 +22,10 @@ class GateView extends StatelessWidget {
     this.footer,
   });
 
+  /// Durumu anlatan simge (v2'de çizilmez; anlam başlık ve cümlededir).
   final IconData icon;
+
+  /// Durum tonu (v2'de çizilmez; API uyumu için).
   final AknTone tone;
   final String title;
   final String message;
@@ -28,7 +34,7 @@ class GateView extends StatelessWidget {
   final Widget? primary;
   final Widget? secondary;
 
-  /// Eylemlerin altında ek içerik (destek kanalları).
+  /// Cümlenin altında ek içerik (destek kanalları, mağaza notu).
   final Widget? below;
 
   /// En altta küçük bilgi (sürüm).
@@ -36,60 +42,55 @@ class GateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    final tc = c.tone(tone);
+    // Başlık üstte, eylemler altta: en az ekran yüksekliğinde bir sütun, aradaki boşluk ortada kalır;
+    // içerik uzarsa sayfa kayar (iç boyut hesabı gerektirmez).
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) => SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          padding: const EdgeInsets.fromLTRB(
+            AknSpace.page,
+            16,
+            AknSpace.page,
+            16,
+          ),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight: math.max(0.0, constraints.maxHeight - 32),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Center(child: LogoMark(size: 40, semanticLabel: null)),
-                const SizedBox(height: 32),
-                FadeUp(
-                  child: Center(
-                    child: Container(
-                      width: 96,
-                      height: 96,
-                      decoration: BoxDecoration(
-                        color: tc.bg,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: tc.line, width: 2),
-                      ),
-                      child: Icon(icon, color: tc.fg, size: 44),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AuthPageHeader(
+                      title: title,
+                      message: message,
+                      liveRegion: true,
                     ),
+                    if (below != null) ...[const SizedBox(height: 24), below!],
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ?primary,
+                      if (secondary != null) ...[
+                        const SizedBox(height: 10),
+                        secondary!,
+                      ],
+                      if (footer != null) ...[
+                        const SizedBox(height: 12),
+                        footer!,
+                      ],
+                    ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                Semantics(
-                  header: true,
-                  liveRegion: true,
-                  child: Text(
-                    title,
-                    style: t.title,
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  style: t.body.copyWith(color: c.dim),
-                  textAlign: TextAlign.center,
-                ),
-                if (primary != null) ...[const SizedBox(height: 28), primary!],
-                if (secondary != null) ...[
-                  const SizedBox(height: 8),
-                  secondary!,
-                ],
-                if (below != null) ...[const SizedBox(height: 24), below!],
-                if (footer != null) ...[const SizedBox(height: 20), footer!],
               ],
             ),
           ),

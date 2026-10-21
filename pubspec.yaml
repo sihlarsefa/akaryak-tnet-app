@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # version: <ad>+<derleme>. Derleme numarası (iOS CFBundleVersion, Android versionCode) her mağaza
 # sürümünde artar; sunucudaki Mobile.MinBuild* / LatestBuild* ayarları bu sayıyla karşılaştırılır.
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.11.4
@@ -92,6 +92,29 @@ flutter:
     - assets/brand/
     # PDF belgelerinde Türkçe karakterler için gömülü Roboto (Apache 2.0, bkz. assets/fonts/NOTICE.txt)
     - assets/fonts/
+    # Mona Sans lisansı (SIL OFL 1.1); main() içinde LicenseRegistry'ye eklenir.
+    - assets/fonts/mona/OFL.txt
+  # Arayüz yazı tipi: Mona Sans v2.0.27 (GitHub × Degarism, SIL OFL 1.1), değiştirilmemiş upstream statik
+  # TTF'ler (tasarım v2 §3.1). Kelimeler MonaSans, rakamlar MonaSansCondensed. PDF'ler Roboto'da kalır.
+  fonts:
+    - family: MonaSans
+      fonts:
+        - asset: assets/fonts/mona/MonaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/mona/MonaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/mona/MonaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/mona/MonaSans-Bold.ttf
+          weight: 700
+    - family: MonaSansCondensed
+      fonts:
+        - asset: assets/fonts/mona/MonaSansCondensed-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/mona/MonaSansCondensed-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/mona/MonaSansCondensed-ExtraBold.ttf
+          weight: 800
 
 # Uygulama simgesi: `bash $W/akn-flutter.sh icons`
 flutter_launcher_icons:
@@ -107,13 +130,19 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app-icon-foreground.png"
   adaptive_icon_monochrome: "assets/icon/app-icon-foreground.png"
 
-# Yerel açılış ekranı (lacivert + » işareti; hiçbir zaman mor değil): `bash $W/akn-flutter.sh splash`
+# Yerel açılış ekranı (beyaz + turuncu » işareti; koyu temada #16191D gece asfaltı; hiçbir zaman mor değil):
+# `bash $W/akn-flutter.sh splash`
 flutter_native_splash:
-  color: "#1F2A37"
+  color: "#FFFFFF"
   image: "assets/brand/akn-mark-512.png"
+  color_dark: "#16191D"
+  image_dark: "assets/brand/akn-mark-512.png"
   ios_content_mode: center
   android_12:
-    color: "#1F2A37"
+    color: "#FFFFFF"
     image: "assets/icon/app-icon-foreground.png"
     icon_background_color: "#FF5001"
+    color_dark: "#16191D"
+    image_dark: "assets/icon/app-icon-foreground.png"
+    icon_background_color_dark: "#FF5001"
   web: false

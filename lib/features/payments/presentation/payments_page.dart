@@ -27,8 +27,10 @@ bool canChangeInstruments(AccessPolicy p) =>
     (p.hasCap(Caps.paymentInstrumentManage) ||
         p.hasCap(Caps.paymentStatusUpdate));
 
-/// Tahsilat (spec A.4 A5): ödemeler (geciken, cari, durum süzgeçleri) ve çek / senet portföyü
-/// (vadeleriyle). Satıra dokununca ödeme ayrıntısı ya da belge sayfası açılır.
+/// Tahsilat (spec A.4 A5; tasarım v2 §7.7, §7.14): kök başlık, "Ödemeler" ve "Çek / senet"
+/// sekmeleri, arama kuyusu, tek satır süzgeç çipleri ve ledger satırları. Ödemeler: geciken, cari ve
+/// durum süzgeçleri; portföy: durum ve tür süzgeçleri, vadeleriyle. Satıra dokununca ödeme ayrıntısı
+/// ya da belge sayfası açılır.
 class PaymentsPage extends ConsumerStatefulWidget {
   const PaymentsPage({super.key, this.initialTab = PaymentsTab.payments});
 
@@ -39,42 +41,33 @@ class PaymentsPage extends ConsumerStatefulWidget {
   ConsumerState<PaymentsPage> createState() => _PaymentsPageState();
 }
 
-class _PaymentsPageState extends ConsumerState<PaymentsPage> {
+class _PaymentsPageState extends ConsumerState<PaymentsPage>
+    with SingleTickerProviderStateMixin {
   late PaymentsTab _tab = widget.initialTab;
+  late final TabController _tabs = TabController(
+    length: PaymentsTab.values.length,
+    vsync: this,
+    initialIndex: widget.initialTab.index,
+  )..addListener(_onTab);
   PaymentsQuery _payments = const PaymentsQuery();
   InstrumentsQuery _instruments = const InstrumentsQuery();
   final _paySearch = TextEditingController();
   final _insSearch = TextEditingController();
 
+  void _onTab() {
+    final next = PaymentsTab.values[_tabs.index];
+    if (next != _tab) setState(() => _tab = next);
+  }
+
   @override
   void dispose() {
+    _tabs
+      ..removeListener(_onTab)
+      ..dispose();
     _paySearch.dispose();
     _insSearch.dispose();
     super.dispose();
   }
-
-  // Tek seçimli çipler (Onaylarım sekmeleriyle aynı; `AknSegmented` kontrastı için bkz.
-  // contract-changes.md A5).
-  Widget _tabs() => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: FilterChips<PaymentsTab>(
-      options: const [
-        FilterOption(
-          value: PaymentsTab.payments,
-          label: PaymentsCopy.paymentsTab,
-          icon: Icons.payments_rounded,
-        ),
-        FilterOption(
-          value: PaymentsTab.instruments,
-          label: PaymentsCopy.instrumentsTab,
-          icon: Icons.receipt_long_rounded,
-        ),
-      ],
-      selected: {_tab},
-      allowEmpty: false,
-      onChanged: (s) => setState(() => _tab = s.first),
-    ),
-  );
 
   Future<void> _pickCustomer() async {
     final pick = await showCustomerPicker(context, current: _payments.customer);
@@ -89,108 +82,147 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage> {
     });
   }
 
+  PreferredSizeWidget _tabBar(int? payments, int? instruments) {
+    Widget label(String text, int? count) => Text.rich(
+      TextSpan(
+        text: text,
+        children: [
+          if (count != null)
+            TextSpan(
+              text: ' $count',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+        ],
+      ),
+      maxLines: 1,
+    );
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(48),
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.3,
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: TabBar(
+            controller: _tabs,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            tabs: [
+              Tab(height: 46, child: label(PaymentsCopy.paymentsTab, payments)),
+              Tab(
+                height: 46,
+                child: label(PaymentsCopy.instrumentsTab, instruments),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pay = ref.watch(paymentsListProvider(_payments));
+    final ins = ref.watch(instrumentsListProvider(_instruments));
     final refreshing = _tab == PaymentsTab.payments
-        ? ref.watch(paymentsListProvider(_payments)).refreshing
-        : ref.watch(instrumentsListProvider(_instruments)).refreshing;
+        ? pay.refreshing
+        : ins.refreshing;
     return AppScaffold(
       title: PaymentsCopy.title,
-      subtitle: ref.watch(accessPolicyProvider).access?.stationTitle,
       refreshing: refreshing,
+      bottom: _tabBar(
+        pay.hasData ? pay.totalCount : null,
+        ins.hasData ? ins.totalCount : null,
+      ),
       body: FadeThroughSwitcher(
         child: _tab == PaymentsTab.payments
             ? KeyedSubtree(
                 key: const ValueKey('payments'),
-                child: _paymentsList(),
+                child: _paymentsList(pay),
               )
             : KeyedSubtree(
                 key: const ValueKey('instruments'),
-                child: _instrumentsList(),
+                child: _instrumentsList(ins),
               ),
       ),
     );
   }
 
-  Widget _paymentsList() {
+  Widget _search(
+    TextEditingController ctrl,
+    String hint,
+    ValueChanged<String> on,
+  ) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+    child: SearchField(controller: ctrl, hint: hint, onChanged: on),
+  );
+
+  Widget _paymentsList(PagedState<PaymentRow> state) {
     final q = _payments;
-    final state = ref.watch(paymentsListProvider(q));
     final ctrl = ref.read(paymentsListProvider(q).notifier);
     final customer = q.customer;
+    void toggle(PaymentStatus s) {
+      final next = Set<PaymentStatus>.of(q.statuses);
+      if (!next.remove(s)) next.add(s);
+      setState(() => _payments = _payments.copyWith(statuses: next));
+    }
+
     return A5PagedListView<PaymentRow>(
       state: state,
       staggerKey: q,
       onRefresh: ctrl.refresh,
       onLoadMore: () => unawaited(ctrl.loadMore()),
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      itemSpacing: 0,
       header: [
-        _tabs(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: SearchField(
-            controller: _paySearch,
-            hint: PaymentsCopy.searchPayments,
-            onChanged: (s) => setState(
-              () => _payments = _payments.copyWith(search: s.trim()),
-            ),
-          ),
+        _search(
+          _paySearch,
+          PaymentsCopy.searchPayments,
+          (s) =>
+              setState(() => _payments = _payments.copyWith(search: s.trim())),
         ),
-        FilterChips<PaymentStatus>(
-          multi: true,
-          options: [
-            for (final s in const [
-              PaymentStatus.pending,
-              PaymentStatus.documentUploaded,
-              PaymentStatus.collected,
-              PaymentStatus.bounced,
-              PaymentStatus.refunded,
-              PaymentStatus.cancelled,
-            ])
-              FilterOption(
-                value: s,
+        ChipRow(
+          leading: [
+            AknChip(
+              label: customer == null
+                  ? PaymentsCopy.allCustomers
+                  : 'Cari: ${customer.title}',
+              icon: Icons.unfold_more_rounded,
+              selected: customer != null,
+              semanticLabel: customer == null
+                  ? 'Cari süzgeci: tüm cariler. Cari seçmek için dokunun.'
+                  : 'Cari süzgeci: ${customer.title}. Değiştirmek için dokunun.',
+              onTap: () => unawaited(_pickCustomer()),
+            ),
+            AknChip(
+              label: PaymentsCopy.overdue,
+              selected: q.overdueOnly,
+              onTap: () => setState(
+                () =>
+                    _payments = _payments.copyWith(overdueOnly: !q.overdueOnly),
+              ),
+            ),
+          ],
+          trailing: [
+            for (final s in PaymentsCopy.statusFilters)
+              AknChip(
                 label: s.label,
-                icon: AknStatus.payment(s).icon,
+                selected: q.statuses.contains(s),
+                onTap: () => toggle(s),
               ),
           ],
-          selected: q.statuses,
-          onChanged: (s) =>
-              setState(() => _payments = _payments.copyWith(statuses: s)),
-        ),
-        FilterChips<String>(
-          multi: true,
-          options: [
-            const FilterOption(
-              value: 'overdue',
-              label: 'Gecikenler',
-              icon: Icons.alarm_off_rounded,
-            ),
-            FilterOption(
-              value: 'customer',
-              label: customer == null
-                  ? 'Cari: tümü'
-                  : 'Cari: ${customer.title}',
-              icon: Icons.apartment_rounded,
-            ),
-          ],
-          selected: {
-            if (q.overdueOnly) 'overdue',
-            if (customer != null) 'customer',
-          },
-          onChanged: (s) {
-            final overdue = s.contains('overdue');
-            if (overdue != q.overdueOnly) {
-              setState(
-                () => _payments = _payments.copyWith(overdueOnly: overdue),
-              );
-            } else {
-              unawaited(_pickCustomer());
-            }
-          },
         ),
       ],
-      itemBuilder: (context, row, _) => PaymentRowCard(
-        row: row,
-        onTap: () => context.push(AppRoutes.payment(row.orderId)),
+      itemBuilder: (context, row, i) => LedgerItem(
+        index: i,
+        child: PaymentRowCard(
+          row: row,
+          onTap: () => context.push(AppRoutes.payment(row.orderId)),
+        ),
       ),
+      footer: !q.isFiltered && !state.hasMore
+          ? const ListFootnote(PaymentsCopy.paymentsFootnote)
+          : null,
       empty: q.isFiltered
           ? EmptyState(
               title: PaymentsCopy.filteredTitle,
@@ -210,9 +242,8 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage> {
     );
   }
 
-  Widget _instrumentsList() {
+  Widget _instrumentsList(PagedState<Instrument> state) {
     final q = _instruments;
-    final state = ref.watch(instrumentsListProvider(q));
     final ctrl = ref.read(instrumentsListProvider(q).notifier);
     final canChange = canChangeInstruments(ref.watch(accessPolicyProvider));
     return A5PagedListView<Instrument>(
@@ -220,63 +251,64 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage> {
       staggerKey: q,
       onRefresh: ctrl.refresh,
       onLoadMore: () => unawaited(ctrl.loadMore()),
+      padding: const EdgeInsets.only(top: 4, bottom: 8),
+      itemSpacing: 0,
       header: [
-        _tabs(),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: SearchField(
-            controller: _insSearch,
-            hint: PaymentsCopy.searchInstruments,
-            onChanged: (s) => setState(
-              () => _instruments = _instruments.copyWith(search: s.trim()),
-            ),
+        _search(
+          _insSearch,
+          PaymentsCopy.searchInstruments,
+          (s) => setState(
+            () => _instruments = _instruments.copyWith(search: s.trim()),
           ),
         ),
-        FilterChips<InstrumentFilter>(
-          options: [
+        ChipRow(
+          leading: [
             for (final f in InstrumentFilter.values)
-              FilterOption(value: f, label: f.label),
+              AknChip(
+                label: f.label,
+                selected: q.filter == f,
+                onTap: () => setState(
+                  () => _instruments = _instruments.copyWith(filter: f),
+                ),
+              ),
           ],
-          selected: {q.filter},
-          allowEmpty: false,
-          onChanged: (s) => setState(
-            () => _instruments = _instruments.copyWith(filter: s.first),
-          ),
-        ),
-        FilterChips<InstrumentKind>(
-          options: [
+          trailing: [
             for (final k in const [
               InstrumentKind.cheque,
               InstrumentKind.promissoryNote,
               InstrumentKind.letterOfGuarantee,
             ])
-              FilterOption(
-                value: k,
+              AknChip(
                 label: k.label,
-                icon: AknStatus.instrumentKind(k).icon,
+                selected: q.kind == k,
+                onTap: () => setState(
+                  () => _instruments = _instruments.copyWith(
+                    kind: () => q.kind == k ? null : k,
+                  ),
+                ),
               ),
           ],
-          selected: {?q.kind},
-          onChanged: (s) => setState(
-            () => _instruments = _instruments.copyWith(
-              kind: () => s.isEmpty ? null : s.first,
-            ),
-          ),
         ),
       ],
-      itemBuilder: (context, i, _) => InstrumentRowCard(
-        instrument: i,
-        onTap: () async {
-          final message = await showInstrumentSheet(
-            context,
-            instrument: i,
-            canChange: canChange,
-          );
-          if (message != null && context.mounted) {
-            AppToast.success(message, context: context);
-          }
-        },
+      itemBuilder: (context, i, index) => LedgerItem(
+        index: index,
+        child: InstrumentRowCard(
+          instrument: i,
+          onTap: () async {
+            final message = await showInstrumentSheet(
+              context,
+              instrument: i,
+              canChange: canChange,
+            );
+            if (message != null && context.mounted) {
+              AppToast.success(message, context: context);
+            }
+          },
+        ),
       ),
+      footer: q.filter == InstrumentFilter.open && !state.hasMore
+          ? const ListFootnote(PaymentsCopy.instrumentsFootnote)
+          : null,
       empty: q.isFiltered
           ? EmptyState(
               title: PaymentsCopy.filteredTitle,

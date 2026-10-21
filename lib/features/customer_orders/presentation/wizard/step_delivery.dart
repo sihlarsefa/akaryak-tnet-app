@@ -14,9 +14,11 @@ import '../../application/wizard_controller.dart';
 import '../../application/wizard_rules.dart';
 import '../../data/form_models.dart';
 import '../widgets/common.dart';
+import 'wizard_parts.dart';
 
-/// Adım 2: teslimat noktası (pencere, tank, erişim notları; tank aşımı uyarısı), teslim tarihi
-/// (önerilen; en erken tarihten önce olamaz), satır bazında farklı nokta / tarih.
+/// Adım 2 (tasarım v2 §7.9 "Teslimat"): teslimat noktası satırları (seçim halkası, ad + adres,
+/// teslim saatleri ve tank; seçilince erişim notları), teslim tarihi (hızlı seçimlerle; en erken
+/// tarihten önce olamaz), tank aşımı uyarısı ve satır bazında farklı nokta / tarih.
 class StepDelivery extends ConsumerWidget {
   const StepDelivery({super.key});
 
@@ -45,6 +47,7 @@ class StepDelivery extends ConsumerWidget {
       lastPoint = null;
     }
     final min = ctrl.minDate;
+    final byPoint = d.litersByPoint();
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -53,13 +56,7 @@ class StepDelivery extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Semantics(
-                  header: true,
-                  child: Text('Teslimat noktası', style: t.headline),
-                ),
-              ),
+              const WizardHeading('Teslimat noktası'),
               if (points.isEmpty)
                 EmptyState(
                   title: 'Teslimat noktanız yok',
@@ -71,33 +68,32 @@ class StepDelivery extends ConsumerWidget {
                   onAction: () => context.push(AppRoutes.deliveryPoints),
                 )
               else
-                for (final p in points)
-                  _PointCard(
-                    point: p,
-                    selected: d.pointId == p.id,
-                    lastUsed: p.id == lastPoint,
-                    liters: d.litersByPoint()[p.id],
-                    onTap: () => ctrl.setPoint(p.id),
-                  ),
-              if (errorFor('point') != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
-                    errorFor('point')!,
-                    style: t.bodySmall.copyWith(color: c.danger.fg),
-                  ),
+                AknLedger(
+                  children: [
+                    for (final p in points)
+                      _PointRow(
+                        point: p,
+                        selected: d.pointId == p.id,
+                        lastUsed: p.id == lastPoint,
+                        liters: byPoint[p.id],
+                        onTap: () => ctrl.setPoint(p.id),
+                      ),
+                  ],
                 ),
+              if (errorFor('point') != null) WizardError(errorFor('point')!),
               for (final warning in tank)
-                AknBanner(
-                  tone: AknTone.warn,
-                  icon: Icons.propane_tank_rounded,
-                  title: 'Tank kapasitesi aşılıyor',
-                  message: warning.message,
-                  margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                WizardPad(
+                  AknBanner(
+                    tone: AknTone.warn,
+                    icon: Icons.propane_tank_outlined,
+                    title: 'Tank kapasitesi aşılıyor',
+                    message: warning.message,
+                  ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: DateField(
+              const WizardHeading('Teslim günü', top: 24),
+              WizardPad(
+                top: 0,
+                DateField(
                   label: 'Teslim tarihi',
                   value: d.date,
                   firstDate: min,
@@ -111,16 +107,10 @@ class StepDelivery extends ConsumerWidget {
                 ),
               ),
               if (d.lines.length > 1) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-                  child: Semantics(
-                    header: true,
-                    child: Text('Satır bazında', style: t.headline),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Text(
+                const WizardHeading('Satır bazında', top: 24),
+                WizardPad(
+                  top: 0,
+                  Text(
                     'Bir satır başka noktaya ya da başka güne gidecekse “Farklı nokta/tarih”i açın.',
                     style: t.bodySmall.copyWith(color: c.dim),
                   ),
@@ -142,8 +132,10 @@ class StepDelivery extends ConsumerWidget {
   }
 }
 
-class _PointCard extends StatelessWidget {
-  const _PointCard({
+/// Teslimat noktası satırı: seçim halkası, ad (17/22 600) ve "Son kullanılan", adres, teslim
+/// saatleri ve tank; seçiliyken erişim notu ve yetkili kişi bir Beton kuyuda.
+class _PointRow extends StatelessWidget {
+  const _PointRow({
     required this.point,
     required this.selected,
     required this.lastUsed,
@@ -163,82 +155,187 @@ class _PointCard extends StatelessWidget {
     final c = context.akn;
     final p = point;
     final facts = [
-      if (p.windowLabel != null) 'Pencere ${p.windowLabel}',
+      if (p.windowLabel != null) 'Teslim saatleri ${p.windowLabel}',
       if (p.tankCapacityLiters != null)
-        'Tank ${Fmt.liters(p.tankCapacityLiters)}',
-    ].join(' · ');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ChoiceCard(
-            title: p.name,
-            subtitle: [
-              if (p.fullAddress.isNotEmpty) p.fullAddress,
-              if (facts.isNotEmpty) facts,
-            ].join('\n'),
-            leadingIcon: Icons.place_rounded,
-            tag: lastUsed ? 'Son kullanılan' : null,
-            selected: selected,
-            onTap: onTap,
-          ),
-          SafeAnimatedSize(
-            child: !selected || (p.accessNotes == null && p.contactName == null)
-                ? const SizedBox(width: double.infinity)
-                : Container(
-                    margin: const EdgeInsets.only(top: 6),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: c.surfaceAlt,
-                      borderRadius: AknRadius.card,
-                    ),
+        'tank ${Fmt.liters(p.tankCapacityLiters)}',
+    ].join(', ');
+    final notes = selected && (p.accessNotes != null || p.contactName != null);
+    return Semantics(
+      button: true,
+      inMutuallyExclusiveGroup: true,
+      checked: selected,
+      label: [
+        p.name,
+        if (lastUsed) 'son kullanılan',
+        if (p.fullAddress.isNotEmpty) p.fullAddress,
+        if (facts.isNotEmpty) facts,
+      ].join(', '),
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: () {
+            AknHaptics.selection();
+            onTap();
+          },
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: c.surfaceAlt,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: AknSpace.row,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: _Radio(selected: selected),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (p.accessNotes != null)
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.info_outline_rounded,
-                                size: 16,
-                                color: c.dim,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              p.name,
+                              style: t.headline.copyWith(color: c.ink),
+                            ),
+                            if (lastUsed)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: c.surfaceAlt,
+                                  borderRadius: AknRadius.tag,
+                                ),
                                 child: Text(
-                                  'Erişim: ${p.accessNotes}',
-                                  style: t.bodySmall.copyWith(color: c.text),
+                                  'Son kullanılan',
+                                  style: t.captionStrong.copyWith(color: c.ink),
                                 ),
                               ),
-                            ],
-                          ),
-                        if (p.contactName != null) ...[
-                          if (p.accessNotes != null) const SizedBox(height: 6),
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.person_outline_rounded,
-                                size: 16,
-                                color: c.dim,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  '${p.contactName}${p.contactPhone == null ? '' : ' · ${Fmt.phone(p.contactPhone)}'}',
-                                  style: t.bodySmall.copyWith(color: c.text),
-                                ),
-                              ),
-                            ],
+                          ],
+                        ),
+                        if (p.fullAddress.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            p.fullAddress,
+                            style: t.bodySmall.copyWith(color: c.dim),
                           ),
                         ],
+                        if (facts.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            facts,
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                        ],
+                        SafeAnimatedSize(
+                          child: !notes
+                              ? const SizedBox(width: double.infinity)
+                              : Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(top: 10),
+                                  padding: AknSpace.well,
+                                  decoration: BoxDecoration(
+                                    color: c.surfaceAlt,
+                                    borderRadius: AknRadius.card,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (p.accessNotes != null)
+                                        _NoteLine(
+                                          icon: Icons.door_front_door_outlined,
+                                          text: 'Erişim: ${p.accessNotes}',
+                                        ),
+                                      if (p.contactName != null) ...[
+                                        if (p.accessNotes != null)
+                                          const SizedBox(height: 6),
+                                        _NoteLine(
+                                          icon: Icons.person_outline_rounded,
+                                          text:
+                                              '${p.contactName}${p.contactPhone == null ? '' : ', ${Fmt.phone(p.contactPhone)}'}',
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                        ),
                       ],
                     ),
                   ),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _NoteLine extends StatelessWidget {
+  const _NoteLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: c.dim),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text, style: t.bodySmall.copyWith(color: c.ink)),
+        ),
+      ],
+    );
+  }
+}
+
+/// Seçim halkası (§6.11): seçiliyken mürekkep dolgu ve beyaz nokta; değilse 1,6 px kontrol
+/// çizgisi.
+class _Radio extends StatelessWidget {
+  const _Radio({required this.selected});
+
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return AnimatedContainer(
+      duration: AknMotion.of(context, AknMotion.fast),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? c.ink : Colors.transparent,
+        border: Border.all(
+          color: selected ? c.ink : c.lineStrong,
+          width: selected ? 2 : 1.6,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: selected
+          ? Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: c.bg),
+            )
+          : null,
     );
   }
 }
@@ -269,9 +366,9 @@ class _LineOverride extends ConsumerWidget {
     final l = d.lines.firstWhere((x) => x.uid == lineUid);
     final product = form?.product(l.productId)?.name ?? 'Ürün seçilmedi';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
       child: AknCard(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
+        padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -279,8 +376,8 @@ class _LineOverride extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               value: l.custom,
               title: Text(
-                'Satır ${index + 1}: $product · ${Fmt.liters(l.liters ?? 0)}',
-                style: t.bodyStrong,
+                'Satır ${index + 1}: $product, ${Fmt.liters(l.liters ?? 0)}',
+                style: t.bodyStrong.copyWith(color: c.ink),
               ),
               subtitle: Text(
                 l.custom
@@ -322,13 +419,7 @@ class _LineOverride extends ConsumerWidget {
               ),
             ],
             if (error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  error!,
-                  style: t.bodySmall.copyWith(color: c.danger.fg),
-                ),
-              ),
+              WizardError(error!, padding: const EdgeInsets.only(right: 8)),
           ],
         ),
       ),

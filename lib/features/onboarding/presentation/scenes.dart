@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/ui.dart';
-import '../../../core/utils/format.dart';
 import '../copy.dart';
 
-/// Sahne zaman çizelgesi: sayfa öne gelince bir kez oynar (≈1,8 sn, sakin eğriler, sıçrama yok).
-/// [animate] kapalıyken (azaltılmış hareket ya da ekran okuyucu) son kare durağan gösterilir.
-/// Sayfa görünümden çıkınca PageView sahneyi kaldırır; dönen sahne yeniden oynar.
+/// Sahne zaman çizelgesi: sayfa öne gelince bir kez 0 → 1 oynar (döngü yok). [animate] kapalıysa
+/// (azaltılmış hareket, ekran okuyucu) doğrudan son kareyi (t = 1) çizer.
 class SceneTimeline extends StatefulWidget {
   const SceneTimeline({
     super.key,
@@ -73,211 +71,168 @@ class _SceneTimelineState extends State<SceneTimeline>
 double _seg(double t, double a, double b, [Curve curve = AknMotion.standard]) =>
     curve.transform(((t - a) / (b - a)).clamp(0.0, 1.0));
 
-/// Uygulama ekranı gibi görünen çizim kartı (lacivert zemin üstünde açık yüzey). Yazı ölçeği
-/// uygulanmaz: çizimdir, anlamını sahne açıklaması taşır.
-class SceneCard extends StatelessWidget {
-  const SceneCard({super.key, required this.child});
+/// Sahnelerin tasarım genişliği: gerçek arayüzün telefon genişliği (390) eksi kenar boşlukları. Tanıtım
+/// sayfası çizimi 0,9 ölçekte ve alana sığacak kadar küçülterek gösterir.
+const double kSceneWidth = 350;
 
-  final Widget child;
-
-  static const size = Size(300, 268);
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    return SizedBox.fromSize(
-      size: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: BorderRadius.circular(AknRadius.xl - 4),
-          border: Border.all(color: c.line),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x33000000),
-              blurRadius: 24,
-              offset: Offset(0, 12),
-            ),
-          ],
-        ),
-        child: Padding(padding: const EdgeInsets.all(18), child: child),
-      ),
-    );
-  }
-}
-
-/// Sahne 1 — Sipariş: ürün, litre (sayarak artar), teslimat; "Sipariş ver" basılır, gönderildi.
-class OrderScene extends StatelessWidget {
-  const OrderScene({super.key, required this.t});
+/// Basılan düğmenin kısa "basıldı" kareleri (0,98 ölçek) ve yerine gelen sonuç satırı.
+class _PressThenResult extends StatelessWidget {
+  const _PressThenResult({
+    required this.t,
+    required this.pressAt,
+    required this.button,
+    required this.result,
+  });
 
   final double t;
+  final double pressAt;
+  final Widget button;
+  final Widget result;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
-    final x = context.aknText;
-    final liters = (12500 * _seg(t, 0.12, 0.6) / 100).round() * 100;
-    final sent = t >= 0.84;
-    final press = t > 0.7 && t < 0.84 ? 0.96 : 1.0;
-    return SceneCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final press =
+        _seg(t, pressAt, pressAt + 0.05) -
+        _seg(t, pressAt + 0.05, pressAt + 0.1);
+    final swap = _seg(t, pressAt + 0.12, pressAt + 0.22);
+    return SizedBox(
+      height: 52,
+      child: Stack(
+        alignment: AlignmentDirectional.centerStart,
         children: [
-          _Reveal(
-            v: _seg(t, 0, 0.25),
-            child: Row(
-              children: [
-                const AknIconBox(
-                  icon: Icons.local_gas_station_rounded,
-                  tone: AknTone.brand,
-                  size: 40,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(OnboardingCopy.product, style: x.bodyStrong),
-                      Text(OnboardingCopy.productCaption, style: x.caption),
-                    ],
-                  ),
-                ),
-              ],
+          if (swap < 1)
+            Opacity(
+              opacity: 1 - swap,
+              child: Transform.scale(scale: 1 - 0.02 * press, child: button),
             ),
-          ),
-          const SizedBox(height: 12),
-          Divider(height: 1, color: c.lineSoft),
-          _SceneRow(
-            v: _seg(t, 0.08, 0.32),
-            label: OnboardingCopy.quantity,
-            value: Fmt.liters(liters),
-            strong: true,
-          ),
-          _SceneRow(
-            v: _seg(t, 0.18, 0.42),
-            label: OnboardingCopy.delivery,
-            value: OnboardingCopy.deliveryValue,
-          ),
-          _SceneRow(
-            v: _seg(t, 0.28, 0.52),
-            label: OnboardingCopy.point,
-            value: OnboardingCopy.pointValue,
-          ),
-          const Spacer(),
-          _Reveal(
-            v: _seg(t, 0.4, 0.62),
-            child: AnimatedScale(
-              scale: press,
-              duration: AknMotion.of(context, AknMotion.fast),
-              child: _Pill(
-                filled: true,
-                tone: sent ? AknTone.ok : null,
-                icon: sent ? Icons.check_rounded : null,
-                label: sent ? OnboardingCopy.sent : OnboardingCopy.placeOrder,
+          if (swap > 0)
+            Opacity(
+              opacity: swap,
+              child: Transform.translate(
+                offset: Offset(0, 6 * (1 - swap)),
+                child: result,
               ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
-/// Sahne 2 — Teklif: hazır rozeti, geçerlilik halkası, litre fiyatı ve toplam; "Onayla".
-class QuoteScene extends StatelessWidget {
-  const QuoteScene({super.key, required this.t});
+/// Çizimdeki düğme (gerçek birincil düğmenin görünüşü; dokunulmaz).
+class _FakeButton extends StatelessWidget {
+  const _FakeButton({required this.label});
 
-  final double t;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final x = context.aknText;
-    final approved = t >= 0.84;
-    return SceneCard(
+    final t = context.aknText;
+    return Container(
+      height: 52,
+      alignment: Alignment.center,
+      // Sahip kararı G: birincil düğme turuncu degrade, beyaz yazı.
+      decoration: BoxDecoration(
+        gradient: c.buttonGradient,
+        borderRadius: AknRadius.button,
+      ),
+      child: Text(label, style: t.button.copyWith(color: c.onBrandFill)),
+    );
+  }
+}
+
+/// Sonuç satırı: yeşil onay + cümle (sonuç, düğmenin fiilini tekrar eder).
+class _ResultLine extends StatelessWidget {
+  const _ResultLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Row(
+      children: [
+        Icon(Icons.check_circle_rounded, size: 24, color: c.ok.fg),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(text, style: t.bodyStrong.copyWith(color: c.ink)),
+        ),
+      ],
+    );
+  }
+}
+
+/// Sahne 1 — Sipariş: sihirbazın özet plakası ("12.500 L", motorin, yarın 09:00) sayaç gibi döner;
+/// "Siparişi gönder" basılır, yerine "Siparişiniz bayiye gönderildi" gelir.
+class OrderScene extends StatelessWidget {
+  const OrderScene({super.key, required this.t, this.animate = true});
+
+  final double t;
+
+  /// Plakadaki rakam bir kez döner (azaltılmış harekette son kare).
+  final bool animate;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final tx = context.aknText;
+    return SizedBox(
+      width: kSceneWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _Reveal(
-            v: _seg(t, 0, 0.22),
-            child: Row(
-              children: [
-                const Flexible(
-                  child: StatusChip(
-                    label: OnboardingCopy.quoteReady,
-                    tone: AknTone.ok,
-                    icon: Icons.request_quote_rounded,
-                  ),
+          Text(
+            OnboardingCopy.wizardTitle,
+            style: tx.display.copyWith(color: c.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            OnboardingCopy.wizardMeta,
+            style: tx.bodySmall.copyWith(color: c.dim),
+          ),
+          const SizedBox(height: 16),
+          AknPlate(
+            head: const PlateHead(
+              icon: Icons.local_gas_station_outlined,
+              title: OnboardingCopy.summaryTitle,
+            ),
+            figure: PlateFigure(
+              value: OnboardingCopy.litres,
+              unit: 'L',
+              animate: animate,
+              semanticLabel: OnboardingCopy.litresSpoken,
+            ),
+            delta: Text(
+              OnboardingCopy.orderSentence,
+              style: tx.body.copyWith(
+                height: 20 / 15,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            below: const PlateReadouts(
+              items: [
+                PlateReadout(
+                  label: OnboardingCopy.unitPriceCaption,
+                  value: '42,35',
+                  unit: '₺/L',
                 ),
-                const SizedBox(width: 8),
-                const Spacer(),
-                ProgressRing(
-                  value: 0.72 * _seg(t, 0.1, 0.62),
-                  size: 44,
-                  strokeWidth: 4,
-                  child: Center(
-                    child: Text(OnboardingCopy.validFor, style: x.caption),
-                  ),
+                PlateReadout(
+                  label: OnboardingCopy.total,
+                  value: '529.375',
+                  unit: '₺',
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          _Reveal(
-            v: _seg(t, 0.16, 0.42),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  Fmt.unitPrice(41.85),
-                  style: x.amountLarge.copyWith(color: c.ink),
-                ),
-                Text(OnboardingCopy.unitPriceCaption, style: x.caption),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _Reveal(
-            v: _seg(t, 0.3, 0.56),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _Mini(
-                    label: OnboardingCopy.total,
-                    value: Fmt.money(523125),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: _Mini(
-                    label: OnboardingCopy.deliveryDate,
-                    value: OnboardingCopy.tomorrow,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Spacer(),
-          _Reveal(
-            v: _seg(t, 0.46, 0.68),
-            child: Row(
-              children: [
-                const Expanded(
-                  child: _Pill(filled: false, label: OnboardingCopy.revise),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _Pill(
-                    filled: true,
-                    tone: approved ? AknTone.ok : null,
-                    icon: approved ? Icons.check_rounded : null,
-                    label: approved
-                        ? OnboardingCopy.approved
-                        : OnboardingCopy.approve,
-                  ),
-                ),
-              ],
-            ),
+          _PressThenResult(
+            t: t,
+            pressAt: 0.55,
+            button: const _FakeButton(label: OnboardingCopy.placeOrder),
+            result: const _ResultLine(text: OnboardingCopy.sent),
           ),
         ],
       ),
@@ -285,7 +240,110 @@ class QuoteScene extends StatelessWidget {
   }
 }
 
-/// Sahne 3 — Teslimat: araç yolda (plaka, rota), adımlar, teslim alınan litre damlası.
+/// Sahne 2 — Teklif: "Kararınızı bekliyor" + geri sayım, bayinin teklif plakası; "Teklifi onayla"
+/// basılır, plaka mühürlenir (1,02 → 1), durum "Teklif onaylandı" olur.
+class QuoteScene extends StatelessWidget {
+  const QuoteScene({super.key, required this.t, this.animate = true});
+
+  final double t;
+  final bool animate;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final tx = context.aknText;
+    final approved = t >= 0.72;
+    final stamp = _seg(t, 0.72, 0.81, AknMotion.emphasizedCurve);
+    final scale = approved ? 1.02 - 0.02 * stamp : 1.0;
+    return SizedBox(
+      width: kSceneWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            OnboardingCopy.quoteOrder,
+            style: tx.display.copyWith(color: c.ink),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: approved
+                    ? const AknLamp(
+                        label: OnboardingCopy.approved,
+                        tone: AknTone.ok,
+                        solid: true,
+                      )
+                    : const AknLamp(
+                        label: OnboardingCopy.awaitingDecision,
+                        tone: AknTone.brand,
+                      ),
+              ),
+              if (!approved) ...[
+                Icon(Icons.timer_outlined, size: 17, color: c.brandInk),
+                const SizedBox(width: 4),
+                Text(
+                  OnboardingCopy.validFor,
+                  style: tx.bodySmall.copyWith(
+                    color: c.brandInk,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Transform.scale(
+            scale: scale,
+            child: AknPlate(
+              head: const PlateHead(
+                icon: Icons.request_quote_outlined,
+                title: OnboardingCopy.quoteFrom,
+                period: OnboardingCopy.quoteTime,
+              ),
+              figure: PlateFigure(
+                value: '529.375',
+                decimals: ',00',
+                unit: '₺',
+                animate: animate,
+                semanticLabel: OnboardingCopy.quoteSpoken,
+              ),
+              below: const PlateReadouts(
+                items: [
+                  PlateReadout(
+                    label: OnboardingCopy.unitPriceShort,
+                    value: '42,35',
+                    unit: '₺/L',
+                  ),
+                  PlateReadout(
+                    label: OnboardingCopy.quantity,
+                    value: '12.500',
+                    unit: 'L',
+                  ),
+                  PlateReadout(
+                    label: OnboardingCopy.deliveryDate,
+                    value: OnboardingCopy.tomorrow,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _PressThenResult(
+            t: t,
+            pressAt: 0.55,
+            button: const _FakeButton(label: OnboardingCopy.approve),
+            result: const _ResultLine(text: OnboardingCopy.approvedToast),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sahne 3 — Teslimat: defter satırı ("Motorin, 12.500 L", "Yolda", varış), » aracı rotada ilerler;
+/// altında "Planlandı, Yola çıktı, Teslim edildi" zaman çizelgesi.
 class DeliveryScene extends StatelessWidget {
   const DeliveryScene({super.key, required this.t});
 
@@ -293,270 +351,82 @@ class DeliveryScene extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final x = context.aknText;
-    final fill = _seg(t, 0.6, 1);
-    return SceneCard(
+    final c = context.akn;
+    final tx = context.aknText;
+    final dispatched = t >= 0.3;
+    return SizedBox(
+      width: kSceneWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _Reveal(
-            v: _seg(t, 0, 0.22),
-            child: const Row(
-              children: [
-                Flexible(
-                  child: StatusChip(
-                    label: OnboardingCopy.inTransit,
-                    tone: AknTone.brand,
-                    icon: Icons.local_shipping_rounded,
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: PlateBadge(
-                      plate: OnboardingCopy.plate,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          Text(
+            OnboardingCopy.deliveryRowTitle,
+            style: tx.display.copyWith(color: c.ink),
           ),
-          const SizedBox(height: 14),
-          TruckRoute(
-            progress: _seg(t, 0.08, 0.72, AknMotion.emphasizedCurve),
-            height: 40,
-            originLabel: OnboardingCopy.origin,
-            destinationLabel: OnboardingCopy.destination,
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  OnboardingCopy.deliveryRowMeta,
+                  style: tx.bodySmall.copyWith(color: c.dim),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const PlateBadge(plate: OnboardingCopy.plate),
+            ],
           ),
           const SizedBox(height: 14),
           Row(
             children: [
-              const Expanded(
-                child: _Step(label: OnboardingCopy.stepPlanned, done: true),
-              ),
               Expanded(
-                child: _Step(
-                  label: OnboardingCopy.stepDispatched,
-                  done: t >= 0.3,
+                child: AknLamp(
+                  label: dispatched
+                      ? OnboardingCopy.inTransit
+                      : OnboardingCopy.stepPlanned,
+                  tone: AknTone.info,
                 ),
               ),
-              Expanded(
-                child: _Step(
-                  label: OnboardingCopy.stepDelivered,
-                  done: t >= 0.92,
-                ),
+              Text(
+                OnboardingCopy.eta,
+                style: tx.bodyStrong.copyWith(color: c.ink),
               ),
             ],
           ),
-          const Spacer(),
-          _Reveal(
-            v: _seg(t, 0.5, 0.7),
-            child: Row(
-              children: [
-                FuelDrop(fill: fill, size: 40),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(OnboardingCopy.received, style: x.caption),
-                      Text(
-                        Fmt.liters((12500 * fill / 100).round() * 100),
-                        style: x.amount,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(height: 12),
+          TruckRoute(
+            progress: dispatched ? 0.62 : 0.08,
+            moving: dispatched,
+            originLabel: OnboardingCopy.origin,
+            destinationLabel: OnboardingCopy.remaining,
+            semanticLabel: OnboardingCopy.deliveryScene,
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Yukarı kayarak beliren parça.
-class _Reveal extends StatelessWidget {
-  const _Reveal({required this.v, required this.child});
-
-  final double v;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (v >= 1) return child;
-    return Opacity(
-      opacity: v,
-      child: Transform.translate(offset: Offset(0, 8 * (1 - v)), child: child),
-    );
-  }
-}
-
-class _SceneRow extends StatelessWidget {
-  const _SceneRow({
-    required this.v,
-    required this.label,
-    required this.value,
-    this.strong = false,
-  });
-
-  final double v;
-  final String label;
-  final String value;
-  final bool strong;
-
-  @override
-  Widget build(BuildContext context) {
-    final x = context.aknText;
-    final c = context.akn;
-    return _Reveal(
-      v: v,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 10),
-        child: Row(
-          children: [
-            Expanded(child: Text(label, style: x.bodySmall)),
-            const SizedBox(width: 8),
-            Flexible(
-              flex: 2,
-              child: Text(
-                value,
-                style: (strong ? x.amount : x.bodyStrong).copyWith(
-                  color: c.ink,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.end,
+          const SizedBox(height: 18),
+          StepTimeline(
+            dense: true,
+            steps: [
+              const TimelineStep(
+                title: OnboardingCopy.stepPlanned,
+                time: '09:10',
+                state: TimelineState.done,
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Mini extends StatelessWidget {
-  const _Mini({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final x = context.aknText;
-    final c = context.akn;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.chip,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: x.caption.copyWith(color: c.text)),
-          Text(
-            value,
-            style: x.bodyStrong.copyWith(color: c.ink),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+              TimelineStep(
+                title: OnboardingCopy.stepDispatched,
+                time: dispatched ? '09:58' : null,
+                state: dispatched ? TimelineState.done : TimelineState.current,
+              ),
+              TimelineStep(
+                title: OnboardingCopy.stepDelivered,
+                time: OnboardingCopy.etaShort,
+                state: dispatched
+                    ? TimelineState.current
+                    : TimelineState.upcoming,
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Düğme çizimi (dokunulmaz).
-class _Pill extends StatelessWidget {
-  const _Pill({
-    required this.filled,
-    required this.label,
-    this.tone,
-    this.icon,
-  });
-
-  final bool filled;
-  final String label;
-  final AknTone? tone;
-  final IconData? icon;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final x = context.aknText;
-    final tc = tone == null ? null : c.tone(tone!);
-    final bg = filled ? (tc?.solid ?? c.brandFill) : c.surface;
-    final fg = filled ? (tc?.onSolid ?? c.onBrandFill) : c.ink;
-    return AnimatedContainer(
-      duration: AknMotion.of(context, AknMotion.base),
-      curve: AknMotion.standard,
-      height: 44,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(AknRadius.md),
-        border: filled ? null : Border.all(color: c.lineStrong),
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, size: 18, color: fg),
-            const SizedBox(width: 6),
-          ],
-          Flexible(
-            child: Text(
-              label,
-              style: x.button.copyWith(color: fg),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Step extends StatelessWidget {
-  const _Step({required this.label, required this.done});
-
-  final String label;
-  final bool done;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final x = context.aknText;
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: AknMotion.of(context, AknMotion.base),
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: done ? c.ok.solid : c.surfaceAlt,
-            shape: BoxShape.circle,
-            border: done ? null : Border.all(color: c.lineStrong),
-          ),
-          child: done
-              ? Icon(Icons.check_rounded, size: 14, color: c.ok.onSolid)
-              : null,
-        ),
-        const SizedBox(height: 6),
-        Text(
-          label,
-          style: x.caption.copyWith(color: done ? c.ink : c.text),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
     );
   }
 }

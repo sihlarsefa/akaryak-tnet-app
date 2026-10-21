@@ -77,7 +77,6 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
     final canCancel = r != null && r.canCancel && policy.cmRequestCancel;
     return AppScaffold(
       title: r?.number ?? 'Talep',
-      subtitle: 'Şirket içi sipariş talebi',
       refreshing: async.isLoading && r != null,
       actionBar: canCancel
           ? cmBar(
@@ -105,8 +104,8 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
               _Hero(request: r),
               if (r.status == CustomerOrderRequestStatus.pending && r.canDecide)
                 AknBanner(
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  tone: AknTone.warn,
+                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  tone: AknTone.brand,
                   title: 'Bu talep kararınızı bekliyor',
                   message:
                       'Onay ya da ret kararını Onaylarım ekranından verebilirsiniz.',
@@ -122,7 +121,12 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
               if (r.note != null)
                 CmSection(
                   title: 'Onaylayana not',
-                  child: Text(r.note!, style: context.aknText.body),
+                  child: Text(
+                    r.note!,
+                    style: context.aknText.body.copyWith(
+                      color: context.akn.text,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -132,6 +136,9 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
   }
 }
 
+/// Nesne başı (tasarım v2 §6.1, §5.2): `display` başlık ("Motorin, 12.000 L"), kim / ne zaman,
+/// müşterinin gözünden durum lambası ve plaka: tahmini tutar (yoksa toplam litre), kural, okumalar
+/// (litre, satır, teslim).
 class _Hero extends StatelessWidget {
   const _Hero({required this.request});
 
@@ -140,44 +147,91 @@ class _Hero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = request;
-    return AknHeroPanel(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          return Column(
+    final t = context.aknText;
+    final c = context.akn;
+    final lamp = AknStatus.companyRequestLamp(
+      r.status,
+      StatusViewer.customer(canDecide: r.canDecide),
+      serverLabel: r.statusLabel,
+    );
+    final dates = [
+      for (final l in r.lines)
+        if (l.requestedDeliveryDate != null) l.requestedDeliveryDate!,
+    ]..sort();
+    final amount = r.estimatedAmount;
+    final whole = amount?.truncate();
+    final cents = amount == null
+        ? null
+        : ((amount - amount.truncate()) * 100).round().clamp(0, 99);
+    final spoken = [
+      amount == null
+          ? 'Toplam ${Fmt.liters(r.totalLiters)}'
+          : 'Tahmini tutar ${Fmt.money(amount)}',
+      '${r.lines.length} satır',
+      if (dates.isNotEmpty) 'teslim ${Fmt.longDate(dates.first)}',
+    ].join(', ');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text(r.number, style: t.headline),
+              MediaQuery.withClampedTextScaling(
+                maxScaleFactor: 1.5,
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}',
+                    style: t.display.copyWith(color: c.ink),
                   ),
-                  StatusChip.style(
-                    r.status.statusStyle.withLabel(r.statusLabel),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              AmountText(Fmt.liters(r.totalLiters), large: true),
-              if (r.estimatedAmount != null)
-                Text(
-                  'Tahmini ${Fmt.money(r.estimatedAmount)} · bayinin güncel fiyatıyla',
-                  style: t.bodySmall,
                 ),
-              const SizedBox(height: 8),
-              Text(
-                '${r.requestedByName} · ${Fmt.dateTime(r.createdAt)}',
-                style: t.caption,
               ),
+              const SizedBox(height: 4),
+              Text(
+                [
+                  if (r.requestedByName.trim().isNotEmpty) r.requestedByName,
+                  if (r.createdAt != null) Fmt.dateTime(r.createdAt),
+                ].join(', '),
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+              const SizedBox(height: 14),
+              AknLamp.status(lamp),
             ],
-          );
-        },
-      ),
+          ),
+        ),
+        CmPlate(
+          semanticLabel: spoken,
+          head: PlateHead(
+            icon: Icons.request_quote_outlined,
+            title: amount == null ? 'Toplam miktar' : 'Tahmini tutar',
+            period: amount == null ? null : 'bayinin güncel fiyatıyla',
+          ),
+          figure: amount == null
+              ? PlateFigure(
+                  value: Fmt.number(r.totalLiters, maxFraction: 3),
+                  unit: 'L',
+                )
+              : PlateFigure(
+                  value: Fmt.number(whole),
+                  decimals: ',${cents.toString().padLeft(2, '0')}',
+                  unit: '₺',
+                ),
+          readouts: [
+            PlateReadout(
+              label: 'Miktar',
+              value: Fmt.number(r.totalLiters, maxFraction: 3),
+              unit: 'L',
+            ),
+            PlateReadout(label: 'Satır', value: '${r.lines.length}'),
+            PlateReadout(
+              label: 'Teslim',
+              value: dates.isEmpty ? Fmt.dash : Fmt.dayMonth(dates.first),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -191,6 +245,7 @@ class _DecisionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = request;
     final t = context.aknText;
+    final c = context.akn;
     final (title, tone) = switch (r.status) {
       CustomerOrderRequestStatus.approved => ('Onaylandı', AknTone.ok),
       CustomerOrderRequestStatus.rejected => ('Reddedildi', AknTone.danger),
@@ -198,11 +253,12 @@ class _DecisionCard extends StatelessWidget {
       _ => ('Karar', AknTone.neutral),
     };
     return CmSection(
-      title: title,
-      accent: tone == AknTone.neutral ? null : tone,
+      title: 'Karar',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          AknLamp(label: title, tone: tone, solid: tone == AknTone.ok),
+          const SizedBox(height: 4),
           if (r.decidedByName != null)
             FactRow(
               label: r.status == CustomerOrderRequestStatus.rejected
@@ -214,15 +270,15 @@ class _DecisionCard extends StatelessWidget {
             FactRow(label: 'Tarih', value: Fmt.dateTime(r.decidedAt)),
           if (r.decisionNote != null) ...[
             const SizedBox(height: 4),
-            Text('Gerekçe', style: t.label),
-            Text(r.decisionNote!, style: t.body),
+            Text('Gerekçe', style: t.label.copyWith(color: c.dim)),
+            Text(r.decisionNote!, style: t.body.copyWith(color: c.text)),
           ],
           if (r.status == CustomerOrderRequestStatus.approved)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Onaylanan her satır ayrı sipariş olarak bayiye iletildi.',
-                style: t.caption,
+                style: t.bodySmall.copyWith(color: c.dim),
               ),
             ),
         ],
@@ -247,39 +303,47 @@ class _LinesCard extends ConsumerWidget {
     return CmSection(
       title: 'Satırlar',
       subtitle: '${r.lines.length} satır',
+      bleed: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (var i = 0; i < r.lines.length; i++) ...[
-            if (i > 0) const Divider(height: 20),
-            _LineRow(
-              line: r.lines[i],
-              showResult: approved || r.lines[i].error != null,
-            ),
-          ],
+          AknLedger(
+            children: [
+              for (final l in r.lines)
+                _LineRow(line: l, showResult: approved || l.error != null),
+            ],
+          ),
           if (approved &&
               failed > 0 &&
-              policy.can(Pg.customerCreateOrder, Perm.create)) ...[
-            const SizedBox(height: 12),
-            AknButton.secondary(
-              label: 'Başarısız satırları yeni siparişe aktar',
-              icon: Icons.playlist_add_rounded,
-              expand: true,
-              onPressed: () =>
-                  context.push('${AppRoutes.orderNew}?fromRequest=${r.id}'),
+              policy.can(Pg.customerCreateOrder, Perm.create))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AknButton.secondary(
+                    label: 'Başarısız satırları yeni siparişe aktar',
+                    expand: true,
+                    onPressed: () => context.push(
+                      '${AppRoutes.orderNew}?fromRequest=${r.id}',
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$failed satır sipariş olarak oluşturulamadı; sipariş ekranında düzeltip gönderebilirsiniz.',
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              '$failed satır sipariş olarak oluşturulamadı; sipariş ekranında düzeltip gönderebilirsiniz.',
-              style: t.caption.copyWith(color: c.text),
-            ),
-          ],
         ],
       ),
     );
   }
 }
 
+/// Talep satırı (ledger): ürün ve litre, nokta / teslim / bayi, tahmini ₺/L; sonuç lambası
+/// ("Sipariş SIP-… oluştu" dokununca siparişi açar, "Oluşturulamadı: …" tehlike).
 class _LineRow extends StatelessWidget {
   const _LineRow({required this.line, required this.showResult});
 
@@ -289,95 +353,37 @@ class _LineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = line;
-    final t = context.aknText;
-    final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          '${l.productName} · ${Fmt.liters(l.quantityLiters)}',
-          style: t.bodyStrong,
-        ),
-        Text(
-          [
-            l.deliveryPointName,
-            if (l.requestedDeliveryDate != null)
-              'teslim ${Fmt.date(l.requestedDeliveryDate)}',
-            if (l.stationTitle.isNotEmpty) l.stationTitle,
-          ].where((x) => x.isNotEmpty).join(' · '),
-          style: t.bodySmall,
-        ),
+    final ordered = showResult && l.hasOrder;
+    final failed = showResult && !l.hasOrder && l.error != null;
+    final result = ordered
+        ? 'Sipariş ${l.orderNumber ?? '#${l.orderId}'} oluştu'
+        : (failed ? 'Oluşturulamadı: ${l.error}' : null);
+    final subtitle = [
+      l.deliveryPointName,
+      if (l.requestedDeliveryDate != null)
+        'teslim ${Fmt.dayMonth(l.requestedDeliveryDate)}',
+      if (l.stationTitle.isNotEmpty) l.stationTitle,
+    ].where((x) => x.isNotEmpty).join(', ');
+    final title = '${l.productName}, ${Fmt.liters(l.quantityLiters)}';
+    return AknListTile(
+      title: title,
+      subtitle: subtitle,
+      meta: l.estimatedUnitPrice == null
+          ? null
+          : Fmt.unitPrice(l.estimatedUnitPrice),
+      status: result == null
+          ? null
+          : AknLamp(label: result, tone: ordered ? AknTone.ok : AknTone.danger),
+      showChevron: ordered,
+      semanticLabel: [
+        title,
+        if (subtitle.isNotEmpty) subtitle,
         if (l.estimatedUnitPrice != null)
-          Text(
-            'Tahmini birim fiyat ${Fmt.unitPrice(l.estimatedUnitPrice)}',
-            style: t.caption,
-          ),
-        if (showResult) ...[
-          const SizedBox(height: 6),
-          if (l.hasOrder)
-            Semantics(
-              button: true,
-              label:
-                  'Sipariş ${l.orderNumber ?? l.orderId} oluştu, siparişi aç',
-              excludeSemantics: true,
-              child: InkWell(
-                onTap: () => context.push(AppRoutes.order(l.orderId!)),
-                borderRadius: AknRadius.chip,
-                child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: c.ok.bg,
-                    borderRadius: AknRadius.chip,
-                    border: Border.all(color: c.ok.line),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        size: 18,
-                        color: c.ok.fg,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Sipariş ${l.orderNumber ?? '#${l.orderId}'} oluştu',
-                          style: t.label.copyWith(color: c.ok.fg),
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, color: c.ok.fg),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else if (l.error != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: c.danger.bg,
-                borderRadius: AknRadius.chip,
-                border: Border.all(color: c.danger.line),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.error_rounded, size: 18, color: c.danger.fg),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Oluşturulamadı: ${l.error}',
-                      style: t.bodySmall.copyWith(color: c.danger.fg),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ],
+          'tahmini birim fiyat ${Fmt.unitPrice(l.estimatedUnitPrice)}',
+        ?result,
+        if (ordered) 'siparişi aç',
+      ].join(', '),
+      onTap: ordered ? () => context.push(AppRoutes.order(l.orderId!)) : null,
     );
   }
 }
@@ -402,7 +408,7 @@ class _PaymentCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Onayda siparişler bu ödemeyle oluşur; vadeli yöntemlerde bayinin finans onayı beklenir.',
-            style: t.caption,
+            style: t.bodySmall.copyWith(color: context.akn.dim),
           ),
         ],
       ),
@@ -432,17 +438,17 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknListTile(
-            leadingIcon: Icons.photo_camera_rounded,
+            leadingIcon: Icons.photo_camera_outlined,
             title: 'Fotoğraf çek',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.camera),
           ),
           AknListTile(
-            leadingIcon: Icons.photo_library_rounded,
+            leadingIcon: Icons.photo_library_outlined,
             title: 'Galeriden seç',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.gallery),
           ),
           AknListTile(
-            leadingIcon: Icons.picture_as_pdf_rounded,
+            leadingIcon: Icons.picture_as_pdf_outlined,
             title: 'Dosya (PDF)',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.file),
           ),
@@ -491,7 +497,7 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         title: 'Ödeme belgesi',
         child: Text(
           'Belge durumu okunamadı. ${failureText(AppFailure.from(e))}',
-          style: t.bodySmall,
+          style: t.bodySmall.copyWith(color: context.akn.text),
         ),
       ),
       data: (state) {
@@ -500,16 +506,15 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         if (state.uploaded) {
           return CmSection(
             title: 'Ödeme belgesi',
-            accent: AknTone.ok,
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const StatusChip(
-                  label: 'Yüklendi',
-                  tone: AknTone.ok,
-                  icon: Icons.check_circle_rounded,
+                Text(
+                  target.label,
+                  style: t.headline.copyWith(color: context.akn.ink),
                 ),
-                const SizedBox(width: 8),
-                Expanded(child: Text(target.label, style: t.body)),
+                const SizedBox(height: 4),
+                const AknLamp(label: 'Yüklendi', tone: AknTone.ok),
               ],
             ),
           );
@@ -517,22 +522,20 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         final canUpload = target.canUpload && policy.cmPaymentUpload;
         return CmSection(
           title: 'Ödeme belgesi',
-          accent: target.required ? AknTone.warn : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  StatusChip(
-                    label: target.required ? 'Bekleniyor' : 'İsteğe bağlı',
-                    tone: target.required ? AknTone.warn : AknTone.info,
-                    icon: Icons.hourglass_top_rounded,
-                  ),
-                  Text(target.label, style: t.bodyStrong),
-                ],
+              Text(
+                target.label,
+                style: t.headline.copyWith(color: context.akn.ink),
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: AknLamp(
+                  label: target.required ? 'Bekleniyor' : 'İsteğe bağlı',
+                  tone: target.required ? AknTone.brand : AknTone.neutral,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -540,17 +543,17 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
                     (target.required
                         ? 'Teklif onayı için ${TurkishText.lower(target.label)} gerekir. Görseli yükleyin.'
                         : 'Dilerseniz ödeme belgesini ekleyebilirsiniz.'),
-                style: t.bodySmall,
+                style: t.bodySmall.copyWith(color: context.akn.dim),
               ),
               if (_progress != null) ...[
                 const SizedBox(height: 8),
                 LinearProgressIndicator(value: _progress, minHeight: 4),
               ],
               if (canUpload) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
                 AknButton(
                   label: 'Görsel yükle',
-                  icon: Icons.upload_rounded,
+                  icon: Icons.upload_outlined,
                   expand: true,
                   loading: _progress != null,
                   onPressed: online && _progress == null
@@ -563,7 +566,6 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
                   alignment: Alignment.centerLeft,
                   child: AknButton.ghost(
                     label: 'Siparişi aç',
-                    icon: Icons.receipt_long_rounded,
                     onPressed: () =>
                         context.push(AppRoutes.order(target.orderId!)),
                   ),

@@ -142,12 +142,12 @@ class _Messages extends StatelessWidget {
     final count = items.length + (state.typing ? 1 : 0);
     return ListView.separated(
       reverse: true,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 16),
       itemCount: count,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 16),
       itemBuilder: (context, i) {
         if (state.typing && i == 0) {
-          return const FadeUp(child: TypingBubble());
+          return const TypingBubble();
         }
         final index = state.typing ? i - 1 : i;
         final m = items[index];
@@ -157,10 +157,8 @@ class _Messages extends StatelessWidget {
           onRetry: m.failed ? () => onRetry(m) : null,
           onRate: (helpful) => onRate(m, helpful),
         );
-        // Yalnızca en yeni mesaj belirir; kaydırınca yeniden kurulan eski balonlar oynamaz.
-        return index == 0
-            ? FadeUp(key: ValueKey('in-${m.id}'), child: bubble)
-            : bubble;
+        // Hareket yok (§8.3): yeni mesaj olduğu yerde belirir.
+        return bubble;
       },
     );
   }
@@ -189,55 +187,63 @@ class _Welcome extends ConsumerWidget {
     final questions = [
       for (final g in groups ?? const <SuggestionGroup>[]) ...g.questions,
     ].take(6).toList();
+    // Sola dayalı karşılama (§4.2): 40 px logo karosu, `display` selam, tek cümle; örnek sorular
+    // çip olarak (Beton, r10, ink 600).
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 20, AknSpace.page, 16),
       children: [
-        const Center(child: AssistantAvatar(size: 56)),
-        const SizedBox(height: 16),
+        const Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: AssistantAvatar(size: 40),
+        ),
+        const SizedBox(height: 20),
         Semantics(
           header: true,
           child: Text(
             AssistantCopy.greeting(first),
-            style: t.title,
-            textAlign: TextAlign.center,
+            style: t.display.copyWith(color: c.ink),
+            textScaler: MediaQuery.textScalerOf(
+              context,
+            ).clamp(maxScaleFactor: 1.6),
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          AssistantCopy.intro,
-          style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
-        ),
+        Text(AssistantCopy.intro, style: t.body.copyWith(color: c.dim)),
         const SizedBox(height: 24),
-        Text(AssistantCopy.starters, style: t.label.copyWith(color: c.text)),
-        const SizedBox(height: 10),
+        Text(
+          AssistantCopy.starters,
+          style: t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim),
+        ),
+        const SizedBox(height: 8),
         if (groups == null)
           const Shimmer(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SkeletonBox(height: 48, radius: 12),
+                SkeletonBox(height: 36, width: 240, radius: 10),
                 SizedBox(height: 8),
-                SkeletonBox(height: 48, radius: 12),
+                SkeletonBox(height: 36, width: 200, radius: 10),
               ],
             ),
           )
         else
-          for (var i = 0; i < questions.length; i++)
-            StaggerItem(
-              index: i,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _StarterChip(
-                  question: questions[i],
-                  onTap: enabled ? () => onAsk(questions[i]) : null,
+          Wrap(
+            spacing: 8,
+            runSpacing: 0,
+            children: [
+              for (final q in questions)
+                _StarterChip(
+                  question: q,
+                  onTap: enabled ? () => onAsk(q) : null,
                 ),
-              ),
-            ),
+            ],
+          ),
       ],
     );
   }
 }
 
+/// Örnek soru çipi (§6.11): Beton dolgu, r10, ink 14/18 600; 36 px görünür, 48 px dokunma alanı.
 class _StarterChip extends StatelessWidget {
   const _StarterChip({required this.question, this.onTap});
 
@@ -248,18 +254,42 @@ class _StarterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    return AknCard(
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      label: question,
+      excludeSemantics: true,
       onTap: onTap,
-      shadow: false,
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-      semanticLabel: question,
-      child: Row(
-        children: [
-          Icon(Icons.chat_bubble_outline_rounded, size: 18, color: c.brand),
-          const SizedBox(width: 10),
-          Expanded(child: Text(question, style: t.bodyStrong)),
-          Icon(Icons.north_east_rounded, size: 18, color: c.dim),
-        ],
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 36),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: AknRadius.chip,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Text(
+                  question,
+                  style: t.label.copyWith(
+                    fontSize: 14,
+                    height: 18 / 14,
+                    fontWeight: FontWeight.w600,
+                    color: onTap == null ? c.dim : c.ink,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1,258 +1,229 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/models.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
-import '../../../../core/utils/tr_time.dart';
-import '../../application/order_view_controller.dart';
-import '../../application/ordering_config.dart';
 import '../../copy.dart';
 import '../../data/order_models.dart';
-import 'common.dart';
+import 'order_parts.dart';
 
-/// Teklif karar kartı (spec A.4): ₺/L, toplam, teslim tarihi (talepten farklıysa rozet), sürüm
-/// ve zaman, sunucu saatine göre geri sayım (süre kapalıysa gizli), önceki alımlar ve sürüm geçmişi.
-class QuoteDecisionCard extends ConsumerWidget {
-  const QuoteDecisionCard({
+/// Teklif plakası (tasarım v2 §5.2, §7.8; pano ekran 5): ekranın tek turuncu levhası.
+///
+/// ```
+/// [teklif] Demir Petrol teklifi                     bugün 10:05
+/// 338.800,00 ₺
+/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+/// Birim fiyat        Miktar         Teslim
+/// 42,35 ₺/L          8.000 L        22 Ekim
+/// ```
+///
+/// [stamp] her arttığında plaka "mühürlenir" (1,02 → 1, 160 ms; teklif onaylanınca). Hareket
+/// azaltıldığında anında.
+class QuotePlate extends StatelessWidget {
+  const QuotePlate({
     super.key,
-    required this.view,
-    this.onUploadDocument,
-    this.decisionPending = false,
+    required this.quote,
+    required this.detail,
+    required this.title,
+    this.stamp = 0,
   });
 
-  final OrderView view;
-  final VoidCallback? onUploadDocument;
+  final Quote quote;
+  final OrderDetail detail;
 
-  /// Karar gönderiliyor / doğrulanıyor.
-  final bool decisionPending;
+  /// "Demir Petrol teklifi", "Onaylanan teklif", "Revize istenen teklif" …
+  final String title;
+  final int stamp;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.aknText;
-    final c = context.akn;
-    final d = view.detail;
-    final q = view.latestQuote;
-    if (q == null) return const SizedBox.shrink();
-    final config = ref.watch(orderingConfigValueProvider);
-    final expiryOn = config.expiryEnabled(view.tracking?.expiryEnabled ?? true);
-    final expires = d.expiresAt;
-    final deliveryDiffers =
-        q.deliveryDate != null &&
-        d.requestedDeliveryDate != null &&
-        !TrTime.isSameDay(q.deliveryDate!, d.requestedDeliveryDate!);
-    final versions = view.quoteVersions;
-    final comparison = view.tracking?.priceComparison;
+  Widget build(BuildContext context) {
+    final q = quote;
+    final (whole, decimals) = splitMoney(q.totalAmountTry);
+    final delivery = q.deliveryDate ?? detail.requestedDeliveryDate;
+    final moment = q.createdAt == null ? null : relativeMoment(q.createdAt);
+    final period = [if (q.version > 1) 'v${q.version}', ?moment].join(', ');
+    final plate = AknPlate(
+      head: PlateHead(
+        icon: Icons.request_quote_outlined,
+        title: title,
+        period: period.isEmpty ? null : period,
+      ),
+      figure: PlateFigure(
+        value: whole,
+        decimals: decimals,
+        unit: '₺',
+        semanticLabel: 'Teklif toplamı ${spokenMoney(q.totalAmountTry)}',
+      ),
+      below: PlateReadouts(
+        items: [
+          PlateReadout(
+            label: 'Birim fiyat',
+            value: Fmt.number(q.unitPriceTry, minFraction: 2, maxFraction: 4),
+            unit: '₺/L',
+            semanticLabel: 'Birim fiyat ${Fmt.unitPrice(q.unitPriceTry)}',
+          ),
+          PlateReadout(
+            label: 'Miktar',
+            value: Fmt.number(detail.quantityLiters, maxFraction: 3),
+            unit: 'L',
+            semanticLabel: 'Miktar ${Fmt.liters(detail.quantityLiters)}',
+          ),
+          PlateReadout(
+            label: 'Teslim',
+            value: dayMonthLong(delivery),
+            semanticLabel: 'Teslim ${dayMonthWeekday(delivery)}',
+          ),
+        ],
+      ),
+    );
+    return _Stamp(stamp: stamp, child: plate);
+  }
+}
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: AknCard(
-        accent: AknTone.warn,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _QuoteHeader(
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Semantics(
-                    header: true,
-                    child: Text('Teklif hazır', style: t.headline),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'v${q.version}${q.createdAt == null ? '' : ' · ${Fmt.dayLabel(q.createdAt)} ${Fmt.time(q.createdAt)}'}',
-                    style: t.caption.copyWith(color: c.dim),
-                  ),
-                ],
-              ),
-              badge: expiryOn && expires != null
-                  ? CountdownBadge(
-                      deadline: config.deviceDeadline(expires),
-                      start: q.createdAt == null
-                          ? null
-                          : config.deviceDeadline(q.createdAt!),
-                      prefix: 'Kalan',
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            Semantics(
-              label:
-                  'Birim fiyat ${Fmt.unitPrice(q.unitPriceTry)}, toplam ${Fmt.money(q.totalAmountTry)}',
-              excludeSemantics: true,
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.end,
-                spacing: 12,
-                runSpacing: 4,
-                children: [
-                  AmountText(Fmt.unitPrice(q.unitPriceTry), large: true),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: AmountText(
-                      Fmt.money(q.totalAmountTry),
-                      style: t.bodyStrong.copyWith(color: c.text),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            FactRow(label: 'Miktar', value: Fmt.liters(d.quantityLiters)),
-            FactRow(
-              label: 'Teslim tarihi',
-              value: q.deliveryDate == null
-                  ? Fmt.date(d.requestedDeliveryDate)
-                  : Fmt.date(q.deliveryDate),
-              tone: deliveryDiffers ? AknTone.warn : null,
-            ),
-            if (deliveryDiffers)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Wrap(
-                  spacing: 6,
-                  children: [
-                    const StatusChip(
-                      label: OrdersCopy.deliveryDiffers,
-                      tone: AknTone.warn,
-                      icon: Icons.event_busy_rounded,
-                      size: StatusChipSize.small,
-                    ),
-                    Text(
-                      'İstediğiniz: ${Fmt.date(d.requestedDeliveryDate)}',
-                      style: t.caption.copyWith(color: c.dim),
-                    ),
-                  ],
-                ),
-              ),
-            if (view.paymentDocumentMissing) ...[
-              const SizedBox(height: 8),
-              AknBanner(
-                tone: AknTone.warn,
-                icon: Icons.photo_camera_outlined,
-                title:
-                    '${view.documentTarget?.label ?? 'Ödeme belgesi'} bekleniyor',
-                message:
-                    '${view.documentTarget?.label ?? 'Belge'} yüklenmeden teklif onaylanamaz.',
-                actionLabel: onUploadDocument == null ? null : 'Görseli yükle',
-                onAction: onUploadDocument,
-              ),
-            ],
-            if (view.advanceInsufficient) ...[
-              const SizedBox(height: 8),
-              AknBanner(
-                tone: AknTone.danger,
-                icon: Icons.account_balance_wallet_outlined,
-                title: 'Ön ödemeli bakiye yetersiz',
-                message:
-                    'Kullanılabilir bakiye ${Fmt.money(view.advanceBalance)}, teklif tutarı '
-                    '${Fmt.money(q.totalAmountTry)}. Bakiye yüklemek için bayinizle görüşün.',
-              ),
-            ],
-            if (comparison != null && comparison.hasHistory) ...[
-              const SizedBox(height: 12),
-              _Comparison(comparison: comparison),
-            ],
-            if (versions.length > 1) ...[
-              const SizedBox(height: 12),
-              _Versions(versions: versions),
-            ],
-          ],
-        ),
+/// Teklif gelmeden önceki tahmini tutar plakası (liste fiyatınızla; kesin tutar teklifte).
+class EstimatePlate extends StatelessWidget {
+  const EstimatePlate({super.key, required this.detail});
+
+  final OrderDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = detail;
+    final amount = d.estimatedAmount ?? 0;
+    return AknPlate(
+      head: const PlateHead(
+        icon: Icons.calculate_outlined,
+        title: 'Tahmini tutar',
+      ),
+      figure: PlateFigure(
+        value: Fmt.number(amount.round()),
+        unit: '₺',
+        semanticLabel: 'Tahmini tutar ${Fmt.number(amount.round())} lira',
+      ),
+      delta: const PlateDelta(
+        sentence: 'Kesin tutar bayinin teklifiyle belirlenir.',
+      ),
+      below: PlateReadouts(
+        items: [
+          PlateReadout(
+            label: 'Miktar',
+            value: Fmt.number(d.quantityLiters, maxFraction: 3),
+            unit: 'L',
+          ),
+          PlateReadout(
+            label: 'İstenen teslim',
+            value: dayMonthLong(d.requestedDeliveryDate),
+          ),
+        ],
       ),
     );
   }
 }
 
-AknTone _diffTone(double? diff) {
-  if (diff == null || diff == 0) return AknTone.neutral;
-  return diff > 0 ? AknTone.warn : AknTone.ok;
-}
+class _Stamp extends StatelessWidget {
+  const _Stamp({required this.stamp, required this.child});
 
-String _diffText(double diff) {
-  final sign = diff > 0 ? '+' : (diff < 0 ? '−' : '');
-  return '$sign%${Fmt.number(diff.abs(), maxFraction: 1)}';
-}
-
-class _Comparison extends StatelessWidget {
-  const _Comparison({required this.comparison});
-
-  final QuotePriceComparison comparison;
+  final int stamp;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
+    if (stamp == 0) return child;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(stamp),
+      tween: Tween(begin: 1.02, end: 1),
+      duration: AknMotion.of(context, AknMotion.stamp),
+      curve: AknMotion.standard,
+      builder: (context, s, child) => Transform.scale(scale: s, child: child),
+      child: child,
+    );
+  }
+}
+
+/// "Son alımlarınızla kıyas" (§7.8): son üç kabul edilen birim fiyat (bağlam noktaları), onların
+/// ortalaması (mürekkep çentik), bu teklif (turuncu nokta) ve aradaki fark ("+0,87 ₺"); altında
+/// cümle. İkiden az önceki alım varsa gösterilmez ([shows]).
+class PriceComparison extends StatelessWidget {
+  const PriceComparison({
+    super.key,
+    required this.comparison,
+    required this.offer,
+  });
+
+  final QuotePriceComparison comparison;
+
+  /// Bu teklifin birim fiyatı.
+  final double offer;
+
+  static bool shows(QuotePriceComparison? c) =>
+      c != null && c.previous.length >= 2;
+
+  List<double> get _prices => [
+    for (final p in comparison.previous.take(3)) p.unitPriceTry,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     final c = context.akn;
-    final last = comparison.lastDiffPercent;
-    final avg = comparison.averageDiffPercent;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
-      ),
+    final t = context.aknText;
+    final prices = _prices;
+    final avg = prices.reduce((a, b) => a + b) / prices.length;
+    final diff = offer - avg;
+    final n = prices.length == 2 ? 'iki' : 'üç';
+    final same = diff.abs() < 0.005;
+    final amount =
+        '${Fmt.number(diff.abs(), minFraction: 2, maxFraction: 2)} ₺';
+    final sentence = same
+        ? 'Bu teklif, son $n alımınızın ortalamasıyla aynı.'
+        : 'Bu teklif, son $n alımınızın ortalamasından litrede $amount '
+              '${diff > 0 ? 'yüksek' : 'düşük'}.';
+    final style = t.body.copyWith(color: c.ink);
+    return Semantics(
+      container: true,
+      label: sentence,
+      excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            OrdersCopy.previousPurchases,
-            style: t.label.copyWith(color: c.text),
-          ),
-          const SizedBox(height: 8),
+          // Başlık ve birim yan yana; sığmazsa (büyük yazı, dar ekran) birim alt satıra iner
+          // (QA C-02: 2,0× yazıda 360 dp'de satır taşıyordu).
           Wrap(
-            spacing: 8,
-            runSpacing: 6,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.end,
+            spacing: 12,
+            runSpacing: 2,
             children: [
-              if (last != null)
-                StatusChip(
-                  label: 'Son alıma göre ${_diffText(last)}',
-                  tone: _diffTone(last),
-                  icon: last > 0
-                      ? Icons.trending_up_rounded
-                      : (last < 0
-                            ? Icons.trending_down_rounded
-                            : Icons.trending_flat_rounded),
-                  size: StatusChipSize.small,
-                ),
-              if (avg != null && comparison.previous.length > 1)
-                StatusChip(
-                  label: 'Ortalamaya göre ${_diffText(avg)}',
-                  tone: _diffTone(avg),
-                  icon: Icons.functions_rounded,
-                  size: StatusChipSize.small,
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          for (final p in comparison.previous.take(5))
-            Semantics(
-              label:
-                  '${p.orderNumber}, ${Fmt.date(p.orderedAt)}, ${Fmt.unitPrice(p.unitPriceTry)}'
-                  '${p.diffPercent == null ? '' : ', fark ${_diffText(p.diffPercent!)}'}',
-              excludeSemantics: true,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(Fmt.date(p.orderedAt), style: t.bodySmall),
-                          Text(
-                            '${p.orderNumber} · ${Fmt.liters(p.quantityLiters)}',
-                            style: t.caption.copyWith(color: c.dim),
-                          ),
-                        ],
-                      ),
-                    ),
-                    AmountText(
-                      Fmt.unitPrice(p.unitPriceTry),
-                      style: t.bodySmall.copyWith(color: c.ink),
-                    ),
-                  ],
+              Text(
+                'Son alımlarınızla kıyas',
+                style: t.label.copyWith(
+                  color: c.ink,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+              Text('litre başına', style: t.bodySmall.copyWith(color: c.dim)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _DotPlot(prices: prices, average: avg, offer: offer),
+          const SizedBox(height: 8),
+          if (same)
+            Text(sentence, style: style)
+          else
+            Text.rich(
+              TextSpan(
+                text: 'Bu teklif, son $n alımınızın ortalamasından litrede ',
+                children: [
+                  TextSpan(
+                    text: '$amount ${diff > 0 ? 'yüksek' : 'düşük'}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const TextSpan(text: '.'),
+                ],
+              ),
+              style: style,
             ),
         ],
       ),
@@ -260,77 +231,221 @@ class _Comparison extends StatelessWidget {
   }
 }
 
-class _Versions extends StatelessWidget {
-  const _Versions({required this.versions});
+/// Nokta grafiği: iz çizgisi, bağlam noktaları, ortalama çentiği, teklif noktası, fark parçası ve
+/// etiketler (fark üstte; "son 3 alım ort." ve "bu teklif" altta).
+class _DotPlot extends StatelessWidget {
+  const _DotPlot({
+    required this.prices,
+    required this.average,
+    required this.offer,
+  });
+
+  final List<double> prices;
+  final double average;
+  final double offer;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final scaler = MediaQuery.textScalerOf(context);
+    final small = t.caption.copyWith(color: c.dim);
+    final strong = t.captionStrong.copyWith(color: c.ink);
+    final diff = offer - average;
+    final diffText =
+        '${diff >= 0 ? '+' : '−'}${Fmt.number(diff.abs(), minFraction: 2, maxFraction: 2)} ₺';
+    final avgText =
+        'son ${prices.length} alım ort. ${Fmt.number(average, minFraction: 2, maxFraction: 2)}';
+    final offerText =
+        'bu teklif ${Fmt.number(offer, minFraction: 2, maxFraction: 2)}';
+    double lineH(TextStyle s) => scaler.scale(s.fontSize!) * (s.height ?? 1.3);
+    final topH = lineH(strong) + 6;
+    final bottomH = lineH(small) + 8;
+    const plotH = 20.0;
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = box.maxWidth;
+        final all = [...prices, average, offer];
+        var lo = all.reduce(math.min);
+        var hi = all.reduce(math.max);
+        if (hi - lo < 0.01) {
+          lo -= 0.5;
+          hi += 0.5;
+        }
+        final pad = (hi - lo) * 0.18;
+        lo -= pad;
+        hi += pad;
+        double x(double v) => (v - lo) / (hi - lo) * w;
+        final ax = x(average);
+        final ox = x(offer);
+
+        TextPainter measure(String s, TextStyle st) => TextPainter(
+          text: TextSpan(text: s, style: st),
+          textDirection: TextDirection.ltr,
+          textScaler: scaler,
+          maxLines: 1,
+        )..layout();
+        double place(double center, double width) =>
+            (center - width / 2).clamp(0.0, math.max(0.0, w - width));
+
+        final avgP = measure(avgText, small);
+        final offP = measure(offerText, strong);
+        final diffP = measure(diffText, strong);
+        // Alt etiketler çakışırsa ortalama etiketi sola / sağa itilir.
+        var avgLeft = place(ax, avgP.width);
+        final offLeft = place(ox, offP.width);
+        if (ox >= ax && avgLeft + avgP.width + 8 > offLeft) {
+          avgLeft = math.max(0, offLeft - 8 - avgP.width);
+        } else if (ox < ax && offLeft + offP.width + 8 > avgLeft) {
+          avgLeft = math.min(w - avgP.width, offLeft + offP.width + 8);
+        }
+        final overlap =
+            (avgLeft < offLeft + offP.width && offLeft < avgLeft + avgP.width);
+        final diffLeft = place((ax + ox) / 2, diffP.width);
+        avgP.dispose();
+        offP.dispose();
+        diffP.dispose();
+        return SizedBox(
+          height: topH + plotH + bottomH * (overlap ? 2 : 1),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: diffLeft,
+                top: 0,
+                child: Text(diffText, style: strong, maxLines: 1),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: topH,
+                height: plotH,
+                child: CustomPaint(
+                  painter: _DotPlotPainter(
+                    xs: [for (final p in prices) x(p)],
+                    avgX: ax,
+                    offerX: ox,
+                    track: c.chartTrack,
+                    context: c.chartContext,
+                    ink: c.ink,
+                    highlight: c.chartHighlight,
+                    ring: c.bg,
+                  ),
+                ),
+              ),
+              Positioned(
+                left: avgLeft,
+                top: topH + plotH + 4,
+                child: Text(avgText, style: small, maxLines: 1),
+              ),
+              Positioned(
+                left: offLeft,
+                top: topH + plotH + 4 + (overlap ? bottomH : 0),
+                child: Text(offerText, style: strong, maxLines: 1),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DotPlotPainter extends CustomPainter {
+  const _DotPlotPainter({
+    required this.xs,
+    required this.avgX,
+    required this.offerX,
+    required this.track,
+    required this.context,
+    required this.ink,
+    required this.highlight,
+    required this.ring,
+  });
+
+  final List<double> xs;
+  final double avgX;
+  final double offerX;
+  final Color track;
+  final Color context;
+  final Color ink;
+  final Color highlight;
+  final Color ring;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    final line = Paint()
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(0, cy), Offset(size.width, cy), line..color = track);
+    canvas.drawLine(Offset(avgX, cy), Offset(offerX, cy), line..color = ink);
+    final dot = Paint();
+    for (final x in xs) {
+      canvas.drawCircle(Offset(x, cy), 4, dot..color = context);
+    }
+    // Ortalama çentiği.
+    canvas.drawLine(
+      Offset(avgX, cy - 8),
+      Offset(avgX, cy + 8),
+      Paint()
+        ..color = ink
+        ..strokeWidth = 2,
+    );
+    canvas.drawCircle(Offset(offerX, cy), 8, dot..color = ring);
+    canvas.drawCircle(Offset(offerX, cy), 6, dot..color = highlight);
+  }
+
+  @override
+  bool shouldRepaint(_DotPlotPainter old) =>
+      old.xs != xs ||
+      old.avgX != avgX ||
+      old.offerX != offerX ||
+      old.track != track ||
+      old.context != context ||
+      old.ink != ink ||
+      old.highlight != highlight;
+}
+
+/// "Teklif sürümleri" (birden çok sürüm varsa): yeni önce, ₺/L ve bir öncekine göre fark.
+class QuoteVersions extends StatelessWidget {
+  const QuoteVersions({super.key, required this.versions});
 
   /// Yeni önce.
   final List<Quote> versions;
 
   @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(OrdersCopy.versions, style: t.label.copyWith(color: c.text)),
-        const SizedBox(height: 6),
-        for (var i = 0; i < versions.length; i++)
-          () {
-            final v = versions[i];
-            final older = i + 1 < versions.length ? versions[i + 1] : null;
-            final delta = older == null
-                ? null
-                : v.unitPriceTry - older.unitPriceTry;
-            final deltaText = delta == null || delta == 0
-                ? null
-                : '${delta > 0 ? '+' : '−'}${Fmt.unitPrice(delta.abs())}';
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text('v${v.version}', style: t.bodyStrong),
-                      AmountText(
-                        Fmt.unitPrice(v.unitPriceTry),
-                        style: t.bodySmall.copyWith(color: c.ink),
-                      ),
-                      if (deltaText != null)
-                        StatusChip(
-                          label: deltaText,
-                          tone: delta! < 0 ? AknTone.ok : AknTone.warn,
-                          size: StatusChipSize.small,
-                        ),
-                      if (v.createdAt != null)
-                        Text(
-                          Fmt.dateTime(v.createdAt),
-                          style: t.caption.copyWith(color: c.dim),
-                        ),
-                    ],
-                  ),
-                  if (v.revisionNote != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        'Revize notunuz: ${v.revisionNote}',
-                        style: t.caption.copyWith(color: c.dim),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }(),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => AknLedger(
+    children: [
+      for (var i = 0; i < versions.length; i++)
+        () {
+          final v = versions[i];
+          final older = i + 1 < versions.length ? versions[i + 1] : null;
+          final delta = older == null
+              ? null
+              : v.unitPriceTry - older.unitPriceTry;
+          final deltaText = delta == null || delta.abs() < 0.00005
+              ? null
+              : '${delta > 0 ? '+' : '−'}${Fmt.unitPrice(delta.abs())} önceki sürüme göre';
+          return AknListTile(
+            dense: true,
+            title: 'Sürüm ${v.version}',
+            subtitle: [
+              if (v.createdAt != null) relativeMoment(v.createdAt),
+              ?deltaText,
+              if (v.revisionNote != null) 'Revize notunuz: ${v.revisionNote}',
+            ].join('\n'),
+            subtitleMaxLines: 4,
+            amount: Fmt.unitPrice(v.unitPriceTry),
+            amountMeta: Fmt.money(v.totalAmountTry),
+          );
+        }(),
+    ],
+  );
 }
 
-/// Revize / ret sayfası: web ön ayar çipleri + serbest metin. Not dönerse karar verilir.
+/// Revize isteği sayfası: web ön ayar çipleri + açıklama; "Revize iste" not döndürür.
+/// Ret sayfası: neden çipleri + isteğe bağlı açıklama; kırmızı "Teklifi reddet".
 Future<String?> showDecisionNoteSheet(
   BuildContext context, {
   required bool revise,
@@ -389,32 +504,27 @@ class _DecisionNoteSheetState extends State<_DecisionNoteSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Hazır nedenler', style: t.label.copyWith(color: c.dim)),
-        const SizedBox(height: 8),
+        Text('Hazır nedenler', style: t.label.copyWith(color: c.ink)),
+        const SizedBox(height: 4),
         Wrap(
           spacing: 8,
-          runSpacing: 8,
           children: [
             for (final o in _options)
-              FilterChip(
-                label: Text(o),
+              AknChip(
+                label: o,
                 selected: _presets.contains(o),
-                onSelected: (v) => setState(() {
-                  if (v) {
-                    _presets.add(o);
-                  } else {
-                    _presets.remove(o);
-                  }
+                onTap: () => setState(() {
+                  if (!_presets.remove(o)) _presets.add(o);
                 }),
               ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         AknTextField(
           controller: _text,
           label: OrdersCopy.reasonLabel,
           hint: widget.revise
-              ? 'ör. 41,90 ₺/L olursa onaylıyoruz'
+              ? 'Örneğin 41,90 ₺/L olursa onaylıyoruz'
               : 'İsteğe bağlı',
           maxLines: 4,
           minLines: 2,
@@ -429,25 +539,15 @@ class _DecisionNoteSheetState extends State<_DecisionNoteSheet> {
         ),
         const SizedBox(height: 16),
         if (widget.revise)
-          AknButton(
-            label: OrdersCopy.revise,
-            icon: Icons.edit_note_rounded,
-            expand: true,
-            onPressed: _submit,
-          )
+          AknButton(label: OrdersCopy.revise, expand: true, onPressed: _submit)
         else
-          AknButton.danger(
-            label: OrdersCopy.reject,
-            icon: Icons.block_rounded,
-            expand: true,
-            onPressed: _submit,
-          ),
+          DestructiveButton(label: OrdersCopy.rejectQuote, onPressed: _submit),
       ],
     );
   }
 }
 
-/// Onay özeti: "{toplam} · {litre} · teslim {tarih}".
+/// Onay özeti: toplam, litre ve teslim; altında ürün, birim fiyat ve ödeme.
 Future<bool> showApproveRecap(
   BuildContext context, {
   required Quote quote,
@@ -455,68 +555,30 @@ Future<bool> showApproveRecap(
   String? paymentLine,
 }) {
   final t = context.aknText;
+  final c = context.akn;
   final delivery = quote.deliveryDate ?? order.requestedDeliveryDate;
   final recap =
-      '${Fmt.money(quote.totalAmountTry)} · ${Fmt.liters(order.quantityLiters)} · teslim ${Fmt.date(delivery)}';
+      '${Fmt.money(quote.totalAmountTry)}, ${Fmt.liters(order.quantityLiters)}, teslim ${dayMonthWeekday(delivery)}';
   return showConfirmSheet(
     context,
     title: 'Teklifi onaylıyor musunuz?',
     message: 'Onayladığınızda bayi sevkiyatı planlar.',
     confirmLabel: OrdersCopy.approve,
-    icon: Icons.task_alt_rounded,
-    tone: AknTone.ok,
     content: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           label: recap,
           excludeSemantics: true,
-          child: AmountText(
-            recap,
-            textAlign: TextAlign.center,
-            style: t.headline,
-          ),
+          child: Text(recap, style: t.headline.copyWith(color: c.ink)),
         ),
         const SizedBox(height: 6),
         Text(
-          '${order.productName} · ${Fmt.unitPrice(quote.unitPriceTry)}'
+          '${order.productName}, ${Fmt.unitPrice(quote.unitPriceTry)}'
           '${paymentLine == null ? '' : '\n$paymentLine'}',
-          textAlign: TextAlign.center,
-          style: t.bodySmall,
+          style: t.bodySmall.copyWith(color: c.dim),
         ),
       ],
     ),
   );
-}
-
-/// Başlık + geri sayım: normal yazıda yan yana, büyük yazıda (≈%130+) alt alta (taşma olmaz).
-class _QuoteHeader extends StatelessWidget {
-  const _QuoteHeader({required this.title, this.badge});
-
-  final Widget title;
-  final Widget? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final b = badge;
-    if (b == null) return title;
-    if (isLargeText(context)) {
-      // Çok büyük yazıda rozet kart genişliğini aşarsa sığacak kadar küçülür (kesilmez).
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          title,
-          const SizedBox(height: 8),
-          FitBadge(child: b),
-        ],
-      );
-    }
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: title),
-        const SizedBox(width: 8),
-        b,
-      ],
-    );
-  }
 }

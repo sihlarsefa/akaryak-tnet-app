@@ -26,7 +26,10 @@ void main() {
     final a = await FieldOrderPdf.build(external);
     expect(String.fromCharCodes(a.take(5)), '%PDF-');
     expect(a.length, greaterThan(20000), reason: 'gömülü Türkçe yazı tipi');
-    expect(FieldOrderPdf.fileName(external), contains('SF-2026-00007'));
+    expect(
+      FieldOrderPdf.fileName(external),
+      contains(RegExp(r'SSF-\d{8}-000007')),
+    );
     expect(FieldOrderPdf.fileName(external), endsWith('.pdf'));
 
     final internal = await repo.document(7001, internal: true);

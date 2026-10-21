@@ -13,6 +13,7 @@ import '../../../../core/ui/ui.dart';
 import '../../application/auth_clock.dart';
 import '../../application/auth_errors.dart';
 import '../../copy.dart';
+import 'auth_header.dart';
 import 'countdown.dart';
 
 /// Kod doğrulama: hata fırlatırsa ([AppFailure]) mesaj kutuların altında gösterilir.
@@ -35,6 +36,8 @@ class CodeEntry extends ConsumerStatefulWidget {
     this.note,
     this.onRestart,
     this.autofocus = true,
+    this.showHeader = true,
+    this.showLogo = true,
   });
 
   final OtpChallenge challenge;
@@ -47,6 +50,12 @@ class CodeEntry extends ConsumerStatefulWidget {
   /// Sorgunun süresi tamamen dolduğunda ("Doğrulama süresi doldu") baştan başlatır.
   final VoidCallback? onRestart;
   final bool autofocus;
+
+  /// "Kodu girin" başlığı ve kodun gittiği numara (telefon doğrulamada sayfa kendi başlığını çizer).
+  final bool showHeader;
+
+  /// Başlığın üstündeki 40 px logo karosu.
+  final bool showLogo;
 
   @override
   ConsumerState<CodeEntry> createState() => _CodeEntryState();
@@ -190,44 +199,20 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Center(
-          child: AknIconBox(
-            icon: Icons.sms_outlined,
-            tone: AknTone.brand,
-            size: 56,
+        if (widget.showHeader) ...[
+          AuthPageHeader(
+            title: AuthCopy.codeHeadline,
+            message: masked.isEmpty
+                ? AuthCopy.codeSentGeneric
+                : AuthCopy.codeSentTo(masked),
+            showLogo: widget.showLogo,
           ),
-        ),
-        const SizedBox(height: 16),
-        Semantics(
-          header: true,
-          child: Text(
-            AuthCopy.codeHeadline,
-            style: t.title,
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          masked.isEmpty
-              ? AuthCopy.codeSentGeneric
-              : AuthCopy.codeSentTo(masked),
-          style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
+          const SizedBox(height: 24),
+        ],
         _pin(context),
         const SizedBox(height: 12),
         _status(context),
-        const SizedBox(height: 20),
-        AknButton(
-          label: AuthCopy.verify,
-          expand: true,
-          size: AknButtonSize.large,
-          loading: _verifying,
-          loadingLabel: AuthCopy.verifying,
-          onPressed: _verifying ? null : _verify,
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         _resendRow(context),
         if (_restartNeeded && widget.onRestart != null) ...[
           const SizedBox(height: 4),
@@ -237,18 +222,25 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
             onPressed: widget.onRestart,
           ),
         ],
+        const SizedBox(height: 20),
+        AknButton(
+          label: AuthCopy.verify,
+          expand: true,
+          size: AknButtonSize.large,
+          loading: _verifying,
+          loadingLabel: AuthCopy.verifying,
+          onPressed: _verifying ? null : _verify,
+        ),
         if (widget.note != null) ...[
           const SizedBox(height: 16),
-          Text(
-            widget.note!,
-            style: t.caption.copyWith(color: c.dim),
-            textAlign: TextAlign.center,
-          ),
+          Text(widget.note!, style: t.bodySmall.copyWith(color: c.dim)),
         ],
       ],
     );
   }
 
+  /// 6 kutu (tasarım v2 §6.10): 48 × 56, r12, 1 px kontrol çizgisi, odakta 2 px turuncu; rakamlar
+  /// Mona Sans Condensed 700 24 (orantılı rakam).
   Widget _pin(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
@@ -257,56 +249,58 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
       builder: (context, constraints) {
         const gap = 8.0;
         final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 360;
-        final boxW = math.min(52.0, (maxW - gap * (_length - 1)) / _length);
-        final boxH = math.max(56.0, scaler.scale(22) * 1.6);
-        final digit = t.title.copyWith(
+        final boxW = math.min(48.0, (maxW - gap * (_length - 1)) / _length);
+        final boxH = math.max(56.0, scaler.scale(24) * 1.5);
+        final digit = t.number.copyWith(
+          fontSize: 24,
+          height: 28 / 24,
           color: c.ink,
-          fontFeatures: const [FontFeature.tabularFigures()],
         );
-        PinTheme theme(Color border, Color fill, {double width = 1}) =>
-            PinTheme(
-              width: boxW,
-              height: boxH,
-              textStyle: digit,
-              decoration: BoxDecoration(
-                color: fill,
-                borderRadius: AknRadius.input,
-                border: Border.all(color: border, width: width),
-              ),
-            );
-        final fill = c.isDark ? c.surfaceAlt : c.surface;
-        return Semantics(
-          label: AuthCopy.codeFieldLabel,
-          child: Pinput(
-            length: _length,
-            controller: _controller,
-            focusNode: _focus,
-            autofocus: widget.autofocus,
-            enabled: !_verifying,
-            separatorBuilder: (_) => const SizedBox(width: gap),
-            defaultPinTheme: theme(c.lineStrong, fill),
-            focusedPinTheme: theme(c.brand, fill, width: 2),
-            submittedPinTheme: theme(c.line, fill),
-            errorPinTheme: theme(c.danger.fg, c.danger.bg, width: 1.5),
-            forceErrorState: _error != null,
-            autofillHints: const [AutofillHints.oneTimeCode],
-            androidSmsAutofillMethod:
-                AndroidSmsAutofillMethod.smsUserConsentApi,
-            // Yeniden gönderilen kodun SMS'i de önerilsin.
-            listenForMultipleSmsOnAndroid: true,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.done,
-            hapticFeedbackType: HapticFeedbackType.selectionClick,
-            animationDuration: AknMotion.of(context, AknMotion.fast),
-            animationCurve: AknMotion.standard,
-            pinAnimationType: context.reduceMotion
-                ? PinAnimationType.none
-                : PinAnimationType.fade,
-            showCursor: true,
-            cursor: _Cursor(color: c.brand),
-            onCompleted: _verify,
-            onSubmitted: (_) => _verify(),
+        PinTheme theme(Color border, {double width = 1}) => PinTheme(
+          width: boxW,
+          height: boxH,
+          textStyle: digit,
+          decoration: BoxDecoration(
+            color: c.surface,
+            borderRadius: AknRadius.input,
+            border: Border.all(color: border, width: width),
+          ),
+        );
+        return Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Semantics(
+            label: AuthCopy.codeFieldLabel,
+            child: Pinput(
+              length: _length,
+              controller: _controller,
+              focusNode: _focus,
+              autofocus: widget.autofocus,
+              enabled: !_verifying,
+              separatorBuilder: (_) => const SizedBox(width: gap),
+              defaultPinTheme: theme(c.lineStrong),
+              focusedPinTheme: theme(c.brand, width: 2),
+              submittedPinTheme: theme(c.lineStrong),
+              errorPinTheme: theme(c.danger.fg, width: 2),
+              forceErrorState: _error != null,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              androidSmsAutofillMethod:
+                  AndroidSmsAutofillMethod.smsUserConsentApi,
+              // Yeniden gönderilen kodun SMS'i de önerilsin.
+              listenForMultipleSmsOnAndroid: true,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              hapticFeedbackType: HapticFeedbackType.selectionClick,
+              animationDuration: AknMotion.of(context, AknMotion.fast),
+              animationCurve: AknMotion.standard,
+              pinAnimationType: context.reduceMotion
+                  ? PinAnimationType.none
+                  : PinAnimationType.fade,
+              showCursor: true,
+              cursor: _Cursor(color: c.brand),
+              onCompleted: _verify,
+              onSubmitted: (_) => _verify(),
+            ),
           ),
         );
       },
@@ -318,37 +312,20 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
     final c = context.akn;
     final error = _error;
     if (error != null) {
-      return Semantics(
-        liveRegion: true,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Icon(Icons.error_rounded, size: 18, color: c.danger.fg),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                error,
-                style: t.bodySmall.copyWith(color: c.danger.fg),
-              ),
-            ),
-          ],
-        ),
-      );
+      // Alan hatası gibi (§6.10): simge + 13/18 500 kırmızı cümle.
+      return Semantics(liveRegion: true, child: AknFieldError(error, inset: 0));
     }
     return CountdownBuilder(
       until: _expiresAt,
       builder: (context, remaining) {
         final expired = remaining <= Duration.zero;
+        final color = expired ? c.warn.fg : c.dim;
         return Row(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               expired ? Icons.timer_off_outlined : Icons.timer_outlined,
-              size: 16,
-              color: expired ? c.warn.fg : c.dim,
+              size: 17,
+              color: color,
             ),
             const SizedBox(width: 6),
             Flexible(
@@ -356,14 +333,13 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
                 expired
                     ? AuthCopy.codeExpired
                     : AuthCopy.codeExpiresIn(formatWait(remaining)),
-                style: t.caption.copyWith(
-                  color: expired ? c.warn.fg : c.dim,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                style: t.bodySmall.copyWith(
+                  color: color,
+                  fontWeight: expired ? FontWeight.w600 : FontWeight.w500,
                 ),
                 semanticsLabel: expired
                     ? AuthCopy.codeExpired
                     : AuthCopy.codeExpiresIn(spokenWait(remaining)),
-                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -372,6 +348,7 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
     );
   }
 
+  /// "Kodu tekrar gönder (0:45)" (tasarım v2 §7.2): sade düğme, ink 600; beklerken soluk ve kapalı.
   Widget _resendRow(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
@@ -386,35 +363,38 @@ class _CodeEntryState extends ConsumerState<CodeEntry> {
         final label = waiting
             ? AuthCopy.resendIn(formatWait(remaining))
             : AuthCopy.resend;
-        return Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 4,
-          children: [
-            Text(AuthCopy.noCode, style: t.bodySmall.copyWith(color: c.dim)),
-            Semantics(
-              button: true,
-              enabled: !waiting && !_resending,
-              label: waiting
-                  ? AuthCopy.resendInSpoken(spokenWait(remaining))
-                  : AuthCopy.resend,
-              excludeSemantics: true,
-              onTap: waiting || _resending ? null : _resend,
-              child: TextButton(
-                onPressed: waiting || _resending ? null : _resend,
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(AknSpace.minTap, AknSpace.minTap),
-                  foregroundColor: c.brandInk,
-                  textStyle: t.bodyStrong.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+        final enabled = !waiting && !_resending;
+        return Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Semantics(
+            button: true,
+            enabled: enabled,
+            label: waiting
+                ? AuthCopy.resendInSpoken(spokenWait(remaining))
+                : AuthCopy.resend,
+            excludeSemantics: true,
+            onTap: enabled ? _resend : null,
+            child: TextButton(
+              onPressed: enabled ? _resend : null,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(AknSpace.minTap, AknSpace.minTap),
+                // Metin 20 px kenarda başlar (sola dayalı düzen).
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                foregroundColor: c.ink,
+                disabledForegroundColor: c.dim,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: AknRadius.buttonSmall,
                 ),
-                child: _resending
-                    ? ChevronSpinner(size: 18, color: c.brandInk)
-                    : Text(label),
+                textStyle: t.body.copyWith(
+                  height: 20 / 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              child: _resending
+                  ? ChevronSpinner(size: 18, color: c.ink)
+                  : Text(label),
             ),
-          ],
+          ),
         );
       },
     );

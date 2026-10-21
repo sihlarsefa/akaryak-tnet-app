@@ -430,7 +430,7 @@ void main() {
       expect(WizardRules.paymentDueDate(d, m), due);
       expect(
         WizardRules.paymentSummary(d, m),
-        'Çek · 40 gün · vade ${Fmt0.date(due)}',
+        'Çek, 40 gün, vade ${Fmt0.date(due)}',
       );
     });
   });
@@ -446,13 +446,14 @@ void main() {
         ).copyWith(custom: true, pointId: 1002, date: TrTime.addDays(today, 4));
         final d = draft(
           lines: [DraftLine.create(productId: 1, liters: 10000), l2],
-          payment: const DraftPayment(
+          payment: DraftPayment(
             methodCode: 'CEK',
             termDays: 30,
             fields: {
               'serialNo': 'A1',
               'amount': '421.000,50',
-              'dueDate': '2026-12-01',
+              // Vade bugüne göre; sabit tarih zamanla geçmişte kalırdı.
+              'dueDate': TrTime.isoDate(TrTime.addDays(tomorrow, 30)),
             },
           ),
         ).copyWith(note: 'Acil', templateId: 702, paymentGroupKey: 'g-1');

@@ -72,32 +72,26 @@ class _OptionalUpdateBody extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 8),
-        const Center(
-          child: AknIconBox(
-            icon: Icons.system_update_rounded,
-            tone: AknTone.brand,
-            size: 56,
-          ),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: Icon(Icons.system_update_outlined, size: 32, color: c.ink),
         ),
         const SizedBox(height: 16),
         Semantics(
           header: true,
           child: Text(
             config.updateTitle ?? AuthCopy.optionalTitle,
-            style: t.title,
-            textAlign: TextAlign.center,
+            style: t.title.copyWith(color: c.ink),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           config.updateMessage ?? AuthCopy.optionalBody,
           style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
         AknButton(
           label: AuthCopy.updateAction,
-          icon: Icons.open_in_new_rounded,
           expand: true,
           onPressed: () => Navigator.of(context).pop(true),
         ),

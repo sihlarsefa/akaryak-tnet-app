@@ -75,10 +75,13 @@ class _Loaded extends ConsumerWidget {
         children: [
           WeatherNowRow(
             report: report,
-            trailing: Icon(Icons.chevron_right_rounded, color: c.faint),
+            trailing: Icon(Icons.chevron_right_rounded, color: c.dim),
           ),
           const SizedBox(height: 8),
-          Text(weatherSummaryLine(report), style: t.bodySmall),
+          Text(
+            weatherSummaryLine(report),
+            style: t.bodySmall.copyWith(color: c.dim),
+          ),
           if (picked.isNotEmpty) ...[
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -147,7 +150,7 @@ class _Unavailable extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
     child: AknListTile(
       padding: EdgeInsets.zero,
-      leadingIcon: Icons.cloud_off_rounded,
+      leadingIcon: Icons.cloud_off_outlined,
       title: WeatherCopy.unavailable,
       subtitle: WeatherCopy.unavailableHint,
       trailing: AknIconButton(

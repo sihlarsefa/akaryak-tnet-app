@@ -10,9 +10,9 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
-import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../assistant/api.dart';
+import '../../stats/api.dart' show ManagerStatsDeck, refreshManagerStats;
 import '../../weather/api.dart';
 import '../application/field_access.dart';
 import '../application/field_home_controller.dart';
@@ -22,9 +22,13 @@ import '../data/field_models.dart';
 import '../data/field_outbox.dart';
 import 'location_capture.dart';
 import 'widgets/field_widgets.dart';
+import 'widgets/tupras_strip.dart';
 
-/// Saha satış ana sayfası (spec A.4 A6): taslaklar, onay bekleyenler, reddedilenler, portföy sayısı,
-/// hızlı işlemler, bulunduğunuz yerde hava. Sınıf adı ve kurucu imzası sabittir.
+/// Saha satış ana sayfası (tasarım v2 §7.16, §7.6 `fieldRep`): `AknHomeHeader` → kendi portföyünün
+/// istatistik destesi (üstteki kart plaka) → gönderilmeyi bekleyenler → "Saha formlarım" (okuma
+/// şeridi + onay bekleyen, taslak, reddedilen satırları) → "Ön kayıtlarım" → "Tüpraş fiyatları" →
+/// bulunduğunuz yerde hava. "Saha formu" alt menünün ortasındaki tuştadır. Sınıf adı ve kurucu imzası
+/// sabittir.
 class FieldHome extends ConsumerWidget {
   const FieldHome({super.key});
 
@@ -40,6 +44,7 @@ class FieldHome extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(fieldHomeProvider);
     final access = ref.watch(fieldAccessProvider);
+    final me = ref.watch(sessionControllerProvider.select((s) => s.access));
     final features = ref.watch(appConfigProvider.select((c) => c.features));
     // Asistan girişleri: özellik açık ve sunucu 503 `assistant_disabled` demedi (spec A.6).
     final assistantOn =
@@ -47,11 +52,16 @@ class FieldHome extends ConsumerWidget {
     final queued = ref.watch(fieldQueuedItemsProvider);
     final data = state.data;
 
-    Future<void> refresh() => ref.read(fieldHomeProvider.notifier).refresh();
+    Future<void> refresh() async {
+      await Future.wait([
+        ref.read(fieldHomeProvider.notifier).refresh(),
+        refreshManagerStats(ref),
+      ]);
+    }
 
     final Widget body;
     if (state.loading && data == null) {
-      body = const SkeletonList(itemCount: 4, header: _HeroSkeleton());
+      body = const SkeletonList(itemCount: 4, header: _DeckSkeleton());
     } else if (data == null) {
       body = ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -79,20 +89,18 @@ class FieldHome extends ConsumerWidget {
       );
     }
 
+    final name = (me?.displayName ?? '').trim();
+    final role = (me?.bayiRoleNames.isNotEmpty ?? false)
+        ? me!.bayiRoleNames.first
+        : 'Saha satış temsilcisi';
     return AppScaffold(
-      navy: true,
-      // Lacivert başlıkta marka logosu (müşteri ana sayfasıyla aynı).
-      titleWidget: const AknLogo(markSize: 28, onDark: true),
+      homeHeader: AknHomeHeader(
+        company: me?.stationTitle ?? 'Saha satış',
+        person: [if (name.isNotEmpty) name, fieldLowerFirst(role)].join(', '),
+        // Ada dokununca Profil (§6.2) şimdilik kapalı: AknHomeHeader'ın dokunma düğümü etiketsiz ve
+        // 48 dp'den kısa (a11y kılavuzları); çekirdek düzeltilince `onOpenProfile` geri eklenecek.
+      ),
       refreshing: state.refreshing,
-      actions: [
-        if (assistantOn)
-          AknIconButton(
-            icon: Icons.chat_bubble_outline_rounded,
-            semanticLabel: 'Asistan',
-            color: context.akn.onNavy,
-            onPressed: () => context.push(AppRoutes.assistant),
-          ),
-      ],
       body: body,
     );
   }
@@ -123,46 +131,80 @@ class _HomeList extends StatelessWidget {
         data.recentPending.isEmpty &&
         data.recentRejected.isEmpty &&
         queued.isEmpty;
+    void openForms(int status) =>
+        context.go('${AppRoutes.field}?tab=forms&status=$status');
+    final formsFailed = data.failed.contains('forms');
     final children = <Widget>[
-      _Hero(data: data, access: access, queuedDrafts: queuedForms),
+      // Sahip kararı G: deste turuncu şeridin üstüne biner (AknBandOverlap, liste üst boşluğu yok).
+      const AknBandOverlap(
+        padding: EdgeInsets.zero,
+        child: ManagerStatsDeck(padding: EdgeInsets.symmetric(horizontal: 18)),
+      ),
       if (cachedAt != null) FieldCachedNote(at: cachedAt!),
-      const _TipCard(),
-      _QuickActions(access: access),
       if (queued.isNotEmpty) ...[
         SectionHeader(
           title: 'Gönderilmeyi bekleyenler',
           count: queued.length,
           subtitle: 'Bağlantı gelince otomatik gönderilir',
         ),
-        for (final q in queued)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: FieldQueuedTile(
-              item: q,
-              onEdit: q.isForm || q.isLead
-                  ? () => context.push(
-                      q.isForm
-                          ? '${AppRoutes.fieldFormNew}?op=${q.op.id}'
-                          : '${AppRoutes.fieldLeadNew}?op=${q.op.id}',
-                    )
-                  : null,
-            ),
-          ),
-      ],
-      if (data.failed.contains('forms'))
-        const _SectionFailed(title: 'Saha formları'),
-      if (data.leadsNeedingInfo.isNotEmpty) ...[
-        SectionHeader(
-          title: 'Ek bilgi bekleyen ön kayıtlar',
-          count: data.leadsNeedingInfoCount,
-          actionLabel: 'Tümü',
-          onAction: () =>
-              context.go('${AppRoutes.field}?tab=leads&status=info'),
+        AknLedger(
+          children: [
+            for (final q in queued)
+              FieldQueuedTile(
+                item: q,
+                onEdit: q.isForm || q.isLead
+                    ? () => context.push(
+                        q.isForm
+                            ? '${AppRoutes.fieldFormNew}?op=${q.op.id}'
+                            : '${AppRoutes.fieldLeadNew}?op=${q.op.id}',
+                      )
+                    : null,
+              ),
+          ],
         ),
-        for (final l in data.leadsNeedingInfo)
+      ],
+      if (access.canSeeForms) ...[
+        SectionHeader(
+          title: 'Saha formlarım',
+          actionLabel: 'Tümü',
+          onAction: () => context.go('${AppRoutes.field}?tab=forms'),
+          padding: const EdgeInsets.fromLTRB(20, 20, 12, 0),
+        ),
+        if (formsFailed)
+          const _SectionFailed(title: 'Saha formları')
+        else
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: FieldLeadTile(row: l),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: KpiRow(
+              children: [
+                KpiTile(
+                  label: 'Taslak',
+                  value: data.drafts + queuedForms,
+                  caption: queuedForms > 0
+                      ? '$queuedForms gönderilmeyi bekliyor'
+                      : null,
+                  onTap: () => openForms(0),
+                ),
+                KpiTile(
+                  label: 'Onayda',
+                  value: data.pending,
+                  onTap: () => openForms(1),
+                ),
+                KpiTile(
+                  label: 'Reddedilen',
+                  value: data.rejected,
+                  caption: 'Son 30 gün',
+                  onTap: () => openForms(3),
+                ),
+                if (access.isRep)
+                  KpiTile(
+                    label: 'Portföy',
+                    value: data.portfolioCount,
+                    caption: 'cari',
+                    onTap: () => context.go('${AppRoutes.field}?tab=portfolio'),
+                  ),
+              ],
+            ),
           ),
       ],
       ..._formSection(
@@ -186,32 +228,86 @@ class _HomeList extends StatelessWidget {
         total: data.rejected,
         status: 3,
       ),
-      if (noForms && access.canCreateForm && !data.failed.contains('forms'))
+      if (noForms && access.canCreateForm && !formsFailed)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: AknCard(
-            child: EmptyState(
-              compact: true,
-              title: FieldCopy.formsEmptyTitle,
-              message: FieldCopy.formsEmptyMessage,
-              illustration: AknIllustration.field,
-              actionLabel: 'Saha formu',
-              onAction: () => context.push(AppRoutes.fieldFormNew),
+          padding: const EdgeInsets.only(top: 16),
+          child: EmptyState(
+            compact: true,
+            title: FieldCopy.formsEmptyTitle,
+            message: FieldCopy.formsEmptyMessage,
+            illustration: AknIllustration.field,
+            actionLabel: 'Saha formu',
+            onAction: () => context.push(AppRoutes.fieldFormNew),
+          ),
+        ),
+      if (access.canSeeLeads) ..._leadSection(context),
+      const TuprasStrip(),
+      const _TipWell(),
+      if (weather) const _WeatherHere(),
+      if (assistant) const _AssistantRow(),
+      const SizedBox(height: 32),
+    ];
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 24),
+      children: children,
+    );
+  }
+
+  List<Widget> _leadSection(BuildContext context) {
+    final s = data.leadStats;
+    final leadsFailed = data.failed.contains('leads');
+    return [
+      SectionHeader(
+        title: 'Ön kayıtlarım',
+        actionLabel: access.canCreateLead ? 'Yeni ön kayıt' : 'Tümü',
+        onAction: access.canCreateLead
+            ? () => context.push(AppRoutes.fieldLeadNew)
+            : () => context.go('${AppRoutes.field}?tab=leads'),
+      ),
+      if (leadsFailed)
+        const _SectionFailed(title: 'Ön kayıtlar')
+      else if (s != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Semantics(
+            container: true,
+            label: 'Bu ay ön kayıtlar',
+            child: KpiRow(
+              children: [
+                KpiTile(
+                  label: 'Bu ay',
+                  value: s.total,
+                  caption: 'kayıt',
+                  onTap: () => context.go('${AppRoutes.field}?tab=leads'),
+                ),
+                KpiTile(label: 'Finansta', value: s.inFinance + s.submitted),
+                KpiTile(
+                  label: 'Cariye dönüşen',
+                  value: s.converted,
+                  caption: s.conversionRatePercent == null
+                      ? null
+                      : 'Dönüşüm %${s.conversionRatePercent!.round()}',
+                ),
+              ],
             ),
           ),
         ),
-      if (data.leadStats != null) _LeadStatsCard(stats: data),
-      if (weather) const _WeatherHere(),
-      if (assistant) const _AssistantCard(),
-      const SizedBox(height: 32),
+      if (data.leadsNeedingInfo.isNotEmpty) ...[
+        SectionHeader(
+          title: 'Ek bilgi bekleyen ön kayıtlar',
+          count: data.leadsNeedingInfoCount,
+          actionLabel: 'Tümü',
+          onAction: () =>
+              context.go('${AppRoutes.field}?tab=leads&status=info'),
+        ),
+        AknLedger(
+          children: [
+            for (final l in data.leadsNeedingInfo) FieldLeadTile(row: l),
+          ],
+        ),
+      ],
     ];
-    return StaggerScope(
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(bottom: 24),
-        children: staggered(children),
-      ),
-    );
   }
 
   List<Widget> _formSection(
@@ -230,221 +326,20 @@ class _HomeList extends StatelessWidget {
         onAction: () =>
             context.go('${AppRoutes.field}?tab=forms&status=$status'),
       ),
-      for (final r in rows)
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: FieldFormTile(row: r),
-        ),
+      AknLedger(children: [for (final r in rows) FieldFormTile(row: r)]),
     ];
   }
 }
 
-class _Hero extends ConsumerWidget {
-  const _Hero({
-    required this.data,
-    required this.access,
-    required this.queuedDrafts,
-  });
-
-  final FieldHomeData data;
-  final FieldAccess access;
-  final int queuedDrafts;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final me = ref.watch(sessionControllerProvider.select((s) => s.access));
-    final firstName = (me?.displayName ?? '').split(' ').first;
-    final roles = me?.bayiRoleNames.isNotEmpty ?? false
-        ? me!.bayiRoleNames
-        : const ['Saha satış'];
-    return AknHeroPanel(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          final c = context.akn;
-          void openForms(int status) =>
-              context.go('${AppRoutes.field}?tab=forms&status=$status');
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Semantics(
-                header: true,
-                child: Text(
-                  '${FieldHome.greeting()}${firstName.isEmpty ? '' : ', $firstName'}',
-                  style: t.title,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                me?.stationTitle ?? 'Saha satış',
-                style: t.body.copyWith(color: c.dim),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final r in roles)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: c.surface,
-                        borderRadius: AknRadius.pillAll,
-                      ),
-                      child: Text(r, style: t.label.copyWith(color: c.ink)),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              KpiRow(
-                children: [
-                  KpiTile(
-                    label: 'Taslak',
-                    value: data.drafts + queuedDrafts,
-                    icon: Icons.edit_note_rounded,
-                    caption: queuedDrafts > 0
-                        ? '$queuedDrafts gönderilmeyi bekliyor'
-                        : null,
-                    onTap: () => openForms(0),
-                  ),
-                  KpiTile(
-                    label: 'Onayda',
-                    value: data.pending,
-                    icon: Icons.hourglass_top_rounded,
-                    onTap: () => openForms(1),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              KpiRow(
-                children: [
-                  KpiTile(
-                    label: 'Reddedilen',
-                    value: data.rejected,
-                    icon: Icons.cancel_outlined,
-                    caption: 'Son 30 gün',
-                    onTap: () => openForms(3),
-                  ),
-                  if (access.isRep)
-                    KpiTile(
-                      label: 'Portföy',
-                      value: data.portfolioCount,
-                      icon: Icons.groups_rounded,
-                      caption: 'cari',
-                      onTap: () =>
-                          context.go('${AppRoutes.field}?tab=portfolio'),
-                    )
-                  else
-                    KpiTile(
-                      label: 'Ön kayıt',
-                      value: data.leadStats?.total,
-                      icon: Icons.person_add_alt_1_rounded,
-                      caption: 'Bu ay',
-                      onTap: () => context.go('${AppRoutes.field}?tab=leads'),
-                    ),
-                ],
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _HeroSkeleton extends StatelessWidget {
-  const _HeroSkeleton();
+/// İlk yükleme: plaka yerinde Beton kağıt (turuncu yok).
+class _DeckSkeleton extends StatelessWidget {
+  const _DeckSkeleton();
 
   @override
   Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-    child: SkeletonBox(height: 220, radius: 24),
+    padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
+    child: SkeletonBox(height: 300, radius: 20),
   );
-}
-
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({required this.access});
-
-  final FieldAccess access;
-
-  @override
-  Widget build(BuildContext context) {
-    final actions = <(IconData, String, VoidCallback)>[
-      if (access.canCreateForm)
-        (
-          Icons.post_add_rounded,
-          'Saha formu',
-          () => context.push(AppRoutes.fieldFormNew),
-        ),
-      if (access.canCreateLead)
-        (
-          Icons.person_add_alt_1_rounded,
-          'Ön kayıt',
-          () => context.push(AppRoutes.fieldLeadNew),
-        ),
-      if (access.isRep)
-        (
-          Icons.groups_rounded,
-          'Portföy',
-          () => context.go('${AppRoutes.field}?tab=portfolio'),
-        ),
-      if (access.canSeeForms)
-        (
-          Icons.receipt_long_rounded,
-          'Formlarım',
-          () => context.go('${AppRoutes.field}?tab=forms'),
-        ),
-    ];
-    if (actions.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 12,
-        children: [
-          for (final (icon, label, onTap) in actions)
-            _QuickAction(icon: icon, label: label, onTap: onTap),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 140, minHeight: 56),
-      child: AknCard(
-        onTap: onTap,
-        semanticLabel: label,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AknIconBox(icon: icon, tone: AknTone.brand, size: 36),
-            const SizedBox(width: 10),
-            Flexible(child: Text(label, style: t.bodyStrong)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _SectionFailed extends ConsumerWidget {
@@ -454,9 +349,10 @@ class _SectionFailed extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
     child: AknBanner(
       tone: AknTone.warn,
+      icon: Icons.cloud_off_outlined,
       title: title,
       message: FieldCopy.sectionFailed,
       actionLabel: FieldCopy.retry,
@@ -465,58 +361,15 @@ class _SectionFailed extends ConsumerWidget {
   );
 }
 
-class _LeadStatsCard extends StatelessWidget {
-  const _LeadStatsCard({required this.stats});
-
-  final FieldHomeData stats;
-
-  @override
-  Widget build(BuildContext context) {
-    final s = stats.leadStats!;
-    final t = context.aknText;
-    final rate = s.conversionRatePercent == null
-        ? ''
-        : ' · ${Fmt.percent(s.conversionRatePercent)}';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: AknCard(
-        onTap: () => context.go('${AppRoutes.field}?tab=leads'),
-        semanticLabel:
-            'Ön kayıtlar bu ay: ${s.total} kayıt, ${s.inFinance} finansta, ${s.converted} cariye dönüştü',
-        child: Row(
-          children: [
-            const AknIconBox(icon: Icons.person_add_alt_1_rounded),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Ön kayıtlar · bu ay', style: t.bodyStrong),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${s.total} kayıt · ${s.inFinance} finansta · ${s.converted} dönüştü$rate',
-                    style: t.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: context.akn.faint),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Rol ipucu (ilk girişte bir kez; kapatılabilir).
-class _TipCard extends ConsumerStatefulWidget {
-  const _TipCard();
+/// Rol ipucu (ilk girişte bir kez; kapatılabilir): Beton kuyu.
+class _TipWell extends ConsumerStatefulWidget {
+  const _TipWell();
 
   @override
-  ConsumerState<_TipCard> createState() => _TipCardState();
+  ConsumerState<_TipWell> createState() => _TipWellState();
 }
 
-class _TipCardState extends ConsumerState<_TipCard> {
+class _TipWellState extends ConsumerState<_TipWell> {
   bool _hidden = false;
 
   @override
@@ -527,14 +380,14 @@ class _TipCardState extends ConsumerState<_TipCard> {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: AknBanner(
         tone: AknTone.info,
         icon: Icons.tips_and_updates_outlined,
         title: 'Sahada bağlantı kesilirse',
         message:
             'Saha formunu ve ön kaydı bağlantı olmadan da kaydedebilirsiniz; bağlantı gelince otomatik gönderilir.',
-        // Kapatma metin düğmesiyle (48 dp dokunma hedefi; bant içindeki küçük kapat simgesi yerine).
+        // Kapatma metin düğmesiyle (48 dp dokunma hedefi; kuyu içindeki küçük kapat simgesi yerine).
         actionLabel: 'Anladım',
         onAction: () {
           setState(() => _hidden = true);
@@ -545,15 +398,15 @@ class _TipCardState extends ConsumerState<_TipCard> {
   }
 }
 
-/// "Asistana sorun" kartı (kapatılabilir; asistan ekranı rota ile açılır).
-class _AssistantCard extends ConsumerStatefulWidget {
-  const _AssistantCard();
+/// "Asistana sorun" satırı (kapatılabilir; asistan ekranı rota ile açılır).
+class _AssistantRow extends ConsumerStatefulWidget {
+  const _AssistantRow();
 
   @override
-  ConsumerState<_AssistantCard> createState() => _AssistantCardState();
+  ConsumerState<_AssistantRow> createState() => _AssistantRowState();
 }
 
-class _AssistantCardState extends ConsumerState<_AssistantCard> {
+class _AssistantRowState extends ConsumerState<_AssistantRow> {
   bool _hidden = false;
 
   @override
@@ -565,53 +418,24 @@ class _AssistantCardState extends ConsumerState<_AssistantCard> {
     if (_hidden || key == null || ref.read(prefsStoreProvider).getBool(key)) {
       return const SizedBox.shrink();
     }
-    final t = context.aknText;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: AknCard(
-        padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-        child: Row(
-          children: [
-            const ExcludeSemantics(child: LogoMark(size: 36)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Semantics(
-                button: true,
-                label:
-                    'Asistana sorun: saha formu ve ön kayıt hakkında sorular',
-                excludeSemantics: true,
-                child: InkWell(
-                  onTap: () => context.push(AppRoutes.assistant),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minHeight: AknSpace.minTap,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Asistana sorun', style: t.bodyStrong),
-                        const SizedBox(height: 2),
-                        Text(
-                          '"Koşullu onay ne demek?", "Barem bandı nedir?"',
-                          style: t.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            AknIconButton(
-              icon: Icons.close_rounded,
-              semanticLabel: 'Asistan kartını kapat',
-              size: 20,
-              onPressed: () {
-                setState(() => _hidden = true);
-                unawaited(ref.read(prefsStoreProvider).setBool(key, true));
-              },
-            ),
-          ],
+      padding: const EdgeInsets.only(top: 16),
+      child: AknListTile(
+        leadingIcon: Icons.chat_bubble_outline_rounded,
+        title: 'Asistana sorun',
+        subtitle: '"Koşullu onay ne demek?", "Barem bandı nedir?"',
+        semanticLabel:
+            'Asistana sorun: saha formu ve ön kayıt hakkında sorular',
+        onTap: () => context.push(AppRoutes.assistant),
+        trailing: AknIconButton(
+          icon: Icons.close_rounded,
+          semanticLabel: 'Asistan satırını kapat',
+          size: 20,
+          color: context.akn.dim,
+          onPressed: () {
+            setState(() => _hidden = true);
+            unawaited(ref.read(prefsStoreProvider).setBool(key, true));
+          },
         ),
       ),
     );
@@ -686,31 +510,40 @@ class _WeatherHereState extends ConsumerState<_WeatherHere> {
   Widget build(BuildContext context) {
     final fix = ref.watch(fieldHereProvider);
     final t = context.aknText;
+    final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Semantics(
             header: true,
-            child: Text('Bulunduğunuz yerde hava', style: t.bodyStrong),
+            child: Text(
+              'Bulunduğunuz yerde hava',
+              style: t.title.copyWith(color: c.ink),
+            ),
           ),
           const SizedBox(height: 8),
           if (fix != null)
             WeatherCard(lat: fix.latitude, lng: fix.longitude)
           else
-            AknCard(
+            Container(
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: AknRadius.card,
+              ),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               child: Wrap(
                 spacing: 12,
-                runSpacing: 12,
+                runSpacing: 10,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  const AknIconBox(icon: Icons.wb_sunny_outlined),
+                  Icon(Icons.wb_sunny_outlined, size: 20, color: c.ink),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 220),
+                    constraints: const BoxConstraints(maxWidth: 240),
                     child: Text(
                       'Ziyaret planınız için bulunduğunuz yerin hava durumunu görün.',
-                      style: t.bodySmall,
+                      style: t.bodySmall.copyWith(color: c.ink),
                     ),
                   ),
                   AknButton.secondary(

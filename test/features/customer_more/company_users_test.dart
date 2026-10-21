@@ -1,7 +1,6 @@
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/customer_more/copy.dart';
 import 'package:akaryakitnet/features/customer_more/presentation/company_users/company_users_page.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'cm_test_utils.dart';
@@ -94,12 +93,9 @@ void main() {
     await pumpFor(tester, const Duration(seconds: 1));
     await tester.tap(find.text('Kullanıcı ekle'));
     await pumpFor(tester, const Duration(milliseconds: 600));
+    await tester.enterText(fieldLabeled('Ad soyad *'), 'Deniz Ak');
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Ad soyad *'),
-      'Deniz Ak',
-    );
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'E-posta *'),
+      fieldLabeled('E-posta *'),
       'deniz.ak@anadolulojistik.example',
     );
     await tester.tap(find.text('Onaylayan').last);
@@ -127,10 +123,7 @@ void main() {
     await pumpFor(tester, const Duration(seconds: 1));
     await tester.tap(find.bySemanticsLabel('Onay eşiklerini düzenle'));
     await pumpFor(tester, const Duration(milliseconds: 600));
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Litre eşiği'),
-      '15000',
-    );
+    await tester.enterText(fieldLabeled('Litre eşiği'), '15000');
     await tester.tap(find.widgetWithText(AknButton, 'Kaydet'));
     await pumpFor(tester, const Duration(seconds: 1));
     final t = env.world.bag<Map<int, Map<String, dynamic>>>(

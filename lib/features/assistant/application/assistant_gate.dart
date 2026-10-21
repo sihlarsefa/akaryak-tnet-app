@@ -99,7 +99,7 @@ final assistantGateProvider =
 
 class AssistantGateController extends Notifier<AssistantGate> {
   static const updatedNotice =
-      'Aydınlatma metni güncellendi; devam etmek için lütfen yeniden okuyun.';
+      'Aydınlatma metni güncellendi; devam etmek için yeniden okuyun.';
 
   int _epoch = 0;
 

@@ -58,7 +58,7 @@ class SpendingPage extends ConsumerWidget {
             if (!s.filter.isEmpty) _ActiveFilters(filter: s.filter),
             if (s.clamped)
               AknBanner(
-                margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                 tone: AknTone.warn,
                 message:
                     'Rapor en fazla ${SpendingRange.maxMonths} ay kapsar; başlangıç tarihi ${Fmt.date(s.range.from)} olarak kısaltıldı.',
@@ -68,32 +68,19 @@ class SpendingPage extends ConsumerWidget {
             else if (r == null && s.error != null)
               CmFailureView(failure: s.error!, onRetry: ctrl.load)
             else if (r != null) ...[
-              _Kpis(report: r),
+              _Kpis(report: r, range: s.range),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 16,
-                      color: context.akn.dim,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        CmCopy.spendingCaption,
-                        style: context.aknText.caption.copyWith(
-                          color: context.akn.text,
-                        ),
-                      ),
-                    ),
-                  ],
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+                child: Text(
+                  CmCopy.spendingCaption,
+                  style: context.aknText.bodySmall.copyWith(
+                    color: context.akn.dim,
+                  ),
                 ),
               ),
               if (r.truncated)
                 const AknBanner(
-                  margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  margin: EdgeInsets.fromLTRB(20, 4, 20, 8),
                   tone: AknTone.info,
                   message:
                       'Kırılımlarda en yüksek tutarlı kayıtlar gösteriliyor; toplamlar tüm siparişleri kapsar.',
@@ -109,6 +96,7 @@ class SpendingPage extends ConsumerWidget {
                       : () => ctrl.setFilter(const SpendingFilter()),
                 )
               else ...[
+                const SizedBox(height: 8),
                 CmSegmented<SpendingTab>(
                   segments: [
                     for (final tab in SpendingTab.values)
@@ -236,7 +224,6 @@ class SpendingPage extends ConsumerWidget {
           const SizedBox(height: 16),
           AknButton(
             label: 'Bu $what göre süz',
-            icon: Icons.filter_alt_rounded,
             expand: true,
             onPressed: () => Navigator.of(ctx).pop(true),
           ),
@@ -289,7 +276,7 @@ class _ActiveFilters extends ConsumerWidget {
         ),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: Wrap(
         spacing: 8,
         children: [
@@ -305,57 +292,49 @@ class _ActiveFilters extends ConsumerWidget {
   }
 }
 
+/// Raporun plakası (tasarım v2 §5.1): seçilen aralığın toplam harcaması, kural ve okumalar (litre,
+/// ortalama ₺/L, sipariş). Ekranın tek plakası.
 class _Kpis extends StatelessWidget {
-  const _Kpis({required this.report});
+  const _Kpis({required this.report, required this.range});
 
   final SpendingReport report;
+  final SpendingRange range;
 
   @override
   Widget build(BuildContext context) {
     final r = report;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Column(
-        children: [
-          KpiRow(
-            children: [
-              KpiTile(
-                label: 'Toplam tutar',
-                value: r.totalAmount,
-                format: Fmt.moneyCompact,
-                icon: Icons.payments_rounded,
-                tone: AknTone.brand,
-                semanticLabel: 'Toplam tutar ${Fmt.money(r.totalAmount)}',
-              ),
-              KpiTile(
-                label: 'Toplam litre',
-                value: r.totalLiters,
-                format: Fmt.liters,
-                icon: Icons.local_gas_station_rounded,
-                tone: AknTone.info,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          KpiRow(
-            children: [
-              KpiTile(
-                label: 'Ortalama ₺/L',
-                value: r.avgUnitPrice,
-                format: Fmt.unitPrice,
-                icon: Icons.speed_rounded,
-                tone: AknTone.neutral,
-              ),
-              KpiTile(
-                label: 'Sipariş',
-                value: r.totalOrders,
-                icon: Icons.receipt_long_rounded,
-                tone: AknTone.ok,
-              ),
-            ],
-          ),
-        ],
+    final avg = r.avgUnitPrice;
+    final spoken = [
+      'Toplam harcama ${Fmt.money(r.totalAmount)}',
+      '${Fmt.date(range.from)} ile ${Fmt.date(range.to)} arası',
+      'toplam litre ${Fmt.liters(r.totalLiters)}',
+      if (avg != null) 'ortalama ${Fmt.unitPrice(avg)}',
+      '${r.totalOrders} sipariş',
+    ].join(', ');
+    return CmPlate(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      semanticLabel: spoken,
+      head: PlateHead(
+        icon: Icons.payments_outlined,
+        title: 'Toplam harcama',
+        period: '${Fmt.dayMonth(range.from)} – ${Fmt.dayMonth(range.to)}',
       ),
+      figure: PlateFigure(value: Fmt.number(r.totalAmount.round()), unit: '₺'),
+      readouts: [
+        PlateReadout(
+          label: 'Toplam litre',
+          value: Fmt.number(r.totalLiters, maxFraction: 0),
+          unit: 'L',
+        ),
+        PlateReadout(
+          label: 'Ortalama',
+          value: avg == null
+              ? Fmt.dash
+              : Fmt.number(avg, minFraction: 2, maxFraction: 2),
+          unit: avg == null ? null : '₺/L',
+        ),
+        PlateReadout(label: 'Sipariş', value: Fmt.integer(r.totalOrders)),
+      ],
     );
   }
 }
@@ -391,18 +370,28 @@ class _TabBody extends StatelessWidget {
             ),
             CmSection(
               title: 'Aylar',
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Column(
-                children: [
-                  for (final m in newest)
-                    FactRow(
-                      label: m.label,
-                      value: '${Fmt.money(m.amount)} · ${Fmt.liters(m.liters)}',
+              bleed: true,
+              child: newest.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Siparişli ay yok.',
+                        style: t.bodySmall.copyWith(color: context.akn.dim),
+                      ),
+                    )
+                  : AknLedger(
+                      children: [
+                        for (final m in newest)
+                          AknListTile(
+                            title: m.label,
+                            subtitle: '${m.orderCount} sipariş',
+                            amount: Fmt.money(m.amount),
+                            amountMeta: Fmt.liters(m.liters),
+                            semanticLabel:
+                                '${m.label}, ${Fmt.money(m.amount)}, ${Fmt.liters(m.liters)}, ${m.orderCount} sipariş',
+                          ),
+                      ],
                     ),
-                  if (newest.isEmpty)
-                    Text('Siparişli ay yok.', style: t.bodySmall),
-                ],
-              ),
             ),
           ],
         );
@@ -422,10 +411,13 @@ class _TabBody extends StatelessWidget {
         return CmSection(
           title: title,
           subtitle: list.length > 6
-              ? 'İlk 5 kalem ve diğerleri · ${list.length} kalem'
+              ? 'İlk 5 kalem ve diğerleri, ${list.length} kalem'
               : '${list.length} kalem',
           child: list.isEmpty
-              ? Text('Kayıt yok.', style: t.bodySmall)
+              ? Text(
+                  'Kayıt yok.',
+                  style: t.bodySmall.copyWith(color: context.akn.dim),
+                )
               : BucketBars(buckets: list, metric: metric, onTap: onDrill),
         );
     }
@@ -439,17 +431,11 @@ class _SpendingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) => const Shimmer(
     semanticLabel: 'Harcamalar yükleniyor',
     child: Padding(
-      padding: EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(child: SkeletonBox(height: 84, radius: 12)),
-              SizedBox(width: 12),
-              Expanded(child: SkeletonBox(height: 84, radius: 12)),
-            ],
-          ),
-          SizedBox(height: 16),
+          SkeletonBox(height: 196, radius: 20),
+          SizedBox(height: 24),
           SkeletonBox(height: 220, radius: 12),
         ],
       ),

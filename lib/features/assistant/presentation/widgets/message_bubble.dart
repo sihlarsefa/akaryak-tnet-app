@@ -8,9 +8,9 @@ import '../../copy.dart';
 import '../../data/assistant_models.dart';
 import 'assistant_avatar.dart';
 
-/// Sohbet balonu: kullanıcı sağda (marka tonunda), asistan solda (LogoMark ile). Hata yanıtı tehlike
-/// tonunda ve geri bildirimsiz; gönderilemeyen mesajda "Tekrar dene". Asistan yanıtı uzun basınca
-/// kopyalanır.
+/// Sohbet satırı (tasarım v2 §7.17): kullanıcı sağda Beton balonda (r16); asistan solda balonsuz,
+/// beyaz sayfada düz metin ve 20 px logo karosu. Hata yanıtı kırmızı simge + ink metin, geri bildirimsiz;
+/// gönderilemeyen mesajda "Tekrar dene". Asistan yanıtı uzun basınca kopyalanır.
 class MessageBubble extends StatelessWidget {
   const MessageBubble({
     super.key,
@@ -46,13 +46,12 @@ class MessageBubble extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
                   decoration: BoxDecoration(
-                    color: c.brandSoft,
-                    border: Border.all(color: c.brandLine),
+                    color: c.surfaceAlt,
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(16),
                       topRight: Radius.circular(16),
                       bottomLeft: Radius.circular(16),
-                      bottomRight: Radius.circular(4),
+                      bottomRight: Radius.circular(6),
                     ),
                   ),
                   child: Text(m.text, style: t.body.copyWith(color: c.ink)),
@@ -66,7 +65,6 @@ class MessageBubble extends StatelessWidget {
       );
     }
 
-    final tone = m.isError ? c.danger : null;
     return Align(
       alignment: AlignmentDirectional.centerStart,
       child: ConstrainedBox(
@@ -75,10 +73,10 @@ class MessageBubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: AssistantAvatar(size: 30),
+              padding: EdgeInsets.only(top: 1),
+              child: AssistantAvatar(size: 20),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,18 +94,8 @@ class MessageBubble extends StatelessWidget {
                               AknHaptics.selection();
                               AppToast.info(AssistantCopy.copied);
                             },
-                      child: Container(
-                        padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                        decoration: BoxDecoration(
-                          color: tone?.bg ?? c.surface,
-                          border: Border.all(color: tone?.line ?? c.line),
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(4),
-                            topRight: Radius.circular(16),
-                            bottomLeft: Radius.circular(16),
-                            bottomRight: Radius.circular(16),
-                          ),
-                        ),
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,9 +104,9 @@ class MessageBubble extends StatelessWidget {
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Icon(
-                                  Icons.error_outline_rounded,
+                                  Icons.error_rounded,
                                   size: 18,
-                                  color: tone!.fg,
+                                  color: c.danger.fg,
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -126,7 +114,7 @@ class MessageBubble extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 m.text,
-                                style: t.body.copyWith(color: c.text),
+                                style: t.body.copyWith(color: c.ink),
                               ),
                             ),
                           ],
@@ -168,13 +156,24 @@ class _FailedRow extends StatelessWidget {
               style: t.caption.copyWith(color: c.danger.fg),
             ),
           if (onRetry != null)
-            TextButton.icon(
-              onPressed: onRetry,
-              style: TextButton.styleFrom(foregroundColor: c.danger.fg),
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text(
-                '${AssistantCopy.sendFailed} · ${AssistantCopy.retry}',
-              ),
+            Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Icon(Icons.error_rounded, size: 16, color: c.danger.fg),
+                const SizedBox(width: 6),
+                Text(
+                  AssistantCopy.sendFailed,
+                  style: t.label.copyWith(color: c.danger.fg),
+                ),
+                const SizedBox(width: 4),
+                AknButton.ghost(
+                  label: AssistantCopy.retry,
+                  icon: Icons.refresh_rounded,
+                  size: AknButtonSize.small,
+                  onPressed: onRetry,
+                ),
+              ],
             ),
         ],
       ),
@@ -214,7 +213,10 @@ class _FeedbackRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Flexible(
-                      child: Text(AssistantCopy.thanks, style: t.caption),
+                      child: Text(
+                        AssistantCopy.thanks,
+                        style: t.caption.copyWith(color: c.dim),
+                      ),
                     ),
                   ],
                 ),
@@ -226,7 +228,10 @@ class _FeedbackRow extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 4, right: 2),
-                  child: Text(AssistantCopy.helpfulQuestion, style: t.caption),
+                  child: Text(
+                    AssistantCopy.helpfulQuestion,
+                    style: t.caption.copyWith(color: c.dim),
+                  ),
                 ),
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -307,22 +312,15 @@ class _TypingBubbleState extends State<TypingBubble>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const AssistantAvatar(size: 30, typing: true),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                color: c.surface,
-                border: Border.all(color: c.line),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(4),
-                  topRight: Radius.circular(16),
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-              ),
+            const AssistantAvatar(size: 20, typing: true),
+            const SizedBox(width: 10),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
               child: _calm
-                  ? Text(AssistantCopy.typingStatic, style: t.bodySmall)
+                  ? Text(
+                      AssistantCopy.typingStatic,
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    )
                   : AnimatedBuilder(
                       animation: _c,
                       builder: (context, _) => Row(

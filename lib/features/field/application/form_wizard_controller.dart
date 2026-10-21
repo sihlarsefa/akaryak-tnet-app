@@ -744,7 +744,7 @@ class FormWizardController
         if (o == null && state.hasCustomer) {
           errors['customer'] =
               state.optionsError?.message ??
-              'Carinin bilgileri yükleniyor; lütfen bekleyin.';
+              'Carinin bilgileri yükleniyor; birkaç saniye bekleyin.';
         }
         final ship = d.shipDate;
         if (ship != null && TrTime.dayDiff(today, ship) < 0) {

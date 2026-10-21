@@ -10,6 +10,7 @@ import '../../../../core/offline/outbox_op.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 import '../../data/field_models.dart';
 import '../../data/field_outbox.dart';
@@ -109,6 +110,8 @@ class FieldDocumentList extends StatelessWidget {
               sizeBytes: attachments[i].sizeBytes,
               contentType: attachments[i].contentType,
               subtitle: attachments[i].uploadedByName,
+              // Büyük yazıda "Görüntüle" satıra sığmaz; kısa fiil.
+              actionLabel: 'Aç',
               onTap: () => _open(context, i),
               onDelete: onDelete != null && attachments[i].canDelete
                   ? () => onDelete!(attachments[i])
@@ -183,7 +186,9 @@ class FieldSectionSwitcher<T> extends StatelessWidget {
   );
 }
 
-/// Saha formu liste kartı.
+/// Saha formu defter satırı (tasarım v2 §6.8): cari başlıkta, form no + litre + vade ikinci satırda,
+/// tutar sağda (son hareket altında), durum lambası ve onay kademesi / finans durumu alt satırda.
+/// Listede satırları [AknLedger] ya da [AknLedgerDivider] ile ayırın.
 class FieldFormTile extends StatelessWidget {
   const FieldFormTile({
     super.key,
@@ -198,85 +203,54 @@ class FieldFormTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
+    final t = context.aknText;
     final status = row.status.statusStyle;
     final pending = row.status == FieldOrderFormStatus.pendingApproval;
     final finance =
         row.financeStatus.isAwaitingDecision &&
         row.status != FieldOrderFormStatus.rejected &&
         row.status != FieldOrderFormStatus.cancelled;
-    final meta = [
+    final level = '${FieldLevels.label(row.requiredApprovalLevel)} onayında';
+    final second = [
+      row.formNumber,
+      Fmt.liters(row.totalLiters),
+      if (row.paymentTermDays > 0) '${row.paymentTermDays} gün vade',
+      if (showRep && row.salesRepresentativeName != null)
+        row.salesRepresentativeName!,
+    ].join(', ');
+    final label = [
+      row.customerTitle,
+      row.formNumber,
+      status.label,
+      if (pending) level,
+      if (finance) row.financeStatus.statusStyle.label,
       Fmt.liters(row.totalLiters),
       if (row.totalAmount > 0) Fmt.money(row.totalAmount),
       if (row.paymentTermDays > 0) '${row.paymentTermDays} gün vade',
-    ].join(' · ');
-    final label = [
-      row.formNumber,
-      row.customerTitle,
-      status.label,
-      if (pending) '${FieldLevels.label(row.requiredApprovalLevel)} onayında',
-      meta,
       if (showRep && row.salesRepresentativeName != null)
         'Temsilci ${row.salesRepresentativeName}',
+      fieldLowerFirst(Fmt.relative(row.lastActivity)),
     ].join(', ');
-    return AknCard(
-      onTap: onTap ?? () => context.push(AppRoutes.fieldForm(row.id)),
+    final Widget? trailing = pending
+        ? Text(level, style: t.bodySmall.copyWith(color: c.dim))
+        : finance
+        ? AknLamp.style(row.financeStatus.statusStyle, size: AknLampSize.small)
+        : null;
+    return AknListTile(
+      title: row.customerTitle,
+      subtitle: second,
+      amount: row.totalAmount > 0 ? Fmt.money(row.totalAmount) : null,
+      amountMeta: fieldLowerFirst(Fmt.relative(row.lastActivity)),
+      status: AknStatusLine(lamp: AknLamp.style(status), trailing: trailing),
       semanticLabel: label,
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      accent: row.status == FieldOrderFormStatus.rejected
-          ? AknTone.danger
-          : (row.financeStatus == OrderFinanceStatus.infoRequested
-                ? AknTone.warn
-                : null),
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FieldTitleRow(
-              title: Text(
-                row.customerTitle,
-                style: t.bodyStrong,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: StatusChip.style(status, size: StatusChipSize.small),
-            ),
-            const SizedBox(height: 4),
-            Text(meta, style: t.amount.copyWith(fontSize: 14, color: c.text)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(row.formNumber, style: t.caption),
-                if (pending)
-                  StatusChip(
-                    label:
-                        '${FieldLevels.label(row.requiredApprovalLevel)} onayında',
-                    tone: AknTone.warn,
-                    icon: Icons.supervisor_account_rounded,
-                    size: StatusChipSize.small,
-                  ),
-                if (finance)
-                  StatusChip.style(
-                    row.financeStatus.statusStyle,
-                    size: StatusChipSize.small,
-                  ),
-                if (showRep && row.salesRepresentativeName != null)
-                  Text('· ${row.salesRepresentativeName}', style: t.caption),
-                Text('· ${Fmt.relative(row.lastActivity)}', style: t.caption),
-              ],
-            ),
-          ],
-        ),
-      ),
+      onTap: onTap ?? () => context.push(AppRoutes.fieldForm(row.id)),
     );
   }
 }
 
-/// Ön kayıt liste kartı.
+/// Ön kayıt defter satırı: firma başlıkta, kayıt no + il + aylık litre ikinci satırda, son hareket
+/// sağda, durum lambası alt satırda ("VKN sistemde kayıtlı" bilgisiyle).
 class FieldLeadTile extends StatelessWidget {
   const FieldLeadTile({super.key, required this.row, this.showRep = false});
 
@@ -285,71 +259,49 @@ class FieldLeadTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
     final t = context.aknText;
     final status = row.status.statusStyle;
-    final meta = [
+    final second = [
+      row.leadNumber,
       ?row.city,
       if ((row.monthlyLiters ?? 0) > 0) '${Fmt.liters(row.monthlyLiters)}/ay',
       if (showRep && row.salesRepName != null) row.salesRepName!,
-    ].join(' · ');
-    return AknCard(
-      onTap: () => context.push(AppRoutes.fieldLead(row.id)),
+    ].join(', ');
+    final when = fieldLowerFirst(
+      Fmt.relative(row.submittedAt ?? row.createdAt),
+    );
+    return AknListTile(
+      title: row.companyTitle.isEmpty ? 'Ünvansız ön kayıt' : row.companyTitle,
+      subtitle: second,
+      meta: when,
+      status: AknStatusLine(
+        lamp: AknLamp.style(status),
+        trailing: row.existsElsewhere
+            ? Text(
+                'VKN sistemde kayıtlı',
+                style: t.bodySmall.copyWith(color: c.dim),
+              )
+            : null,
+      ),
       semanticLabel: [
         row.companyTitle,
         row.leadNumber,
         status.label,
-        if (meta.isNotEmpty) meta,
+        ?row.city,
+        if ((row.monthlyLiters ?? 0) > 0)
+          'ayda ${Fmt.liters(row.monthlyLiters)}',
+        if (showRep && row.salesRepName != null) row.salesRepName!,
         if (row.existsElsewhere) 'Bu VKN sistemde kayıtlı',
+        when,
       ].join(', '),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      accent: row.status == LeadStatus.infoRequested ? AknTone.warn : null,
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            FieldTitleRow(
-              title: Text(
-                row.companyTitle.isEmpty
-                    ? 'Ünvansız ön kayıt'
-                    : row.companyTitle,
-                style: t.bodyStrong,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              trailing: StatusChip.style(status, size: StatusChipSize.small),
-            ),
-            if (meta.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(meta, style: t.bodySmall),
-            ],
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(row.leadNumber, style: t.caption),
-                if (row.existsElsewhere)
-                  const StatusChip(
-                    label: 'VKN sistemde kayıtlı',
-                    tone: AknTone.info,
-                    icon: Icons.info_outline_rounded,
-                    size: StatusChipSize.small,
-                  ),
-                Text(
-                  '· ${Fmt.relative(row.submittedAt ?? row.createdAt)}',
-                  style: t.caption,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+      onTap: () => context.push(AppRoutes.fieldLead(row.id)),
     );
   }
 }
 
-/// Gönderilmeyi bekleyen saha işlemi kartı ("Kaydedildi — bağlantı gelince gönderilecek").
+/// Gönderilmeyi bekleyen saha işlemi satırı ("Kaydedildi, bağlantı gelince gönderilecek"): soldaki
+/// simge ve lamba durumu söyler; altta "Düzelt", "Şimdi dene", "Vazgeç".
 class FieldQueuedTile extends ConsumerWidget {
   const FieldQueuedTile({super.key, required this.item, this.onEdit});
 
@@ -371,7 +323,7 @@ class FieldQueuedTile extends ConsumerWidget {
       ),
       OutboxStatus.sending => (
         AknTone.info,
-        Icons.cloud_upload_rounded,
+        Icons.cloud_upload_outlined,
         FieldCopy.sendingChip,
       ),
       OutboxStatus.failed => (
@@ -379,7 +331,7 @@ class FieldQueuedTile extends ConsumerWidget {
         Icons.schedule_rounded,
         item.nextAttemptAt == null
             ? 'Tekrar denenecek'
-            : 'Tekrar denenecek · ${Fmt.time(item.nextAttemptAt)}',
+            : 'Tekrar denenecek, ${Fmt.time(item.nextAttemptAt)}',
       ),
       _ => (AknTone.warn, Icons.schedule_rounded, FieldCopy.waitingChip),
     };
@@ -387,14 +339,46 @@ class FieldQueuedTile extends ConsumerWidget {
       ?item.customerTitle,
       if ((item.liters ?? 0) > 0) Fmt.liters(item.liters),
       if (item.uploadKindLabel != null) item.uploadKindLabel!,
-    ].join(' · ');
+    ].join(', ');
     final error = status == OutboxStatus.needsAttention ? item.lastError : null;
     final outbox = ref.read(fieldOutboxProvider);
-    return AknCard(
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
-      accent: tone,
+    final actions = <Widget>[
+      if (status == OutboxStatus.needsAttention && onEdit != null)
+        AknButton.secondary(
+          label: 'Düzelt',
+          size: AknButtonSize.small,
+          onPressed: onEdit,
+        ),
+      if (status == OutboxStatus.failed ||
+          status == OutboxStatus.needsAttention)
+        AknButton.ghost(
+          label: 'Şimdi dene',
+          size: AknButtonSize.small,
+          onPressed: () => outbox.retry(item.op.id),
+        ),
+      if (status != OutboxStatus.sending)
+        AknButton.ghost(
+          label: 'Vazgeç',
+          size: AknButtonSize.small,
+          onPressed: () async {
+            final ok = await showConfirmSheet(
+              context,
+              title: 'Bu işlemden vazgeçilsin mi?',
+              message: item.isUpload
+                  ? 'Belge bu cihazdan silinir ve gönderilmez.'
+                  : 'Kuyruktaki taslak bu cihazdan silinir ve sunucuya gönderilmez.',
+              confirmLabel: 'Vazgeç',
+              cancelLabel: 'Geri dön',
+              destructive: true,
+            );
+            if (ok) await outbox.discardChain(item.op.id);
+          },
+        ),
+    ];
+    return Padding(
+      padding: AknSpace.row,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Semantics(
             container: true,
@@ -408,24 +392,25 @@ class FieldQueuedTile extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AknIconBox(icon: icon, tone: tone, size: 36),
-                const SizedBox(width: 12),
+                Icon(icon, size: 24, color: c.tone(tone).fg),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title, style: t.bodyStrong),
+                      Text(
+                        item.title,
+                        style: t.headline.copyWith(color: c.ink),
+                      ),
                       if (subtitle.isNotEmpty) ...[
                         const SizedBox(height: 2),
-                        Text(subtitle, style: t.bodySmall),
+                        Text(
+                          subtitle,
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
                       ],
-                      const SizedBox(height: 6),
-                      StatusChip(
-                        label: label,
-                        tone: tone,
-                        icon: icon,
-                        size: StatusChipSize.small,
-                      ),
+                      const SizedBox(height: 8),
+                      AknLamp(label: label, tone: tone),
                       if (error != null) ...[
                         const SizedBox(height: 6),
                         Text(
@@ -439,41 +424,22 @@ class FieldQueuedTile extends ConsumerWidget {
               ],
             ),
           ),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 4,
-            children: [
-              if (status == OutboxStatus.needsAttention && onEdit != null)
-                TextButton(onPressed: onEdit, child: const Text('Düzelt')),
-              if (status == OutboxStatus.failed ||
-                  status == OutboxStatus.needsAttention)
-                TextButton(
-                  onPressed: () => outbox.retry(item.op.id),
-                  child: const Text('Şimdi dene'),
-                ),
-              if (status != OutboxStatus.sending)
-                TextButton(
-                  onPressed: () async {
-                    final ok = await showConfirmSheet(
-                      context,
-                      title: 'Bu işlemden vazgeçilsin mi?',
-                      message: item.isUpload
-                          ? 'Belge bu cihazdan silinir ve gönderilmez.'
-                          : 'Kuyruktaki taslak bu cihazdan silinir ve sunucuya gönderilmez.',
-                      confirmLabel: 'Vazgeç',
-                      cancelLabel: 'Geri dön',
-                      destructive: true,
-                    );
-                    if (ok) await outbox.discardChain(item.op.id);
-                  },
-                  child: const Text('Vazgeç'),
-                ),
-            ],
-          ),
+          if (actions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 32, top: 4),
+              child: Wrap(spacing: 4, runSpacing: 4, children: actions),
+            ),
         ],
       ),
     );
   }
+}
+
+/// İlk harfi Türkçe kurala göre küçültür ("Dün 14:20" → "dün 14:20").
+String fieldLowerFirst(String s) {
+  if (s.isEmpty) return s;
+  final first = String.fromCharCode(s.runes.first);
+  return TurkishText.lower(first) + s.substring(first.length);
 }
 
 /// Liste sonu: sonraki sayfa yükleniyor / yüklenemedi / bitti.
@@ -565,15 +531,15 @@ class FieldCachedNote extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
         children: [
           Icon(Icons.history_rounded, size: 16, color: c.dim),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              'Son güncelleme ${Fmt.dayLabel(at)} ${Fmt.time(at)}',
-              style: t.caption,
+              'Son güncelleme ${fieldLowerFirst(Fmt.dayLabel(at))} ${Fmt.time(at)}.',
+              style: t.label.copyWith(color: c.dim),
             ),
           ),
         ],
@@ -708,7 +674,8 @@ class FieldFacts extends StatelessWidget {
   }
 }
 
-/// Kart başlığı (ikonlu) + içerik.
+/// Bölüm (tasarım v2 §4.5): başlık (`title` 20/26, sağda isteğe bağlı öğe) ve altında içerik, 20 px
+/// kenar boşluğunda; kutu yok. [icon] ve [margin] API uyumu için durur (v2'de simge çizilmez).
 class FieldSectionCard extends StatelessWidget {
   const FieldSectionCard({
     super.key,
@@ -729,30 +696,96 @@ class FieldSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return AknCard(
-      margin: margin,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 20, color: c.dim),
-                const SizedBox(width: 8),
-              ],
               Expanded(
                 child: Semantics(
                   header: true,
-                  child: Text(title, style: t.bodyStrong),
+                  child: Text(title, style: t.title.copyWith(color: c.ink)),
                 ),
               ),
-              ?trailing,
+              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
             ],
           ),
           const SizedBox(height: 8),
           child,
         ],
       ),
+    );
+  }
+}
+
+/// Plakanın okumaları: normalde [PlateReadouts]; çok büyük yazıda (≥ 1,6×) etiket / değer satırları,
+/// değer kendi sütununda küçülerek sığar (sayı hiçbir zaman bölünmez ya da taşmaz).
+class FieldPlateReadouts extends StatelessWidget {
+  const FieldPlateReadouts({super.key, required this.items});
+
+  final List<PlateReadout> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = MediaQuery.textScalerOf(context).scale(10) / 10;
+    if (scale < 1.6) return PlateReadouts(items: items);
+    final c = context.akn;
+    final t = context.aknText;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < items.length; i++)
+          Semantics(
+            label:
+                items[i].semanticLabel ??
+                '${items[i].label}: ${items[i].value}${items[i].unit == null ? '' : ' ${items[i].unit}'}',
+            excludeSemantics: true,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              decoration: i == 0
+                  ? null
+                  : BoxDecoration(
+                      border: Border(top: BorderSide(color: c.line)),
+                    ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      items[i].label,
+                      style: t.label.copyWith(height: 16 / 13, color: c.dim),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: AlignmentDirectional.centerEnd,
+                      child: Text.rich(
+                        TextSpan(
+                          text: items[i].value,
+                          style: t.number.copyWith(color: c.ink),
+                          children: [
+                            if (items[i].unit != null)
+                              TextSpan(
+                                text: ' ${items[i].unit}',
+                                style: t.readoutUnit.copyWith(color: c.ink),
+                              ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

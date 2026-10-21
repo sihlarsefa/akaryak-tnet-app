@@ -171,7 +171,6 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
           const SizedBox(height: 20),
           AknButton(
             label: 'Talebi gönder',
-            icon: Icons.send_rounded,
             expand: true,
             loading: _busy,
             onPressed: online ? () => unawaited(_submit()) : null,
@@ -261,7 +260,6 @@ class _NoteSheetState extends ConsumerState<_NoteSheet> {
         const SizedBox(height: 16),
         AknButton(
           label: 'Notu kaydet',
-          icon: Icons.save_rounded,
           expand: true,
           loading: _busy,
           onPressed: online && _body.text.trim().isNotEmpty

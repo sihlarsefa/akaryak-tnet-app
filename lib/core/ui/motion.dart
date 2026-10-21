@@ -1,28 +1,146 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
-/// Motion kit (spec C.6): calm and purposeful, never bouncy.
+/// Motion kit — design v2 §8: **one orchestrated moment; everything else
+/// moves only in answer to a touch.**
 ///
-/// * Timing: fast 150 ms (press, toggles), base 250 ms (chips, cards),
-///   slow 400 ms (pages), emphasized 600 ms (hero, success).
-/// * Curves: [AknMotion.standard] (easeOutCubic) and
-///   [AknMotion.emphasizedCurve] (`Cubic(0.2, 0, 0, 1)`).
-/// * Reduce motion: when `MediaQuery.disableAnimations` is on, every duration
-///   here collapses to zero and there is no stagger, shimmer or parallax.
+/// * The moment ("sayaç dönüşü", the first home render of a session): the
+///   plate lights ([plateLight] 180 ms, easeOutCubic), its figure rolls like
+///   a mechanical pump register ([plateRoll] 900 ms on the [roll] curve),
+///   then the bars rise during the last 300 ms ([barsRise], [barsStagger]
+///   40 ms) and the projection outline draws in ([projectionDraw]).
+/// * Feedback: press = pressed fill + scale 0.98 ([press] 90 ms in,
+///   [pressOut] 120 ms out); deck fly-out [deckFly] 240 ms ([fly]), the next
+///   card steps forward [deckStep] 220 ms, plate hand-off [plateHandoff]
+///   200 ms; tab needle [needle] 200 ms ([spring]); segmented thumb [thumb]
+///   220 ms; approve stamp [stamp] 160 ms then the stage ring slides
+///   [stageStep] 240 ms; route vehicle glides [routeGlide] 400 ms; sheets
+///   [sheet] 250 ms (emphasized) with a [scrim] 200 ms fade; toasts
+///   [toastIn] 200 ms / [toastOut] 150 ms.
+/// * Never (§8.3): section fade-ups or staggered list entrances
+///   ([StaggerItem] renders its child directly), shimmer on loaded content,
+///   parallax, auto-advancing carousels, count-ups on numbers, loops other
+///   than loading spinners.
+/// * Reduce motion (`MediaQuery.disableAnimations`): [of] collapses every
+///   duration to zero, [animateTo] jumps to the target, and the roll draws
+///   its final frame at once.
 abstract final class AknMotion {
   static const Duration fast = Duration(milliseconds: 150);
   static const Duration base = Duration(milliseconds: 250);
   static const Duration slow = Duration(milliseconds: 400);
   static const Duration emphasized = Duration(milliseconds: 600);
 
+  // ── The one orchestrated moment (§8.1) ──
+
+  /// The deck's top card fades from the paper palette to the plate palette.
+  static const Duration plateLight = Duration(milliseconds: 180);
+
+  /// The plate figure's register roll ([roll] curve).
+  static const Duration plateRoll = Duration(milliseconds: 900);
+
+  /// Plate bars rise during the last 300 ms of the roll.
+  static const Duration barsRise = Duration(milliseconds: 300);
+
+  /// Delay between two rising bars (see [barDelay]).
+  static const Duration barsStagger = Duration(milliseconds: 40);
+
+  /// The dashed projection outline draws in (trim path).
+  static const Duration projectionDraw = Duration(milliseconds: 200);
+
+  /// The first-run deck nudge (±10 px wiggle, once, never under reduce
+  /// motion).
+  static const Duration nudge = Duration(milliseconds: 600);
+
+  // ── Feedback (§8.2) ──
+
+  /// Press in: pressed fill + scale [pressScale].
+  static const Duration press = Duration(milliseconds: 90);
+
+  /// Press out (release).
+  static const Duration pressOut = Duration(milliseconds: 120);
+
+  /// Scale of a pressed row, button or key.
+  static const double pressScale = 0.98;
+
+  /// A released deck card flies out (easeIn, [fly]).
+  static const Duration deckFly = Duration(milliseconds: 240);
+
+  /// The next deck card steps forward.
+  static const Duration deckStep = Duration(milliseconds: 220);
+
+  /// The depth-1 card completes its lerp to the plate palette on release.
+  static const Duration plateHandoff = Duration(milliseconds: 200);
+
+  /// Approve: the plate stamps 1.02 → 1.
+  static const Duration stamp = Duration(milliseconds: 160);
+
+  /// The StageStrip's current ring slides one stop.
+  static const Duration stageStep = Duration(milliseconds: 240);
+
+  /// The bottom bar's needle slides between items ([spring]).
+  static const Duration needle = Duration(milliseconds: 200);
+
+  /// The segmented control's thumb slides.
+  static const Duration thumb = Duration(milliseconds: 220);
+
+  /// The route-line vehicle glides to new progress.
+  static const Duration routeGlide = Duration(milliseconds: 400);
+
+  /// Driver: the delivered stop's load-bar segment empties.
+  static const Duration loadBarEmpty = Duration(milliseconds: 300);
+
+  /// Driver: the next stop slides into the plate (shared axis).
+  static const Duration stopSlide = Duration(milliseconds: 280);
+
+  /// Sheets slide up ([emphasizedCurve]).
+  static const Duration sheet = Duration(milliseconds: 250);
+
+  /// Modal scrim fade.
+  static const Duration scrim = Duration(milliseconds: 200);
+
+  /// Toast in (slide up + fade).
+  static const Duration toastIn = Duration(milliseconds: 200);
+
+  /// Toast out.
+  static const Duration toastOut = Duration(milliseconds: 150);
+
+  /// The slide-to-confirm knob turns into the ok check.
+  static const Duration slideDone = Duration(milliseconds: 300);
+
+  /// The splash draws the logo chevrons in.
+  static const Duration logoDraw = Duration(milliseconds: 600);
+
+  /// Skeleton opacity pulse 1 → 0.55 → 1 (static under reduce motion).
+  static const Duration skeletonPulse = Duration(milliseconds: 1200);
+
+  /// A tapped bar's value bubble stays this long.
+  static const Duration bubbleHold = Duration(seconds: 2);
+
+  // ── Curves ──
+
   static const Curve standard = Curves.easeOutCubic;
   static const Curve emphasizedCurve = Cubic(0.2, 0, 0, 1);
   static const Curve exit = Curves.easeInCubic;
 
-  /// List items fade up with a 30 ms stagger, capped at 8 items.
+  /// A soft spring: settles with a ~3 % overshoot (the bottom bar needle,
+  /// selection thumbs). Calm, never bouncy.
+  static const Curve spring = Cubic(0.32, 1.28, 0.58, 1);
+
+  /// The register roll: `v(t) = 1 − (1 − t)^3.2` (§8.1).
+  static const Curve roll = RegisterRollCurve();
+
+  /// A released deck card flies out.
+  static const Curve fly = Curves.easeIn;
+
+  /// Deprecated: count-ups are gone in v2 (`AnimatedNumber` renders the
+  /// final value; only the plate rolls). Kept for API stability.
+  static const Duration count = Duration(milliseconds: 700);
+
+  /// Deprecated: list entrances are gone in v2 ([StaggerItem] renders its
+  /// child directly). Kept for API stability.
   static const Duration staggerStep = Duration(milliseconds: 30);
   static const int staggerMaxItems = 8;
 
@@ -34,9 +152,49 @@ abstract final class AknMotion {
   static Duration of(BuildContext context, Duration d) =>
       reduced(context) ? Duration.zero : d;
 
-  /// Delay of the list item at [index] (0-based).
+  /// [curve], or [Curves.linear] under reduce motion (a zero-length
+  /// animation needs no easing; keeps spring overshoot out of jumps).
+  static Curve curveOf(BuildContext context, Curve curve) =>
+      reduced(context) ? Curves.linear : curve;
+
+  /// Drives [controller] to [target] over [duration] on [curve]; under reduce
+  /// motion it jumps there at once (the final frame is drawn immediately).
+  static TickerFuture animateTo(
+    BuildContext context,
+    AnimationController controller,
+    double target, {
+    Duration? duration,
+    Curve curve = standard,
+  }) {
+    if (reduced(context)) {
+      controller.value = target;
+      return TickerFuture.complete();
+    }
+    return controller.animateTo(target, duration: duration, curve: curve);
+  }
+
+  /// Delay of the plate bar at [index] (0-based) within [barsRise].
+  static Duration barDelay(int index) => barsStagger * (index < 0 ? 0 : index);
+
+  /// The register-roll progress at linear time [t] (0–1): `1 − (1 − t)^3.2`.
+  static double rollProgress(double t) => roll.transform(t.clamp(0.0, 1.0));
+
+  /// Delay of the list item at [index] (0-based). Deprecated with
+  /// [staggerStep].
   static Duration staggerDelay(int index) =>
       staggerStep * index.clamp(0, staggerMaxItems);
+}
+
+/// The pump-register easing of the plate figure (§8.1): `1 − (1 − t)^e`
+/// with e = 3.2 — a fast start and a long mechanical settle.
+class RegisterRollCurve extends Curve {
+  const RegisterRollCurve([this.exponent = 3.2]);
+
+  final double exponent;
+
+  @override
+  double transformInternal(double t) =>
+      1 - math.pow(1 - t, exponent).toDouble();
 }
 
 /// [AnimatedSize] that respects reduce motion: under `disableAnimations` the
@@ -169,10 +327,9 @@ class _FadeUpState extends State<FadeUp> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Marks the moment a list appeared, so only the first screenful animates.
-///
-/// Items built later (scrolling, refresh) appear without animation. To replay
-/// the entrance for a new data set, give the scope a new key.
+/// Marks the moment a list appeared. v2 (§8.3): list entrances are gone, so
+/// nothing animates under it any more ([StaggerItem] renders its child
+/// directly); kept so existing call sites compile.
 ///
 /// ```dart
 /// StaggerScope(
@@ -181,7 +338,7 @@ class _FadeUpState extends State<FadeUp> with SingleTickerProviderStateMixin {
 ///   ),
 /// )
 /// ```
-class StaggerScope extends StatefulWidget {
+class StaggerScope extends StatelessWidget {
   const StaggerScope({
     super.key,
     required this.child,
@@ -190,34 +347,15 @@ class StaggerScope extends StatefulWidget {
 
   final Widget child;
 
-  /// Items first built later than this after the scope appeared do not
-  /// animate.
+  /// Deprecated: no entrance window any more (kept for API stability).
   final Duration window;
 
-  static _StaggerScopeState? _maybeOf(BuildContext context) =>
-      context.findAncestorStateOfType<_StaggerScopeState>();
-
   @override
-  State<StaggerScope> createState() => _StaggerScopeState();
+  Widget build(BuildContext context) => child;
 }
 
-class _StaggerScopeState extends State<StaggerScope> {
-  // Frame time (not wall time): advances with real frames and with
-  // `tester.pump` in tests.
-  static Duration _now() =>
-      SchedulerBinding.instance.currentSystemFrameTimeStamp;
-
-  late final Duration _start = _now();
-
-  bool shouldAnimate(int index) =>
-      _now() - _start < widget.window + AknMotion.staggerDelay(index);
-
-  @override
-  Widget build(BuildContext context) => widget.child;
-}
-
-/// One list item of a staggered entrance: fades up after
-/// `index × 30 ms` (capped at 8 items).
+/// One list item. v2 (§8.3): no staggered list entrances — it renders its
+/// child directly. Kept so existing call sites compile.
 class StaggerItem extends StatelessWidget {
   const StaggerItem({super.key, required this.index, required this.child});
 
@@ -225,12 +363,7 @@ class StaggerItem extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    if (AknMotion.reduced(context)) return child;
-    final scope = StaggerScope._maybeOf(context);
-    if (scope != null && !scope.shouldAnimate(index)) return child;
-    return FadeUp(delay: AknMotion.staggerDelay(index), child: child);
-  }
+  Widget build(BuildContext context) => child;
 }
 
 /// Wraps [children] (e.g. of a Column) in [StaggerItem]s.
@@ -239,14 +372,15 @@ List<Widget> staggered(List<Widget> children) => [
     StaggerItem(index: i, child: children[i]),
 ];
 
-/// Scales its child to 0.97 while pressed (fast 150 ms). Uses raw pointer
-/// events, so it never competes with the child's gestures.
+/// Scales its child to [AknMotion.pressScale] (0.98) while pressed: 90 ms in,
+/// 120 ms out (§8.2). Uses raw pointer events, so it never competes with the
+/// child's gestures. Static under reduce motion.
 class PressScale extends StatefulWidget {
   const PressScale({
     super.key,
     required this.child,
     this.enabled = true,
-    this.scale = 0.97,
+    this.scale = AknMotion.pressScale,
   });
 
   final Widget child;
@@ -274,7 +408,7 @@ class _PressScaleState extends State<PressScale> {
       onPointerCancel: (_) => _set(false),
       child: AnimatedScale(
         scale: _down && !reduced ? widget.scale : 1,
-        duration: AknMotion.fast,
+        duration: _down ? AknMotion.press : AknMotion.pressOut,
         curve: AknMotion.standard,
         child: widget.child,
       ),
@@ -910,7 +1044,9 @@ class MorphHero extends StatelessWidget {
 abstract final class AknMorphRadius {
   static const double card = 12;
   static const double header = 0;
-  static const double hero = 24;
+
+  /// The plate (r20).
+  static const double hero = 20;
 }
 
 class _MorphEnd extends StatelessWidget {

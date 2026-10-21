@@ -128,7 +128,7 @@ void registerAuthFakes(FakeServer s) {
       );
     }
     final p = findFakePersona(name);
-    if (p == null || r.str('password') != FakeAuth.password) {
+    if (p == null || !s.auth.acceptsPassword(p.key, r.str('password'))) {
       final n = (ctl._failures[name] ?? 0) + 1;
       if (n >= ctl.lockoutThreshold) {
         ctl._failures.remove(name);
@@ -194,7 +194,7 @@ void registerAuthFakes(FakeServer s) {
     final c = s.auth.challenges[id];
     if (c == null || c.consumed) {
       throw FakeResponse.business(
-        'Doğrulama süresi doldu. Lütfen baştan başlayın.',
+        'Doğrulama süresi doldu. Girişe dönüp baştan başlayın.',
       );
     }
     final now = ctl.now();
@@ -233,7 +233,7 @@ void registerAuthFakes(FakeServer s) {
     final c = s.auth.challenges[id];
     if (c == null || c.purpose != 3 || c.personaKey != p.key) {
       throw FakeResponse.business(
-        'Doğrulama süresi doldu. Lütfen baştan başlayın.',
+        'Doğrulama süresi doldu. Girişe dönüp baştan başlayın.',
       );
     }
     final result = s.auth.verify(id, req.json.str('code'));

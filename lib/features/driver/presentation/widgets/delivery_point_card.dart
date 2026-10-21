@@ -9,12 +9,21 @@ import '../../copy.dart';
 import '../../data/driver_models.dart';
 import 'navigation.dart';
 
-/// Teslimat noktası kartı: harita iğnesi (harita açık derlemelerde) ya da adres, "Yol tarifi",
-/// "Haritada aç"; yetkili ve "Ara"; giriş notları; tank kapasitesi ve teslim saatleri.
+/// "Teslimat noktası" bölümü (tasarım v2 §4.5: başlık + içerik, kutu yok): harita açık derlemelerde
+/// küçük harita iğnesi, nokta adı ve adres, "Yol tarifi" (alttaki rafta yoksa) ve "Haritada aç";
+/// teslim saatleri ve tank kapasitesi olgu satırları. Kapı notu ve teslim alacak kişi plakanın
+/// hemen altında durur (ayrıntı sayfası).
 class DeliveryPointCard extends ConsumerWidget {
-  const DeliveryPointCard({super.key, required this.detail});
+  const DeliveryPointCard({
+    super.key,
+    required this.detail,
+    this.showNavigate = true,
+  });
 
   final DriverShipmentDetail detail;
+
+  /// "Yol tarifi" düğmesi (alt raf zaten gösteriyorsa false).
+  final bool showNavigate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,164 +36,93 @@ class DeliveryPointCard extends ConsumerWidget {
     final lng = detail.longitude;
     final hasTarget = detail.hasCoordinates || address != null;
 
-    return AknCard(
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (mapsEnabled && lat != null && lng != null)
-            _MapPin(lat: lat, lng: lng, title: row.deliveryPointName)
-          else
-            _AddressHeader(
-              name: row.deliveryPointName ?? DriverCopy.deliveryPoint,
-              hasCoordinates: detail.hasCoordinates,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (mapsEnabled && lat != null && lng != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: _MapPin(lat: lat, lng: lng, title: row.deliveryPointName),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(Icons.place_outlined, size: 22, color: c.dim),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      row.deliveryPointName ?? DriverCopy.deliveryPoint,
+                      style: t.bodyStrong.copyWith(color: c.ink),
+                    ),
+                    Text(
+                      address ?? DriverCopy.noAddress,
+                      style: t.body.copyWith(color: c.ink),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasTarget)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
               children: [
-                if (mapsEnabled && lat != null && lng != null)
-                  Text(
-                    row.deliveryPointName ?? DriverCopy.deliveryPoint,
-                    style: t.bodyStrong,
+                if (showNavigate)
+                  AknButton.secondary(
+                    label: DriverCopy.actionNavigate,
+                    icon: Icons.directions_outlined,
+                    onPressed: () => openNavigation(
+                      context,
+                      lat: lat,
+                      lng: lng,
+                      address: address,
+                    ),
                   ),
-                Text(
-                  address ?? DriverCopy.noAddress,
-                  style: t.body.copyWith(color: c.text),
+                AknButton.ghost(
+                  label: DriverCopy.openInMaps,
+                  icon: Icons.map_outlined,
+                  onPressed: () =>
+                      showOnMap(context, lat: lat, lng: lng, address: address),
                 ),
               ],
             ),
           ),
-          if (hasTarget)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: AknButton(
-                      label: DriverCopy.actionNavigate,
-                      icon: Icons.directions_rounded,
-                      expand: true,
-                      onPressed: () => openNavigation(
-                        context,
-                        lat: lat,
-                        lng: lng,
-                        address: address,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: AknButton.secondary(
-                      label: DriverCopy.openInMaps,
-                      icon: Icons.map_outlined,
-                      expand: true,
-                      onPressed: () => showOnMap(
-                        context,
-                        lat: lat,
-                        lng: lng,
-                        address: address,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (detail.contactName != null || detail.contactPhone != null) ...[
-            Divider(height: 1, color: c.lineSoft),
-            _ContactRow(name: detail.contactName, phone: detail.contactPhone),
-          ],
-          if (detail.accessNotes != null) ...[
-            Divider(height: 1, color: c.lineSoft),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.info_outline_rounded, size: 20, color: c.info.fg),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DriverCopy.accessNotes,
-                          style: t.label.copyWith(color: c.dim),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(detail.accessNotes!, style: t.body),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          if (detail.tankCapacityLiters != null || row.windowLabel != null) ...[
-            Divider(height: 1, color: c.lineSoft),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: Column(
-                children: [
-                  if (row.windowLabel != null)
-                    FactRow(
-                      icon: Icons.schedule_rounded,
-                      label: DriverCopy.window,
-                      value: row.windowLabel!,
-                    ),
-                  if (detail.tankCapacityLiters != null)
-                    FactRow(
-                      icon: Icons.propane_tank_outlined,
-                      label: DriverCopy.tankCapacity,
-                      value: Fmt.liters(detail.tankCapacityLiters),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _AddressHeader extends StatelessWidget {
-  const _AddressHeader({required this.name, required this.hasCoordinates});
-
-  final String name;
-  final bool hasCoordinates;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: c.brandSoft,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: c.brandLine),
-            ),
-            child: Icon(Icons.place_rounded, color: c.brandInk, size: 26),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
+        if (row.windowLabel != null || detail.tankCapacityLiters != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(DriverCopy.deliveryPoint, style: t.caption),
-                Text(name, style: t.bodyStrong),
+                if (row.windowLabel != null)
+                  FactRow(
+                    icon: Icons.schedule_outlined,
+                    label: DriverCopy.window,
+                    value: row.windowLabel!,
+                  ),
+                if (row.windowLabel != null &&
+                    detail.tankCapacityLiters != null)
+                  Divider(height: 1, thickness: 1, color: c.line),
+                if (detail.tankCapacityLiters != null)
+                  FactRow(
+                    icon: Icons.propane_tank_outlined,
+                    label: DriverCopy.tankCapacity,
+                    value: Fmt.liters(detail.tankCapacityLiters),
+                  ),
               ],
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }
@@ -204,9 +142,7 @@ class _MapPin extends StatelessWidget {
       label: '${DriverCopy.deliveryPoint} haritası',
       excludeSemantics: true,
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AknRadius.md),
-        ),
+        borderRadius: AknRadius.card,
         child: SizedBox(
           height: 150,
           child: GoogleMap(
@@ -229,50 +165,6 @@ class _MapPin extends StatelessWidget {
             onTap: (_) => openNavigation(context, lat: lat, lng: lng),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ContactRow extends StatelessWidget {
-  const _ContactRow({this.name, this.phone});
-
-  final String? name;
-  final String? phone;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 12, 8),
-      child: Row(
-        children: [
-          AknAvatar(name: name ?? DriverCopy.contact, size: 40),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(DriverCopy.contact, style: t.caption),
-                Text(name ?? Fmt.dash, style: t.bodyStrong),
-                if (phone != null)
-                  Text(
-                    Fmt.phone(phone),
-                    style: t.bodySmall.copyWith(color: c.text),
-                  ),
-              ],
-            ),
-          ),
-          if (phone != null)
-            AknButton.secondary(
-              label: DriverCopy.actionCall,
-              icon: Icons.call_rounded,
-              size: AknButtonSize.small,
-              semanticLabel: '${name ?? DriverCopy.contact} kişisini ara',
-              onPressed: () => callPhone(context, phone),
-            ),
-        ],
       ),
     );
   }

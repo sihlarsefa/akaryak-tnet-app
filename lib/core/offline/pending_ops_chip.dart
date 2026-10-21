@@ -114,11 +114,15 @@ class _PendingOpsList extends ConsumerWidget {
                 : AknTone.warn,
             title: op.label ?? op.type,
             subtitle: [
-              op.status.label,
+              [
+                op.status.label,
+                if (op.nextAttemptAt != null &&
+                    op.status == OutboxStatus.failed)
+                  'sonraki deneme ${Fmt.time(op.nextAttemptAt)}',
+              ].join(', '),
               if (op.lastError != null) op.lastError!,
-              if (op.nextAttemptAt != null && op.status == OutboxStatus.failed)
-                'Sonraki deneme ${Fmt.time(op.nextAttemptAt)}',
-            ].join(' · '),
+            ].join('\n'),
+            subtitleMaxLines: 4,
             padding: const EdgeInsets.symmetric(vertical: 8),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

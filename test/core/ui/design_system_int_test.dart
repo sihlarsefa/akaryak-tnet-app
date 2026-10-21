@@ -185,32 +185,42 @@ void main() {
         expect(contrast(c.link, c.bg), greaterThanOrEqualTo(4.5));
         final segBg = c.isDark ? c.surface : c.surfaceAlt;
         expect(contrast(c.text, segBg), greaterThanOrEqualTo(4.5));
-        // Lacivert üstünde yalnızca beyaz, #CBD5E1 ve #F08A55.
-        for (final fg in const [
-          Color(0xFFFFFFFF),
-          Color(0xFFCBD5E1),
-          Color(0xFFF08A55),
+        expect(contrast(c.text, c.surfaceAlt), greaterThanOrEqualTo(4.5));
+        // Karar G: plaka beyaz bir kart (üstte yumuşak turuncu ton); üstündeki yazı mürekkep, AA.
+        final plate = c.plateInk();
+        for (final bg in [
+          c.plate,
+          c.plateTint,
+          plate.surface,
+          plate.surfaceAlt,
         ]) {
-          expect(
-            contrast(fg, c.navy),
-            greaterThanOrEqualTo(4.5),
-            reason: '$fg',
-          );
+          for (final fg in [plate.ink, plate.text, plate.dim, plate.link]) {
+            expect(contrast(fg, bg), greaterThanOrEqualTo(4.5), reason: '$bg');
+          }
         }
-        expect(contrast(c.onNavyDim, c.navy), greaterThanOrEqualTo(4.5));
+        // Eski lacivert takma adı artık turuncu bandın orta rengi: üstünde beyaz yazı (≥ 3,0;
+        // sahibin F2GO kararı, 15 px w700 selamlama).
+        expect(contrast(c.onNavy, c.navy), greaterThanOrEqualTo(3.0));
       });
     }
 
-    test('bağlantı rengi değerleri (spec D.7)', () {
-      expect(AknColors.light.link, const Color(0xFF2B5C8A));
-      expect(AknColors.dark.link, const Color(0xFF93C5FD));
-      expect(AknColors.light.lerp(AknColors.dark, 1).link, AknColors.dark.link);
-    });
+    test(
+      'bağlantı rengi değerleri (tasarım v2 §2.2: mürekkep + alt çizgi)',
+      () {
+        expect(AknColors.light.link, const Color(0xFF1E2227));
+        expect(AknColors.dark.link, const Color(0xFFF1F2F4));
+        expect(AknColors.light.link, AknColors.light.ink);
+        expect(
+          AknColors.light.lerp(AknColors.dark, 1).link,
+          AknColors.dark.link,
+        );
+      },
+    );
   });
 
   group('Çekirdek bileşen düzeltmeleri', () {
     testWidgets(
-      'AknSegmented: 48 dp, seçilmemiş metin `text`, ekran okuyucu seçer',
+      'AknSegmented: 48 dp, seçilmemiş metin `dim` (AA), ekran okuyucu seçer',
       (tester) async {
         var value = 0;
         await pumpUi(
@@ -245,7 +255,12 @@ void main() {
                   .first,
             )
             .style;
-        expect(style.color, AknColors.light.text);
+        // v2 §6.11: unselected labels are dim (5.44:1 on Beton), selected ink.
+        expect(style.color, AknColors.light.dim);
+        expect(
+          contrast(AknColors.light.dim, AknColors.light.surfaceAlt),
+          greaterThanOrEqualTo(4.5),
+        );
         final handle = tester.ensureSemantics();
         tester.semantics.tap(find.semantics.byLabel('Taleplerim'));
         await tester.pumpAndSettle();
@@ -493,17 +508,74 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
 
-    testWidgets('lacivert üstünde yazı logosu beyaz', (tester) async {
-      await pumpUi(
-        tester,
-        const ColoredBox(
-          color: Color(0xFF1F2A37),
-          child: AknLogo(onDark: true),
-        ),
-      );
-      expect(find.byType(AknWordmark), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+    testWidgets(
+      'bantta logo: beyaz kare, turuncu ok, beyaz yazı; plakada (beyaz kart) normal logo',
+      (tester) async {
+        // Karar G: turuncu üst bantta logo karosu beyaz, ok turuncu, yazı beyaz.
+        await pumpUi(tester, const AknBand(child: AknLogo()));
+        expect(find.byType(AknWordmark), findsOneWidget);
+        LogoMarkPainter painter() => tester
+            .widgetList<CustomPaint>(find.byType(CustomPaint))
+            .map((p) => p.painter)
+            .whereType<LogoMarkPainter>()
+            .single;
+        expect(painter().tileColor, const Color(0xFFFFFFFF));
+        expect(painter().chevronColor, AknColors.light.logo);
+        TextSpan span() =>
+            tester
+                    .widget<Text>(
+                      find.descendant(
+                        of: find.byType(AknWordmark),
+                        matching: find.byType(Text),
+                      ),
+                    )
+                    .textSpan!
+                as TextSpan;
+        expect(span().style!.color, const Color(0xFFFFFFFF));
+        expect(
+          (span().children!.single as TextSpan).style!.color,
+          const Color(0xFFFFFFFF),
+        );
+        expect(tester.takeException(), isNull);
+
+        // Plaka artık beyaz bir kart: logo turuncu karo, beyaz ok, mürekkep yazı.
+        await pumpUi(tester, const AknHeroPanel(child: AknLogo()));
+        expect(painter().tileColor, AknColors.light.logo);
+        expect(painter().chevronColor, const Color(0xFFFFFFFF));
+        expect(span().style!.color, AknColors.light.ink);
+        expect(
+          (span().children!.single as TextSpan).style!.color,
+          AknColors.light.logo,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'koyu yüzeyde (onDark) yazı logosu açık mürekkep, "Net" turuncu',
+      (tester) async {
+        await pumpUi(
+          tester,
+          ColoredBox(
+            color: AknColors.dark.bg,
+            child: const AknLogo(onDark: true),
+          ),
+        );
+        final text = tester.widget<Text>(
+          find.descendant(
+            of: find.byType(AknWordmark),
+            matching: find.byType(Text),
+          ),
+        );
+        final span = text.textSpan! as TextSpan;
+        expect(span.style!.color, AknColors.dark.ink);
+        expect(span.style!.fontFamily, AknFonts.sans);
+        expect(
+          (span.children!.single as TextSpan).style!.color,
+          AknColors.light.logo,
+        );
+      },
+    );
 
     testWidgets('geniş ekranda içerik en fazla 640 dp', (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -525,6 +597,9 @@ void main() {
   test('piksel sayacı mor rengi tanır', () {
     expect(_isPurple(const Color(0xFF7709C7)), isTrue, reason: 'F2GO moru');
     expect(_isPurple(const Color(0xFFC94C0C)), isFalse);
+    expect(_isPurple(AknColors.light.heroStart), isFalse);
+    expect(_isPurple(AknColors.light.heroEnd), isFalse);
+    expect(_isPurple(AknColors.dark.heroEnd), isFalse);
     expect(_isPurple(const Color(0xFF1F2A37)), isFalse);
     expect(_isPurple(const Color(0xFF1D4ED8)), isFalse);
   });

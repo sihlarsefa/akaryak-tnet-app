@@ -4,11 +4,14 @@ import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/driver/application/driver_home_state.dart';
 import 'package:akaryakitnet/features/driver/application/driver_lists.dart';
 import 'package:akaryakitnet/features/driver/application/driver_ops.dart';
+import 'package:akaryakitnet/features/driver/application/location.dart';
 import 'package:akaryakitnet/features/driver/copy.dart';
 import 'package:akaryakitnet/features/driver/data/driver_models.dart';
 import 'package:akaryakitnet/features/driver/presentation/driver_home.dart';
 import 'package:akaryakitnet/features/driver/presentation/shipment_detail_page.dart';
 import 'package:akaryakitnet/features/driver/presentation/widgets/shipment_card.dart';
+import 'package:akaryakitnet/features/driver/presentation/widgets/stop_dock.dart';
+import 'package:akaryakitnet/features/driver/presentation/widgets/stop_plate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,9 +28,11 @@ void main() {
     double textScale = 1,
     String user = 'sofor',
     Size size = const Size(400, 2400),
+    void Function(DriverHarness h)? before,
   }) async {
     phoneSize(tester, size);
     h = await real(tester, DriverHarness.create);
+    before?.call(h);
     c = h.container();
     await tester.runAsync(() => DriverHarness.login(c, user));
     await tester.pumpWidget(
@@ -65,19 +70,85 @@ void main() {
       expect(cards, findsWidgets);
       final first = tester.widget<ShipmentCard>(cards.first);
       expect(first.row.status, ShipmentStatus.disputed);
-      // Not hem üstteki uyarıda hem kartta; "Teslimatı düzelt" iki yerde de.
-      expect(find.textContaining('5.650 L'), findsNWidgets(2));
+      // Üstte kısa uyarı (kaydırmadan görünür); not ve "Teslimatı düzelt" satırda.
+      expect(find.text(DriverCopy.disputedCount(1)), findsOneWidget);
+      expect(find.textContaining('5.650 L'), findsOneWidget);
       expect(find.text(DriverCopy.disputedTitle), findsOneWidget);
-      expect(find.text(DriverCopy.actionFix), findsNWidgets(2));
-      // Kahraman: yoldaki teslimat sıradaki.
-      expect(find.text(DriverCopy.enRoute), findsWidgets);
+      expect(find.text(DriverCopy.actionFix), findsOneWidget);
+      // Sıradaki durak: yoldaki teslimat; ekranın tek plakası onun litresi.
+      expect(find.text(DriverCopy.nextOf(1, 2)), findsOneWidget);
+      expect(find.byType(DriverStopPlate), findsOneWidget);
+      expect(find.byType(AknPlate), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('^Motorin, bu durakta, 10.000 litre')),
+        findsOneWidget,
+      );
+      expect(find.text('Anadolu Lojistik A.Ş.'), findsOneWidget);
+      expect(find.textContaining('Kapı notu'), findsOneWidget);
+      expect(find.text('Murat Kaya'), findsOneWidget);
+      // Raf: "Teslim et" (konum noktada, birincil) ve "Yol tarifi".
+      expect(find.byType(DriverStopDock), findsOneWidget);
       expect(find.text(DriverCopy.actionDeliver), findsOneWidget);
+      expect(find.text(DriverCopy.actionNavigate), findsOneWidget);
+      expect(
+        tester
+            .widget<DriverStopDock>(find.byType(DriverStopDock))
+            .actionIsPrimary,
+        isTrue,
+      );
       // Sekme sayıları.
       expect(find.bySemanticsLabel(RegExp('^Bugün, \\d+\$')), findsOneWidget);
       expect(tester.takeException(), isNull);
       await finish(tester);
     },
   );
+
+  testWidgets(
+    'birincil iş tırı izler: noktaya ~17 km iken "Yol tarifi", uzaklık plakada',
+    (tester) async {
+      await start(
+        tester,
+        before: (h) => h.location
+          ..latitude = 40.9923
+          ..longitude = 29.1244,
+      );
+      final dock = tester.widget<DriverStopDock>(find.byType(DriverStopDock));
+      expect(dock.actionIsPrimary, isFalse, reason: 'Yol tarifi birincil');
+      expect(find.text(DriverCopy.actionDeliver), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Uzaklık: kuş uçuşu 17 km')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'konum izni yok: "Teslim et" hemen birincil, uzaklık yerine tank',
+    (tester) async {
+      await start(
+        tester,
+        before: (h) => h.location.perm = DriverLocationPermission.notDetermined,
+      );
+      final dock = tester.widget<DriverStopDock>(find.byType(DriverStopDock));
+      expect(dock.actionIsPrimary, isTrue);
+      expect(h.location.requests, 0, reason: 'ana sayfa izin penceresi açmaz');
+      expect(find.bySemanticsLabel(RegExp('Tank: 30.000 L')), findsOneWidget);
+      await finish(tester);
+    },
+  );
+
+  testWidgets('çevrimdışı satırı: "Teslimatlar telefona kaydediliyor"', (
+    tester,
+  ) async {
+    await start(tester);
+    expect(find.textContaining('Eşitlendi'), findsOneWidget);
+    c.read(testOnlineProvider.notifier).state = false;
+    await pumpFor(tester, const Duration(milliseconds: 400));
+    expect(find.text(DriverCopy.offlineLine), findsOneWidget);
+    await finish(tester);
+  });
 
   testWidgets('ilk giriş ipucu bir kez gösterilir, "Anladım" ile kapanır', (
     tester,
@@ -130,7 +201,14 @@ void main() {
 
   testWidgets('karta dokununca ayrıntı açılır', (tester) async {
     await start(tester);
-    await tester.tap(find.byType(ShipmentCard).first);
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(ShipmentCard).first,
+            matching: find.byType(InkWell),
+          )
+          .first,
+    );
     await pumpUntil(
       tester,
       () => find.byType(ShipmentDetailPage).evaluate().isNotEmpty,
@@ -169,6 +247,8 @@ void main() {
         tester,
         () => find.text(DriverCopy.opSent).evaluate().isNotEmpty,
       );
+      // Lamba geçişi (250 ms) bitsin.
+      await pumpFor(tester, const Duration(milliseconds: 300));
       expect(find.text(DriverCopy.opSent), findsOneWidget);
       expect(find.text(DriverCopy.opWaiting), findsNothing);
       await pumpFor(tester, const Duration(seconds: 4));
@@ -236,7 +316,7 @@ void main() {
     );
     await pumpFor(tester, const Duration(milliseconds: 600));
     expect(find.text(DriverCopy.offlineNoCacheTitle), findsOneWidget);
-    expect(find.text(DriverCopy.nothingToday), findsOneWidget);
+    expect(find.byType(DriverStopPlate), findsNothing);
     expect(find.byType(ChevronSpinner), findsNothing);
 
     h.server.failureMode = FakeFailureMode.none;
@@ -268,7 +348,7 @@ void main() {
     );
     await tester.pump();
     expect(find.byType(ShipmentCard), findsWidgets);
-    expect(find.byType(AknHeroPanel), findsOneWidget);
+    expect(find.byType(DriverStopPlate), findsOneWidget);
     await finish(tester);
   });
 }

@@ -51,34 +51,35 @@ class CompanyUsersPage extends ConsumerWidget {
         onRefresh: ctrl.load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 12, bottom: 24),
+          padding: const EdgeInsets.only(top: 0, bottom: 24),
           children: [
-            _ThresholdsCard(
-              thresholds: s.thresholds,
-              canEdit: policy.cmCompanyUserEdit && online,
-            ),
             SectionHeader(
               title: 'Kullanıcılar',
               count: active.length,
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+              padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
             ),
             if (s.users.length <= 1)
               const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: AknBanner(
                   tone: AknTone.info,
                   message: CmCopy.usersAlone,
                 ),
               ),
-            for (final u in active) UserCard(user: u),
+            AknLedger(children: [for (final u in active) UserCard(user: u)]),
             if (inactive.isNotEmpty) ...[
               SectionHeader(
                 title: 'Pasif kullanıcılar',
                 count: inactive.length,
-                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
               ),
-              for (final u in inactive) UserCard(user: u),
+              AknLedger(
+                children: [for (final u in inactive) UserCard(user: u)],
+              ),
             ],
+            _ThresholdsCard(
+              thresholds: s.thresholds,
+              canEdit: policy.cmCompanyUserEdit && online,
+            ),
             const _RolesLegend(),
           ],
         ),
@@ -92,7 +93,7 @@ class CompanyUsersPage extends ConsumerWidget {
           ? cmBar(
               AknButton(
                 label: 'Kullanıcı ekle',
-                icon: Icons.person_add_alt_1_rounded,
+                icon: Icons.person_add_alt_outlined,
                 expand: true,
                 onPressed: online ? () => showAddUserSheet(context) : null,
               ),
@@ -121,7 +122,7 @@ class _ThresholdsCard extends StatelessWidget {
           : 'Kapalı: Talep edenin siparişleri doğrudan bayiye gider.',
       trailing: canEdit
           ? AknIconButton(
-              icon: Icons.edit_rounded,
+              icon: Icons.edit_outlined,
               semanticLabel: 'Onay eşiklerini düzenle',
               onPressed: () => showThresholdsSheet(context, th),
             )
@@ -145,12 +146,16 @@ class _ThresholdsCard extends StatelessWidget {
                 ),
               ],
             )
-          : Text('Şirket içi onay kapalı.', style: t.bodySmall),
+          : Text(
+              'Şirket içi onay kapalı.',
+              style: t.bodySmall.copyWith(color: context.akn.dim),
+            ),
     );
   }
 }
 
-/// Kullanıcı kartı: rol çipi, davet / pasif durumu, son giriş; dokununca eylemler.
+/// Kullanıcı satırı (tasarım v2 §6.8, ledger): baş harfli avatar, ad ("(siz)"), e-posta / telefon,
+/// sağda rol; davet / pasif lambası ve son giriş. Yönetici dokununca eylemler açılır.
 class UserCard extends ConsumerWidget {
   const UserCard({super.key, required this.user});
 
@@ -167,8 +172,30 @@ class UserCard extends ConsumerWidget {
         : 'Son giriş ${Fmt.relative(u.lastLoginAt)}';
     final role = u.role.statusStyle.withLabel(u.roleLabel);
     final canManage = policy.cmCompanyUserEdit;
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+    final contact = [
+      if (u.email.isNotEmpty) u.email,
+      if (u.phoneNumber != null) Fmt.phone(u.phoneNumber),
+    ].join('\n');
+    final lamp = u.invitationPending
+        ? const AknLamp(label: 'Davet bekliyor', tone: AknTone.info)
+        : (!u.isActive
+              ? const AknLamp(label: 'Pasif', tone: AknTone.neutral)
+              : null);
+    return AknListTile(
+      leading: Opacity(
+        opacity: u.isActive ? 1 : 0.55,
+        child: AknAvatar(name: u.displayName),
+      ),
+      title: u.isSelf ? '${u.displayName} (siz)' : u.displayName,
+      subtitle: contact.isEmpty ? null : contact,
+      meta: role.label,
+      status: AknStatusLine(
+        lamp: lamp ?? Text(last, style: t.bodySmall.copyWith(color: c.dim)),
+        trailing: lamp == null
+            ? null
+            : Text(last, style: t.bodySmall.copyWith(color: c.dim)),
+      ),
+      showChevron: canManage,
       onTap: canManage ? () => showUserActionsSheet(context, u) : null,
       semanticLabel: [
         u.displayName,
@@ -179,57 +206,6 @@ class UserCard extends ConsumerWidget {
         u.email,
         last,
       ].join(', '),
-      child: ExcludeSemantics(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Opacity(
-              opacity: u.isActive ? 1 : 0.55,
-              child: AknAvatar(name: u.displayName),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    u.isSelf ? '${u.displayName} (siz)' : u.displayName,
-                    style: t.bodyStrong,
-                  ),
-                  if (u.email.isNotEmpty) Text(u.email, style: t.bodySmall),
-                  if (u.phoneNumber != null)
-                    Text(Fmt.phone(u.phoneNumber), style: t.caption),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      StatusChip.style(role, size: StatusChipSize.small),
-                      if (u.invitationPending)
-                        const StatusChip(
-                          label: 'Davet bekliyor',
-                          tone: AknTone.info,
-                          icon: Icons.mark_email_unread_rounded,
-                          size: StatusChipSize.small,
-                        ),
-                      if (!u.isActive)
-                        const StatusChip(
-                          label: 'Pasif',
-                          tone: AknTone.neutral,
-                          icon: Icons.block_rounded,
-                          size: StatusChipSize.small,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(last, style: t.caption),
-                ],
-              ),
-            ),
-            if (canManage) Icon(Icons.more_horiz_rounded, color: c.faint),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -251,13 +227,18 @@ class _RolesLegend extends StatelessWidget {
             CustomerUserRole.admin,
           ])
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  StatusChip.style(r.statusStyle, size: StatusChipSize.small),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(companyRoleHint(r), style: t.bodySmall)),
+                  Text(
+                    r.label,
+                    style: t.bodyStrong.copyWith(color: context.akn.ink),
+                  ),
+                  Text(
+                    companyRoleHint(r),
+                    style: t.bodySmall.copyWith(color: context.akn.dim),
+                  ),
                 ],
               ),
             ),

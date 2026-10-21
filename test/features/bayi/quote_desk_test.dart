@@ -86,7 +86,7 @@ void main() {
         rows[0].orderId,
         rows[1].orderId,
       });
-      await scrollTap(tester, find.text('Aynı fiyat/tarih'));
+      await scrollTap(tester, find.text('Aynı fiyatı uygula'));
       expect(find.text('Seçilenlere aynı fiyat / tarih'), findsOneWidget);
       final sheetPrice = find.descendant(
         of: find.byType(BottomSheet),

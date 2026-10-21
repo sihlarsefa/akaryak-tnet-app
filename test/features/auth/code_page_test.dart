@@ -52,9 +52,10 @@ void main() {
       ),
     );
     expect(find.text('Kodu girin'), findsOneWidget);
-    expect(find.text('Doğrulama kodu'), findsOneWidget);
+    // Amaç görünür başlık değil, ekran okuyucu etiketi (beyaz sayfa: logo + "Kodu girin").
+    expect(find.bySemanticsLabel('Doğrulama kodu'), findsOneWidget);
     expect(find.byType(Pinput), findsOneWidget);
-    expect(find.textContaining('Yeniden gönder'), findsOneWidget);
+    expect(find.textContaining('Kodu tekrar gönder'), findsOneWidget);
   });
 
   a11yMatrix('kod ekranı (hatalı kod)', (tester, scale, b) async {
@@ -72,7 +73,7 @@ void main() {
     );
     await _typeCode(tester, '000000');
     await pumpFor(tester, const Duration(milliseconds: 400));
-    expect(find.text('Kod hatalı. Lütfen tekrar deneyin.'), findsOneWidget);
+    expect(find.text('Kod hatalı. Tekrar deneyin.'), findsOneWidget);
   });
 
   a11yMatrix('kod ekranı (eksik sorgu)', (tester, scale, b) async {
@@ -125,23 +126,23 @@ void main() {
           purpose: CodePurpose.twoFactor,
         ),
       );
-      expect(find.text('Yeniden gönder · 1:00'), findsOneWidget);
-      await tester.tap(find.text('Yeniden gönder · 1:00'));
+      expect(find.text('Kodu tekrar gönder (1:00)'), findsOneWidget);
+      await tester.tap(find.text('Kodu tekrar gönder (1:00)'));
       await tester.pump();
       expect(h.controls.resends, 0, reason: 'sayarken dokunulmaz');
 
       clock.advance(const Duration(seconds: 30));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Yeniden gönder · 30 sn'), findsOneWidget);
+      expect(find.text('Kodu tekrar gönder (30 sn)'), findsOneWidget);
 
       clock.advance(const Duration(seconds: 31));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Yeniden gönder'), findsOneWidget);
-      await tester.tap(find.text('Yeniden gönder'));
+      expect(find.text('Kodu tekrar gönder'), findsOneWidget);
+      await tester.tap(find.text('Kodu tekrar gönder'));
       await pumpFor(tester, const Duration(milliseconds: 400));
       expect(h.controls.resends, 1);
       expect(h.controls.otpSends, 0);
-      expect(find.text('Yeniden gönder · 1:00'), findsOneWidget);
+      expect(find.text('Kodu tekrar gönder (1:00)'), findsOneWidget);
 
       await _typeCode(tester, FakeAuth.code);
       await pumpUntil(tester, () => isSignedIn(c));
@@ -168,10 +169,10 @@ void main() {
           phone: '905320000101',
         ),
       );
-      expect(find.text('Telefonla giriş'), findsOneWidget);
+      expect(find.byType(CodePage), findsOneWidget);
       clock.advance(const Duration(seconds: 61));
       await tester.pump(const Duration(seconds: 1));
-      await tester.tap(find.text('Yeniden gönder'));
+      await tester.tap(find.text('Kodu tekrar gönder'));
       await pumpFor(tester, const Duration(milliseconds: 400));
       expect(h.controls.otpSends, 1);
       expect(h.controls.resends, 0);
@@ -203,10 +204,10 @@ void main() {
     );
     clock.advance(const Duration(seconds: 61));
     await tester.pump(const Duration(seconds: 1));
-    await tester.tap(find.text('Yeniden gönder'));
+    await tester.tap(find.text('Kodu tekrar gönder'));
     await pumpFor(tester, const Duration(milliseconds: 400));
     expect(find.textContaining('çok fazla kod istendi'), findsOneWidget);
-    expect(find.text('Yeniden gönder · 10:00'), findsOneWidget);
+    expect(find.text('Kodu tekrar gönder (10:00)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

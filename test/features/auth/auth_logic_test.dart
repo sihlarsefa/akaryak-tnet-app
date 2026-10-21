@@ -173,7 +173,7 @@ void main() {
           problem: Problem(code: 'server_error', traceId: '1a2b3c4d-5e6f'),
         ),
       );
-      expect(info.message, startsWith('Beklenmeyen bir hata oluştu'));
+      expect(info.message, startsWith('Sunucuya şu an ulaşılamıyor'));
       expect(info.supportCode, '1a2b3c4d');
     });
 
@@ -204,7 +204,7 @@ void main() {
     test('çevrimdışı ve zaman aşımı', () {
       expect(
         describeAuthFailure(const OfflineFailure()).message,
-        startsWith('İnternet bağlantısı yok'),
+        startsWith('Bağlantı yok'),
       );
       expect(
         describeAuthFailure(const TimeoutFailure()).message,

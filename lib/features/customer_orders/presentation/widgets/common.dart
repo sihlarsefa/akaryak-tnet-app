@@ -6,6 +6,7 @@ import '../../../../core/network/app_failure.dart';
 import '../../../../core/offline/connectivity.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 
 /// "Son güncelleme 14:20" (önbellekten / çevrimdışı gösterilen veri; spec C.4a).
@@ -14,7 +15,7 @@ class LastUpdatedNote extends ConsumerWidget {
     super.key,
     required this.updatedAt,
     this.fromCache = false,
-    this.padding = const EdgeInsets.fromLTRB(16, 8, 16, 0),
+    this.padding = const EdgeInsets.fromLTRB(20, 8, 20, 0),
   });
 
   final DateTime? updatedAt;
@@ -36,11 +37,11 @@ class LastUpdatedNote extends ConsumerWidget {
         excludeSemantics: true,
         child: Row(
           children: [
-            Icon(Icons.history_rounded, size: 16, color: c.dim),
+            Icon(Icons.cloud_off_outlined, size: 16, color: c.dim),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
-                '${OrdersCopy.lastUpdate} ${Fmt.time(at)} · $when',
+                '${OrdersCopy.lastUpdate} ${Fmt.time(at)}, ${TurkishText.lower(when)}',
                 style: t.caption.copyWith(color: c.dim),
               ),
             ),
@@ -378,7 +379,7 @@ class ButtonRow extends StatelessWidget {
   }
 }
 
-/// İçerik genişliğini büyük ekranlarda sınırlar.
+/// İçerik genişliğini büyük ekranlarda sınırlar (en çok [maxWidth]; dar ekranda tam genişlik).
 class ContentWidth extends StatelessWidget {
   const ContentWidth({super.key, required this.child, this.maxWidth = 640});
 
@@ -390,7 +391,7 @@ class ContentWidth extends StatelessWidget {
     alignment: Alignment.topCenter,
     child: ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth),
-      child: child,
+      child: SizedBox(width: double.infinity, child: child),
     ),
   );
 }

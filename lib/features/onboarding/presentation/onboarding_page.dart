@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/storage/prefs_store.dart';
@@ -36,14 +35,14 @@ final onboardingScenes = <OnboardingSceneData>[
     title: OnboardingCopy.orderTitle,
     body: OnboardingCopy.orderBody,
     description: OnboardingCopy.orderScene,
-    builder: (t) => OrderScene(t: t),
+    builder: (t) => OrderScene(t: t, animate: t < 1),
   ),
   OnboardingSceneData(
     eyebrow: OnboardingCopy.quoteEyebrow,
     title: OnboardingCopy.quoteTitle,
     body: OnboardingCopy.quoteBody,
     description: OnboardingCopy.quoteScene,
-    builder: (t) => QuoteScene(t: t),
+    builder: (t) => QuoteScene(t: t, animate: t < 1),
   ),
   OnboardingSceneData(
     eyebrow: OnboardingCopy.deliveryEyebrow,
@@ -54,10 +53,12 @@ final onboardingScenes = <OnboardingSceneData>[
   ),
 ];
 
-/// İlk açılış tanıtımı (spec A.4 A1, F2GO `onboarding_tanitim.dart` yapısı, yeni sahneler): Sipariş →
-/// Teklif → Teslimat. Her sayfada "Atla"; son sayfada "Başlayalım". Sahneler sayfa öne gelince bir kez
-/// oynar; azaltılmış harekette ya da ekran okuyucu açıkken durağan son kare gösterilir. Sayfa göstergesi
-/// "Sayfa 1/3" diye okunur. Degrade, ışık hüzmesi ya da nokta yükleyici yoktur.
+/// İlk açılış tanıtımı (spec A.4 A1; tasarım v2 §7.3): Sipariş → Teklif → Teslimat. Beyaz sayfa; üst
+/// yarıda gerçek arayüzün canlı bir minyatürü (0,9 ölçek: sihirbaz özet plakası, teklif plakası ve
+/// "Teklifi onayla", » aracıyla rota + adımlar), altında `display` başlık, tek cümle, şerit sayfa
+/// göstergesi ve birincil "Devam" / son sayfada "Başlayalım"; sağ üstte sade "Atla". Kaydırarak sayfa
+/// değişir, kendiliğinden ilerlemez. Sahneler sayfa öne gelince bir kez oynar; azaltılmış harekette ya da
+/// ekran okuyucu açıkken durağan son kare gösterilir. Sayfa göstergesi "Sayfa 1/3" diye okunur.
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
 
@@ -87,12 +88,8 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     unawaited(ref.read(onboardingDoneProvider.notifier).complete());
   }
 
-  void _next() {
-    if (_last) {
-      _finish();
-      return;
-    }
-    final target = _index + 1;
+  void _go(int target) {
+    if (target == _index) return;
     if (_staticFrames(context)) {
       _controller.jumpToPage(target);
     } else {
@@ -106,64 +103,77 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
     }
   }
 
+  void _next() {
+    if (_last) {
+      _finish();
+      return;
+    }
+    _go(_index + 1);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
     final animate = !_staticFrames(context);
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: AknTheme.overlayOnNavy,
-      child: AppScaffold(
-        appBar: false,
-        showBell: false,
-        showOfflineBanner: false,
-        backgroundColor: c.navy,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                children: [
-                  OnNavy(child: _TopBar(onSkip: _finish)),
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _controller,
-                      itemCount: _count,
-                      onPageChanged: (i) {
-                        AknHaptics.selection();
-                        setState(() => _index = i);
-                      },
-                      itemBuilder: (context, i) => _ScenePage(
-                        scene: onboardingScenes[i],
-                        active: i == _index,
-                        animate: animate,
-                      ),
+    return AppScaffold(
+      appBar: false,
+      showBell: false,
+      showOfflineBanner: false,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Column(
+              children: [
+                _TopBar(onSkip: _finish),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: _count,
+                    onPageChanged: (i) {
+                      AknHaptics.selection();
+                      setState(() => _index = i);
+                    },
+                    itemBuilder: (context, i) => _ScenePage(
+                      scene: onboardingScenes[i],
+                      active: i == _index,
+                      animate: animate,
                     ),
                   ),
-                  OnNavy(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _PageDots(index: _index, count: _count),
-                          const SizedBox(height: 16),
-                          AknButton(
-                            label: _last
-                                ? OnboardingCopy.start
-                                : OnboardingCopy.next,
-                            trailingIcon: _last
-                                ? null
-                                : Icons.arrow_forward_rounded,
-                            expand: true,
-                            size: AknButtonSize.large,
-                            onPressed: _next,
-                          ),
-                        ],
-                      ),
-                    ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AknSpace.page,
+                    4,
+                    AknSpace.page,
+                    16,
                   ),
-                ],
-              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Semantics(
+                        label: OnboardingCopy.page(_index + 1, _count),
+                        liveRegion: true,
+                        child: LanePager(
+                          count: _count,
+                          index: _index,
+                          onSelect: _go,
+                          showPosition: false,
+                          padding: EdgeInsets.zero,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      AknButton(
+                        label: _last
+                            ? OnboardingCopy.start
+                            : OnboardingCopy.next,
+                        expand: true,
+                        size: AknButtonSize.large,
+                        onPressed: _next,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -172,6 +182,7 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   }
 }
 
+/// Üst satır: solda 32 px logo karosu, sağda sade "Atla" (44 px, ink).
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.onSkip});
 
@@ -179,40 +190,21 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 8, 8, 0),
       child: Row(
         children: [
-          const LogoMark(size: 36),
-          const SizedBox(width: 10),
-          const Expanded(
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: AknWordmark(
-                  fontSize: 18,
-                  onDark: true,
-                  semanticLabel: null,
-                ),
-              ),
-            ),
-          ),
+          const LogoMark(size: 32),
+          const Spacer(),
           Semantics(
             button: true,
             label: OnboardingCopy.skipSpoken,
             excludeSemantics: true,
             onTap: onSkip,
-            child: TextButton(
+            child: AknButton.ghost(
+              label: OnboardingCopy.skip,
+              size: AknButtonSize.small,
               onPressed: onSkip,
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFFFFFFFF),
-                minimumSize: const Size(64, AknSpace.minTap),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                textStyle: t.bodyStrong,
-              ),
-              child: const Text(OnboardingCopy.skip),
             ),
           ),
         ],
@@ -245,19 +237,31 @@ class _ScenePage extends StatelessWidget {
                   if (area.maxHeight < 96 || area.maxWidth < 120) {
                     return const SizedBox.shrink();
                   }
+                  // Gerçek arayüzün minyatürü: 0,9 ölçek, alana sığacak kadar küçülür; yazı ölçeği
+                  // uygulanmaz (çizimdir, anlamını sahne açıklaması taşır).
                   return Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                    child: Center(
+                    padding: const EdgeInsets.fromLTRB(
+                      AknSpace.page,
+                      12,
+                      AknSpace.page,
+                      0,
+                    ),
+                    child: Align(
+                      alignment: Alignment.center,
                       child: Semantics(
                         image: true,
                         label: scene.description,
                         excludeSemantics: true,
                         child: FittedBox(
-                          child: MediaQuery.withNoTextScaling(
-                            child: SceneTimeline(
-                              active: active,
-                              animate: animate,
-                              builder: (context, t) => scene.builder(t),
+                          fit: BoxFit.scaleDown,
+                          child: Transform.scale(
+                            scale: 0.9,
+                            child: MediaQuery.withNoTextScaling(
+                              child: SceneTimeline(
+                                active: active,
+                                animate: animate,
+                                builder: (context, t) => scene.builder(t),
+                              ),
                             ),
                           ),
                         ),
@@ -267,12 +271,12 @@ class _ScenePage extends StatelessWidget {
                 },
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             ConstrainedBox(
               constraints: BoxConstraints(maxHeight: textMax),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: OnNavy(child: _SceneText(scene: scene)),
+                padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+                child: _SceneText(scene: scene),
               ),
             ),
           ],
@@ -282,6 +286,7 @@ class _ScenePage extends StatelessWidget {
   }
 }
 
+/// Başlık (`display` 30/36) ve tek cümle (`body` dim); üst etiket yok.
 class _SceneText extends StatelessWidget {
   const _SceneText({required this.scene});
 
@@ -291,57 +296,24 @@ class _SceneText extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          scene.eyebrow,
-          // Lacivert üzerinde marka metni #F08A55 (spec C.5).
-          style: t.label.copyWith(color: const Color(0xFFF08A55)),
-        ),
-        const SizedBox(height: 6),
-        Semantics(
-          header: true,
-          child: Text(scene.title, style: t.title.copyWith(color: c.ink)),
-        ),
-        const SizedBox(height: 8),
-        Text(scene.body, style: t.body.copyWith(color: c.dim)),
-      ],
-    );
-  }
-}
-
-/// Sayfa göstergesi: etkin nokta uzar (logo turuncusu, yalnızca süs); okunuşu "Sayfa 1/3".
-class _PageDots extends StatelessWidget {
-  const _PageDots({required this.index, required this.count});
-
-  final int index;
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final duration = AknMotion.of(context, AknMotion.base);
-    return Semantics(
-      label: OnboardingCopy.page(index + 1, count),
-      liveRegion: true,
-      excludeSemantics: true,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < count; i++)
-            AnimatedContainer(
-              duration: duration,
-              curve: AknMotion.emphasizedCurve,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: i == index ? 24 : 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: i == index ? c.logo : const Color(0x59FFFFFF),
-                borderRadius: AknRadius.pillAll,
-              ),
+          Semantics(
+            header: true,
+            child: Text(
+              scene.title,
+              style: t.display.copyWith(color: c.ink),
+              textScaler: MediaQuery.textScalerOf(
+                context,
+              ).clamp(maxScaleFactor: 1.6),
             ),
+          ),
+          const SizedBox(height: 8),
+          Text(scene.body, style: t.body.copyWith(color: c.dim)),
         ],
       ),
     );

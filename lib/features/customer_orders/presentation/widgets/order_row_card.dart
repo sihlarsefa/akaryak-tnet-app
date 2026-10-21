@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/models.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../application/ordering_config.dart';
 import '../../data/order_models.dart';
-import 'common.dart';
+import 'order_parts.dart';
 
-/// Siparişlerim satırı: numara + durum, ürün · litre · nokta, bayi · teslim tarihi, teklif,
-/// geri sayım ve uyarı çipleri (finans, belge, sevkiyat). Ekran okuyucu tek düğüm okur.
+/// Siparişlerim satırı (tasarım v2 §6.8, pano ekran 4): ledger satırı.
+///
+/// ```
+/// Motorin, 8.000 L                                   338.800,00 ₺
+/// Tuzla Şantiye, 22 Ekim                                42,35 ₺/L
+/// ● Kararınızı bekliyor                        ⏱ 2 sa 57 dk kaldı
+/// [yoldaysa rota çizgisi]
+/// ```
+///
+/// Durum lambası izleyiciye göredir (§10.3); sıra müşterideyse turuncu nokta + Pas yazı ve Pas
+/// geri sayım. Eksik ödeme belgesi gibi ek durumlar küçük lambalarla alt satıra iner. Ekran
+/// okuyucu satırı tek düğüm olarak okur (sipariş numarası dahil).
 class OrderRowCard extends ConsumerWidget {
   const OrderRowCard({super.key, required this.row, this.onTap});
 
@@ -22,114 +33,89 @@ class OrderRowCard extends ConsumerWidget {
     final t = context.aknText;
     final c = context.akn;
     final config = ref.watch(orderingConfigValueProvider);
-    final status = row.status.statusStyle.withLabel(row.statusLabel);
+    final viewer = customerViewer(ref.watch(accessPolicyProvider));
+    final lamp = orderLampFor(
+      viewer,
+      status: row.status,
+      serverLabel: row.statusLabel,
+      shipment: row.activeShipmentStatus,
+      finance: row.financeStatus,
+      financeLabel: row.financeLabel,
+    );
     final expires = row.expiresAt;
     final showCountdown =
         expires != null &&
+        !row.financeStatus.isAwaitingDecision &&
         (row.status == OrderStatus.awaitingApproval ||
             row.status == OrderStatus.awaitingQuote ||
             row.status == OrderStatus.revisionRequested);
-    final chips = <Widget>[
-      if (row.financeStatus.isAwaitingDecision ||
-          row.financeStatus == OrderFinanceStatus.rejected)
-        StatusChip.style(
-          row.financeStatus.statusStyle.withLabel(row.financeLabel),
-          size: StatusChipSize.small,
-        ),
-      if (row.paymentDocumentMissing)
-        const StatusChip(
-          label: 'Belge bekleniyor',
-          tone: AknTone.warn,
-          icon: Icons.photo_camera_outlined,
-          size: StatusChipSize.small,
-        ),
-      if (row.activeShipmentStatus != null)
-        StatusChip.style(
-          row.activeShipmentStatus!.statusStyle.withLabel(
-            row.activeShipmentStatusLabel,
-          ),
-          size: StatusChipSize.small,
-        ),
-    ];
+    final deadline = expires == null ? null : config.deviceDeadline(expires);
+    final inTransit = row.activeShipmentStatus == ShipmentStatus.inTransit;
+
     final price = row.quotedUnitPrice;
     final total = row.quotedTotal;
-    final semantics = [
-      'Sipariş ${row.orderNumber}',
-      status.label,
-      [
-        row.productName,
-        Fmt.liters(row.quantityLiters),
-      ].whereType<String>().join(', '),
+    final where = [
       if (row.deliveryPointName != null) row.deliveryPointName!,
+      if (row.requestedDeliveryDate != null)
+        relativeDay(row.requestedDeliveryDate),
+    ].join(', ');
+
+    // Sağdaki not: geri sayım; yoksa teklif bekleyen siparişte bayinin adı.
+    Widget? trailing;
+    if (showCountdown && deadline != null) {
+      trailing = CountdownBadge(deadline: deadline, yourMove: lamp.yourMove);
+    } else if (row.status == OrderStatus.awaitingQuote ||
+        row.status == OrderStatus.revisionRequested ||
+        row.status == OrderStatus.created) {
+      final s = shortCompany(row.stationTitle);
+      if (s.isNotEmpty) {
+        trailing = Text(s, style: t.bodySmall.copyWith(color: c.dim));
+      }
+    }
+
+    final extras = <Widget>[
+      if (row.paymentDocumentMissing)
+        const AknLamp(
+          label: 'Ödeme belgesi bekleniyor',
+          tone: AknTone.warn,
+          size: AknLampSize.small,
+        ),
+    ];
+
+    final semantics = [
+      orderTitle(row.productName, row.quantityLiters),
+      'Sipariş ${row.orderNumber}',
+      lamp.label,
+      if (where.isNotEmpty) where,
       if (total != null) 'Teklif ${Fmt.money(total)}',
-      if (showCountdown)
-        'Kalan süre ${Fmt.countdown(config.deviceDeadline(expires).difference(TrTime.now()))}',
+      if (price != null) Fmt.unitPrice(price),
+      if (showCountdown && deadline != null)
+        'Kalan süre ${Fmt.countdown(deadline.difference(TrTime.now()))}',
       if (row.paymentDocumentMissing) 'Ödeme belgesi bekleniyor',
     ].join(', ');
-    return AknCard(
-      onTap: onTap,
-      semanticLabel: semantics,
-      accent: row.status == OrderStatus.awaitingApproval
-          ? AknTone.warn
-          : (row.paymentDocumentMissing ? AknTone.warn : null),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+
+    return AknListTile(
+      key: ValueKey('order-row-${row.id}'),
+      title: orderTitle(row.productName, row.quantityLiters),
+      subtitle: where.isEmpty ? null : where,
+      amount: total == null ? null : Fmt.money(total),
+      amountMeta: price == null ? null : Fmt.unitPrice(price),
+      status: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 6,
-            children: [
-              Text(row.orderNumber, style: t.bodyStrong),
-              StatusChip.style(status, size: StatusChipSize.small),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            [
-              row.productName,
-              Fmt.liters(row.quantityLiters),
-              row.deliveryPointName,
-            ].whereType<String>().join(' · '),
-            style: t.body.copyWith(color: c.ink),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            [
-              row.stationTitle,
-              if (row.requestedDeliveryDate != null)
-                'Teslim ${Fmt.date(row.requestedDeliveryDate)}',
-            ].whereType<String>().join(' · '),
-            style: t.bodySmall.copyWith(color: c.dim),
-          ),
-          if (price != null || showCountdown) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 6,
-              children: [
-                if (price != null)
-                  AmountText(
-                    '${Fmt.unitPrice(price)}${total == null ? '' : ' · ${Fmt.money(total)}'}',
-                  ),
-                if (showCountdown)
-                  FitBadge(
-                    child: CountdownBadge(
-                      deadline: config.deviceDeadline(expires),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-          if (chips.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(spacing: 6, runSpacing: 6, children: chips),
+          AknStatusLine(lamp: AknLamp.status(lamp), trailing: trailing),
+          for (final e in extras) ...[
+            const SizedBox(height: 4),
+            Align(alignment: AlignmentDirectional.centerStart, child: e),
           ],
         ],
       ),
+      footer: inTransit
+          ? const TruckRoute(moving: true, semanticLabel: 'Araç yolda')
+          : null,
+      semanticLabel: semantics,
+      onTap: onTap,
     );
   }
 }

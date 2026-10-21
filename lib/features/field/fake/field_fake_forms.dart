@@ -842,7 +842,7 @@ void _convert(FieldFakeState state, JsonMap f, DateTime now) {
       eventCode: 'fieldform.decided',
       title: 'Saha formu siparişe dönüştü',
       body:
-          '${f['formNumber']} · ${f['customerTitle']}: teklif müşteri onayına gitti.',
+          '${f['formNumber']}, ${f['customerTitle']}: teklif müşteri onayına gitti.',
       severity: 1,
       route: '/field/forms/${f['id']}',
       entityType: 'FieldOrderForm',

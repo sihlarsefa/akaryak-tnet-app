@@ -190,7 +190,7 @@ Future<void> showUserActionsSheet(
 ) => showAppSheet<void>(
   context: context,
   title: user.displayName,
-  subtitle: '${user.displayRole} · ${user.email}',
+  subtitle: '${user.displayRole}, ${user.email}',
   builder: (sheet) => Consumer(
     builder: (context, ref, _) {
       final ctrl = ref.read(companyUsersControllerProvider.notifier);

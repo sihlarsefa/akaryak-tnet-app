@@ -69,7 +69,7 @@ void main() {
   ) async {
     for (final user in ['sofor', 'siparis']) {
       final (h, c) = await boot(tester, user);
-      expect(find.byType(AknCard), findsNothing, reason: user);
+      expect(find.textContaining('Size atanmış'), findsNothing, reason: user);
       await tester.pumpWidget(const SizedBox());
       await pumpFor(tester, const Duration(milliseconds: 300));
       c.dispose();

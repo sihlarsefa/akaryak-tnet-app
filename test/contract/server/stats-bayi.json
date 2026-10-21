@@ -1,0 +1,180 @@
+{
+  "stationId": 1,
+  "stationTitle": "Merkez Petrol",
+  "scope": "station",
+  "generatedAt": "2026-10-20T11:00:00+00:00",
+  "period": {
+    "key": "month",
+    "label": "Bu ay",
+    "from": "2026-10-01",
+    "to": "2026-10-20",
+    "compareLabel": "Ge\u00E7en ay\u0131n ayn\u0131 d\u00F6nemi",
+    "compareFrom": "2026-09-01",
+    "compareTo": "2026-09-20"
+  },
+  "sales": {
+    "orders": 5,
+    "liters": 21000.0,
+    "amount": 872000.0,
+    "prevOrders": 1,
+    "prevLiters": 6000.0,
+    "prevAmount": 234000.0,
+    "avgUnitPrice": 41.52,
+    "prevAvgUnitPrice": 39,
+    "activeCustomers": 4,
+    "newCustomers": 1
+  },
+  "months": [
+    {
+      "year": 2026,
+      "month": 5,
+      "label": "May",
+      "orders": 0,
+      "liters": 0,
+      "amount": 0
+    },
+    {
+      "year": 2026,
+      "month": 6,
+      "label": "Haz",
+      "orders": 0,
+      "liters": 0,
+      "amount": 0
+    },
+    {
+      "year": 2026,
+      "month": 7,
+      "label": "Tem",
+      "orders": 1,
+      "liters": 7000.0,
+      "amount": 266000.0
+    },
+    {
+      "year": 2026,
+      "month": 8,
+      "label": "A\u011Fu",
+      "orders": 1,
+      "liters": 1000.0,
+      "amount": 42000.0
+    },
+    {
+      "year": 2026,
+      "month": 9,
+      "label": "Eyl",
+      "orders": 2,
+      "liters": 8000.0,
+      "amount": 314000.0
+    },
+    {
+      "year": 2026,
+      "month": 10,
+      "label": "Eki",
+      "orders": 5,
+      "liters": 21000.0,
+      "amount": 872000.0
+    }
+  ],
+  "products": [
+    {
+      "productId": 1,
+      "name": "Motorin",
+      "liters": 16000.0,
+      "amount": 650000.0,
+      "share": 0.7454
+    },
+    {
+      "productId": 2,
+      "name": "Benzin",
+      "liters": 5000.0,
+      "amount": 222000.0,
+      "share": 0.2546
+    }
+  ],
+  "topCustomers": [
+    {
+      "customerId": 1,
+      "title": "Acar Nakliyat",
+      "orders": 2,
+      "liters": 13000.0,
+      "amount": 532000.0,
+      "share": 0.6101
+    },
+    {
+      "customerId": 2,
+      "title": "Bora \u0130n\u015Faat",
+      "orders": 1,
+      "liters": 5000.0,
+      "amount": 210000.0,
+      "share": 0.2408
+    },
+    {
+      "customerId": 3,
+      "title": "Deniz Lojistik",
+      "orders": 1,
+      "liters": 2000.0,
+      "amount": 90000.0,
+      "share": 0.1032
+    },
+    {
+      "customerId": 5,
+      "title": "Ege Lojistik",
+      "orders": 1,
+      "liters": 1000.0,
+      "amount": 40000.0,
+      "share": 0.0459
+    }
+  ],
+  "funnel": {
+    "requests": 11,
+    "quoted": 8,
+    "accepted": 5,
+    "rejected": 1,
+    "expired": 1,
+    "conversionRate": 0.4545,
+    "avgFirstQuoteMinutes": 26
+  },
+  "deliveries": {
+    "delivered": 4,
+    "deliveredLiters": 19850.0,
+    "onTimeRate": 0.75,
+    "inTransit": 1,
+    "planned": 1,
+    "disputes": 1
+  },
+  "collections": {
+    "collectedAmount": 40000.0,
+    "collectedCount": 1,
+    "overdueAmount": 400000.0,
+    "overdueCount": 1,
+    "dueSoonAmount": 55000.0,
+    "dueSoonCount": 2,
+    "dueSoonDays": 7
+  },
+  "team": [
+    {
+      "userId": "rep",
+      "name": "R\u0131za Saha",
+      "forms": 2,
+      "converted": 1,
+      "liters": 5000.0
+    },
+    {
+      "userId": "rep2",
+      "name": "Selin Saha",
+      "forms": 1,
+      "converted": 1,
+      "liters": 2000.0
+    }
+  ],
+  "risk": {
+    "nearLimitCount": 1,
+    "nearLimit": [
+      {
+        "customerId": 1,
+        "title": "Acar Nakliyat",
+        "usageRate": 5.602
+      }
+    ]
+  },
+  "failedSections": []
+}

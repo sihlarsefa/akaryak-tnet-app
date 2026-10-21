@@ -9,6 +9,7 @@ import '../../../core/offline/outbox_op.dart';
 import '../../../core/offline/outbox_providers.dart';
 import '../../../core/offline/outbox_store.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../copy.dart';
 
 /// Gönderilmemiş (tamamlanmamış) işlemler.
@@ -168,7 +169,7 @@ class _PendingOpsSheetState extends ConsumerState<_PendingOpsSheet> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '${o.label ?? o.type} · ${o.status.label}',
+                      '${o.label ?? o.type}, ${TurkishText.lower(o.status.label)}',
                       style: t.bodySmall,
                     ),
                   ),

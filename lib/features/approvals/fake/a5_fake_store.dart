@@ -24,6 +24,7 @@ import '../../../core/network/idempotency.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
+import '../../field/fake/field_fake_state.dart' show FieldFakeState;
 import 'fake_documents.dart';
 
 /// Onay talebinin A5'e özgü sahte durumu (dünyadaki kayıt sunucu satır alanlarını taşır).
@@ -421,7 +422,7 @@ class A5FakeStore {
             ApprovalEventKind.created,
             userName: 'Sistem',
             at: _h(-3),
-            note: 'Vadeli yöntem (60 gün) · Limit aşımı 120.000 TL',
+            note: 'Vadeli yöntem (60 gün); limit aşımı 120.000 TL',
           ),
           event(ApprovalEventKind.viewed, userKey: 'mudur', at: _h(-2)),
         ],
@@ -476,6 +477,12 @@ class A5FakeStore {
 
     // ---- 9002 Saha formu kârlılık (Ege Tarım, bekliyor) ----
     if (byId[9002] != null) {
+      // QA LF-4: saha sahtesindeki formun numarası ve band sözcüğü (Onaylarım'da tek biçim).
+      final n9002 = FieldFakeState.seedFormNumber(world, 7001);
+      byId[9002]!
+        ..['subjectNumber'] = n9002
+        ..['summary'] =
+            'Ege Tarım Kooperatifi · 18.000 L · ${FieldFakeState.bandManager}';
       approvalExtras[9002] = A5ApprovalExtra(
         token: newToken(),
         steps: [
@@ -492,10 +499,10 @@ class A5FakeStore {
         events: [
           event(ApprovalEventKind.created, userKey: 'saha', at: _h(-1.5)),
         ],
-        headline: 'SF-2026-00007 · Ege Tarım Kooperatifi',
+        headline: '$n9002 · Ege Tarım Kooperatifi',
         subline: '2 kalem · 18.000 L · Açık hesap 30 gün',
         facts: [
-          _fact('Form no', 'SF-2026-00007'),
+          _fact('Form no', n9002),
           _fact('Temsilci', 'Deniz Koç'),
           _fact('Toplam miktar', Fmt.liters(18000)),
           _fact('Toplam tutar', Fmt.money(702000)),
@@ -505,7 +512,11 @@ class A5FakeStore {
         costFacts: [
           _fact('Kâr', Fmt.money(21060), 'ok'),
           _fact('Kâr oranı', '%3', 'warn'),
-          _fact('Barem kuralı', 'Yönetici bandı: %2,5 – %4', 'warn'),
+          _fact(
+            'Barem kuralı',
+            '${FieldFakeState.bandManager}: %2,5 – %4',
+            'warn',
+          ),
         ],
         lines: [
           {
@@ -519,7 +530,11 @@ class A5FakeStore {
             'value': Fmt.money(232200),
           },
         ],
-        band: const {'key': 'mid', 'label': 'Yönetici onayı', 'tone': 'warn'},
+        band: const {
+          'key': 'mid',
+          'label': FieldFakeState.bandManager,
+          'tone': 'warn',
+        },
         links: const {'fieldOrderId': 7001, 'customerId': 103},
       );
     }
@@ -763,6 +778,7 @@ class A5FakeStore {
           };
 
     // ---- 9006 Saha formu finans (Körfez Nakliyat; iki kademe, süresi geçti) ----
+    final n9006 = FieldFakeState.seedFormNumber(world, 7002);
     world.approvals.add(
       _approvalRecord(
         id: 9006,
@@ -770,7 +786,7 @@ class A5FakeStore {
         status: ApprovalStatus.pending.code,
         subjectType: 'FieldOrderForm',
         subjectId: 7002,
-        subjectNumber: 'SF-2026-00011',
+        subjectNumber: n9006,
         title: 'Saha formu finans onayı',
         summary: 'Açık hesap 30 gün · 20.000 L · limit kullanımı %86',
         amount: 840000,
@@ -817,10 +833,10 @@ class A5FakeStore {
       ],
       formKind: 'payment',
       form: const {'method': 'ACIK_HESAP', 'term': 30},
-      headline: 'SF-2026-00011 · Körfez Nakliyat ve Ticaret',
+      headline: '$n9006 · Körfez Nakliyat ve Ticaret',
       subline: 'Motorin · 20.000 L · Açık hesap 30 gün',
       facts: [
-        _fact('Form no', 'SF-2026-00011'),
+        _fact('Form no', n9006),
         _fact('Temsilci', 'Deniz Koç'),
         _fact('Toplam miktar', Fmt.liters(20000)),
         _fact('Toplam tutar', Fmt.money(840000)),
@@ -1025,7 +1041,7 @@ class A5FakeStore {
         subjectId: 4001,
         subjectNumber: 'LMT-00041',
         title: 'Limit talebi',
-        summary: 'Marmara İnşaat · aylık limit 1.000.000 ₺ → 1.500.000 ₺',
+        summary: 'Marmara İnşaat · aylık limit 1.000.000 ₺ yerine 1.500.000 ₺',
         amount: 1500000,
         customerId: 102,
         requestedByUserId: 'u-sahip',
@@ -1134,6 +1150,7 @@ class A5FakeStore {
           ..decisionNote = 'Limit ve vade uygun.';
 
     // ---- 9012 Karar verilmiş: saha formu reddedildi (satış müdürü) ----
+    final n9012 = FieldFakeState.seedFormNumber(world, 6998);
     world.approvals.add(
       _approvalRecord(
         id: 9012,
@@ -1141,9 +1158,10 @@ class A5FakeStore {
         status: ApprovalStatus.rejected.code,
         subjectType: 'FieldOrderForm',
         subjectId: 6998,
-        subjectNumber: 'SF-2026-00004',
+        subjectNumber: n9012,
         title: 'Saha formu kârlılık onayı',
-        summary: 'Körfez Nakliyat · 9.000 L · barem dışı',
+        summary:
+            'Körfez Nakliyat ve Ticaret · 9.000 L · ${FieldFakeState.bandManager}',
         amount: 362000,
         liters: 9000,
         customerId: 104,
@@ -1177,17 +1195,17 @@ class A5FakeStore {
                 note: 'Fiyat barem dışında; yeni teklifle tekrar gönderin.',
               ),
             ],
-            headline: 'SF-2026-00004 · Körfez Nakliyat ve Ticaret',
+            headline: '$n9012 · Körfez Nakliyat ve Ticaret',
             subline: 'Motorin · 9.000 L',
             facts: [
-              _fact('Form no', 'SF-2026-00004'),
+              _fact('Form no', n9012),
               _fact('Toplam tutar', Fmt.money(362000)),
               _fact('Ödeme', 'Açık hesap · 45 gün'),
             ],
             band: const {
-              'key': 'reject',
-              'label': 'Barem dışı',
-              'tone': 'danger',
+              'key': 'mid',
+              'label': FieldFakeState.bandManager,
+              'tone': 'warn',
             },
             links: const {'fieldOrderId': 6998, 'customerId': 104},
           )

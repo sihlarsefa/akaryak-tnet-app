@@ -68,7 +68,7 @@ void registerWeatherFakes(FakeServer server) {
       throw FakeResponse.problem(
         503,
         'service_unavailable',
-        'Hava durumu şu an alınamıyor; lütfen daha sonra yeniden deneyin.',
+        'Hava durumu şu an alınamıyor; birkaç dakika sonra yeniden deneyin.',
       );
     }
     final rLat = (lat! * 20).round() / 20;

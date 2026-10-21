@@ -19,7 +19,7 @@ void main() {
     }
   });
 
-  group('tone table (spec C.5)', () {
+  group('generic lamp tones (design v2 §2.4): orange only via lampFor', () {
     void tones<T extends CodedEnum>(
       StatusStyle Function(T) style,
       Map<T, AknTone> expected,
@@ -33,7 +33,8 @@ void main() {
       tones(AknStatus.order, {
         OrderStatus.approved: AknTone.ok,
         OrderStatus.completed: AknTone.ok,
-        OrderStatus.awaitingApproval: AknTone.warn,
+        OrderStatus.awaitingApproval: AknTone.info,
+        OrderStatus.created: AknTone.info,
         OrderStatus.rejected: AknTone.danger,
         OrderStatus.awaitingQuote: AknTone.info,
         OrderStatus.revisionRequested: AknTone.info,
@@ -47,10 +48,10 @@ void main() {
     test('shipment', () {
       tones(AknStatus.shipment, {
         ShipmentStatus.accepted: AknTone.ok,
-        ShipmentStatus.reported: AknTone.warn,
+        ShipmentStatus.reported: AknTone.info,
         ShipmentStatus.disputed: AknTone.danger,
         ShipmentStatus.planned: AknTone.info,
-        ShipmentStatus.inTransit: AknTone.brand,
+        ShipmentStatus.inTransit: AknTone.info,
         ShipmentStatus.cancelled: AknTone.neutral,
       });
     });
@@ -58,7 +59,7 @@ void main() {
     test('approval and SLA', () {
       tones(AknStatus.approval, {
         ApprovalStatus.approved: AknTone.ok,
-        ApprovalStatus.pending: AknTone.warn,
+        ApprovalStatus.pending: AknTone.info,
         ApprovalStatus.rejected: AknTone.danger,
         ApprovalStatus.infoRequested: AknTone.info,
         ApprovalStatus.cancelled: AknTone.neutral,
@@ -72,7 +73,7 @@ void main() {
     test('payment', () {
       tones(AknStatus.payment, {
         PaymentStatus.collected: AknTone.ok,
-        PaymentStatus.pending: AknTone.warn,
+        PaymentStatus.pending: AknTone.info,
         PaymentStatus.bounced: AknTone.danger,
         PaymentStatus.documentUploaded: AknTone.info,
         PaymentStatus.refunded: AknTone.neutral,
@@ -85,7 +86,7 @@ void main() {
       tones(AknStatus.finance, {
         OrderFinanceStatus.approved: AknTone.ok,
         OrderFinanceStatus.conditionallyApproved: AknTone.ok,
-        OrderFinanceStatus.pending: AknTone.warn,
+        OrderFinanceStatus.pending: AknTone.info,
         OrderFinanceStatus.rejected: AknTone.danger,
         OrderFinanceStatus.infoRequested: AknTone.info,
       });
@@ -95,7 +96,7 @@ void main() {
       tones(AknStatus.lead, {
         LeadStatus.approved: AknTone.ok,
         LeadStatus.converted: AknTone.ok,
-        LeadStatus.infoRequested: AknTone.warn,
+        LeadStatus.infoRequested: AknTone.info,
         LeadStatus.rejected: AknTone.danger,
         LeadStatus.submitted: AknTone.info,
         LeadStatus.inReview: AknTone.info,
@@ -109,12 +110,29 @@ void main() {
       tones(AknStatus.fieldForm, {
         FieldOrderFormStatus.approved: AknTone.ok,
         FieldOrderFormStatus.converted: AknTone.ok,
-        FieldOrderFormStatus.pendingApproval: AknTone.warn,
+        FieldOrderFormStatus.pendingApproval: AknTone.info,
         FieldOrderFormStatus.rejected: AknTone.danger,
         FieldOrderFormStatus.draft: AknTone.neutral,
         FieldOrderFormStatus.cancelled: AknTone.neutral,
       });
       expect(AknStatus.fieldForm(FieldOrderFormStatus.converted).solid, isTrue);
+    });
+
+    test('company request', () {
+      tones(AknStatus.companyRequest, {
+        CustomerOrderRequestStatus.pending: AknTone.info,
+        CustomerOrderRequestStatus.approved: AknTone.ok,
+        CustomerOrderRequestStatus.rejected: AknTone.danger,
+        CustomerOrderRequestStatus.cancelled: AknTone.neutral,
+      });
+    });
+
+    test('no generic style claims "your move" (rule 3)', () {
+      for (final values in allCodedEnums) {
+        for (final v in values) {
+          expect(AknStatus.of(v).tone, isNot(AknTone.brand), reason: '$v');
+        }
+      }
     });
 
     test('barem band, both server vocabularies', () {
@@ -123,9 +141,10 @@ void main() {
       expect(AknStatus.band('manager').tone, AknTone.warn);
       expect(AknStatus.band('mid').tone, AknTone.warn);
       expect(AknStatus.band('reject').tone, AknTone.danger);
-      expect(AknStatus.band('senior').tone, AknTone.brand);
-      expect(AknStatus.band('low').tone, AknTone.brand);
-      expect(AknStatus.band('exception').tone, AknTone.brand);
+      // A higher approval is a warning, not "your move".
+      expect(AknStatus.band('senior').tone, AknTone.warn);
+      expect(AknStatus.band('low').tone, AknTone.warn);
+      expect(AknStatus.band('exception').tone, AknTone.warn);
       expect(AknStatus.band(null).tone, AknTone.neutral);
       expect(AknStatus.band('auto', label: 'Otomatik').label, 'Otomatik');
     });
@@ -156,9 +175,259 @@ void main() {
     );
   });
 
-  testWidgets('StatusChip shows icon and label, never colour alone', (
-    tester,
-  ) async {
+  group('viewer-aware lamps (§10.3)', () {
+    const approver = StatusViewer.customer();
+    const requester = StatusViewer.customer(canDecide: false);
+    const desk = StatusViewer.bayi(canQuote: true);
+    const dispatch = StatusViewer.bayi(canPlan: true);
+    const finance = StatusViewer.bayi(canDecide: true);
+    const viewer = StatusViewer.bayi();
+
+    void lamp(
+      StatusLamp l,
+      AknTone tone,
+      String label, {
+      AknStage? stage,
+      bool problem = false,
+      bool complete = false,
+    }) {
+      expect(l.tone, tone, reason: label);
+      expect(l.label, label);
+      if (stage != null) expect(l.stage, stage, reason: label);
+      expect(l.problem, problem, reason: label);
+      expect(l.complete, complete, reason: label);
+      expect(l.yourMove, tone == AknTone.brand);
+    }
+
+    test('order: awaiting quote', () {
+      const s = OrderStatus.awaitingQuote;
+      lamp(
+        AknStatus.lampFor(s, approver),
+        AknTone.info,
+        'Teklif bekleniyor',
+        stage: AknStage.teklif,
+      );
+      lamp(
+        AknStatus.lampFor(s, desk),
+        AknTone.brand,
+        'Teklif verin',
+        stage: AknStage.teklif,
+      );
+      lamp(AknStatus.lampFor(s, viewer), AknTone.info, 'Teklif bekleniyor');
+    });
+
+    test('order: awaiting the customer decision', () {
+      const s = OrderStatus.awaitingApproval;
+      lamp(
+        AknStatus.lampFor(s, approver),
+        AknTone.brand,
+        'Kararınızı bekliyor',
+        stage: AknStage.karar,
+      );
+      lamp(AknStatus.lampFor(s, requester), AknTone.info, 'Onay bekleniyor');
+      lamp(AknStatus.lampFor(s, desk), AknTone.info, 'Müşteri kararında');
+    });
+
+    test('order: revision, approved, completed, rejected, expired', () {
+      lamp(
+        AknStatus.lampFor(OrderStatus.revisionRequested, approver),
+        AknTone.info,
+        'Revize istendi',
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.revisionRequested, desk),
+        AknTone.brand,
+        'Revize istendi',
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.approved, approver),
+        AknTone.info,
+        'Sevkiyat planlanıyor',
+        stage: AknStage.plan,
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.approved, dispatch),
+        AknTone.brand,
+        'Sevkiyat planlayın',
+        stage: AknStage.plan,
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.completed, approver),
+        AknTone.ok,
+        'Tamamlandı',
+        stage: AknStage.teslim,
+        complete: true,
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.rejected, desk),
+        AknTone.danger,
+        'Reddedildi',
+        stage: AknStage.karar,
+        problem: true,
+      );
+      lamp(
+        AknStatus.lampFor(OrderStatus.expired, approver),
+        AknTone.neutral,
+        'Süresi doldu',
+      );
+    });
+
+    test('an approved order with a shipment reads as the shipment', () {
+      lamp(
+        AknStatus.lampFor(
+          OrderStatus.approved,
+          approver,
+          shipment: ShipmentStatus.inTransit,
+        ),
+        AknTone.info,
+        'Yolda',
+        stage: AknStage.yolda,
+      );
+      lamp(
+        AknStatus.lampFor(
+          OrderStatus.approved,
+          approver,
+          shipment: ShipmentStatus.reported,
+        ),
+        AknTone.brand,
+        'Teslimatı onaylayın',
+        stage: AknStage.teslim,
+      );
+      // Completed + accepted stays "Tamamlandı".
+      lamp(
+        AknStatus.lampFor(
+          OrderStatus.completed,
+          approver,
+          shipment: ShipmentStatus.accepted,
+        ),
+        AknTone.ok,
+        'Tamamlandı',
+        complete: true,
+      );
+    });
+
+    test('shipment', () {
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.planned, desk),
+        AknTone.info,
+        'Planlandı',
+        stage: AknStage.plan,
+      );
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.reported, approver),
+        AknTone.brand,
+        'Teslimatı onaylayın',
+      );
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.reported, dispatch),
+        AknTone.info,
+        'Kabul bekliyor',
+      );
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.accepted, dispatch),
+        AknTone.ok,
+        'Teslim alındı',
+        complete: true,
+      );
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.disputed, approver),
+        AknTone.danger,
+        'İtirazlı',
+        problem: true,
+      );
+      lamp(
+        AknStatus.lampFor(ShipmentStatus.cancelled, approver),
+        AknTone.neutral,
+        'İptal',
+        problem: true,
+      );
+    });
+
+    test('company request and approval center', () {
+      lamp(
+        AknStatus.lampFor(CustomerOrderRequestStatus.pending, approver),
+        AknTone.brand,
+        'Onayınızı bekliyor',
+        stage: AknStage.onay,
+      );
+      lamp(
+        AknStatus.lampFor(CustomerOrderRequestStatus.pending, requester),
+        AknTone.info,
+        'Şirket onayında',
+        stage: AknStage.onay,
+      );
+      lamp(
+        AknStatus.lampFor(ApprovalStatus.pending, finance),
+        AknTone.brand,
+        'Onayınızı bekliyor',
+      );
+      lamp(
+        AknStatus.lampFor(ApprovalStatus.pending, viewer),
+        AknTone.info,
+        'Onay bekleniyor',
+      );
+      lamp(
+        AknStatus.lampFor(
+          ApprovalStatus.pending,
+          finance,
+          sla: ApprovalSlaState.overdue,
+        ),
+        AknTone.danger,
+        'Süresi geçti',
+      );
+    });
+
+    test('server labels are the fallback', () {
+      // A status without a viewer-aware phrase keeps the server label.
+      final l = AknStatus.lampFor(
+        PaymentStatus.collected,
+        approver,
+        serverLabel: 'Tahsil edildi (EFT)',
+      );
+      expect(l.label, 'Tahsil edildi (EFT)');
+      expect(l.tone, AknTone.ok);
+      expect(l.stage, isNull);
+      expect(
+        AknStatus.lampFor(
+          OrderStatus.unknown,
+          approver,
+          serverLabel: 'Arşivde',
+        ).label,
+        'Arşivde',
+      );
+      // The viewer-aware phrase wins over the generic server label.
+      expect(
+        AknStatus.lampFor(
+          OrderStatus.awaitingApproval,
+          approver,
+          serverLabel: 'Onay bekleniyor',
+        ).label,
+        'Kararınızı bekliyor',
+      );
+    });
+
+    test('stage strip stops and indices', () {
+      expect(AknStage.stops().map((s) => s.label), [
+        'Talep',
+        'Teklif',
+        'Karar',
+        'Plan',
+        'Yolda',
+        'Teslim',
+      ]);
+      expect(AknStage.stops(companyApproval: true), hasLength(7));
+      expect(AknStage.karar.indexIn(), 2);
+      expect(AknStage.karar.indexIn(companyApproval: true), 3);
+      expect(AknStage.onay.indexIn(), -1);
+      final l = AknStatus.lampFor(OrderStatus.awaitingApproval, approver);
+      expect(l.stageIndex(), 2);
+      expect(l.stageIndex(companyApproval: true), 3);
+      expect(l.style.label, 'Kararınızı bekliyor');
+      expect(l.style.tone, AknTone.brand);
+    });
+  });
+
+  testWidgets('StatusChip shows the label, never colour alone', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AknTheme.light(),
@@ -168,7 +437,6 @@ void main() {
       ),
     );
     expect(find.text('Yolda'), findsOneWidget);
-    expect(find.byIcon(Icons.local_shipping_rounded), findsOneWidget);
-    expect(find.bySemanticsLabel('Yolda'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Yolda')), findsOneWidget);
   });
 }

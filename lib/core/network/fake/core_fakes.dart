@@ -20,7 +20,7 @@ void registerCoreFakes(FakeServer s) {
   s.post('auth/login', (req) {
     final r = req.json;
     final p = findFakePersona(r.str('userNameOrEmail'));
-    if (p == null || r.str('password') != FakeAuth.password) {
+    if (p == null || !s.auth.acceptsPassword(p.key, r.str('password'))) {
       throw FakeResponse.problem(
         401,
         'unauthorized',
@@ -94,7 +94,7 @@ void registerCoreFakes(FakeServer s) {
       throw FakeResponse.problem(
         401,
         'unauthorized',
-        'Oturumunuz sona erdi. Lütfen yeniden giriş yapın.',
+        'Oturumunuz sona erdi. Yeniden giriş yapın.',
       );
     }
     return {'status': 'ok', 'tokens': tokens, 'challenge': null};

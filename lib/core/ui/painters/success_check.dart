@@ -6,14 +6,15 @@ import '../motion.dart';
 import '../tokens.dart';
 import 'path_trim.dart';
 
-/// Success moment: a ring draws itself, the disc fills softly and a check is
-/// drawn in (600 ms, emphasized), with one soft haptic at the end.
+/// Success moment (design v2 §6.24): a ring draws itself and a check is drawn
+/// in (600 ms, emphasized) in the ok colour — no tinted disc — with one soft
+/// haptic at the end. 72 px in result views.
 ///
 /// Reduce motion shows the finished check at once (haptic still fires).
 class SuccessCheck extends StatefulWidget {
   const SuccessCheck({
     super.key,
-    this.size = 88,
+    this.size = 72,
     this.tone = AknTone.ok,
     this.animate = true,
     this.haptic = true,
@@ -78,7 +79,7 @@ class _SuccessCheckState extends State<SuccessCheck>
         painter: SuccessCheckPainter(
           t: _c.value,
           color: tone.fg,
-          fill: tone.bg,
+          fill: Colors.transparent,
           line: tone.line,
         ),
       ),

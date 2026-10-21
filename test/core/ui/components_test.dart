@@ -92,7 +92,10 @@ void main() {
     });
   });
 
-  testBothThemes('KpiTile counts up to the formatted value', (tester, b) async {
+  testBothThemes('KpiTile shows the formatted value at once (no count-up)', (
+    tester,
+    b,
+  ) async {
     await pumpUi(
       tester,
       const SizedBox(
@@ -101,9 +104,7 @@ void main() {
       ),
       brightness: b,
     );
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('12.500'), findsNothing);
-    await tester.pump(const Duration(milliseconds: 700));
+    // v2 §8.3: only the plate rolls; readouts render their final value.
     expect(find.text('12.500'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Bekleyen: 12.500')), findsOneWidget);
   });
@@ -142,7 +143,11 @@ void main() {
       scroll: true,
     );
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Bir şeyler ters gitti'), findsOneWidget);
+    // §10.2: what failed + what to do, never "Bir şeyler ters gitti".
+    expect(find.text(ErrorState.defaultTitle), findsOneWidget);
+    expect(find.text(ErrorState.defaultMessage), findsOneWidget);
+    expect(find.text('Bir şeyler ters gitti'), findsNothing);
+    expect(find.byType(EmptyIllustration), findsNWidgets(2));
     await tester.tap(find.text('Sipariş ver'));
     await tester.pump(const Duration(milliseconds: 200));
     await tester.ensureVisible(find.text('Tekrar dene'));
@@ -229,10 +234,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('5'), findsOneWidget);
       expect(
-        find.text('Çevrimdışısınız · 2 işlem gönderilmeyi bekliyor'),
+        find.text(OfflineBanner.message(offline: true, pending: 2)),
         findsOneWidget,
       );
-      await tester.tap(find.byIcon(Icons.notifications_rounded));
+      // v2 §6.3: the bell keeps its outlined glyph; the Asfalt badge counts.
+      await tester.tap(find.byIcon(Icons.notifications_none_rounded));
       await tester.pump(const Duration(milliseconds: 200));
       expect(opened, 1);
     });
@@ -316,6 +322,73 @@ void main() {
       expect(confirmed, 1);
       handle.dispose();
     });
+
+    testWidgets(
+      'with a screen reader running, the tap opens a confirm sheet (§6.26)',
+      (tester) async {
+        var confirmed = 0;
+        final handle = tester.ensureSemantics();
+        await pumpUi(
+          tester,
+          Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(accessibleNavigation: true),
+              child: SlideToConfirm(
+                label: 'Teslimatı kaydetmek için kaydırın',
+                confirmTitle: 'Teslimatı kaydet',
+                confirmLabel: 'Teslimatı kaydet',
+                onConfirmed: () => confirmed++,
+              ),
+            ),
+          ),
+        );
+        final node = tester.getSemantics(
+          find.bySemanticsLabel('Teslimatı kaydetmek için kaydırın'),
+        );
+        node.owner!.performAction(node.id, SemanticsAction.tap);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(confirmed, 0, reason: 'nothing happens before the sheet');
+        expect(find.byType(ConfirmSheet), findsOneWidget);
+        await tester.tap(find.widgetWithText(AknButton, 'Teslimatı kaydet'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(confirmed, 1);
+        handle.dispose();
+      },
+    );
+
+    testBothThemes('track 64 r14 Beton, 56 px orange knob', (tester, b) async {
+      await pumpUi(
+        tester,
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: SlideToConfirm(label: 'Yola çık', onConfirmed: () {}),
+        ),
+        brightness: b,
+      );
+      final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
+      final boxes = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(SlideToConfirm),
+              matching: find.byType(Container),
+            ),
+          )
+          .map((w) => w.decoration)
+          .whereType<BoxDecoration>()
+          .toList();
+      expect(boxes.map((d) => d.color), contains(c.surfaceAlt));
+      final knob = tester.widget<AnimatedContainer>(
+        find.descendant(
+          of: find.byType(SlideToConfirm),
+          matching: find.byType(AnimatedContainer),
+        ),
+      );
+      expect((knob.decoration! as BoxDecoration).color, c.logo);
+      expect(tester.getSize(find.byType(SlideToConfirm)).height, 64);
+    });
   });
 
   testBothThemes('CountdownBadge shows time left and expiry', (
@@ -334,7 +407,7 @@ void main() {
       ),
       brightness: b,
     );
-    expect(find.text('1 sa 35 dk'), findsOneWidget);
+    expect(find.text('1 sa 35 dk kaldı'), findsOneWidget);
     expect(find.text('Süresi doldu'), findsOneWidget);
   });
 
@@ -554,7 +627,24 @@ void main() {
     await tester.tap(find.text('DBS'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(picked, 'dbs');
-    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    // v2 §6.25: the selected card wears a 2 px ink border and an ink check,
+    // never an orange fill.
+    final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
+    final check = tester.widget<Icon>(find.byIcon(Icons.check_circle_rounded));
+    expect(check.color, c.ink);
+    final borders = tester
+        .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+        .map((w) => w.foregroundDecoration)
+        .whereType<BoxDecoration>()
+        .map((d) => (d.border! as Border).top)
+        .toList();
+    expect(borders.first.color, c.ink);
+    expect(borders.first.width, 2);
+    expect(borders.last.color, c.line);
+    final fills = tester
+        .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
+        .map((w) => (w.decoration as BoxDecoration?)?.color);
+    expect(fills, isNot(contains(c.brandSoft)));
   });
 
   testBothThemes('ResultView: check for success, icon otherwise', (

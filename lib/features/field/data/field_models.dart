@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/json.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../../core/utils/turkish_text.dart';
 
 /// Saha formu modelleri (sunucu: `FieldSalesDtos.cs`, `FieldOrderSupportDtos.cs`, `Mobile/FieldDtos.cs`).
 /// JSON anahtarları C# camelCase adlarıyla aynıdır. Tarihler: oluşturma/gönderme/karar anları UTC (ofsetsiz);
@@ -338,7 +339,7 @@ class FieldBaremView {
     autoReject: r.boolean('autoReject'),
     costUnknown: r.boolean('costUnknown'),
     outOfRange: r.boolean('outOfRange'),
-    chipText: r.nonEmpty('chipText'),
+    chipText: TurkishText.plainMetaOrNull(r.nonEmpty('chipText')),
   );
 
   final String bandKey;
@@ -486,7 +487,7 @@ class FieldForm {
           : FieldBaremView.fromJson(r.obj('barem')),
       financeStatus: r.enumOf('financeStatus', OrderFinanceStatus.fromCode),
       financeStatusLabel: r.nonEmpty('financeStatusLabel'),
-      financeReasons: r.nonEmpty('financeReasons'),
+      financeReasons: TurkishText.plainMetaOrNull(r.nonEmpty('financeReasons')),
       financeApprovalRequestId: r.intOrNull('financeApprovalRequestId'),
       awaitingFinance: r.boolean('awaitingFinance'),
       salesInvoiceTotal: sales?.decOrNull('salesInvoiceTotal'),
@@ -1297,7 +1298,7 @@ class FieldPreview {
       financeReasons: List.unmodifiable(finance.strings('reasons')),
       financeBlocked: finance.nonEmpty('blocked'),
       overriddenLines: List.unmodifiable(r.ints('overriddenLines')),
-      chip: r.nonEmpty('chip'),
+      chip: TurkishText.plainMetaOrNull(r.nonEmpty('chip')),
       reason: r.nonEmpty('reason'),
       formProfitPercent: form?.decOrNull('formProfitPercent'),
       netProfit: form?.decOrNull('netProfit'),
@@ -1682,9 +1683,9 @@ class FieldDocInternal {
       profitTotalVatIncl: totals.decOrNull('profitTotalVatIncl'),
       netProfit: totals.decOrNull('totalProfit'),
       baremOutcome: barem?.nonEmpty('outcomeLabel'),
-      baremChip: barem?.nonEmpty('chipText'),
+      baremChip: TurkishText.plainMetaOrNull(barem?.nonEmpty('chipText')),
       financeStatusLabel: r.nonEmpty('financeStatusLabel'),
-      financeReasons: r.nonEmpty('financeReasons'),
+      financeReasons: TurkishText.plainMetaOrNull(r.nonEmpty('financeReasons')),
       approvals: List.unmodifiable(
         r.list('approvals', FieldFormApproval.fromJson),
       ),

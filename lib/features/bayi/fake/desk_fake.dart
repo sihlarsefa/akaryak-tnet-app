@@ -179,9 +179,7 @@ void registerBayiDeskFakes(FakeServer s) {
         continue;
       }
       if (errors.remove(orderId)) {
-        out.add(
-          result('error', 'Teklif gönderilemedi. Lütfen tekrar deneyin.'),
-        );
+        out.add(result('error', 'Teklif gönderilemedi. Tekrar deneyin.'));
         continue;
       }
       final problem = quotableProblem(w, o);
@@ -232,7 +230,7 @@ String _outcomeLabel(String outcome) => switch (outcome) {
   'routedToFinance' => 'Finans onayına gönderildi',
   'conflict' => 'Başka bir işlemle güncellendi',
   'invalid' => 'Gönderilemedi',
-  _ => 'Hata',
+  _ => 'Gönderilemedi, tekrar deneyin',
 };
 
 /// Masadaki siparişler: teklif / revize bekleyen, finans engeli yok, (süre dolumu açıksa) süresi geçmemiş.

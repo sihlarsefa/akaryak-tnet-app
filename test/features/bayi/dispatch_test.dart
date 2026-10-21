@@ -9,6 +9,7 @@ import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/bayi/application/dispatch_controller.dart';
 import 'package:akaryakitnet/features/bayi/data/dispatch_models.dart';
 import 'package:akaryakitnet/features/bayi/presentation/dispatch/dispatch_page.dart';
+import 'package:akaryakitnet/features/bayi/presentation/dispatch/driver_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -23,7 +24,7 @@ Finder _confirm(String label) =>
     find.descendant(of: find.byType(ConfirmSheet), matching: find.text(label));
 
 Finder _boardCard(String customer) => find
-    .ancestor(of: find.text(customer), matching: find.byType(AknCard))
+    .ancestor(of: find.text(customer), matching: find.byType(BoardOrderRow))
     .first;
 
 Finder _line(int shipmentId) => find.byWidgetPredicate(
@@ -31,7 +32,7 @@ Finder _line(int shipmentId) => find.byWidgetPredicate(
 );
 
 Finder _driverCard(String name) =>
-    find.ancestor(of: find.text(name), matching: find.byType(ChoiceCard));
+    find.ancestor(of: find.text(name), matching: find.byType(DriverPickerRow));
 
 ShipmentBoard _board(BayiTestApp app) =>
     app.container.read(dispatchBoardProvider).data!;
@@ -194,7 +195,7 @@ void main() {
       await scrollTap(tester, _confirm('Yola çıkar'));
       expect(_detail(app, ship.id)!.status, ShipmentStatus.inTransit);
       expect(find.text('Yola çıkar'), findsNothing);
-      expect(find.byType(TruckRoute), findsOneWidget);
+      expect(_inSheet(find.byType(TruckRoute)), findsOneWidget);
 
       await scrollTap(tester, find.text('Teslim bildir'));
       await scrollTap(tester, _confirm('Teslim bildir'));
@@ -271,7 +272,7 @@ void main() {
         location: '/dispatch',
       );
       await scrollTap(tester, find.text('Sevkiyatlar'));
-      await scrollTap(tester, find.widgetWithText(FilterChip, 'İtirazlı'));
+      await scrollTap(tester, find.widgetWithText(AknChip, 'İtirazlı'));
       final items = app.container.read(shipmentListProvider).list.items;
       expect(items, isNotEmpty);
       expect(items.every((s) => s.status == ShipmentStatus.disputed), isTrue);
@@ -292,8 +293,8 @@ void main() {
         persona: 'depo',
         location: '/dispatch',
       );
-      final chip = tester.widget<FilterChip>(
-        find.widgetWithText(FilterChip, 'Bugünkü yüklemeler'),
+      final chip = tester.widget<AknChip>(
+        find.widgetWithText(AknChip, 'Bugünkü yüklemeler'),
       );
       expect(chip.selected, isTrue);
       final list = app.container.read(shipmentListProvider);

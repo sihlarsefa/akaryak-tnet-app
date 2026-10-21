@@ -22,6 +22,7 @@ import '../../data/payment_models.dart';
 import '../../data/place_models.dart';
 import '../widgets/common.dart';
 import '../widgets/contact_actions.dart';
+import '../widgets/order_parts.dart';
 import '../widgets/payment_document_flow.dart';
 
 /// Gönderim ekranı (spec C.4a): gönderiliyor → (gerekirse) "Siparişiniz kontrol ediliyor" →
@@ -240,7 +241,7 @@ class _Busy extends StatelessWidget {
               if (attempt != null && attempt! > 1) ...[
                 const SizedBox(height: 8),
                 Text(
-                  '$attempt. deneme · aynı işlem güvenle tekrarlanıyor',
+                  '$attempt. deneme; aynı işlem güvenle tekrarlanıyor',
                   style: t.caption.copyWith(color: c.dim),
                 ),
               ],
@@ -269,18 +270,16 @@ class _CreatedList extends StatelessWidget {
           AknListTile(
             dense: true,
             leadingIcon: o.financeStatus == OrderFinanceStatus.pending
-                ? Icons.account_balance_rounded
-                : Icons.receipt_long_rounded,
-            leadingTone: o.financeStatus == OrderFinanceStatus.pending
-                ? AknTone.info
-                : AknTone.brand,
+                ? Icons.account_balance_outlined
+                : Icons.receipt_long_outlined,
+            showChevron: true,
             title: o.orderNumber,
             subtitle: [
               if (o.financeStatus == OrderFinanceStatus.pending)
                 'Finans onayında',
               if (o.estimatedAmount != null)
                 'Tahmini ${Fmt.money(o.estimatedAmount)}',
-            ].join(' · '),
+            ].join(', '),
             onTap: () => context.push(AppRoutes.order(o.orderId)),
           ),
         if (orders.isEmpty)
@@ -306,8 +305,6 @@ class _Success extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = context.aknText;
-    final c = context.akn;
     final r = state.result ?? const PlaceOrderResult();
     final config = ref.watch(orderingConfigValueProvider);
     final home = ref.watch(customerHomeProvider).data;
@@ -356,23 +353,16 @@ class _Success extends ConsumerWidget {
                   icon: Icons.manage_search_rounded,
                   message:
                       'Sonuç Siparişlerim listesinden doğrulandı; sipariş tekrar gönderilmedi.',
-                  margin: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  margin: EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
               if (expiryOn && expires != null && !r.isCompanyRequest)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.schedule_rounded, size: 18, color: c.dim),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Teklif ${withDative(Fmt.time(config.deviceDeadline(expires)))} '
-                          'kadar geçerli; gün sonunda kapanır.',
-                          style: t.bodySmall.copyWith(color: c.text),
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: FactLine(
+                    icon: Icons.timer_outlined,
+                    text:
+                        'Teklif ${withDative(Fmt.time(config.deviceDeadline(expires)))} '
+                        'kadar geçerli; gün sonunda kapanır.',
                   ),
                 ),
               if (doc != null && !doc.isUploadable && doc.message != null)
@@ -380,7 +370,7 @@ class _Success extends ConsumerWidget {
                   tone: AknTone.info,
                   icon: Icons.photo_camera_outlined,
                   message: doc.message!,
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
               if (doc != null && doc.isUploadable && !docDone)
                 _DocumentCard(
@@ -397,11 +387,11 @@ class _Success extends ConsumerWidget {
                   message: instrument
                       ? '${doc.label} yüklendi. ${OrdersCopy.instrumentHint}.'
                       : '${doc.label} yüklendi.',
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
               if (instrument && home?.station != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: StationContactButtons(
                     station: home!.station,
                     dense: true,
@@ -412,15 +402,11 @@ class _Success extends ConsumerWidget {
                 ),
               if (state.templateSaved == true)
                 const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: Wrap(
-                    children: [
-                      StatusChip(
-                        label: 'Şablon kaydedildi',
-                        tone: AknTone.ok,
-                        icon: Icons.bookmark_added_rounded,
-                      ),
-                    ],
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: FactLine(
+                    icon: Icons.check_circle_rounded,
+                    tone: AknTone.ok,
+                    text: 'Şablon kaydedildi',
                   ),
                 ),
               if (state.templateSaved == false)
@@ -429,10 +415,10 @@ class _Success extends ConsumerWidget {
                   icon: Icons.bookmark_border_rounded,
                   message:
                       'Şablon kaydedilemedi; sipariş ayrıntısından “Şablon yap” ile yeniden deneyebilirsiniz.',
-                  margin: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  margin: EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -515,9 +501,8 @@ class _DocumentCardState extends State<_DocumentCard> {
   }
 
   Widget _card(CapturedImage? image) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
     child: AknCard(
-      accent: widget.target.required ? AknTone.warn : null,
       child: PaymentDocumentPanel(
         target: widget.target,
         embedded: true,
@@ -581,7 +566,7 @@ class _Partial extends ConsumerWidget {
                       unawaited(submitter.markDocumentUploaded(group)),
                 ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

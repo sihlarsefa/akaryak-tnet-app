@@ -16,6 +16,7 @@ import '../application/auth_throttle.dart';
 import '../copy.dart';
 import '../data/auth_api.dart';
 import 'widgets/auth_banners.dart';
+import 'widgets/auth_header.dart';
 import 'widgets/code_entry.dart';
 import 'widgets/hold_button.dart';
 
@@ -135,9 +136,9 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
           onTap: () => FocusScope.of(context).unfocus(),
           child: SingleChildScrollView(
             padding: EdgeInsets.fromLTRB(
-              16,
-              20,
-              16,
+              AknSpace.page,
+              8,
+              AknSpace.page,
               24 + MediaQuery.viewPaddingOf(context).bottom,
             ),
             child: Center(
@@ -151,6 +152,7 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
                       _Step.intro => _intro(context),
                       _Step.code => CodeEntry(
                         challenge: _challenge!,
+                        showLogo: false,
                         onVerify: _verify,
                         onResend: (current) => ref
                             .read(authApiProvider)
@@ -204,7 +206,7 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
           return EmptyState(
             title: AuthCopy.noPhoneTitle,
             message: AuthCopy.noPhoneBody,
-            illustration: AknIllustration.notifications,
+            illustration: AknIllustration.documents,
             actionLabel: AuthCopy.done,
             onAction: _close,
           );
@@ -213,27 +215,10 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Center(
-              child: AknIconBox(
-                icon: Icons.phonelink_lock_rounded,
-                tone: AknTone.brand,
-                size: 56,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Semantics(
-              header: true,
-              child: Text(
-                AuthCopy.phoneIntroTitle,
-                style: t.title,
-                textAlign: TextAlign.center,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              AuthCopy.phoneIntroBody,
-              style: t.body.copyWith(color: c.dim),
-              textAlign: TextAlign.center,
+            const AuthPageHeader(
+              title: AuthCopy.phoneIntroTitle,
+              message: AuthCopy.phoneIntroBody,
+              showLogo: false,
             ),
             const SizedBox(height: 20),
             AknCard(
@@ -243,26 +228,17 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
                   FactRow(
                     label: AuthCopy.phoneNumberLabel,
                     value: s.phoneMasked!,
-                    icon: Icons.smartphone_rounded,
+                    padding: EdgeInsets.zero,
                   ),
-                  const Divider(height: 16),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: StatusChip(
-                          label: s.verified
-                              ? AuthCopy.phoneVerified
-                              : AuthCopy.phoneNotVerified,
-                          tone: s.verified ? AknTone.ok : AknTone.neutral,
-                          icon: s.verified
-                              ? Icons.verified_rounded
-                              : Icons.help_outline_rounded,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 10),
+                  AknLamp(
+                    label: s.verified
+                        ? AuthCopy.phoneVerified
+                        : AuthCopy.phoneNotVerified,
+                    tone: s.verified ? AknTone.ok : AknTone.neutral,
                   ),
                   if (s.verified) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     Text(
                       AuthCopy.phoneVerifiedBody,
                       style: t.bodySmall.copyWith(color: c.dim),
@@ -312,8 +288,7 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
               const SizedBox(height: 12),
               Text(
                 AuthCopy.phoneChangeNote,
-                style: t.caption.copyWith(color: c.dim),
-                textAlign: TextAlign.center,
+                style: t.bodySmall.copyWith(color: c.dim),
               ),
             ],
           ],

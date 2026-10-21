@@ -94,7 +94,7 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(top: 8, bottom: 32),
           children: [
-            SettingsGroup(
+            AknLedger(
               children: [
                 for (final s in list)
                   _SessionTile(
@@ -106,9 +106,14 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
             if (list.length <= 1)
               const AknBanner(
                 tone: AknTone.info,
-                icon: Icons.verified_user_rounded,
+                icon: Icons.verified_user_outlined,
                 message: ProfileCopy.onlyThisDevice,
-                margin: EdgeInsets.fromLTRB(16, 16, 16, 0),
+                margin: EdgeInsets.fromLTRB(
+                  AknSpace.page,
+                  16,
+                  AknSpace.page,
+                  0,
+                ),
               ),
           ],
         ),
@@ -155,9 +160,21 @@ class _SessionTile extends StatelessWidget {
     final details = [
       if (s.appVersion != null) ProfileCopy.appVersion(s.appVersion!),
       if (s.lastSeenAt != null)
-        ProfileCopy.lastSeen(Fmt.relative(s.lastSeenAt)),
-    ].join(' · ');
-    final Widget tile = Semantics(
+        s.appVersion != null
+            ? ProfileCopy.lastSeenInline(Fmt.relative(s.lastSeenAt))
+            : ProfileCopy.lastSeen(Fmt.relative(s.lastSeenAt)),
+    ].join(', ');
+    // Defter satırı (§6.8): 24 px soluk cihaz simgesi, ad, ayrıntı; bu cihaz yeşil lamba; diğerlerinde
+    // sağda küçük "Oturumu kapat" (büyük yazıda metnin altında).
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final revoke = onRevoke == null
+        ? null
+        : AknButton.danger(
+            label: ProfileCopy.revoke,
+            size: AknButtonSize.small,
+            onPressed: onRevoke,
+          );
+    return Semantics(
       container: true,
       label: [
         name,
@@ -165,60 +182,62 @@ class _SessionTile extends StatelessWidget {
         if (details.isNotEmpty) details,
       ].join(', '),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 12, 8, onRevoke == null ? 12 : 0),
+        padding: AknSpace.row,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            AknIconBox(
-              icon: android
-                  ? Icons.phone_android_rounded
+            Icon(
+              android
+                  ? Icons.phone_android_outlined
                   : ios
-                  ? Icons.phone_iphone_rounded
-                  : Icons.devices_other_rounded,
-              tone: s.current ? AknTone.brand : null,
+                  ? Icons.phone_iphone_outlined
+                  : Icons.devices_other_outlined,
+              size: 24,
+              color: c.dim,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
-              child: ExcludeSemantics(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(name, style: t.bodyStrong),
-                    if (details.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(details, style: t.bodySmall),
-                    ],
-                    if (s.current) ...[
-                      const SizedBox(height: 6),
-                      const StatusChip(
-                        label: ProfileCopy.thisDevice,
-                        tone: AknTone.ok,
-                        size: StatusChipSize.small,
-                      ),
-                    ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(name, style: t.headline.copyWith(color: c.ink)),
+                        if (details.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            details,
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                        ],
+                        if (s.current) ...[
+                          const SizedBox(height: 8),
+                          const AknLamp(
+                            label: ProfileCopy.thisDevice,
+                            tone: AknTone.ok,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (revoke != null && large) ...[
+                    const SizedBox(height: 8),
+                    revoke,
                   ],
-                ),
+                ],
               ),
             ),
+            if (revoke != null && !large) ...[
+              const SizedBox(width: 12),
+              revoke,
+            ],
           ],
         ),
       ),
-    );
-    if (onRevoke == null) return tile;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        tile,
-        Padding(
-          padding: const EdgeInsets.only(left: 60, bottom: 4),
-          child: TextButton.icon(
-            onPressed: onRevoke,
-            style: TextButton.styleFrom(foregroundColor: c.danger.fg),
-            icon: const Icon(Icons.logout_rounded, size: 18),
-            label: const Text(ProfileCopy.revoke),
-          ),
-        ),
-      ],
     );
   }
 }

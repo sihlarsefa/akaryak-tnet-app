@@ -68,9 +68,9 @@ enum SignOutReason {
 
 class SessionController extends Notifier<SessionState> {
   static const sessionExpiredMessage =
-      'Oturumunuz sona erdi. Lütfen yeniden giriş yapın.';
+      'Oturumunuz sona erdi. Yeniden giriş yapın.';
   static const sessionRevokedMessage =
-      'Oturumunuz kapatıldı. Lütfen yeniden giriş yapın.';
+      'Oturumunuz kapatıldı. Yeniden giriş yapın.';
   static const accessRefreshInterval = Duration(minutes: 15);
 
   /// Uygulamanın açtığı dış etkinlikten (kamera, paylaşım, tarayıcı) dönüşte kilit için hoşgörü.
@@ -161,7 +161,7 @@ class SessionController extends Notifier<SessionState> {
     if (result.needsCode) return LoginNeedsCode(result.challenge!);
     final t = result.tokens;
     if (!result.isOk || t == null) {
-      throw const UnknownFailure('Giriş tamamlanamadı. Lütfen tekrar deneyin.');
+      throw const UnknownFailure('Giriş tamamlanamadı. Tekrar deneyin.');
     }
     final tokens = ref.read(tokenStoreProvider);
     final previousUser = tokens.userId;

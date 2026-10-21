@@ -8,6 +8,9 @@
 //   `tool/sync_contract_samples.sh`. Arka ucun çıktı klasörü bu makinedeyse
 //   (`$W/akn-mobile/contract-samples` ya da `--dart-define=AKN_CONTRACT_SAMPLES=<klasör>`) oradaki
 //   dosyalar da okunur (kopya eskidiyse yeni dosya okuyucu ister).
+// - `stats-bayi.json` / `stats-customer.json`: arka ucun `MobileStatsTests` sınıfının aynı klasöre yazdığı
+//   istatistik örnekleri (`AKN_WRITE_STATS_SAMPLES=1`; index.json'da yer almaz). [_statsSamples] ile
+//   uygulamanın `BayiStats` / `CustomerStats` modelleriyle okunur.
 // - `test/contract/samples/*.json`: C# DTO sınıflarından elle çıkarılmış örnekler (sunucunun henüz örnek
 //   üretmediği yanıtlar: şoför teslimat detayı, bildirimler, okunmamış sayıları).
 // - Enum kodları sunucudaki `Core/Enums` değerleriyle karşılaştırılır (anlık görüntü).
@@ -26,6 +29,7 @@ import 'package:akaryakitnet/core/models/paged_result.dart';
 import 'package:akaryakitnet/core/models/unread_count.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
 import 'package:akaryakitnet/core/network/failure_copy.dart';
+import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/approvals/data/approval_models.dart';
 import 'package:akaryakitnet/features/bayi/data/desk_models.dart';
 import 'package:akaryakitnet/features/bayi/data/dispatch_models.dart' as bayi;
@@ -34,6 +38,7 @@ import 'package:akaryakitnet/features/customer_more/data/shipments.dart'
     as customer;
 import 'package:akaryakitnet/features/driver/data/driver_models.dart';
 import 'package:akaryakitnet/features/notifications/data/notification_models.dart';
+import 'package:akaryakitnet/features/stats/data/stats_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _externalDir = String.fromEnvironment('AKN_CONTRACT_SAMPLES');
@@ -82,6 +87,72 @@ Set<String> _jsonFilesIn(Directory dir) => {
     if (f.path.endsWith('.json') && !f.path.endsWith('/index.json'))
       f.uri.pathSegments.last,
 };
+
+/// İstatistik örnekleri (arka uç `MobileStatsTests`, index.json dışında): dosya → okuyucu.
+final Map<String, Object Function(Object? json)> _statsSamples = {
+  'stats-bayi.json': (j) => BayiStats.fromJson(j),
+  'stats-customer.json': (j) => CustomerStats.fromJson(j),
+};
+
+/// Sözleşmenin şekli: her bölüm dolu okunur, dönem ve karşılaştırma tarihleri gelir (değerlerden bağımsız;
+/// arka ucun güncel çıktısı için de geçerli).
+void _checkStatsShape(String file, Object parsed) {
+  void period(StatsPeriodInfo p) {
+    expect(p.key, StatsPeriod.month, reason: '$file period.key');
+    expect(p.label, isNotNull, reason: '$file period.label');
+    expect(p.from, isNotNull, reason: '$file period.from');
+    expect(p.to, isNotNull, reason: '$file period.to');
+    expect(p.compareLabel, isNotNull, reason: '$file period.compareLabel');
+    expect(p.compareFrom, isNotNull, reason: '$file period.compareFrom');
+    expect(p.compareTo, isNotNull, reason: '$file period.compareTo');
+  }
+
+  void months(List<StatsMonth> m) {
+    expect(m, hasLength(6), reason: '$file months');
+    for (final x in m) {
+      expect(x.month, inInclusiveRange(1, 12));
+      expect(x.label, isNotNull, reason: '$file months[].label');
+    }
+  }
+
+  switch (parsed) {
+    case final BayiStats b:
+      expect(b.stationId, isNotNull);
+      expect(b.stationTitle, isNotNull);
+      expect(b.scope, anyOf('station', 'own'));
+      expect(b.generatedAt, isNotNull);
+      expect(b.generatedAt!.isUtc, isTrue);
+      period(b.period);
+      expect(b.sales, isNotNull, reason: '$file sales');
+      months(b.months);
+      expect(b.products, isNotEmpty, reason: '$file products');
+      expect(b.topCustomers, isNotEmpty, reason: '$file topCustomers');
+      expect(b.funnel, isNotNull, reason: '$file funnel');
+      expect(b.deliveries, isNotNull, reason: '$file deliveries');
+      expect(b.collections, isNotNull, reason: '$file collections');
+      expect(b.team, isNotEmpty, reason: '$file team');
+      expect(b.risk, isNotNull, reason: '$file risk');
+      expect(b.failedSections, isEmpty);
+      expect(b.isBlank, isFalse);
+    case final CustomerStats c:
+      expect(c.customerId, isNotNull);
+      expect(c.customerTitle, isNotNull);
+      expect(c.generatedAt, isNotNull);
+      expect(c.generatedAt!.isUtc, isTrue);
+      period(c.period);
+      expect(c.spending, isNotNull, reason: '$file spending');
+      months(c.months);
+      expect(c.products, isNotEmpty, reason: '$file products');
+      expect(c.stations, isNotEmpty, reason: '$file stations');
+      expect(c.deliveryPoints, isNotEmpty, reason: '$file deliveryPoints');
+      expect(c.orders, isNotNull, reason: '$file orders');
+      expect(c.limits, isNotEmpty, reason: '$file limits');
+      expect(c.failedSections, isEmpty);
+      expect(c.isBlank, isFalse);
+    default:
+      fail('$file: beklenmeyen model ${parsed.runtimeType}');
+  }
+}
 
 /// `index.json` satırı: dosya → uç nokta, DTO.
 class _ServerEntry {
@@ -631,7 +702,7 @@ void main() {
       expect(index.contractVersion, AppConfig.expectedContract);
       expect(index.files, isNotEmpty);
       expect(
-        _jsonFilesIn(dir),
+        _jsonFilesIn(dir).difference(_statsSamples.keys.toSet()),
         index.files.toSet(),
         reason: 'index.json ile klasördeki dosyalar aynı olmalı',
       );
@@ -667,6 +738,110 @@ void main() {
     });
   });
 
+  group('İstatistik örnekleri (MobileStatsTests, stats-*.json)', () {
+    Object? read(String file) =>
+        jsonDecode(File('$_serverDir/$file').readAsStringSync());
+
+    test('iki örnek de kopyada var ve okunur', () {
+      for (final file in _statsSamples.keys) {
+        expect(
+          File('$_serverDir/$file').existsSync(),
+          isTrue,
+          reason: 'Eksik örnek: $file (tool/sync_contract_samples.sh)',
+        );
+        _checkStatsShape(file, _statsSamples[file]!(read(file)));
+      }
+    });
+
+    test('GET stats/bayi (BayiStatsDto) değerleri', () {
+      final b = BayiStats.fromJson(read('stats-bayi.json'));
+      expect(b.stationId, 1);
+      expect(b.stationTitle, 'Merkez Petrol');
+      expect(b.isOwn, isFalse);
+      expect(b.generatedAt, DateTime.utc(2026, 10, 20, 11));
+      expect(b.period.title, 'Bu ay');
+      expect(b.period.from, TrTime.fromWall(2026, 10));
+      expect(b.period.to, TrTime.fromWall(2026, 10, 20));
+      expect(b.period.compareLabel, 'Geçen ayın aynı dönemi');
+      expect(b.period.compareTo, TrTime.fromWall(2026, 9, 20));
+      final s = b.sales!;
+      expect(s.orders, 5);
+      expect(s.liters, 21000);
+      expect(s.amount, 872000);
+      expect(s.prevAmount, 234000);
+      expect(s.unitPrice, 41.52);
+      expect(s.prevUnitPrice, 39);
+      expect(s.activeCustomers, 4);
+      expect(s.newCustomers, 1);
+      expect(b.months.map((m) => m.month), [5, 6, 7, 8, 9, 10]);
+      expect(b.months.last.shortLabel, 'Eki');
+      expect(b.months.last.amount, 872000);
+      expect(b.months[3].shortLabel, 'Ağu');
+      expect(b.products.map((p) => p.name), ['Motorin', 'Benzin']);
+      expect(b.products.first.share, closeTo(0.7454, 1e-9));
+      expect(b.topCustomers.first.title, 'Acar Nakliyat');
+      expect(b.topCustomers.map((c) => c.customerId), [1, 2, 3, 5]);
+      final f = b.funnel!;
+      expect([f.requests, f.quoted, f.accepted], [11, 8, 5]);
+      expect(f.conversion, closeTo(0.4545, 1e-9));
+      expect(f.avgFirstQuoteMinutes, 26);
+      final d = b.deliveries!;
+      expect(d.delivered, 4);
+      expect(d.deliveredLiters, 19850);
+      expect(d.onTimeRate, 0.75);
+      expect(d.disputes, 1);
+      final c = b.collections!;
+      expect(c.overdueAmount, 400000);
+      expect(c.dueSoonCount, 2);
+      expect(c.dueSoonDays, 7);
+      expect(b.team.map((t) => t.userId), ['rep', 'rep2']);
+      expect(b.team.first.name, 'Rıza Saha');
+      expect(b.team.first.conversion, 0.5);
+      expect(b.risk!.nearLimitCount, 1);
+      expect(b.risk!.nearLimit.single.usageRate, closeTo(5.602, 1e-9));
+    });
+
+    test('GET stats/customer (CustomerStatsDto) değerleri', () {
+      final c = CustomerStats.fromJson(read('stats-customer.json'));
+      expect(c.customerId, 1);
+      expect(c.customerTitle, 'Acar Nakliyat');
+      expect(c.generatedAt, DateTime.utc(2026, 10, 20, 11));
+      expect(c.period.key, StatsPeriod.month);
+      expect(c.period.compareFrom, TrTime.fromWall(2026, 9));
+      final s = c.spending!;
+      expect(s.orders, 3);
+      expect(s.liters, 16000);
+      expect(s.amount, 655000);
+      expect(s.unitPrice, 40.94);
+      expect(s.activeCustomers, isNull);
+      expect(c.months.map((m) => m.amount), [0, 0, 0, 42000, 234000, 655000]);
+      expect(c.products.map((p) => p.name), ['Motorin', 'Benzin']);
+      expect(c.stations.map((x) => x.title), ['Merkez Petrol', 'Kuzey Petrol']);
+      expect(c.stations.first.share, closeTo(0.8122, 1e-9));
+      expect(c.deliveryPoints.first.name, 'Tuzla Depo');
+      expect(c.deliveryPoints.first.city, 'İstanbul');
+      final o = c.orders!;
+      expect(o.awaitingQuote, 2);
+      expect(o.awaitingDecision, 1);
+      expect(o.awaitingCompanyApproval, 1);
+      expect(o.inTransit, 1);
+      expect(o.open, 5);
+      expect(o.disputed, 1);
+      final liters = c.limits.first;
+      expect(liters.stationTitle, 'Kuzey Petrol');
+      expect(liters.isLiters, isTrue);
+      expect(liters.limit, 20000);
+      expect(liters.used, 5000);
+      expect(liters.available, 15000);
+      expect(liters.usageRate, 0.25);
+      final money = c.limits.last;
+      expect(money.isLiters, isFalse);
+      expect(money.isUnlimited, isFalse);
+      expect(money.available, 0);
+      expect(money.usageRate, closeTo(5.602, 1e-9));
+    });
+  });
+
   group('Arka ucun çıktı klasörü (varsa)', () {
     final dir = Directory(
       _externalDir.isEmpty ? _defaultExternal : _externalDir,
@@ -684,6 +859,26 @@ void main() {
         }
       },
       skip: available ? false : 'klasör yok (${dir.path})',
+    );
+
+    test(
+      'istatistik örnekleri (stats-bayi.json, stats-customer.json) okunur',
+      () {
+        var read = 0;
+        for (final file in _statsSamples.keys) {
+          final f = File('${dir.path}/$file');
+          if (!f.existsSync()) continue;
+          final parsed = _statsSamples[file]!(jsonDecode(f.readAsStringSync()));
+          _checkStatsShape(file, parsed);
+          read++;
+        }
+        expect(read, greaterThan(0), reason: 'Klasörde istatistik örneği yok');
+      },
+      skip:
+          available &&
+              _statsSamples.keys.any((f) => File('${dir.path}/$f').existsSync())
+          ? false
+          : 'istatistik örneği yok (${dir.path})',
     );
   });
 

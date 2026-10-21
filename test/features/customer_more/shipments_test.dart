@@ -46,9 +46,18 @@ void main() {
 
       expect(find.text(CmCopy.proofTitle), findsOneWidget);
       expect(find.byType(ProofCard), findsOneWidget);
-      expect(find.text(Fmt.liters(11950)), findsWidgets);
-      expect(find.text(Fmt.liters(12000)), findsWidgets);
-      expect(find.text('−${Fmt.liters(50)}'), findsOneWidget);
+      // Teslim edilen litre plakada (tek plaka), sipariş ve fark okumalarda.
+      expect(find.byType(DeliveredPlate), findsOneWidget);
+      expect(find.byType(AknPlate), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            '^Teslim edilen ${Fmt.liters(11950)}, '
+            'sipariş ${Fmt.liters(12000)}, fark eksi ${Fmt.liters(50)}',
+          ),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('IRS-778812'), findsOneWidget);
       expect(find.text('Kemal Uçar'), findsOneWidget);
       expect(find.text('Teslimat fotoğrafları'), findsOneWidget);

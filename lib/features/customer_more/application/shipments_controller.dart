@@ -9,6 +9,7 @@ import '../../../core/models/enums.dart';
 import '../../../core/models/shipment.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/network/idempotency.dart';
+import '../../customer_orders/api.dart' show a2DataRevisionProvider;
 import '../data/customer_more_repository.dart';
 import '../data/shipments.dart';
 import 'cm_common.dart';
@@ -270,7 +271,20 @@ class ShipmentCommands {
       retryDelays: ref.read(cmRetryDelaysProvider),
       onChecking: onChecking,
     );
+    _changed(id);
+  }
+
+  /// Kabul / itiraz sonrası: sevkiyat ayrıntısı, açık teslimat listesi (süzgeçler korunur) ve
+  /// müşteri verisi (ana sayfa sayıları, sipariş listeleri, açık sipariş ayrıntıları) tazelenir
+  /// (QA C-03: yalnızca sevkiyat ayrıntısı yenileniyordu).
+  void _changed(int id) {
     ref.invalidate(shipmentDetailProvider(id));
+    if (ref.exists(shipmentsControllerProvider)) {
+      unawaited(
+        ref.read(shipmentsControllerProvider.notifier).load(refresh: true),
+      );
+    }
+    ref.read(a2DataRevisionProvider.notifier).bump();
   }
 
   /// İtiraz fotoğrafını yükler (fotoğraf başına bir anahtar; tekrar denemede aynı anahtar).
@@ -308,7 +322,7 @@ class ShipmentCommands {
       retryDelays: ref.read(cmRetryDelaysProvider),
       onChecking: onChecking,
     );
-    ref.invalidate(shipmentDetailProvider(id));
+    _changed(id);
   }
 
   /// Yüklenmiş itiraz fotoğrafını kaldırır (yalnızca kabul bekleyen sevkiyatta, yükleyen).

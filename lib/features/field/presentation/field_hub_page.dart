@@ -116,13 +116,13 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
       );
     }
     final current = sections.contains(_section) ? _section! : sections.first;
-    final fab = _fab(context, current, access);
+    final add = _addAction(context, current, access);
     return AppScaffold(
       title: access.title,
       subtitle: access.mode == FieldMode.team
           ? 'Ekibin formları ve ön kayıtları'
           : null,
-      floatingActionButton: fab,
+      actions: [?add],
       body: Column(
         children: [
           if (sections.length > 1)
@@ -171,7 +171,9 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
 
   int? _intStatus(FieldSection s) => int.tryParse(_statusFor[s] ?? '');
 
-  Widget? _fab(BuildContext context, FieldSection s, FieldAccess a) {
+  /// Bölümün "ekle" eylemi (tasarım v2 §4.2: içeriğin üstünde yüzen düğme yok): üst çubukta küçük
+  /// birincil düğme ("+ Ön kayıt", "+ Saha formu").
+  Widget? _addAction(BuildContext context, FieldSection s, FieldAccess a) {
     final (label, path, show) = switch (s) {
       FieldSection.leads => (
         'Ön kayıt',
@@ -187,12 +189,24 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
       _ => ('', '', false),
     };
     if (!show) return null;
-    return FloatingActionButton.extended(
-      heroTag: 'field-hub-fab',
-      onPressed: () => context.push(path),
-      icon: const Icon(Icons.add_rounded),
-      label: Text(label),
-      tooltip: label == 'Ön kayıt' ? 'Yeni ön kayıt' : 'Yeni saha formu',
+    final spoken = label == 'Ön kayıt' ? 'Yeni ön kayıt' : 'Yeni saha formu';
+    // Büyük yazıda başlıkla yan yana sığması için yalnızca simge (etiketi ekran okuyucuda).
+    if (fieldLargeText(context)) {
+      return AknIconButton(
+        icon: Icons.add_rounded,
+        semanticLabel: spoken,
+        onPressed: () => context.push(path),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 6),
+      child: AknButton(
+        label: label,
+        icon: Icons.add_rounded,
+        size: AknButtonSize.small,
+        semanticLabel: spoken,
+        onPressed: () => context.push(path),
+      ),
     );
   }
 }

@@ -200,7 +200,7 @@ void main() {
         expect(o.unitPrices[1], 42.10);
         final kart = o.options.method('KART')!;
         expect(kart.hasInstallments, isTrue);
-        expect(kart.termLabel, 'Peşin · taksit seçenekli');
+        expect(kart.termLabel, 'Peşin, taksit seçenekli');
         final other = await repo.paymentOptions(stationId: 2, productIds: [1]);
         expect(other.unitPrices[1], closeTo(42.45, 0.0001));
         expect(other.options.method('CEK'), isNull);
@@ -271,7 +271,7 @@ void main() {
               PlaceOrderLine(productId: 1, quantityLiters: 5000),
               PlaceOrderLine(productId: 2, quantityLiters: 3000),
             ],
-            payment: const PaymentSelection(
+            payment: PaymentSelection(
               methodCode: 'CEK',
               termDays: 30,
               details: {
@@ -279,7 +279,10 @@ void main() {
                 'bank': 'Ziraat',
                 'drawer': 'Anadolu Lojistik',
                 'amount': '344050.00',
-                'dueDate': '2026-12-01',
+                // Vade bugüne göre (teslim + 30 gün civarı); sabit tarih zamanla geçmişte kalırdı.
+                'dueDate': TrTime.isoDate(
+                  TrTime.addDays(TrTime.todayStart(), 41),
+                ),
               },
             ),
           ),
@@ -389,7 +392,7 @@ void main() {
         final r = await repo.place(
           request(
             lines: const [PlaceOrderLine(productId: 1, quantityLiters: 25000)],
-            payment: const PaymentSelection(
+            payment: PaymentSelection(
               methodCode: 'CEK',
               termDays: 30,
               details: {
@@ -397,7 +400,9 @@ void main() {
                 'bank': 'Halkbank',
                 'drawer': 'Anadolu',
                 'amount': '1052500.00',
-                'dueDate': '2026-12-15',
+                'dueDate': TrTime.isoDate(
+                  TrTime.addDays(TrTime.todayStart(), 55),
+                ),
               },
             ),
             note: 'Acil ihtiyaç',

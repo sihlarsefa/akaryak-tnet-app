@@ -405,7 +405,7 @@ abstract final class WizardRules {
     return TrTime.addDays(d.date!, t);
   }
 
-  /// "Çek · 60 gün · vade 20.12.2026".
+  /// "Çek, 60 gün, vade 20.12.2026".
   static String paymentSummary(OrderDraft d, PaymentMethodOption? m) {
     if (m == null) return 'Belirtilmedi';
     final parts = <String>[m.displayName];
@@ -421,7 +421,7 @@ abstract final class WizardRules {
     if (due != null) {
       parts.add('${(t ?? 0) > 0 ? 'vade' : 'ödeme'} ${Fmt.date(due)}');
     }
-    return parts.join(' · ');
+    return parts.join(', ');
   }
 
   // ------------------------------------------------------------------ İstek

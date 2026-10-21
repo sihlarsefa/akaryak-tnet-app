@@ -69,13 +69,15 @@ Future<void> openExternal(
   if (!ok && context.mounted) AppToast.warning(failMessage, context: context);
 }
 
-/// "Bayiyi ara / WhatsApp" düğmeleri (ana sayfanın varsayılan bayisi).
+/// "Bayiyi ara / WhatsApp" düğmeleri (ana sayfanın varsayılan bayisi): ikincil düğmeler, bir
+/// satıra sığmazsa alta kayar. [leading] aynı akışta öne eklenen düğmelerdir ("Haritada aç").
 class StationContactButtons extends ConsumerWidget {
   const StationContactButtons({
     super.key,
     required this.station,
     this.message,
     this.dense = false,
+    this.leading = const [],
   });
 
   final StationContact? station;
@@ -83,25 +85,28 @@ class StationContactButtons extends ConsumerWidget {
   /// WhatsApp'ta hazır metin (ör. sipariş numarası).
   final String? message;
   final bool dense;
+  final List<Widget> leading;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = station;
-    if (s == null) return const SizedBox.shrink();
-    final call = s.callNumber;
-    final wa = s.whatsappNumber;
-    if (call == null && wa == null) return const SizedBox.shrink();
+    final call = s?.callNumber;
+    final wa = s?.whatsappNumber;
+    if (call == null && wa == null && leading.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final size = dense ? AknButtonSize.small : AknButtonSize.medium;
     return Wrap(
       spacing: 8,
       runSpacing: 4,
       children: [
+        ...leading,
         if (call != null)
           AknButton.secondary(
             label: OrdersCopy.callStation,
-            icon: Icons.call_rounded,
+            icon: Icons.call_outlined,
             size: size,
-            semanticLabel: '${s.title} bayisini ara',
+            semanticLabel: '${s!.title} bayisini ara',
             onPressed: () => openExternal(
               context,
               ref,
@@ -112,9 +117,9 @@ class StationContactButtons extends ConsumerWidget {
         if (wa != null)
           AknButton.secondary(
             label: OrdersCopy.whatsapp,
-            icon: Icons.chat_rounded,
+            icon: Icons.chat_bubble_outline_rounded,
             size: size,
-            semanticLabel: '${s.title} bayisine WhatsApp ile yaz',
+            semanticLabel: '${s!.title} bayisine WhatsApp ile yaz',
             onPressed: () => openExternal(
               context,
               ref,

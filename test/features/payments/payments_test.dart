@@ -1,11 +1,15 @@
 // Tahsilat (spec D.3 A5): yalnızca `allowedTransitions`, `noteRequiredFor` notu, "Dekont ekle" →
 // `attachmentPublicId`, yetkisi olmayana durum değiştirme yok, çek / senet durumları, cari ve durum
-// süzgeçleri → sorgu parametreleri; C.7 erişilebilirlik matrisi.
+// süzgeçleri → sorgu parametreleri; tasarım v2 (tek plaka, ledger satırları, " · " yok); C.7
+// erişilebilirlik matrisi.
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/approvals/api.dart';
+import 'package:akaryakitnet/features/payments/copy.dart';
 import 'package:akaryakitnet/features/payments/presentation/payment_detail_page.dart';
 import 'package:akaryakitnet/features/payments/presentation/widgets/payment_cards.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../approvals/a5_test_kit.dart';
@@ -20,6 +24,17 @@ Map<String, dynamic> lastPaymentsQuery(A5App app) {
 List<int> statusesOf(Map<String, dynamic> q) => [
   for (final v in (q['statuses'] as List? ?? const [])) int.parse('$v'),
 ];
+
+/// Tasarım v2 §10.1: ekrandaki hiçbir metinde " · " (orta nokta dizisi) yok.
+void expectNoMiddleDots(WidgetTester tester) {
+  final texts = [
+    for (final e in find.byType(Text).evaluate())
+      (e.widget as Text).data ??
+          (e.widget as Text).textSpan?.toPlainText() ??
+          '',
+  ];
+  expect(texts.where((t) => t.contains(' · ')), isEmpty);
+}
 
 Future<void> openStatusSheet(WidgetTester tester) async {
   await tapText(tester, 'Durumu değiştir');
@@ -66,7 +81,11 @@ void main() {
         findsOneWidget,
       );
       expect(app.log.all('POST', '/status'), isEmpty);
-      await typeInto(tester, 'Gerekçe', 'Müşteri siparişi iptal etti.');
+      // v2 alanlarında etiket alanın üstündedir (TextField'ın içinde değil): sayfadaki tek alan not.
+      final note = inSheet(find.byType(TextField)).first;
+      await tester.ensureVisible(note);
+      await tester.enterText(note, 'Müşteri siparişi iptal etti.');
+      await tester.pump();
       await tapText(tester, 'Durumu kaydet');
       final req = app.log.last('POST', 'payments/12002/status')!;
       final body = req.data as Map;
@@ -246,6 +265,87 @@ void main() {
       isTrue,
     );
     await finish(tester);
+  });
+
+  group('tasarım v2', () {
+    testWidgets(
+      'ayrıntı: tek plaka (tutar + Vade / Yöntem / Son gün), durum satırı, " · " yok',
+      (tester) async {
+        await pumpA5(tester, persona: 'muhasebe', location: '/payments/12002');
+        expect(find.byType(AknPlate), findsOneWidget);
+        final plate = find.byType(AknPlate);
+        for (final label in ['Vade', 'Yöntem', 'Son gün']) {
+          expect(
+            find.descendant(of: plate, matching: find.text(label)),
+            findsOneWidget,
+            reason: label,
+          );
+        }
+        expect(find.text('Tahsil edilecek tutar'), findsOneWidget);
+        expect(find.byType(AknLamp), findsWidgets);
+        expectNoMiddleDots(tester);
+        await finish(tester);
+      },
+    );
+
+    testWidgets(
+      '"Tahsil edildi olarak işaretle" sayfayı seçili açar ve tahsili gönderir',
+      (tester) async {
+        final app = await pumpA5(
+          tester,
+          persona: 'muhasebe',
+          location: '/payments/12002',
+        );
+        await tapText(tester, PaymentsCopy.markCollected);
+        expect(find.text('Ödeme durumu'), findsOneWidget);
+        await tapText(tester, 'Durumu kaydet');
+        final body = app.log.last('POST', 'payments/12002/status')!.data as Map;
+        expect(body['toStatus'], PaymentStatus.collected.code);
+        expect(
+          app.server.world.order(12002)!['paymentStatus'],
+          PaymentStatus.collected.code,
+        );
+        expect(find.text('Ödeme durumu'), findsNothing);
+        await finish(tester);
+      },
+    );
+
+    testWidgets('liste: ledger satırları, sekme sayıları, " · " yok', (
+      tester,
+    ) async {
+      await pumpA5(tester, persona: 'muhasebe', location: '/payments');
+      expect(find.byType(PaymentRowCard), findsWidgets);
+      expect(
+        find.byType(AknCard),
+        findsNothing,
+        reason: 'liste kartlardan yapılmaz',
+      );
+      expect(find.byType(AknListTile), findsWidgets);
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.textContaining(RegExp(r'^Ödemeler \d+$')), findsOneWidget);
+      expectNoMiddleDots(tester);
+      await tapFinder(tester, find.textContaining(PaymentsCopy.instrumentsTab));
+      expect(find.byType(InstrumentRowCard), findsWidgets);
+      expectNoMiddleDots(tester);
+      await finish(tester);
+    });
+
+    test(
+      'vade ipucu tonu: geciken kırmızı, 3 gün içinde Pas, sonrası sönük',
+      () {
+        final now = DateTime.now();
+        expect(dueTone(overdue: true), AknTone.danger);
+        expect(
+          dueTone(overdue: false, due: now.add(const Duration(days: 2))),
+          AknTone.brand,
+        );
+        expect(
+          dueTone(overdue: false, due: now.add(const Duration(days: 20))),
+          AknTone.neutral,
+        );
+        expect(dueTone(overdue: false), AknTone.neutral);
+      },
+    );
   });
 
   group('C.7 Tahsilat', () {

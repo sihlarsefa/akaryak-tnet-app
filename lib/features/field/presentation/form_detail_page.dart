@@ -42,7 +42,6 @@ class FieldFormDetailPage extends ConsumerWidget {
     final form = detail.form;
     return AppScaffold(
       title: form.formNumber,
-      subtitle: form.customerTitle,
       refreshing: async.isRefreshing,
       actions: [
         AknIconButton(
@@ -106,7 +105,7 @@ class FieldFormDetailPage extends ConsumerWidget {
     FieldForm f,
     FieldAccess access,
   ) {
-    const m = EdgeInsets.fromLTRB(16, 0, 16, 12);
+    const m = EdgeInsets.fromLTRB(20, 12, 20, 0);
     final out = <Widget>[];
     switch (f.status) {
       case FieldOrderFormStatus.pendingApproval:
@@ -452,7 +451,7 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
     } catch (_) {
       if (mounted) {
         AppToast.error(
-          'Belge hazırlanamadı. Lütfen tekrar deneyin.',
+          'Belge hazırlanamadı. Tekrar deneyin.',
           context: context,
         );
       }
@@ -556,6 +555,9 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
   }
 }
 
+/// Sayfanın başı (tasarım v2 §5.2 "field form detail"): `display` başlıkta cari, altında form no,
+/// bayi ve temsilci; durum lambaları; ardından ekranın tek plakası: form tutarı, kural, Toplam / Vade /
+/// Satır okumaları.
 class _Hero extends StatelessWidget {
   const _Hero({required this.form});
 
@@ -563,86 +565,87 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
     final band = form.barem;
-    return AknHeroPanel(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          final c = context.akn;
-          return Column(
+    final money = Fmt.number(form.totalAmount, minFraction: 2, maxFraction: 2);
+    final comma = money.lastIndexOf(',');
+    final whole = comma < 0 ? money : money.substring(0, comma);
+    final decimals = comma < 0 ? null : money.substring(comma);
+    final lamps = <Widget>[
+      AknLamp.style(form.status.statusStyle.withLabel(form.statusLabel)),
+      if (band != null && form.status == FieldOrderFormStatus.pendingApproval)
+        FieldBandChip(
+          band: FieldBand(key: band.bandKey, label: band.outcomeLabel),
+        ),
+      if (form.financeVisible)
+        AknLamp.style(
+          form.financeStatus.statusStyle.withLabel(form.financeStatusLabel),
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    form.formNumber,
-                    style: t.label.copyWith(color: c.brandInk),
-                  ),
-                  StatusChip.style(
-                    form.status.statusStyle.withLabel(form.statusLabel),
-                    size: StatusChipSize.small,
-                  ),
-                  if (band != null &&
-                      form.status == FieldOrderFormStatus.pendingApproval)
-                    FieldBandChip(
-                      band: FieldBand(
-                        key: band.bandKey,
-                        label: band.outcomeLabel,
-                      ),
-                      small: true,
-                    ),
-                  if (form.financeVisible)
-                    StatusChip.style(
-                      form.financeStatus.statusStyle.withLabel(
-                        form.financeStatusLabel,
-                      ),
-                      size: StatusChipSize.small,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
               Semantics(
                 header: true,
-                child: Text(form.customerTitle, style: t.title),
+                child: Text(
+                  form.customerTitle,
+                  style: t.display.copyWith(color: c.ink),
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 [
+                  form.formNumber,
                   ?form.stationTitle,
                   ?(form.salesRepresentativeName ?? form.createdByName),
-                ].join(' · '),
-                style: t.bodySmall,
+                ].join(', '),
+                style: t.bodySmall.copyWith(color: c.dim),
               ),
-              const SizedBox(height: 14),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Form tutarı', style: t.caption),
-                        AmountText(Fmt.money(form.totalAmount), large: true),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('Toplam', style: t.caption),
-                      AmountText(Fmt.liters(form.totalLiters)),
-                    ],
-                  ),
-                ],
+              const SizedBox(height: 10),
+              Wrap(spacing: 16, runSpacing: 6, children: lamps),
+            ],
+          ),
+        ),
+        AknPlate(
+          margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+          semanticLabel:
+              'Form tutarı ${Fmt.money(form.totalAmount)}, toplam ${Fmt.liters(form.totalLiters)}, ${form.paymentTermDays == 0 ? 'peşin' : '${form.paymentTermDays} gün vade'}, ${form.lines.length} satır',
+          head: PlateHead(
+            icon: Icons.request_quote_outlined,
+            title: 'Form tutarı',
+            period: form.createdAt == null
+                ? null
+                : fieldLowerFirst(Fmt.dayLabel(form.createdAt)),
+          ),
+          figure: PlateFigure(value: whole, decimals: decimals, unit: '₺'),
+          below: FieldPlateReadouts(
+            items: [
+              PlateReadout(
+                label: 'Toplam',
+                value: Fmt.number(form.totalLiters, maxFraction: 3),
+                unit: 'L',
+              ),
+              PlateReadout(
+                label: 'Vade',
+                value: form.paymentTermDays == 0
+                    ? 'Peşin'
+                    : '${form.paymentTermDays}',
+                unit: form.paymentTermDays == 0 ? null : 'gün',
+              ),
+              PlateReadout(
+                label: 'Satır',
+                value: Fmt.integer(form.lines.length),
               ),
             ],
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -661,11 +664,14 @@ class _LinesCard extends StatelessWidget {
     return FieldSectionCard(
       title: 'Satırlar',
       icon: Icons.list_alt_rounded,
-      trailing: Text('${form.lines.length} satır', style: t.caption),
+      trailing: Text(
+        '${form.lines.length} satır',
+        style: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
+      ),
       child: Column(
         children: [
           for (var i = 0; i < form.lines.length; i++) ...[
-            if (i > 0) Divider(color: c.lineSoft, height: 20),
+            if (i > 0) Divider(color: c.line, height: 24),
             _LineRow(
               no: i + 1,
               line: form.lines[i],
@@ -705,16 +711,16 @@ class _LineRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FieldTitleRow(
-          title: Text('$no. ${line.productName}', style: t.bodyStrong),
+          title: Text('$no. ${line.productName}', style: t.headline),
           trailing: AmountText(Fmt.money(line.amount)),
         ),
         const SizedBox(height: 2),
         Text(
           '${Fmt.liters(line.quantityLiters)} × ${Fmt.unitPrice(line.proposedUnitPrice)}',
-          style: t.amount.copyWith(fontSize: 13, color: c.text),
+          style: t.bodySmall.copyWith(color: c.ink),
         ),
         Text(
-          '${line.deliveryPointName} · teslim ${Fmt.date(line.requestedDeliveryDate)}',
+          '${line.deliveryPointName}, teslim ${Fmt.date(line.requestedDeliveryDate)}',
           style: t.bodySmall,
         ),
         if (line.tuprasDiffPercent != null ||
@@ -729,7 +735,7 @@ class _LineRow extends StatelessWidget {
                     ? 'Pompanın üstünde ${Fmt.percent(line.pumpDiscountPercent!.abs(), maxFraction: 1)}'
                     : 'Pompa iskontosu ${Fmt.percent(line.pumpDiscountPercent, maxFraction: 1)}'),
               if (line.tuprasOverridden) 'Tüpraş elle',
-            ].join(' · '),
+            ].join(', '),
             style: t.caption,
           ),
         ],
@@ -768,7 +774,7 @@ class _CostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FieldSectionCard(
-    title: 'Kârlılık · yalnızca bayi içi',
+    title: 'Kârlılık (yalnızca bayi içi)',
     icon: Icons.lock_outline_rounded,
     child: FieldFacts(
       facts: [
@@ -875,8 +881,8 @@ class _TrailCard extends StatelessWidget {
         ),
       for (final a in form.approvals)
         TimelineStep(
-          title: '${a.decisionLabel} · ${a.levelLabel}',
-          subtitle: [?a.approverName, ?a.note].join(' — '),
+          title: '${a.decisionLabel}, ${a.levelLabel}',
+          subtitle: [?a.approverName, ?a.note].join(', '),
           time: a.decidedAt == null ? null : Fmt.dateTime(a.decidedAt),
           state: a.isRejection ? TimelineState.failed : TimelineState.done,
           icon: a.isRejection
@@ -924,7 +930,7 @@ class _TrailCard extends StatelessWidget {
         subtitle: [
           if ((s.subtitle ?? '').isNotEmpty) s.subtitle!,
           ?s.time,
-        ].join(' · '),
+        ].join(', '),
         state: s.state,
         icon: s.icon,
         content: s.content,
@@ -941,8 +947,8 @@ class _DetailSkeleton extends StatelessWidget {
     lines: 4,
     leading: false,
     header: Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: SkeletonBox(height: 180, radius: 24),
+      padding: EdgeInsets.fromLTRB(20, 8, 20, 12),
+      child: SkeletonBox(height: 200, radius: 20),
     ),
   );
 }

@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../data/approval_models.dart';
-import '../../shared/layout.dart';
 
 /// Satırın durum görünümü. Cari tarafında bayinin iç süreci "Bayi değerlendirmesi" olarak görünür.
 StatusStyle approvalStatusStyle(
@@ -22,7 +22,7 @@ StatusStyle approvalStatusStyle(
         );
       case ApprovalStatus.infoRequested:
         return StatusStyle(
-          tone: AknTone.info,
+          tone: canProvideInfo ? AknTone.brand : AknTone.info,
           icon: Icons.contact_support_rounded,
           label: canProvideInfo
               ? 'Yanıtınız bekleniyor'
@@ -45,9 +45,49 @@ StatusStyle? slaStyle(ApprovalRow row) {
   };
 }
 
-/// Onaylarım satırı: tür ve numara, karşı taraf, sunucu özeti, tutar, durum / SLA / kademe çipleri.
-/// Kararımı bekleyen satır turuncu şeritle, süresi geçen kırmızı şeritle işaretlenir (renk tek başına
-/// değil: çip metni de söyler).
+/// Satırın izleyiciye göre lambası (tasarım v2 §7.13): bekleyen talep, karar veren için "Onayınızı
+/// bekliyor" (turuncu, sıra sizde), diğerleri için "Onay bekleniyor"; süresi geçen talep kırmızı
+/// "Süresi geçti". Cari tarafında bayinin iç süreci tek lamba ("Bayi değerlendirmesi").
+StatusLamp approvalRowLamp(
+  ApprovalRow row, {
+  required bool customerSide,
+  bool canProvideInfo = false,
+}) {
+  final internal = customerSide && row.type != ApprovalType.companyOrderRequest;
+  if (internal || row.status != ApprovalStatus.pending) {
+    return StatusLamp.fromStyle(
+      approvalStatusStyle(
+        row,
+        customerSide: customerSide,
+        canProvideInfo: canProvideInfo,
+      ),
+    );
+  }
+  return AknStatus.approvalLamp(
+    row.status,
+    customerSide
+        ? StatusViewer.customer(canDecide: row.canDecide)
+        : StatusViewer.bayi(canDecide: row.canDecide),
+    sla: row.slaState,
+    serverLabel: row.statusLabel,
+  );
+}
+
+/// Sunucu özetindeki " · " ayırıcılarını v2 yazımına çevirir (", ").
+String plainSummary(String? s) => (s ?? '').replaceAll(' · ', ', ').trim();
+
+/// Onaylarım satırı (tasarım v2 §7.13 defter satırı):
+///
+/// ```
+/// Sipariş finans: Marmara İnşaat Taahhüt Ltd. Şti.   1.052.500,00 ₺
+/// SIP-20261021-12005, Çek, 60 gün vade, …                3 sa önce
+/// ● Onayınızı bekliyor                          ⏱ 1 sa 20 dk kaldı
+/// Talep: Deniz Koç, kademe 1/2
+/// ```
+///
+/// Başlık onaylanacak şeyi söyler (tür: karşı taraf); sağda tutar (ya da litre) ve zaman; durum
+/// satırında izleyiciye göre lamba ve son tarih geri sayımı. Renk tek başına değil: lamba metni de
+/// söyler.
 class ApprovalCard extends StatelessWidget {
   const ApprovalCard({
     super.key,
@@ -64,8 +104,8 @@ class ApprovalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
     final t = context.aknText;
+    final c = context.akn;
     final internal =
         customerSide && row.type != ApprovalType.companyOrderRequest;
     // Cariye yöneltilen ek bilgi isteği: yanıtı cari verir (listede eylem bekleyen satır).
@@ -74,13 +114,11 @@ class ApprovalCard extends StatelessWidget {
         row.status == ApprovalStatus.infoRequested &&
         (row.type == ApprovalType.orderFinance ||
             row.type == ApprovalType.customerOnboarding);
-    final status = approvalStatusStyle(
+    final lamp = approvalRowLamp(
       row,
       customerSide: customerSide,
       canProvideInfo: needsReply,
     );
-    final sla = internal ? null : slaStyle(row);
-    final typeStyle = AknStatus.approvalType(row.type);
     // Karşı taraf: cari için bayi (şirket içi talepte talep eden); bayi için cari. Cari kaydı olmayan
     // taleplerde (ön kayıt, yeni cari) özetin ilk parçası firmanın adıdır.
     final summaryParts = (row.summary ?? '').split(' · ');
@@ -97,142 +135,76 @@ class ApprovalCard extends StatelessWidget {
         : (row.customerTitle ?? (fromSummary ? summaryHead : null));
     final headline = counterpart ?? row.requestedByName ?? row.title;
     final detailLine = fromSummary
-        ? summaryParts.skip(1).join(' · ')
-        : row.summary;
+        ? summaryParts.skip(1).join(', ')
+        : plainSummary(row.summary);
     final number = row.subjectNumber;
     final amount = row.amount;
-    final when = Fmt.relative(row.createdAt);
-    final accent = row.canDecide || needsReply
-        ? AknTone.brand
-        : (sla?.tone == AknTone.danger ? AknTone.danger : null);
+    final when = TurkishText.lower(Fmt.relative(row.createdAt));
     final levels = !internal && row.hasLevels && row.status.isOpen
-        ? 'Kademe ${row.currentLevelNo}/${row.levelCount}'
+        ? 'kademe ${row.currentLevelNo}/${row.levelCount}'
         : null;
+    final open = row.status.isOpen;
+    final due = row.dueAt;
+    final countdown =
+        !internal &&
+        open &&
+        due != null &&
+        row.slaState != ApprovalSlaState.overdue &&
+        due.isAfter(DateTime.now().toUtc());
+    final requester = !customerSide && row.requestedByName != null
+        ? 'Talep: ${row.requestedByName}'
+        : null;
+    final note = [?requester, ?levels].join(', ');
+    final subtitle = [
+      ?number,
+      if (!internal && detailLine.isNotEmpty) detailLine,
+    ].join(', ');
 
-    final large = isLargeText(context);
-    final amountText = amount != null
-        ? AmountText(Fmt.money(amount), style: t.amount)
-        : (row.liters != null
-              ? AmountText(Fmt.liters(row.liters), style: t.amount)
-              : null);
     final semantic = [
       row.displayTypeLabel,
       ?number,
       headline,
-      status.label,
-      ?sla?.label,
+      lamp.label,
       ?levels,
       if (amount != null) Fmt.money(amount),
-      if (row.canDecide) 'kararınızı bekliyor',
       when,
     ].join(', ');
 
-    return AknCard(
+    return Semantics(
+      button: true,
+      label: semantic,
+      excludeSemantics: true,
       onTap: onTap,
-      accent: accent,
-      semanticLabel: semantic,
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      child: ExcludeSemantics(
-        child: Column(
+      child: AknListTile(
+        title: '${row.displayTypeLabel}: $headline',
+        subtitle: subtitle.isEmpty ? null : subtitle,
+        subtitleMaxLines: 2,
+        amount: amount != null
+            ? Fmt.money(amount)
+            : (row.liters != null ? Fmt.liters(row.liters) : null),
+        amountMeta: amount != null || row.liters != null ? when : null,
+        meta: amount == null && row.liters == null ? when : null,
+        status: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AknIconBox(icon: typeStyle.icon, tone: status.tone, size: 40),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        [row.displayTypeLabel, ?number].join(' · '),
-                        style: t.captionStrong,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        headline,
-                        style: t.bodyStrong,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (!internal && (detailLine?.isNotEmpty ?? false)) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          detailLine!,
-                          style: t.bodySmall,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                      // Büyük yazıda tutar ve zaman başlığın altına iner.
-                      if (large) ...[
-                        if (amountText != null) ...[
-                          const SizedBox(height: 4),
-                          Shrinkable(child: amountText),
-                        ],
-                        Text(when, style: t.caption),
-                      ],
-                    ],
-                  ),
-                ),
-                if (!large) ...[
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      ?amountText,
-                      const SizedBox(height: 2),
-                      Text(when, style: t.caption),
-                    ],
-                  ),
-                ],
-              ],
+            AknStatusLine(
+              lamp: AknLamp.status(lamp),
+              trailing: countdown
+                  ? CountdownBadge(
+                      deadline: due,
+                      yourMove: lamp.yourMove,
+                      subject: 'Onay süresi',
+                    )
+                  : null,
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Shrinkable(
-                  child: StatusChip.style(status, size: StatusChipSize.small),
-                ),
-                if (sla != null)
-                  Shrinkable(
-                    child: StatusChip.style(sla, size: StatusChipSize.small),
-                  ),
-                if (levels != null)
-                  Shrinkable(
-                    child: StatusChip(
-                      label: levels,
-                      tone: AknTone.neutral,
-                      icon: Icons.layers_rounded,
-                      size: StatusChipSize.small,
-                    ),
-                  ),
-                if (row.canDecide)
-                  const Shrinkable(
-                    child: StatusChip(
-                      label: 'Kararınız bekleniyor',
-                      tone: AknTone.brand,
-                      icon: Icons.touch_app_rounded,
-                      size: StatusChipSize.small,
-                    ),
-                  ),
-                if (!customerSide &&
-                    row.requestedByName != null &&
-                    counterpart != null)
-                  Text(
-                    'Talep: ${row.requestedByName}',
-                    style: t.caption.copyWith(color: c.dim),
-                  ),
-              ],
-            ),
+            if (note.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(note, style: t.label.copyWith(color: c.dim)),
+            ],
           ],
         ),
+        onTap: onTap,
       ),
     );
   }

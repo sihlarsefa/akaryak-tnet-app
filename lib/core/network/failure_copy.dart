@@ -9,7 +9,7 @@ import 'app_failure.dart';
 /// |---|---|---|
 /// | çevrimdışı | İnternet bağlantısı yok | + Tekrar dene |
 /// | zaman aşımı | Sunucu zamanında yanıt vermedi | + Tekrar dene |
-/// | sunucu (5xx) | Beklenmeyen bir hata oluştu | "Destek kodu: {traceId'nin ilk 8'i}" (dokununca kopyalanır) |
+/// | sunucu (5xx) | İşlem tamamlanamadı | "Destek kodu: {traceId'nin ilk 8'i}" (dokununca kopyalanır) |
 /// | 429 | Çok fazla deneme | "{n} sn sonra tekrar deneyin" + sayan düğme |
 /// | iş kuralı (400) | — | sunucunun Türkçe metni olduğu gibi |
 /// | doğrulama (400) | — | alan hataları camelCase anahtarla alanların altında |
@@ -22,9 +22,9 @@ abstract final class FailureCopy {
       'Bağlantınızı kontrol edip tekrar deneyin. Kaydettiğiniz işlemler bekleyen işlemlerde durur.';
   static const timeoutTitle = 'Sunucu zamanında yanıt vermedi';
   static const timeoutMessage = 'Birkaç saniye sonra tekrar deneyin.';
-  static const serverTitle = 'Beklenmeyen bir hata oluştu';
+  static const serverTitle = 'İşlem tamamlanamadı';
   static const serverMessage =
-      'Lütfen biraz sonra tekrar deneyin. Sorun sürerse destek koduyla bize ulaşın.';
+      'Sunucuda geçici bir sorun var. Birkaç dakika sonra tekrar deneyin; sürerse destek koduyla bize ulaşın.';
   static const rateLimitedTitle = 'Çok fazla deneme';
   static const conflictTitle = 'Bu kayıt sizden sonra güncellendi';
   static const conflictMessage =

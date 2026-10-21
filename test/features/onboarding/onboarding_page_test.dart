@@ -95,18 +95,19 @@ void main() {
     },
   );
 
-  testWidgets('sahne bir kez oynar: önce "Sipariş ver", sonra "Gönderildi"', (
-    tester,
-  ) async {
-    setPhoneSize(tester);
-    await pumpAuthRoute(tester, '/onboarding', harness: await _harness());
-    expect(find.text('Sipariş ver'), findsOneWidget);
-    await pumpFor(tester, const Duration(seconds: 2));
-    expect(find.text('Gönderildi'), findsOneWidget);
-    expect(find.text('12.500 L'), findsOneWidget);
-    expect(tester.hasRunningAnimations, isFalse, reason: 'döngü yok');
-    await tester.pumpWidget(const SizedBox());
-  });
+  testWidgets(
+    'sahne bir kez oynar: önce "Siparişi gönder", sonra "Siparişiniz bayiye gönderildi"',
+    (tester) async {
+      setPhoneSize(tester);
+      await pumpAuthRoute(tester, '/onboarding', harness: await _harness());
+      expect(find.text('Siparişi gönder'), findsOneWidget);
+      await pumpFor(tester, const Duration(seconds: 2));
+      expect(find.text('Siparişiniz bayiye gönderildi'), findsOneWidget);
+      expect(find.text('Tahmini sipariş'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse, reason: 'döngü yok');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   for (final mode in ['azaltılmış hareket', 'ekran okuyucu']) {
     testWidgets('$mode: durağan son kare, sayfa geçişi anında', (tester) async {
@@ -119,13 +120,17 @@ void main() {
         accessibleNavigation: mode == 'ekran okuyucu',
       );
       await tester.pump();
-      expect(find.text('Gönderildi'), findsOneWidget, reason: 'son kare');
-      expect(find.text('12.500 L'), findsOneWidget);
+      expect(
+        find.text('Siparişiniz bayiye gönderildi'),
+        findsOneWidget,
+        reason: 'son kare',
+      );
+      expect(find.text('Tahmini sipariş'), findsOneWidget);
       await tester.tap(find.text('Devam'));
       await tester.pump();
       await tester.pump();
       expect(find.text('Teklif ve onay tek ekranda'), findsOneWidget);
-      expect(find.text('Onaylandı'), findsOneWidget, reason: 'son kare');
+      expect(find.text('Teklif onaylandı'), findsOneWidget, reason: 'son kare');
       await tester.pumpWidget(const SizedBox());
     });
   }

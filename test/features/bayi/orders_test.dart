@@ -144,7 +144,7 @@ void main() {
       isTrue,
     );
     expect(find.bySemanticsLabel('Süzgeçler, 2 süzgeç açık'), findsOneWidget);
-    expect(find.textContaining('Onaylandı · Marmara İnşaat'), findsOneWidget);
+    expect(find.textContaining('Onaylandı, Marmara İnşaat'), findsOneWidget);
     await scrollTap(tester, find.text(BayiCopy.clearFilters));
     expect(app.container.read(bayiOrdersProvider).filter.advancedCount, 0);
     await app.finish(tester);

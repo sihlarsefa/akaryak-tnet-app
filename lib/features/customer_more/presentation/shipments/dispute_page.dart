@@ -244,7 +244,7 @@ class _DisputePageState extends ConsumerState<DisputePage> {
       },
       child: AppScaffold(
         title: _photoOnly ? 'İtiraza fotoğraf ekle' : 'Teslimata itiraz et',
-        subtitle: '${d.code} · ${d.orderNumber}',
+        subtitle: '${d.code}, ${d.orderNumber}',
         showBell: false,
         leading: IconButton(
           tooltip: 'Kapat',
@@ -275,7 +275,6 @@ class _DisputePageState extends ConsumerState<DisputePage> {
               ),
             AknButton(
               label: _photoOnly ? 'Fotoğrafları ekle' : 'İtirazı gönder',
-              icon: Icons.send_rounded,
               expand: true,
               loading: _sending,
               loadingLabel: _checking ? CmCopy.disputeChecking : 'Gönderiliyor',
@@ -284,11 +283,11 @@ class _DisputePageState extends ConsumerState<DisputePage> {
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.only(top: 12, bottom: 24),
+          padding: const EdgeInsets.only(top: 8, bottom: 24),
           children: [
             if (d.isDelivered)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
                 child: AknCard(
                   child: Column(
                     children: [
@@ -389,7 +388,7 @@ class _DisputePageState extends ConsumerState<DisputePage> {
                                         ? preset
                                         : (cur.contains(preset)
                                               ? cur
-                                              : '$cur · $preset');
+                                              : '$cur, $preset');
                                     _note.selection = TextSelection.collapsed(
                                       offset: _note.text.length,
                                     );

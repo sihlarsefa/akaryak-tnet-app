@@ -2,11 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../motion.dart';
 import '../tokens.dart';
 
-/// Tiny trend line (spending, KPI trend). Draws itself in once
-/// (slow 400 ms); the last point gets a dot.
+/// Tiny trend line (design v2 §6.20 line chart, small): a 2 px ink line and
+/// an end dot (10 px `chartHighlight` with a 2 px surface ring). No area
+/// fill, no gradient, no draw-in (only the plate's counter roll animates on
+/// its own).
 class Sparkline extends StatelessWidget {
   const Sparkline({
     super.key,
@@ -19,7 +20,11 @@ class Sparkline extends StatelessWidget {
 
   final List<double> values;
   final double height;
+
+  /// Line colour (ink by default; black on the plate).
   final Color? color;
+
+  /// Deprecated: v2 draws no area under the line; ignored.
   final bool fill;
 
   /// Describe the trend for screen readers ("Son 6 ay harcama, artışta").
@@ -28,7 +33,6 @@ class Sparkline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
-    final color = this.color ?? c.brand;
     return Semantics(
       label: semanticLabel,
       image: true,
@@ -36,18 +40,14 @@ class Sparkline extends StatelessWidget {
       child: SizedBox(
         height: height,
         width: double.infinity,
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: 1),
-          duration: AknMotion.of(context, AknMotion.slow),
-          curve: AknMotion.emphasizedCurve,
-          builder: (context, t, _) => CustomPaint(
-            painter: SparklinePainter(
-              values: values,
-              color: color,
-              progress: t,
-              fill: fill,
-              surface: c.surface,
-            ),
+        child: CustomPaint(
+          painter: SparklinePainter(
+            values: values,
+            color: color ?? c.ink,
+            progress: 1,
+            fill: false,
+            surface: c.surface,
+            dot: c.chartHighlight,
           ),
         ),
       ),
@@ -62,13 +62,21 @@ class SparklinePainter extends CustomPainter {
     required this.progress,
     required this.fill,
     required this.surface,
+    this.dot,
   });
 
   final List<double> values;
   final Color color;
+
+  /// Drawn share of the line (0..1).
   final double progress;
+
+  /// Deprecated: ignored (no area fill in v2).
   final bool fill;
   final Color surface;
+
+  /// End dot colour (defaults to [color]).
+  final Color? dot;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -76,7 +84,7 @@ class SparklinePainter extends CustomPainter {
     final minV = values.reduce(math.min);
     final maxV = values.reduce(math.max);
     final span = (maxV - minV).abs() < 1e-9 ? 1.0 : maxV - minV;
-    const pad = 4.0;
+    const pad = 6.0;
     final w = size.width - pad * 2;
     final h = size.height - pad * 2;
     Offset at(int i) => Offset(
@@ -91,24 +99,8 @@ class SparklinePainter extends CustomPainter {
       final mx = (p0.dx + p1.dx) / 2;
       line.cubicTo(mx, p0.dy, mx, p1.dy, p1.dx, p1.dy);
     }
-
     canvas.save();
     canvas.clipRect(Rect.fromLTWH(0, 0, pad + w * progress + pad, size.height));
-    if (fill) {
-      final area = Path.from(line)
-        ..lineTo(at(values.length - 1).dx, size.height)
-        ..lineTo(at(0).dx, size.height)
-        ..close();
-      canvas.drawPath(
-        area,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [color.withValues(alpha: 0.18), color.withValues(alpha: 0)],
-          ).createShader(Offset.zero & size),
-      );
-    }
     canvas.drawPath(
       line,
       Paint()
@@ -121,8 +113,8 @@ class SparklinePainter extends CustomPainter {
     canvas.restore();
     if (progress >= 1) {
       final last = at(values.length - 1);
-      canvas.drawCircle(last, 4, Paint()..color = surface);
-      canvas.drawCircle(last, 3, Paint()..color = color);
+      canvas.drawCircle(last, 7, Paint()..color = surface);
+      canvas.drawCircle(last, 5, Paint()..color = dot ?? color);
     }
   }
 
@@ -131,6 +123,6 @@ class SparklinePainter extends CustomPainter {
       old.values != values ||
       old.color != color ||
       old.progress != progress ||
-      old.fill != fill ||
-      old.surface != surface;
+      old.surface != surface ||
+      old.dot != dot;
 }

@@ -173,7 +173,7 @@ class DeskPayChip {
   });
 
   factory DeskPayChip.fromJson(JsonReader r) => DeskPayChip(
-    line: r.str('line'),
+    line: TurkishText.commaList(r.str('line')),
     methodName: r.nonEmpty('methodName'),
     statusLabel: r.nonEmpty('statusLabel'),
     tone: r.str('tone', 'neutral'),
@@ -424,7 +424,7 @@ enum DeskOutcome {
   routedToFinance('routedToFinance', 'Finans onayına gönderildi'),
   conflict('conflict', 'Başka bir işlemle güncellendi'),
   invalid('invalid', 'Gönderilemedi'),
-  error('error', 'Hata');
+  error('error', 'Gönderilemedi, tekrar deneyin');
 
   const DeskOutcome(this.key, this.label);
   final String key;

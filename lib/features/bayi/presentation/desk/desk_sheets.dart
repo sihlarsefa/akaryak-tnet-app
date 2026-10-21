@@ -59,7 +59,10 @@ class _BulkSameSheetState extends ConsumerState<_BulkSameSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('$count sipariş seçili', style: context.aknText.bodyStrong),
+          Text(
+            '$count sipariş seçili',
+            style: context.aknText.bodyStrong.copyWith(color: context.akn.ink),
+          ),
           const SizedBox(height: 12),
           MoneyField.unitPrice(
             label: 'Birim fiyat',
@@ -79,7 +82,6 @@ class _BulkSameSheetState extends ConsumerState<_BulkSameSheet> {
           const SizedBox(height: 20),
           AknButton(
             label: 'Seçilenlere uygula',
-            icon: Icons.done_all_rounded,
             expand: true,
             onPressed: _apply,
           ),
@@ -105,6 +107,7 @@ class _ResultsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final s = summary;
     final lines = <(String, AknTone, IconData)>[
       if (s.quoted > 0)
@@ -123,7 +126,7 @@ class _ResultsBody extends StatelessWidget {
         (
           '${s.failed} satır gönderilemedi',
           AknTone.danger,
-          Icons.error_outline_rounded,
+          Icons.error_rounded,
         ),
     ];
     return Column(
@@ -141,9 +144,14 @@ class _ResultsBody extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Icon(icon, color: context.akn.tone(tone).fg, size: 22),
+                      Icon(icon, color: c.tone(tone).fg, size: 20),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(text, style: t.bodyStrong)),
+                      Expanded(
+                        child: Text(
+                          text,
+                          style: t.bodyStrong.copyWith(color: c.ink),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -152,7 +160,7 @@ class _ResultsBody extends StatelessWidget {
         ),
         if (s.routedToFinance > 0)
           const Padding(
-            padding: EdgeInsets.only(bottom: 8),
+            padding: EdgeInsets.only(top: 4, bottom: 8),
             child: AknBanner(
               tone: AknTone.warn,
               message:
@@ -160,49 +168,65 @@ class _ResultsBody extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 4),
-        for (final r in s.results)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: AknCard(
-              padding: const EdgeInsets.all(12),
-              accent: outcomeTone(r.outcome),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    s.rows[r.orderId]?.customerTitle ?? 'Sipariş #${r.orderId}',
-                    style: t.bodyStrong,
-                  ),
-                  Text(
-                    [
-                      s.rows[r.orderId]?.orderNumber ?? '#${r.orderId}',
-                      if (s.rows[r.orderId] != null)
-                        Fmt.liters(s.rows[r.orderId]!.quantityLiters),
-                    ].join(' · '),
-                    style: t.bodySmall,
-                  ),
-                  const SizedBox(height: 6),
-                  StatusChip(
-                    label: r.label,
-                    tone: outcomeTone(r.outcome),
-                    icon: outcomeIcon(r.outcome),
-                    size: StatusChipSize.small,
-                  ),
-                  if (r.message.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(r.message, style: t.bodySmall),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        const SizedBox(height: 8),
+        // Satır başına sonuç: defter satırları (kart listesi değil).
+        for (var i = 0; i < s.results.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+          _ResultRow(result: s.results[i], row: s.rows[s.results[i].orderId]),
+        ],
+        const SizedBox(height: 16),
         AknButton(
           label: 'Tamam',
           expand: true,
           onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+    );
+  }
+}
+
+class _ResultRow extends StatelessWidget {
+  const _ResultRow({required this.result, this.row});
+
+  final DeskSubmitResult result;
+  final DeskRow? row;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    final r = result;
+    final o = row;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            o?.customerTitle ?? 'Sipariş #${r.orderId}',
+            style: t.headline.copyWith(color: c.ink),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            [
+              o?.orderNumber ?? '#${r.orderId}',
+              if (o != null) o.productName,
+              if (o != null) Fmt.liters(o.quantityLiters),
+            ].join(', '),
+            style: t.bodySmall.copyWith(color: c.dim),
+          ),
+          const SizedBox(height: 8),
+          StatusChip(
+            label: r.label,
+            tone: outcomeTone(r.outcome),
+            icon: outcomeIcon(r.outcome),
+          ),
+          if (r.message.isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 16, top: 2),
+              child: Text(r.message, style: t.bodySmall.copyWith(color: c.dim)),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -222,11 +246,12 @@ class _DeskFilterSheet extends ConsumerWidget {
     final s = ref.watch(quoteDeskProvider);
     final c = ref.read(quoteDeskProvider.notifier);
     final t = context.aknText;
+    final k = context.akn;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Sıralama', style: t.bodyStrong),
+        Text('Sıralama', style: t.bodyStrong.copyWith(color: k.ink)),
         const SizedBox(height: 4),
         FilterChips<DeskSort>(
           padding: EdgeInsets.zero,
@@ -239,58 +264,59 @@ class _DeskFilterSheet extends ConsumerWidget {
           onChanged: (v) => c.setSort(v.first),
         ),
         const SizedBox(height: 16),
-        Text('Cari', style: t.bodyStrong),
+        Text('Cari', style: t.bodyStrong.copyWith(color: k.ink)),
         const SizedBox(height: 4),
         if (s.facets.customers.isEmpty)
-          Text('Bekleyen siparişi olan cari yok.', style: t.bodySmall)
+          Text(
+            'Bekleyen siparişi olan cari yok.',
+            style: t.bodySmall.copyWith(color: k.dim),
+          )
         else
           Wrap(
             spacing: 8,
             children: [
               for (final f in s.facets.customers)
-                FilterChip(
-                  label: Text('${f.title} (${f.count})'),
+                AknChip(
+                  label: f.title,
+                  count: f.count,
                   selected: s.customerId == f.id,
-                  onSelected: (on) => c.setCustomer(on ? f.id : null),
+                  onTap: () =>
+                      c.setCustomer(s.customerId == f.id ? null : f.id),
                 ),
             ],
           ),
         const SizedBox(height: 16),
-        Text('Ürün', style: t.bodyStrong),
+        Text('Ürün', style: t.bodyStrong.copyWith(color: k.ink)),
         const SizedBox(height: 4),
         if (s.facets.products.isEmpty)
-          Text('Bekleyen sipariş yok.', style: t.bodySmall)
+          Text(
+            'Bekleyen sipariş yok.',
+            style: t.bodySmall.copyWith(color: k.dim),
+          )
         else
           Wrap(
             spacing: 8,
             children: [
               for (final f in s.facets.products)
-                FilterChip(
-                  label: Text('${f.title} (${f.count})'),
+                AknChip(
+                  label: f.title,
+                  count: f.count,
                   selected: s.productId == f.id,
-                  onSelected: (on) => c.setProduct(on ? f.id : null),
+                  onTap: () => c.setProduct(s.productId == f.id ? null : f.id),
                 ),
             ],
           ),
         const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: AknButton.secondary(
-                label: 'Temizle',
-                expand: true,
-                onPressed: s.isFiltered ? c.clearFilters : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: AknButton(
-                label: 'Tamam',
-                expand: true,
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ],
+        AknButton(
+          label: 'Tamam',
+          expand: true,
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        const SizedBox(height: 8),
+        AknButton.ghost(
+          label: 'Süzgeçleri temizle',
+          expand: true,
+          onPressed: s.isFiltered ? c.clearFilters : null,
         ),
       ],
     );

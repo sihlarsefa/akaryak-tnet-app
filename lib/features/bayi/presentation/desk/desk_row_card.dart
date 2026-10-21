@@ -6,6 +6,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/desk_controller.dart';
 import '../../data/desk_models.dart';
@@ -28,8 +29,20 @@ IconData outcomeIcon(DeskOutcome o) => switch (o) {
   DeskOutcome.error => Icons.error_rounded,
 };
 
-/// Masa satırı: sipariş özeti, ödeme çipi, son alımlar, satır içi ₺/L ve teslim günü, öneri, tahmini
-/// tutar, geri sayım (yalnızca süre dolumu açıkken) ve son gönderimin sonucu.
+/// Teklif masası satırı (tasarım v2 §7.7) — bir defter satırı, kart değil:
+///
+/// ```
+/// [□] Körfez Nakliyat ve Ticaret                    421.000 ₺
+///     SIP-20261020-12009, Motorin, 10.000 L, …       önerilen
+///     ● Teklif verin                            ⏱ 41 dk kaldı
+///     Son alımlar: 41,55 ₺/L (20 Eki), 41,70 ₺/L (18 Eki)
+///     [ Birim fiyat  42,10 ₺/L ] [ Teslim 22 Eki Perşembe ]
+/// ```
+///
+/// Seçim kutusu solda (24, işaretliyken mürekkep); sağ sütunda önerilen ya da yazılan fiyatla tahmini
+/// tutar. Durum satırı izleyiciye göre lamba ("Teklif verin" turuncu) ve geri sayım (yalnızca süre
+/// dolumu açıkken; 30 dakikanın altında kırmızı). Masada rota çizgisi yok (yoğunluk). Satırlar arası
+/// ince çizgiyi liste çizer.
 class DeskRowCard extends ConsumerStatefulWidget {
   const DeskRowCard({
     super.key,
@@ -115,212 +128,216 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     final price = widget.draft.price;
     final outcome = widget.outcome;
     final chip = r.payChip;
-    final place = [?r.deliveryPointName, ?r.deliveryPointCity].join(', ');
     final suggestion = r.suggestedUnitPrice;
-    final accent = outcome != null
-        ? outcomeTone(outcome.outcome)
-        : widget.error != null
-        ? AknTone.danger
-        : widget.selected
-        ? AknTone.brand
-        : null;
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.fromLTRB(4, 8, 12, 14),
-      accent: accent,
-      borderColor: widget.selected ? c.brandLine : null,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (widget.editable)
-            Semantics(
-              label: 'Seç: ${r.orderNumber}, ${r.customerTitle}',
-              child: Checkbox(
-                value: widget.selected,
-                onChanged: (_) => _desk.toggle(r.orderId),
-              ),
-            )
-          else
-            const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+    final requested = r.requestedDeliveryDate;
+
+    // Sağ sütun: yazılan fiyatla tahmini tutar, yoksa önerilen fiyatla.
+    final typed = price != null && price > 0;
+    final basis = typed ? price : suggestion;
+    final amount = basis == null
+        ? null
+        : Fmt.moneyWhole(basis * r.quantityLiters);
+    final amountMeta = basis == null ? null : (typed ? 'tahmini' : 'önerilen');
+
+    final lamp = AknStatus.lampFor(
+      r.status,
+      StatusViewer.bayi(canQuote: widget.editable),
+      serverLabel: r.statusLabel,
+    );
+    final status = AknStatusLine(
+      lamp: AknLamp.status(lamp),
+      trailing: widget.deadline == null
+          ? null
+          : CountdownBadge(
+              deadline: widget.deadline!,
+              yourMove: widget.editable,
+              subject: 'Teklif süresi',
+            ),
+    );
+
+    // Düzenlenebilir satırda istenen gün teslim alanında görünür; burada yinelenmez.
+    final line2 = keepUnits(
+      [
+        r.orderNumber,
+        r.productName,
+        Fmt.liters(r.quantityLiters),
+        ?r.deliveryPointName,
+        if (!widget.editable && requested != null)
+          '${dayMonthLong(requested)} teslim',
+      ].join(', '),
+    );
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LedgerHead(
+          title: r.customerTitle,
+          subtitle: line2,
+          amount: amount,
+          amountMeta: amountMeta,
+        ),
+        const SizedBox(height: 8),
+        status,
+        if (chip != null) ...[
+          const SizedBox(height: 6),
+          RowNote(
+            icon: Icons.payments_outlined,
+            text: [
+              chip.line,
+              if (chip.statusLabel != null)
+                TurkishText.lower(chip.statusLabel!),
+              if (chip.financeLabel != null)
+                TurkishText.lower(chip.financeLabel!),
+            ].join(', '),
+            tone: _worst(
+              AknStatus.toneFromKey(chip.tone),
+              AknStatus.toneFromKey(chip.financeTone),
+            ),
+          ),
+        ],
+        if (r.recentPrices.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          RowNote(
+            icon: Icons.history_rounded,
+            text:
+                'Son alımlar: ${r.recentPrices.map((p) => '${Fmt.unitPrice(p.unitPriceTry)} (${Fmt.dayMonth(p.orderDate)})').join(', ')}',
+          ),
+        ],
+        if (r.isRevision && r.latestRevisionNote != null) ...[
+          const SizedBox(height: 10),
+          AknBanner(
+            tone: AknTone.info,
+            icon: Icons.chat_bubble_outline_rounded,
+            title: r.latestUnitPriceTry == null
+                ? 'Carinin revize notu'
+                : 'Revize notu, önceki teklif ${Fmt.unitPrice(r.latestUnitPriceTry)}',
+            message: r.latestRevisionNote!,
+          ),
+        ],
+        if (widget.editable) ...[
+          const SizedBox(height: 12),
+          _Inputs(
+            price: _price,
+            date: date,
+            onPrice: (text) => _desk.setPrice(r.orderId, text),
+            onPickDate: () => _pickDate(date),
+          ),
+        ],
+        if (widget.error != null) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 4),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            r.orderNumber,
-                            style: t.label.copyWith(color: c.dim),
-                          ),
-                          FitStart(
-                            child: StatusChip.style(
-                              r.status.statusStyle.withLabel(
-                                r.isRevision ? 'Revize' : 'Yeni',
-                              ),
-                              size: StatusChipSize.small,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (widget.deadline != null)
-                      FitEnd(
-                        child: CountdownBadge(
-                          deadline: widget.deadline!,
-                          prefix: 'Kalan',
-                          showRing: false,
-                        ),
-                      ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    Icons.error_rounded,
+                    size: 16,
+                    color: c.danger.fg,
+                  ),
                 ),
-                const SizedBox(height: 6),
-                Text(r.customerTitle, style: t.bodyStrong),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    r.productName,
-                    Fmt.liters(r.quantityLiters),
-                    if (place.isNotEmpty) place,
-                  ].join(' · '),
-                  style: t.bodySmall,
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.error!,
+                    style: t.label.copyWith(color: c.danger.fg),
+                  ),
                 ),
-                if (r.requestedDeliveryDate != null)
-                  Text(
-                    'İstenen teslim ${Fmt.date(r.requestedDeliveryDate)} ${Fmt.weekday(r.requestedDeliveryDate)}',
-                    style: t.bodySmall,
-                  ),
-                if (chip != null) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ToneTag(
-                        label: chip.statusLabel == null
-                            ? chip.line
-                            : '${chip.line} · ${chip.statusLabel}',
-                        tone: AknStatus.toneFromKey(chip.tone),
-                        icon: Icons.payments_outlined,
-                      ),
-                      if (chip.financeLabel != null)
-                        ToneTag(
-                          label: chip.financeLabel!,
-                          tone: AknStatus.toneFromKey(chip.financeTone),
-                          icon: Icons.account_balance_outlined,
-                        ),
-                    ],
-                  ),
-                ],
-                if (r.isRevision && r.latestRevisionNote != null) ...[
-                  const SizedBox(height: 8),
-                  AknBanner(
-                    tone: AknTone.info,
-                    icon: Icons.chat_bubble_outline_rounded,
-                    title: r.latestUnitPriceTry == null
-                        ? 'Carinin revize notu'
-                        : 'Revize notu · önceki teklif ${Fmt.unitPrice(r.latestUnitPriceTry)}',
-                    message: r.latestRevisionNote!,
-                  ),
-                ],
-                if (r.recentPrices.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Son alımlar: ${r.recentPrices.map((p) => '${Fmt.unitPrice(p.unitPriceTry)} (${Fmt.dayMonth(p.orderDate)})').join(' · ')}',
-                    style: t.bodySmall,
-                  ),
-                ],
-                if (widget.editable) ...[
-                  const SizedBox(height: 12),
-                  _Inputs(
-                    price: _price,
-                    date: date,
-                    onPrice: (text) => _desk.setPrice(r.orderId, text),
-                    onPickDate: () => _pickDate(date),
-                  ),
-                  if (suggestion != null) ...[
-                    const SizedBox(height: 6),
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 8,
-                      children: [
-                        Text(
-                          'Önerilen ${Fmt.unitPrice(suggestion)}${r.suggestedLabel == null ? '' : ' · ${r.suggestedLabel}'}',
-                          style: t.bodySmall,
-                        ),
-                        if (price != suggestion)
-                          AknButton.ghost(
-                            label: 'Öneriyi kullan',
-                            size: AknButtonSize.small,
-                            semanticLabel:
-                                'Önerilen fiyatı kullan: ${Fmt.unitPrice(suggestion)}, ${r.orderNumber}',
-                            onPressed: () => _desk.setPrice(
-                              r.orderId,
-                              formatUnitPrice(suggestion),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                  if (price != null && price > 0) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Tahmini tutar ${Fmt.money(price * r.quantityLiters)}',
-                      style: t.label.copyWith(color: c.text),
-                    ),
-                  ],
-                ],
-                if (widget.error != null) ...[
-                  const SizedBox(height: 8),
-                  Semantics(
-                    liveRegion: true,
-                    child: Text(
-                      widget.error!,
-                      style: t.bodySmall.copyWith(color: c.danger.fg),
-                    ),
-                  ),
-                ],
-                if (outcome != null) ...[
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      StatusChip(
-                        label: outcome.label,
-                        tone: outcomeTone(outcome.outcome),
-                        icon: outcomeIcon(outcome.outcome),
-                        size: StatusChipSize.small,
-                      ),
-                      if (outcome.message.isNotEmpty)
-                        Text(outcome.message, style: t.bodySmall),
-                    ],
-                  ),
-                ],
-                if (grants.viewOrders)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => GoRouter.of(
-                        context,
-                      ).push(AppRoutes.bayiOrder(r.orderId)),
-                      child: const Text('Siparişi aç'),
-                    ),
-                  ),
               ],
             ),
           ),
         ],
+        if (outcome != null) ...[
+          const SizedBox(height: 8),
+          StatusChip(
+            label: outcome.label,
+            tone: outcomeTone(outcome.outcome),
+            icon: outcomeIcon(outcome.outcome),
+          ),
+          if (outcome.message.isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 16, top: 2),
+              child: Text(
+                outcome.message,
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+            ),
+        ],
+        if (widget.editable && suggestion != null || grants.viewOrders) ...[
+          const SizedBox(height: 4),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            children: [
+              if (widget.editable && suggestion != null)
+                _SuggestionChip(
+                  price: suggestion,
+                  note: r.suggestedLabel,
+                  applied: price == suggestion,
+                  orderNumber: r.orderNumber,
+                  onUse: () =>
+                      _desk.setPrice(r.orderId, formatUnitPrice(suggestion)),
+                ),
+              if (grants.viewOrders)
+                AknInlineLink(
+                  label: 'Siparişi aç',
+                  onTap: () =>
+                      GoRouter.of(context).push(AppRoutes.bayiOrder(r.orderId)),
+                ),
+            ],
+          ),
+        ],
+      ],
+    );
+
+    return Padding(
+      padding: EdgeInsetsDirectional.fromSTEB(
+        widget.editable ? 8 : AknSpace.page,
+        12,
+        AknSpace.page,
+        grants.viewOrders || widget.editable ? 2 : 12,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.editable) ...[
+            // 48 dp dokunma hedefi; kutu 20 px kenara oturur.
+            // 48 × 48 hedef; kutu başlığın ilk satırıyla aynı hizada kalsın diye 4 px yukarıda.
+            Transform.translate(
+              offset: const Offset(0, -4),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child: Semantics(
+                  label: 'Seç: ${r.orderNumber}, ${r.customerTitle}',
+                  child: Checkbox(
+                    value: widget.selected,
+                    onChanged: (_) => _desk.toggle(r.orderId),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Expanded(child: content),
+        ],
       ),
     );
+  }
+
+  /// İki ton anahtarından daha dikkat isteyeni (tehlike > uyarı > diğerleri).
+  static AknTone _worst(AknTone a, AknTone b) {
+    int rank(AknTone t) => switch (t) {
+      AknTone.danger => 3,
+      AknTone.warn => 2,
+      AknTone.ok => 1,
+      _ => 0,
+    };
+    return rank(b) > rank(a) ? b : a;
   }
 }
 
@@ -348,26 +365,27 @@ class _Inputs extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = MediaQuery.textScalerOf(context).scale(1);
-        if (constraints.maxWidth >= 300 && scale <= 1.3) {
+        if (constraints.maxWidth >= 280 && scale <= 1.3) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 6, child: priceField),
-              const SizedBox(width: 8),
-              Expanded(flex: 5, child: dateField),
+              Expanded(child: priceField),
+              const SizedBox(width: 10),
+              Expanded(child: dateField),
             ],
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [priceField, const SizedBox(height: 8), dateField],
+          children: [priceField, const SizedBox(height: 10), dateField],
         );
       },
     );
   }
 }
 
-/// Kısa tarih seçici ("23.10 Cuma"); satır içi alan dar olduğu için.
+/// Teslim günü alanı ("22 Eki Perşembe"): etiket üstte, v2 alan kutusu, takvim simgesi; dokununca
+/// tarih seçici açılır.
 class _DateButton extends StatelessWidget {
   const _DateButton({required this.date, required this.onTap});
 
@@ -378,27 +396,97 @@ class _DateButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    final label = '${Fmt.dayMonth(date)} ${Fmt.weekday(date)}';
+    final label = dayMonthLong(date);
     return Semantics(
       button: true,
       label: 'Teslim günü: ${Fmt.longDate(date)}, değiştir',
       excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AknRadius.input,
-        child: InputDecorator(
-          decoration: const InputDecoration(
-            labelText: 'Teslim',
-            suffixIcon: Icon(Icons.calendar_month_rounded, size: 20),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AknFieldLabel(text: 'Teslim'),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: onTap,
+            borderRadius: AknRadius.input,
+            child: InputDecorator(
+              decoration: AknTextField.decoration(
+                context,
+                lineHeight: 28,
+                suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
+              ),
+              child: SizedBox(
+                height: 28,
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.body.copyWith(
+                      fontSize: 16,
+                      height: 22 / 16,
+                      color: c.ink,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: t.body.copyWith(fontSize: 16, color: c.ink),
-          ),
-        ),
+        ],
       ),
+    );
+  }
+}
+
+/// Önerilen fiyat çipi: "Öneri 41,55 ₺/L"; dokununca fiyat alanına yazılır, yazılınca seçili görünür.
+/// Yanında önerinin kaynağı ("son alım fiyatı") soluk metinle.
+class _SuggestionChip extends StatelessWidget {
+  const _SuggestionChip({
+    required this.price,
+    required this.applied,
+    required this.orderNumber,
+    required this.onUse,
+    this.note,
+  });
+
+  final double price;
+  final String? note;
+  final bool applied;
+  final String orderNumber;
+  final VoidCallback onUse;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      children: [
+        AknChip(
+          label: 'Öneri ${Fmt.unitPrice(price)}',
+          selected: applied,
+          semanticLabel: applied
+              ? 'Önerilen fiyat yazıldı: ${Fmt.unitPrice(price)}, $orderNumber'
+              : 'Önerilen fiyatı kullan: ${Fmt.unitPrice(price)}, $orderNumber',
+          onTap: applied ? null : onUse,
+          enabled: true,
+        ),
+        if (note != null && note!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              note!,
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w400,
+                color: c.dim,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

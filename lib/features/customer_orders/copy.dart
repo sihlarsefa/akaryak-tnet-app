@@ -10,15 +10,22 @@ abstract final class OrdersCopy {
   static const newOrder = 'Sipariş ver';
   static const templates = 'Şablonlarım';
   static const orderDetail = 'Sipariş';
+  static const wizardTitle = 'Yeni sipariş';
 
   // ------------------------------------------------------------------ Liste
-  static const searchHint = 'Sipariş no, ürün, nokta ya da bayi ara';
+  static const searchHint = 'Sipariş no, ürün, nokta ya da bayi';
   static const emptyDecisionTitle = 'Karar bekleyen teklif yok';
   static const emptyDecisionMessage =
       'Bayiniz teklif verdiğinde burada görünür; size ayrıca haber veririz.';
   static const emptyActiveTitle = 'Aktif siparişiniz yok';
   static const emptyActiveMessage =
-      'Yeni bir sipariş verdiğinizde teklif ve teslimat süreci burada izlenir.';
+      'Yeni sipariş için Sipariş ver’e dokunun; teklif ve teslimat burada izlenir.';
+  static const emptyActiveMessageNoCreate =
+      'Şirketinizin siparişleri teklif ve teslimat boyunca burada izlenir.';
+  static const decisionFooter =
+      'Süresi dolan teklifler Geçmiş sekmesine taşınır.';
+  static const activeFooter =
+      'Teslim edilen ve iptal olan siparişler Geçmiş sekmesinde.';
   static const emptyHistoryTitle = 'Geçmiş sipariş yok';
   static const emptyHistoryMessage =
       'Tamamlanan, reddedilen ya da süresi dolan siparişler burada listelenir.';
@@ -36,10 +43,10 @@ abstract final class OrdersCopy {
   static const lastUpdate = 'Son güncelleme';
 
   // ------------------------------------------------------------------ Hata metinleri (C.7)
-  static const offline = 'İnternet bağlantısı yok';
+  static const offline = 'Bağlantı yok';
   static const timeout = 'Sunucu zamanında yanıt vermedi';
-  static const server = 'Beklenmeyen bir hata oluştu';
-  static const conflict = 'Bu kayıt sizden sonra güncellendi';
+  static const server = 'Sunucuya şu an ulaşılamıyor';
+  static const conflict = 'Bu kayıt siz bakarken değişti';
   static const refresh = 'Yenile';
   static const retry = 'Tekrar dene';
 
@@ -61,8 +68,9 @@ abstract final class OrdersCopy {
   /// Hata ayrıntısı: iş kuralı ve doğrulamada sunucu mesajı aynen.
   static String failureMessage(AppFailure f) => switch (f) {
     OfflineFailure() => 'Bağlantınızı kontrol edip tekrar deneyin.',
-    TimeoutFailure() => 'Bağlantınız yavaş olabilir. Lütfen tekrar deneyin.',
-    ServerFailure() => 'Lütfen biraz sonra tekrar deneyin.',
+    TimeoutFailure() =>
+      'Bağlantınız yavaş olabilir. Birkaç saniye sonra tekrar deneyin.',
+    ServerFailure() => 'Birkaç dakika sonra tekrar deneyin.',
     _ => f.message,
   };
 
@@ -118,12 +126,12 @@ abstract final class OrdersCopy {
   static const resend = 'Yeniden gönder';
   static const checkOrders = 'Siparişlerimi kontrol et';
   static const edit = 'Düzenle';
-  static const successTitle = 'Siparişiniz alındı';
+  static const successTitle = 'Siparişiniz bayiye gönderildi';
   static const companyRequestTitle = 'Şirket içi onaya gönderildi';
   static const partialTitle = 'Siparişin bir kısmı oluşturuldu';
   static const sendRemaining = 'Kalan satırları gönder';
   static const editRemaining = 'Kalan satırları düzenle';
-  static const viewOrder = 'Siparişi görüntüle';
+  static const viewOrder = 'Siparişi aç';
   static const viewOrders = 'Siparişlerime git';
   static const backHome = 'Ana sayfaya dön';
   static const instrumentHint = 'Bilgiler hatalıysa bayinize bildirin';
@@ -132,9 +140,12 @@ abstract final class OrdersCopy {
       'Teklif geldiğinde, süresi dolmak üzereyken ve aracınız yola çıktığında bildirim gönderelim. Ayarlardan istediğiniz zaman değiştirebilirsiniz.';
 
   // ------------------------------------------------------------------ Teklif kararı
-  static const approve = 'Onayla';
+  static const approve = 'Teklifi onayla';
   static const revise = 'Revize iste';
   static const reject = 'Reddet';
+  static const rejectQuote = 'Teklifi reddet';
+  static const reorder = 'Siparişi tekrarla';
+  static const makeTemplate = 'Şablon olarak kaydet';
   static const previousPurchases = 'Önceki alımlarınız';
   static const versions = 'Teklif sürümleri';
   static const deliveryDiffers = 'Talepten farklı';
@@ -148,13 +159,13 @@ abstract final class OrdersCopy {
   static const reasonLabel = 'Açıklama';
 
   // ------------------------------------------------------------------ Takip
-  static const tracking = 'Sipariş takibi';
-  static const inTransitCaption = 'Yolda (canlı konum değildir)';
+  static const tracking = 'Sipariş akışı';
+  static const inTransitCaption = 'Araç yolda; canlı konum değildir';
   static const openMap = 'Haritada aç';
   static const callStation = 'Bayiyi ara';
   static const whatsapp = 'WhatsApp';
   static const estimatedDelivery = 'Tahmini teslim';
-  static const confirmDelivery = 'Teslimatı onaylayın';
+  static const confirmDelivery = 'Teslimatı onayla';
 }
 
 /// Teklif karar ön ayarları — web `Models/OrderTrackingViewModels.cs` `QuoteDecisionPresets`

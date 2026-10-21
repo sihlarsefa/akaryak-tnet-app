@@ -304,7 +304,7 @@ void main() {
       await send(tester, 'Merhaba');
       expect(
         find.text(
-          'Asistan şu an yanıt veremiyor; lütfen daha sonra tekrar deneyin.',
+          'Asistan şu an yanıt veremiyor; birkaç dakika sonra tekrar deneyin.',
         ),
         findsOneWidget,
       );

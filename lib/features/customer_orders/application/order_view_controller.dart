@@ -150,6 +150,9 @@ class OrderViewController
           (p.route?.contains('/orders/$orderId') ?? false);
       if (mine) unawaited(refresh());
     });
+    // Müşteri verisi başka bir sayfada değişti (sevkiyat kabul / itiraz, ödeme belgesi): açık
+    // sipariş ayrıntısı da tazelenir (QA C-03).
+    ref.listen(a2DataRevisionProvider, (_, _) => unawaited(refresh()));
     if (uid == null) return const Loadable();
     Future.microtask(() => _start(uid, epoch));
     return const Loadable.initial();

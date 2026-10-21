@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_number.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../copy.dart';
 import '../data/deliver_draft.dart';
 import '../data/driver_models.dart';
@@ -226,7 +227,9 @@ class DeliverFlowModel extends ChangeNotifier {
   void fillPlanned() =>
       _update(_draft.copyWith(litersText: _litersText(plannedLiters)));
 
-  void setDocument(String v) => _update(_draft.copyWith(documentNo: v));
+  /// İrsaliye no büyük harfle saklanır (bayi "Teslim bildir" gibi; QA LF-2).
+  void setDocument(String v) =>
+      _update(_draft.copyWith(documentNo: v.asciiUpper));
 
   void setRecipient(String v) => _update(_draft.copyWith(recipientName: v));
 

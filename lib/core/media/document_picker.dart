@@ -73,9 +73,7 @@ abstract final class DocumentPicker {
       }
     } on PlatformException catch (e) {
       AppLog.warn('Dosya seçilemedi (${e.code})', error: e.message);
-      throw const DocumentPickFailure(
-        'Dosya seçilemedi. Lütfen tekrar deneyin.',
-      );
+      throw const DocumentPickFailure('Dosya seçilemedi. Tekrar deneyin.');
     }
     if (path == null) return null;
     return read(path, fileName: name, maxMb: limitMb);
@@ -93,7 +91,7 @@ abstract final class DocumentPicker {
       size = await file.length();
     } catch (_) {
       throw const DocumentPickFailure(
-        'Dosya okunamadı. Lütfen tekrar deneyin.',
+        'Dosya okunamadı. Başka bir dosya seçin ya da tekrar deneyin.',
       );
     }
     if (size > maxMb * 1024 * 1024) {

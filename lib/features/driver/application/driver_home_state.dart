@@ -45,10 +45,17 @@ class DriverDraftsController extends Notifier<Map<int, DeliverDraft>> {
   }
 
   /// Taslak değişince (sihirbaz kaydetti, işlem kuyruğa yazıldı, vazgeçildi).
+  ///
+  /// Sihirbaz kapanırken (dispose) mikro görevle çağrılır; uygulama o sırada tümüyle kapanmışsa
+  /// (sağlayıcı kapsayıcısı atıldı) yapılacak bir şey yoktur.
   void reload() {
-    final uid = ref.read(currentUserIdProvider);
-    state = uid == null
-        ? const {}
-        : ref.read(deliverDraftStoreProvider).all(uid);
+    try {
+      final uid = ref.read(currentUserIdProvider);
+      state = uid == null
+          ? const {}
+          : ref.read(deliverDraftStoreProvider).all(uid);
+    } on StateError {
+      // Kapsayıcı kapandı: taslaklar bir sonraki açılışta depodan okunur.
+    }
   }
 }

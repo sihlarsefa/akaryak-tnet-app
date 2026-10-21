@@ -4,15 +4,24 @@ import 'package:flutter/material.dart';
 
 import '../motion.dart';
 import '../painters/chevron_spinner.dart';
+import '../painters/logo_mark.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import 'sheets.dart';
 
-/// Slide-to-confirm for irreversible field actions (Yola çık, Teslim et).
+/// Slide-to-confirm for irreversible field actions (§6.26): "Teslimatı
+/// kaydetmek için kaydırın", "Yola çık".
 ///
-/// Drag the knob past 85 % to confirm; it snaps to the end with a medium
-/// haptic and [onConfirmed] runs (the knob spins while its future runs, then
-/// shows a check). A short drag springs back. Screen-reader users confirm
-/// with a double tap (semantic tap action).
+/// A 64 px Beton track (r14) with a 56 px logo-orange knob carrying the
+/// black » of the logo. Drag the knob past 85 % to confirm: it snaps to the
+/// end with a medium haptic and [onConfirmed] runs (the knob spins while its
+/// future runs, then turns into an ok check in 300 ms). A short drag springs
+/// back.
+///
+/// Accessible path: with a screen reader or switch control running
+/// (`MediaQuery.accessibleNavigation`) the semantic tap opens a
+/// [ConfirmSheet] with a normal [confirmLabel] button ("Teslimatı kaydet")
+/// instead of asking for a drag; [confirmWithSheet] forces either way.
 class SlideToConfirm extends StatefulWidget {
   const SlideToConfirm({
     super.key,
@@ -22,6 +31,10 @@ class SlideToConfirm extends StatefulWidget {
     this.doneLabel = 'Onaylandı',
     this.resetAfterDone = false,
     this.semanticHint = 'Onaylamak için iki kez dokunun',
+    this.confirmTitle,
+    this.confirmMessage,
+    this.confirmLabel = 'Onayla',
+    this.confirmWithSheet,
   });
 
   final String label;
@@ -32,6 +45,19 @@ class SlideToConfirm extends StatefulWidget {
   /// Return to the start after success (when the screen stays open).
   final bool resetAfterDone;
   final String semanticHint;
+
+  /// Title of the accessible confirm sheet (defaults to [label]).
+  final String? confirmTitle;
+
+  /// Sentence under the sheet title.
+  final String? confirmMessage;
+
+  /// The sheet's confirm button: verb + object ("Teslimatı kaydet").
+  final String confirmLabel;
+
+  /// Null: the semantic tap opens the sheet when an accessibility service
+  /// drives the app, otherwise it confirms directly. True / false force it.
+  final bool? confirmWithSheet;
 
   @override
   State<SlideToConfirm> createState() => _SlideToConfirmState();
@@ -60,9 +86,13 @@ class _SlideToConfirmState extends State<SlideToConfirm>
 
   Duration get _d => AknMotion.of(context, AknMotion.base);
 
+  bool get _canAct =>
+      widget.enabled &&
+      _state != _SlideState.running &&
+      _state != _SlideState.done;
+
   void _onDragUpdate(DragUpdateDetails d) {
-    if (!widget.enabled || _state == _SlideState.running) return;
-    if (_state == _SlideState.done) return;
+    if (!_canAct) return;
     _state = _SlideState.dragging;
     _pos.value = (_pos.value + d.delta.dx / _travel).clamp(0.0, 1.0);
   }
@@ -80,9 +110,24 @@ class _SlideToConfirmState extends State<SlideToConfirm>
     }
   }
 
+  /// Screen-reader / switch path: a sheet with a plain confirm button.
+  Future<void> _accessibleConfirm() async {
+    if (!_canAct) return;
+    final sheet =
+        widget.confirmWithSheet ??
+        (MediaQuery.maybeAccessibleNavigationOf(context) ?? false);
+    if (!sheet) return _confirm();
+    final ok = await showConfirmSheet(
+      context,
+      title: widget.confirmTitle ?? widget.label,
+      message: widget.confirmMessage,
+      confirmLabel: widget.confirmLabel,
+    );
+    if (ok && mounted) await _confirm();
+  }
+
   Future<void> _confirm() async {
-    if (!widget.enabled || _state == _SlideState.running) return;
-    if (_state == _SlideState.done) return;
+    if (!_canAct) return;
     setState(() => _state = _SlideState.running);
     AknHaptics.medium();
     await _pos.animateTo(1, duration: _d, curve: AknMotion.emphasizedCurve);
@@ -123,21 +168,30 @@ class _SlideToConfirmState extends State<SlideToConfirm>
     final enabled = widget.enabled;
     final done = _state == _SlideState.done;
     final running = _state == _SlideState.running;
-    final trackColor = enabled ? c.brandSoft : c.surfaceAlt;
-    final lineColor = enabled ? c.brandLine : c.line;
     final knobColor = done
         ? c.ok.solid
         : enabled
-        ? c.brandFill
+        ? c.logo
         : c.lineStrong;
-    final onKnob = done ? c.ok.onSolid : const Color(0xFFFFFFFF);
+    final glyph = done
+        ? c.ok.onSolid
+        : enabled
+        ? c.onBrandFill
+        : c.surface;
+    final labelStyle = t.headline.copyWith(
+      color: done
+          ? c.ok.fg
+          : enabled
+          ? c.ink
+          : c.faint,
+    );
 
     return Semantics(
       button: true,
-      enabled: enabled && !running && !done,
+      enabled: _canAct,
       label: done ? widget.doneLabel : widget.label,
-      hint: enabled && !done ? widget.semanticHint : null,
-      onTap: enabled && !running && !done ? () => unawaited(_confirm()) : null,
+      hint: _canAct ? widget.semanticHint : null,
+      onTap: _canAct ? () => unawaited(_accessibleConfirm()) : null,
       excludeSemantics: true,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -155,44 +209,29 @@ class _SlideToConfirmState extends State<SlideToConfirm>
                 return Container(
                   height: _height,
                   decoration: BoxDecoration(
-                    color: trackColor,
-                    borderRadius: AknRadius.pillAll,
-                    border: Border.all(color: lineColor),
+                    color: c.surfaceAlt,
+                    borderRadius: BorderRadius.circular(AknRadius.driver),
                   ),
                   child: Stack(
                     children: [
-                      // Filled trail behind the knob.
-                      Positioned(
-                        left: _pad,
-                        top: _pad,
-                        bottom: _pad,
-                        width: knobLeft - _pad + _knob,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: (done ? c.ok.solid : c.brandFill).withValues(
-                              alpha: 0.14 + 0.2 * p,
-                            ),
-                            borderRadius: AknRadius.pillAll,
-                          ),
-                        ),
-                      ),
                       Positioned.fill(
-                        left: _knob + _pad * 2,
+                        left: _knob + _pad * 2 + 4,
                         right: 16,
                         child: Center(
                           child: Opacity(
                             opacity: done ? 1 : (1 - p * 1.6).clamp(0.0, 1.0),
+                            // Two lines in the 64 px track; the label
+                            // clamps at 1.3× (screen readers get the full
+                            // label and the sheet path).
                             child: Text(
                               done ? widget.doneLabel : widget.label,
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: t.bodyStrong.copyWith(
-                                color: done
-                                    ? c.ok.fg
-                                    : enabled
-                                    ? c.brandInk
-                                    : c.faint,
-                              ),
+                              textAlign: TextAlign.center,
+                              style: labelStyle,
+                              textScaler: MediaQuery.textScalerOf(
+                                context,
+                              ).clamp(maxScaleFactor: 1.3),
                             ),
                           ),
                         ),
@@ -201,45 +240,42 @@ class _SlideToConfirmState extends State<SlideToConfirm>
                         left: knobLeft,
                         top: _pad,
                         child: AnimatedContainer(
-                          duration: _d,
+                          duration: AknMotion.of(context, AknMotion.slideDone),
+                          curve: AknMotion.standard,
                           width: _knob,
                           height: _knob,
                           decoration: BoxDecoration(
                             color: knobColor,
-                            shape: BoxShape.circle,
-                            boxShadow: enabled
-                                ? [
-                                    BoxShadow(
-                                      color: c.brandFill.withValues(alpha: 0.3),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ]
-                                : null,
+                            borderRadius: AknRadius.button,
                           ),
                           alignment: Alignment.center,
                           child: AnimatedSwitcher(
-                            duration: AknMotion.of(context, AknMotion.fast),
+                            duration: AknMotion.of(
+                              context,
+                              AknMotion.slideDone,
+                            ),
                             child: done
                                 ? Icon(
                                     Icons.check_rounded,
                                     key: const ValueKey('done'),
-                                    color: onKnob,
-                                    size: 28,
+                                    color: glyph,
+                                    size: 30,
                                   )
                                 : running
                                 ? ChevronSpinner(
                                     key: const ValueKey('run'),
                                     size: 22,
-                                    color: onKnob,
+                                    color: glyph,
                                     semanticLabel: null,
                                   )
                                 : CustomPaint(
                                     key: const ValueKey('idle'),
-                                    size: ChevronRowPainter.sizeFor(22, 2),
-                                    painter: ChevronRowPainter(
-                                      color: onKnob,
-                                      count: 2,
+                                    size: const Size.square(44),
+                                    painter: LogoMarkPainter(
+                                      progress: 1,
+                                      showTile: false,
+                                      tileColor: knobColor,
+                                      chevronColor: glyph,
                                     ),
                                   ),
                           ),

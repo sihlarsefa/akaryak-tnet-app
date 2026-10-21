@@ -48,21 +48,23 @@ Finder _bar(String label) => find.descendant(
 );
 
 void main() {
-  testWidgets('şoför: zil gelen kutusunu açar, tercihler tam ekran', (
-    tester,
-  ) async {
-    await _launch(tester, 'sofor');
-    await tester.tap(find.byType(NotificationBell));
-    await _pumpFor(tester, const Duration(seconds: 1));
-    expect(find.byType(NotificationsPage), findsOneWidget);
-    expect(find.text('Yeni teslimat atandı'), findsOneWidget);
-    await tester.tap(find.byTooltip('Bildirim ayarları'));
-    await _pumpFor(tester, const Duration(seconds: 1));
-    expect(find.byType(NotificationSettingsPage), findsOneWidget);
-    expect(find.byType(AnimatedBottomBar), findsNothing, reason: 'tam ekran');
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
+  testWidgets(
+    'şoför: Bildirimler sekmesi gelen kutusunu açar, tercihler tam ekran',
+    (tester) async {
+      await _launch(tester, 'sofor');
+      // Şoför ana sayfasında zil yok (tahta ekran 6); Bildirimler alt menüde sekmedir.
+      await tester.tap(_bar('Bildirim'));
+      await _pumpFor(tester, const Duration(seconds: 1));
+      expect(find.byType(NotificationsPage), findsOneWidget);
+      expect(find.text('Yeni teslimat atandı'), findsOneWidget);
+      await tester.tap(find.byTooltip('Bildirim ayarları'));
+      await _pumpFor(tester, const Duration(seconds: 1));
+      expect(find.byType(NotificationSettingsPage), findsOneWidget);
+      expect(find.byType(AnimatedBottomBar), findsNothing, reason: 'tam ekran');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('şoför: Profil sekmesi → Aktif oturumlar alt menünün üstünde', (
     tester,
@@ -71,6 +73,8 @@ void main() {
     await tester.tap(_bar('Profil'));
     await _pumpFor(tester, const Duration(milliseconds: 800));
     expect(find.text('Ahmet Kurt'), findsOneWidget);
+    await tester.ensureVisible(find.text('Aktif oturumlar'));
+    await tester.pump();
     await tester.tap(find.text('Aktif oturumlar'));
     await _pumpFor(tester, const Duration(seconds: 1));
     expect(find.byType(SessionsPage), findsOneWidget);

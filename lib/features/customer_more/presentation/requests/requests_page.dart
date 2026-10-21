@@ -50,40 +50,41 @@ class RequestsPage extends ConsumerWidget {
             if (n.metrics.extentAfter < 400) ctrl.loadMore();
             return false;
           },
-          child: StaggerScope(
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(top: 8, bottom: 16),
-              itemCount: p.items.length + 1,
-              itemBuilder: (context, i) {
-                if (i == p.items.length) {
-                  return LoadMoreFooter(
-                    loading: p.loadingMore,
-                    error: p.loadMoreError,
-                    onRetry: ctrl.loadMore,
-                  );
-                }
-                final r = p.items[i];
-                return StaggerItem(
-                  index: i,
-                  child: RequestCard(
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 4, bottom: 16),
+            itemCount: p.items.length + 1,
+            itemBuilder: (context, i) {
+              if (i == p.items.length) {
+                return LoadMoreFooter(
+                  loading: p.loadingMore,
+                  error: p.loadMoreError,
+                  onRetry: ctrl.loadMore,
+                );
+              }
+              final r = p.items[i];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (i > 0) const AknLedgerDivider(),
+                  RequestCard(
                     request: r,
                     onTap: () => context.push(AppRoutes.companyRequest(r.id)),
                   ),
-                );
-              },
-            ),
+                ],
+              );
+            },
           ),
         ),
       );
     }
     return AppScaffold(
       title: CmCopy.requestsTitle,
-      subtitle: 'Şirket içi sipariş talepleri',
       refreshing: p.refreshing,
       body: Column(
         children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           CmSegmented<RequestSegment>(
             segments: [
               for (final seg in RequestSegment.values)
@@ -92,7 +93,7 @@ class RequestsPage extends ConsumerWidget {
             value: s.segment,
             onChanged: ctrl.setSegment,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Expanded(child: body),
         ],
       ),
@@ -100,7 +101,8 @@ class RequestsPage extends ConsumerWidget {
   }
 }
 
-/// Talep satırı.
+/// Talep satırı (tasarım v2 §6.8, ledger): ürün ve litre, talep no / kişi / zaman, sağda tahmini
+/// tutar; durum lambası ("Onayınızı bekliyor" sıra sizde) ve sonuç ("1 sipariş oluştu", gerekçe).
 class RequestCard extends StatelessWidget {
   const RequestCard({super.key, required this.request, this.onTap});
 
@@ -112,80 +114,59 @@ class RequestCard extends StatelessWidget {
     final r = request;
     final t = context.aknText;
     final c = context.akn;
-    final style = r.status.statusStyle.withLabel(r.statusLabel);
+    final lamp = AknStatus.companyRequestLamp(
+      r.status,
+      StatusViewer.customer(canDecide: r.canDecide),
+      serverLabel: r.statusLabel,
+    );
     final lines = r.lines.length;
     final created = r.createdOrderIds.length;
     final failed = r.failedLineCount;
-    final summary =
-        '${Fmt.liters(r.totalLiters)} · ${r.productsSummary} · $lines satır';
+    final title = '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}';
+    final subtitle = [
+      r.number,
+      r.requestedByName,
+      if (lines > 1) '$lines satır',
+      if (r.createdAt != null) Fmt.relative(r.createdAt),
+    ].where((x) => x.trim().isNotEmpty).join(', ');
     final outcome = switch (r.status) {
       CustomerOrderRequestStatus.approved =>
-        '$created sipariş oluştu${failed > 0 ? ' · $failed satır oluşturulamadı' : ''}',
+        '$created sipariş oluştu${failed > 0 ? ', $failed satır oluşturulamadı' : ''}',
       CustomerOrderRequestStatus.rejected =>
-        r.decisionNote == null ? 'Reddedildi' : 'Gerekçe: ${r.decisionNote}',
+        r.decisionNote == null ? null : 'Gerekçe: ${r.decisionNote}',
       CustomerOrderRequestStatus.pending =>
-        r.canDecide ? 'Kararınızı bekliyor' : 'Onaylayanın kararı bekleniyor',
+        r.canDecide ? null : 'Onaylayanın kararı bekleniyor',
       _ => null,
     };
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+    return AknListTile(
+      title: title,
+      subtitle: subtitle,
+      amount: r.estimatedAmount == null ? null : Fmt.money(r.estimatedAmount),
+      amountMeta: r.estimatedAmount == null ? null : 'tahmini',
+      status: AknStatusLine(
+        lamp: AknLamp.status(lamp),
+        trailing: outcome == null
+            ? null
+            : Text(
+                outcome,
+                style: t.bodySmall.copyWith(
+                  color: failed > 0 ? c.danger.fg : c.dim,
+                  fontWeight: failed > 0 ? FontWeight.w600 : null,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+      ),
       onTap: onTap,
-      accent: r.status == CustomerOrderRequestStatus.pending && r.canDecide
-          ? AknTone.warn
-          : (failed > 0 ? AknTone.danger : null),
       semanticLabel: [
         r.number,
-        style.label,
-        summary,
+        lamp.label,
+        title,
         r.requestedByName,
         if (r.estimatedAmount != null)
           'tahmini ${Fmt.money(r.estimatedAmount)}',
         ?outcome,
       ].join(', '),
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            CmHeadRow(
-              title: Text(r.number, style: t.bodyStrong),
-              trailing: StatusChip.style(style, size: StatusChipSize.small),
-            ),
-            const SizedBox(height: 4),
-            Text(summary, style: t.body),
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text(
-                  '${r.requestedByName} · ${Fmt.relative(r.createdAt)}',
-                  style: t.caption,
-                ),
-                if (r.estimatedAmount != null)
-                  Text(
-                    'Tahmini ${Fmt.money(r.estimatedAmount)}',
-                    style: t.caption.copyWith(color: c.text),
-                  ),
-              ],
-            ),
-            if (outcome != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                outcome,
-                style: t.label.copyWith(
-                  color: failed > 0
-                      ? c.danger.fg
-                      : (r.status == CustomerOrderRequestStatus.approved
-                            ? c.ok.fg
-                            : c.text),
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

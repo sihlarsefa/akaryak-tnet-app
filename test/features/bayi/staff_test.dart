@@ -5,6 +5,7 @@ import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/application/staff_controller.dart';
 import 'package:akaryakitnet/features/bayi/copy.dart';
 import 'package:akaryakitnet/features/bayi/fake/staff_fake.dart';
+import 'package:akaryakitnet/features/bayi/presentation/staff/staff_page.dart';
 import 'package:akaryakitnet/features/bayi/presentation/widgets/bayi_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/bayi_app.dart';
 
 Finder _card(String name) =>
-    find.ancestor(of: find.text(name), matching: find.byType(AknCard)).first;
+    find.ancestor(of: find.text(name), matching: find.byType(StaffRow)).first;
 
 Finder _inCard(String name, Finder f) =>
     find.descendant(of: _card(name), matching: f);

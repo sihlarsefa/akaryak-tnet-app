@@ -3,20 +3,35 @@
 /// gösterilir; burada yalnızca uygulamanın kendi metinleri vardır.
 abstract final class AuthCopy {
   // ------------------------------------------------------------------ Giriş
-  static const tagline = 'Siparişten teslimata';
-  static const loginTitle = 'Hesabınıza giriş yapın';
+  /// Giriş bandının başlığı (tasarım v2 §7.2).
+  static const tagline = 'Siparişten teslimata.';
+
+  /// Bandın sağ alt köşesindeki satır.
+  static const bandSubtitle = 'Bayiler ve kurumsal müşteriler için';
+
+  /// Bandın ekran okuyucu metni (bant tek başlık olarak okunur).
+  static const bandSpoken =
+      '$tagline AkaryakıtNet, bayiler ve kurumsal müşteriler için.';
+
+  /// Giriş ekranının yumuşak üst alanındaki karşılama.
+  static const welcome = 'Hoş geldiniz';
+  static const welcomeLine = 'Hesabınıza giriş yapın.';
+  static const loginTitle = 'Giriş yapın';
   static const loginSubtitle = 'Bayi ve müşteri hesapları için tek giriş.';
-  static const modePassword = 'Şifreyle';
-  static const modePhone = 'Telefonla';
+  static const modePassword = 'Şifre ile';
+  static const modePhone = 'Numara ile';
   static const modeGroup = 'Giriş yöntemi';
-  static const userLabel = 'Kullanıcı adı veya e-posta';
+  static const userLabel = 'E-posta ya da kullanıcı adı';
   static const passwordLabel = 'Şifre';
   static const showPassword = 'Şifreyi göster';
   static const hidePassword = 'Şifreyi gizle';
+  static const show = 'Göster';
+  static const hide = 'Gizle';
   static const loginButton = 'Giriş yap';
   static const loggingIn = 'Giriş yapılıyor';
   static const forgotPassword = 'Şifremi unuttum';
-  static const noAccount = 'Hesabım yok';
+  static const noAccount = 'Hesabınız yok mu?';
+  static const noAccountLink = 'Bayinizden davet isteyin';
   static const phoneLabel = 'Cep telefonu';
   static const phoneHint = '5XX XXX XX XX';
   static const phoneHelper =
@@ -25,9 +40,26 @@ abstract final class AuthCopy {
   static const sendingCode = 'Kod gönderiliyor';
   static const userRequired = 'Kullanıcı adınızı ya da e-postanızı girin.';
   static const passwordRequired = 'Şifrenizi girin.';
-  static const demoTitle = 'Demo hesapları';
+  static const demoTitle = 'Demo hesabı seçin';
+  static const demoButton = 'Demo hesabı seç';
+  static const demoCaption = 'Demo';
   static String demoSubtitle(String password, String code) =>
-      'Sahte kip · şifre $password · kod $code';
+      'Sahte kip: şifre $password, kod $code. Bir hesaba dokunun, giriş yapılır.';
+
+  /// Giriş ekranındaki demo bölümü (sahip kararı 2026-10-21): bandın altında, formun üstünde.
+  static const demoSectionTitle = 'Demo hesaplarıyla girin';
+  static const demoTapHint = 'Tek dokunuşla giriş.';
+  static String demoHint(String password, String code) =>
+      '$demoTapHint Şifre $password, kod $code.';
+  static const demoSeeAll = 'Tümünü gör';
+  static const demoCardHint = 'Bu hesapla giriş yapar';
+  static String demoSigningIn(String name) => '$name olarak giriş yapılıyor';
+  static const demoGroupCustomer = 'Müşteri';
+  static const demoGroupBayi = 'Bayi';
+  static const demoGroupCenter = 'Merkez';
+
+  /// Demo kartları ile form arasındaki ayraç.
+  static const ownAccountDivider = 'Kendi hesabınızla girin';
   static String version(String label) => 'Sürüm $label';
 
   // ------------------------------------------------------------------ Hatalar ve sınırlar
@@ -35,20 +67,21 @@ abstract final class AuthCopy {
   static const throttledTitle = 'Biraz bekleyin';
   static String rateLimited(String wait) =>
       'Çok fazla deneme. $wait sonra tekrar deneyin.';
-  static String retryIn(String wait) => 'Tekrar dene · $wait';
+  static String retryIn(String wait) => 'Tekrar dene ($wait)';
   static String retryInSpoken(String wait) => '$wait sonra tekrar deneyin';
   static const errorTitle = 'Giriş yapılamadı';
   static const codeErrorTitle = 'Kod gönderilemedi';
   static const offline =
-      'İnternet bağlantısı yok. Bağlantınızı kontrol edip tekrar deneyin.';
+      'Bağlantı yok. Bağlantınızı kontrol edip tekrar deneyin.';
   static const timeout =
-      'Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.';
+      'Sunucu zamanında yanıt vermedi. Birkaç dakika sonra tekrar deneyin.';
   static const server =
-      'Beklenmeyen bir hata oluştu. Lütfen biraz sonra tekrar deneyin.';
+      'Sunucuya şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.';
   static String supportCode(String code) => 'Destek kodu: $code';
   static const supportCodeHint = 'Kopyalamak için dokunun';
   static const supportCodeCopied = 'Destek kodu kopyalandı.';
-  static const linkFailed = 'Bağlantı açılamadı.';
+  static const linkFailed =
+      'Sayfa açılamadı. Tarayıcınızı kontrol edip tekrar deneyin.';
   static const offlineNotice =
       'Çevrimdışısınız. Giriş için internet bağlantısı gerekir.';
   static const updateBannerTitle = 'Yeni sürüm hazır';
@@ -94,8 +127,8 @@ abstract final class AuthCopy {
   static const verify = 'Doğrula';
   static const verifying = 'Doğrulanıyor';
   static const noCode = 'Kod gelmedi mi?';
-  static const resend = 'Yeniden gönder';
-  static String resendIn(String wait) => 'Yeniden gönder · $wait';
+  static const resend = 'Kodu tekrar gönder';
+  static String resendIn(String wait) => 'Kodu tekrar gönder ($wait)';
   static String resendInSpoken(String wait) =>
       '$wait sonra yeniden gönderebilirsiniz';
   static const codeResent = 'Yeni kod gönderildi.';
@@ -107,7 +140,8 @@ abstract final class AuthCopy {
   static const otpNote =
       'Kod gelmediyse numaranın Profil bölümünde doğrulanmış olduğundan emin olun.';
   static const missingChallenge = 'Kod isteği bulunamadı';
-  static const missingChallengeBody = 'Lütfen yeniden giriş yapın.';
+  static const missingChallengeBody =
+      'Kod isteğinin süresi doldu. Girişe dönüp yeniden giriş yapın.';
   static const backToLogin = 'Girişe dön';
   static const restart = 'Baştan başla';
 
@@ -158,7 +192,7 @@ abstract final class AuthCopy {
       'yerden devam edebilirsiniz.';
   static const maintenanceTitle = 'Bakımdayız';
   static const maintenanceBody =
-      'AkaryakıtNet kısa bir bakım çalışması yapıyor. Lütfen birazdan tekrar deneyin.';
+      'AkaryakıtNet kısa bir bakım çalışması yapıyor. Birkaç dakika sonra tekrar deneyin.';
   static const tryAgain = 'Tekrar dene';
   static const checking = 'Kontrol ediliyor';
   static String installedVersion(String label) => 'Yüklü sürüm: $label';

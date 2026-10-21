@@ -82,31 +82,41 @@ Future<void> openGeneratedDocument(
 
 /// Belge satırı: tür ikonu, ad ve "Cihazda kayıtlı" bilgisi.
 class DocumentTile extends ConsumerWidget {
-  const DocumentTile({super.key, required this.request, required this.onTap});
+  const DocumentTile({
+    super.key,
+    required this.request,
+    required this.onTap,
+    this.padding,
+  });
 
   final DocRequest request;
   final VoidCallback onTap;
 
+  /// Satır dolgusu (alt sayfada kenar boşluğu sayfadan gelir); varsayılan ledger satırı.
+  final EdgeInsetsGeometry? padding;
+
   static IconData iconOf(DocKind k) => switch (k) {
-    DocKind.order => Icons.description_rounded,
-    DocKind.quote => Icons.request_quote_rounded,
-    DocKind.reconciliation => Icons.fact_check_rounded,
-    DocKind.receipt => Icons.assignment_turned_in_rounded,
-    DocKind.waybill => Icons.local_shipping_rounded,
+    DocKind.order => Icons.description_outlined,
+    DocKind.quote => Icons.request_quote_outlined,
+    DocKind.reconciliation => Icons.fact_check_outlined,
+    DocKind.receipt => Icons.assignment_turned_in_outlined,
+    DocKind.waybill => Icons.local_shipping_outlined,
   };
 
+  /// Belge satırı (tasarım v2 §6.27): 24 px soluk simge, ad ve durum ("PDF oluşturulur" ya da
+  /// "Cihazda kayıtlı, 21.10.2026 14:20"); kenardan kenara ledger satırı.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cached = ref.watch(cachedDocProvider(request)).valueOrNull;
     final sub = cached == null
-        ? 'PDF oluştur'
-        : '${CmCopy.savedOnDevice} · ${Fmt.dateTime(cached.savedAt)}';
+        ? 'PDF olarak oluşturulur'
+        : '${CmCopy.savedOnDevice}, ${Fmt.dateTime(cached.savedAt)}';
     return AknListTile(
       leadingIcon: iconOf(request.kind),
-      leadingTone: AknTone.brand,
       title: request.label,
       subtitle: sub,
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      meta: 'PDF',
+      padding: padding,
       onTap: onTap,
       semanticLabel: '${request.label}, $sub',
     );

@@ -106,7 +106,7 @@ class _EvidenceTile extends ConsumerWidget {
             dimension: size,
             child: Material(
               color: a.kind == AttachmentKind.deliverySignature
-                  ? const Color(0xFFFFFFFF)
+                  ? AknColors.light.surface
                   : c.surfaceAlt,
               shape: RoundedRectangleBorder(
                 borderRadius: AknRadius.card,

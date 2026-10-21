@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/app_failure.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/debouncer.dart';
 import '../../../core/utils/external_activity.dart';
 import '../../../core/utils/format.dart';
 import '../copy.dart';
@@ -16,21 +17,24 @@ String? supportCode(AppFailure f) {
   return t.length <= 8 ? t : t.substring(0, 8);
 }
 
-/// Kullanıcıya gösterilecek kısa hata metni (spec C.7).
+/// Kullanıcıya gösterilecek kısa hata metni (tasarım v2 §10.2: ne başarısız oldu, ne yapmalı).
 String failureText(AppFailure f) => switch (f) {
   OfflineFailure() =>
-    'İnternet bağlantısı yok. Bağlantınızı kontrol edip tekrar deneyin.',
-  TimeoutFailure() => 'Sunucu zamanında yanıt vermedi. Lütfen tekrar deneyin.',
+    'Bağlantı yok. Bağlantı gelince tekrar deneyin; girdikleriniz bu ekranda duruyor.',
+  TimeoutFailure() =>
+    'Sunucu zamanında yanıt vermedi. Birkaç dakika sonra tekrar deneyin.',
   RateLimitedFailure(:final retryAfter) =>
     retryAfter == null
         ? 'Çok fazla deneme. Biraz sonra tekrar deneyin.'
         : 'Çok fazla deneme. ${retryAfter.inSeconds} sn sonra tekrar deneyin.',
   ConflictFailure(:final isConcurrency) =>
-    isConcurrency ? '${CmCopy.conflict}. Güncel hâli yüklendi.' : f.message,
+    isConcurrency
+        ? 'Bu kayıt siz bakarken değişti. Güncel hâli yüklendi; tekrar deneyin.'
+        : f.message,
   ServerFailure() =>
     supportCode(f) == null
-        ? 'Beklenmeyen bir hata oluştu.'
-        : 'Beklenmeyen bir hata oluştu. Destek kodu: ${supportCode(f)}',
+        ? 'Sunucuya şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.'
+        : 'Sunucuya şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin. Destek kodu: ${supportCode(f)}',
   ValidationFailure(:final fieldErrors) =>
     fieldErrors.values.expand((e) => e).firstOrNull ?? f.message,
   _ => f.message,
@@ -53,16 +57,14 @@ Widget cmBar(Widget child) => Column(
   children: [child],
 );
 
-/// [AknSegmented] with AA-contrast labels: the core control draws unselected labels in `dim` on
-/// `surfaceAlt` (4.34:1 in light mode); here they use `text` (selection still shows by thumb and
-/// weight).
+/// Bölüm seçici ([AknSegmented], tasarım v2 §6.11): Beton iz, beyaz başparmak; 20 px kenar.
 class CmSegmented<T> extends StatelessWidget {
   const CmSegmented({
     super.key,
     required this.segments,
     required this.value,
     required this.onChanged,
-    this.margin = const EdgeInsets.symmetric(horizontal: 16),
+    this.margin = const EdgeInsets.symmetric(horizontal: 20),
   });
 
   final List<FilterOption<T>> segments;
@@ -71,24 +73,163 @@ class CmSegmented<T> extends StatelessWidget {
   final EdgeInsetsGeometry margin;
 
   @override
+  Widget build(BuildContext context) => AknSegmented<T>(
+    segments: segments,
+    value: value,
+    onChanged: onChanged,
+    margin: margin,
+  );
+}
+
+/// Arama kuyusu (tasarım v2 §6.10): Beton, r12, büyüteç 20 soluk, ipucu soluk; odakta beyaz ve
+/// 2 px turuncu çerçeve. Yüksekliği 48 (dokunma alanı en az 48 dp, WCAG / Android yönergesi).
+/// Yazdıkça [debounce] sonra [onChanged] (kırpılmış).
+class CmSearchField extends StatefulWidget {
+  const CmSearchField({
+    super.key,
+    required this.hint,
+    this.onChanged,
+    this.debounce = const Duration(milliseconds: 300),
+  });
+
+  final String hint;
+  final ValueChanged<String>? onChanged;
+  final Duration debounce;
+
+  @override
+  State<CmSearchField> createState() => _CmSearchFieldState();
+}
+
+class _CmSearchFieldState extends State<CmSearchField> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+  late final Debouncer _debouncer = Debouncer(widget.debounce);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_rebuild);
+    _focus.addListener(_rebuild);
+  }
+
+  void _rebuild() => setState(() {});
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    _debouncer.dispose();
+    super.dispose();
+  }
+
+  void _changed(String s) {
+    final cb = widget.onChanged;
+    if (cb == null) return;
+    _debouncer(() => cb(s.trim()));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final control = AknSegmented<T>(
-      segments: segments,
-      value: value,
-      onChanged: onChanged,
-      margin: margin,
-    );
     final c = context.akn;
-    if (c.isDark) return control;
-    final theme = Theme.of(context);
-    return Theme(
-      data: theme.copyWith(
-        extensions: [
-          for (final e in theme.extensions.values)
-            if (e is AknColors) e.copyWith(dim: c.text) else e,
+    final t = context.aknText;
+    final text = t.body.copyWith(height: 20 / 15, color: c.ink);
+    OutlineInputBorder border(BorderSide side) =>
+        OutlineInputBorder(borderRadius: AknRadius.input, borderSide: side);
+    return TextField(
+      controller: _controller,
+      focusNode: _focus,
+      textInputAction: TextInputAction.search,
+      onChanged: _changed,
+      onSubmitted: (s) {
+        _debouncer.cancel();
+        widget.onChanged?.call(s.trim());
+      },
+      onTapOutside: (_) => _focus.unfocus(),
+      style: text,
+      cursorColor: c.brand,
+      decoration: InputDecoration(
+        hintText: widget.hint,
+        hintStyle: text.copyWith(color: c.dim),
+        isDense: true,
+        filled: true,
+        fillColor: _focus.hasFocus ? c.surface : c.surfaceAlt,
+        hoverColor: Colors.transparent,
+        contentPadding: const EdgeInsets.fromLTRB(0, 14, 12, 14),
+        prefixIcon: Icon(Icons.search_rounded, color: c.dim, size: 20),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 48,
+        ),
+        suffixIcon: _controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Temizle',
+                icon: Icon(Icons.close_rounded, color: c.dim, size: 20),
+                onPressed: () {
+                  _controller.clear();
+                  _debouncer.cancel();
+                  widget.onChanged?.call('');
+                },
+              ),
+        border: border(BorderSide.none),
+        enabledBorder: border(BorderSide.none),
+        focusedBorder: border(BorderSide(color: c.brand, width: 2)),
+      ),
+    );
+  }
+}
+
+/// Büyük yazı (≥ 1,6×): plakalar destedeki gibi sıkı düzene geçer (§5.3, §12).
+bool cmLargeText(BuildContext context) =>
+    MediaQuery.textScalerOf(context).scale(10) >= 16;
+
+/// Bir plaka: normal yazıda okumalar kuralın altında; büyük yazıda plaka sıkı düzende (baş ve rakam)
+/// kalır ve okumalar plakanın altında etiket / değer satırları olarak yazılır (uzun değerler
+/// sarılır, kesilmez).
+class CmPlate extends StatelessWidget {
+  const CmPlate({
+    super.key,
+    required this.head,
+    required this.figure,
+    required this.readouts,
+    this.semanticLabel,
+    this.padding = const EdgeInsets.fromLTRB(20, 16, 20, 0),
+  });
+
+  final Widget head;
+  final Widget figure;
+  final List<PlateReadout> readouts;
+  final String? semanticLabel;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final large = cmLargeText(context);
+    final plate = AknPlate(
+      semanticLabel: semanticLabel,
+      compact: large,
+      head: head,
+      figure: figure,
+      below: large ? null : PlateReadouts(items: readouts),
+    );
+    if (!large) return Padding(padding: padding, child: plate);
+    return Padding(
+      padding: padding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          plate,
+          const SizedBox(height: 8),
+          for (final r in readouts)
+            FactRow(
+              label: r.label,
+              value: r.unit == null || r.unit!.isEmpty
+                  ? r.value
+                  : '${r.value} ${r.unit}',
+            ),
         ],
       ),
-      child: control,
     );
   }
 }
@@ -148,15 +289,17 @@ class CmFailureView extends StatelessWidget {
         compact: compact,
       ),
       ServerFailure() => ErrorState(
+        title: 'Sunucuya ulaşılamıyor',
         message:
-            'Beklenmeyen bir hata oluştu. Lütfen biraz sonra tekrar deneyin.',
+            'Sunucuya şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.',
         traceId: supportCode(f),
         onRetry: onRetry,
         compact: compact,
       ),
       TimeoutFailure() => ErrorState(
         title: 'Sunucu zamanında yanıt vermedi',
-        message: 'Bağlantınız yavaş olabilir. Lütfen tekrar deneyin.',
+        message:
+            'Bağlantınız yavaş olabilir. Birkaç dakika sonra tekrar deneyin.',
         onRetry: onRetry,
         compact: compact,
       ),
@@ -187,14 +330,14 @@ class CachedNote extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
         child: Row(
           children: [
             Icon(Icons.history_rounded, size: 16, color: c.dim),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                'Son güncelleme $when · çevrimdışı gösteriliyor',
+                'Son güncelleme $when, çevrimdışı gösteriliyor',
                 style: t.caption.copyWith(color: c.dim),
               ),
             ),
@@ -242,7 +385,10 @@ class LoadMoreFooter extends StatelessWidget {
   }
 }
 
-/// Sayfa bölüm başlığı + içerik kartı.
+/// Sayfa bölümü (tasarım v2 §4.5 "Section"): başlık (`title` 20/26), isteğe bağlı açıklama ve sağda
+/// bir denetim, altında içerik — kutu yok, gölge yok. İçerik 20 px kenarla girintilenir; ledger
+/// satırları gibi kenardan kenara içerik için [bleed] true verin. [padding] ve [accent] v2'de
+/// kullanılmaz (API kararlılığı için duruyor).
 class CmSection extends StatelessWidget {
   const CmSection({
     super.key,
@@ -252,6 +398,7 @@ class CmSection extends StatelessWidget {
     this.trailing,
     this.padding = AknSpace.cardPadding,
     this.accent,
+    this.bleed = false,
   });
 
   final String title;
@@ -261,46 +408,55 @@ class CmSection extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final AknTone? accent;
 
+  /// İçerik kenardan kenara (satırlar kendi 20 px dolgusunu taşır).
+  final bool bleed;
+
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: AknCard(
-        accent: accent,
-        padding: padding,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Semantics(
-                        header: true,
-                        child: Text(title, style: t.bodyStrong),
-                      ),
-                      if (subtitle != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(subtitle!, style: t.caption),
+    final c = context.akn;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(20, 24, trailing == null ? 20 : 8, 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(title, style: t.title.copyWith(color: c.ink)),
+                    ),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle!,
+                          style: t.bodySmall.copyWith(color: c.dim),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-                // Kendi düğümü: başlığa karışmadan ayrıca odaklanır.
-                if (trailing != null)
-                  Semantics(container: true, child: trailing),
-              ],
-            ),
-            const SizedBox(height: 8),
-            child,
-          ],
+              ),
+              // Kendi düğümü: başlığa karışmadan ayrıca odaklanır.
+              if (trailing != null) Semantics(container: true, child: trailing),
+            ],
+          ),
         ),
-      ),
+        if (bleed)
+          child
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: child,
+          ),
+      ],
     );
   }
 }

@@ -1,9 +1,7 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
@@ -11,6 +9,7 @@ import '../../../core/ui/ui.dart';
 import '../application/biometric.dart';
 import '../application/login_effects.dart';
 import '../copy.dart';
+import 'widgets/gate_view.dart';
 
 /// Biyometrik kilit ekranı (`/locked`, spec A.4 A1). Uygulama arka planda 60 sn'den uzun kalınca
 /// çekirdek kilitler (süre çekirdektedir); ekran açılınca bir kez Face ID / parmak izi ister. Başarısız
@@ -130,125 +129,55 @@ class _LockedPageState extends ConsumerState<LockedPage> {
         _last == BiometricOutcome.unavailable;
     final failed = _last != null;
     final name = access?.displayName;
-    final c = context.akn;
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: AknTheme.overlayOnNavy,
-      child: AppScaffold(
-        appBar: false,
-        showBell: false,
-        showOfflineBanner: false,
-        backgroundColor: c.navy,
-        body: OnNavy(
-          child: Builder(
-            builder: (context) {
-              final t = context.aknText;
-              final n = context.akn;
-              final message = unavailable
-                  ? AuthCopy.biometricUnavailable
-                  : _message(_last);
-              return SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) => SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: math.max(0.0, constraints.maxHeight - 48),
-                      ),
-                      child: Center(
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 420),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Center(
-                                child: LogoMark(size: 64, animate: true),
-                              ),
-                              const SizedBox(height: 28),
-                              Semantics(
-                                header: true,
-                                child: Text(
-                                  name == null
-                                      ? AuthCopy.lockedScreenTitle
-                                      : AuthCopy.welcomeBack(name),
-                                  style: t.title,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                name == null
-                                    ? AuthCopy.lockedBody
-                                    : '${AuthCopy.lockedScreenTitle}. ${AuthCopy.lockedBody}',
-                                style: t.body.copyWith(color: n.dim),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 32),
-                              Center(
-                                child: ExcludeSemantics(
-                                  child: Container(
-                                    width: 88,
-                                    height: 88,
-                                    decoration: BoxDecoration(
-                                      color: n.surface,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: n.lineStrong),
-                                    ),
-                                    child: Icon(
-                                      biometricIcon(kind),
-                                      size: 44,
-                                      color: n.ink,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (message != null) ...[
-                                const SizedBox(height: 20),
-                                Semantics(
-                                  liveRegion: true,
-                                  child: Text(
-                                    message,
-                                    style: t.bodyStrong.copyWith(color: n.ink),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 28),
-                              if (!unavailable)
-                                AknButton(
-                                  label: failed
-                                      ? AuthCopy.tryUnlockAgain
-                                      : unlockLabel(kind),
-                                  semanticLabel: unlockLabel(kind),
-                                  icon: biometricIcon(kind),
-                                  expand: true,
-                                  size: AknButtonSize.large,
-                                  loading: _busy,
-                                  loadingLabel: AuthCopy.checking,
-                                  onPressed: _signingOut ? null : _unlock,
-                                ),
-                              if (failed || unavailable) ...[
-                                const SizedBox(height: 12),
-                                AknButton.secondary(
-                                  label: AuthCopy.passwordFallback,
-                                  icon: Icons.password_rounded,
-                                  expand: true,
-                                  size: AknButtonSize.large,
-                                  loading: _signingOut,
-                                  onPressed: _busy ? null : _passwordLogin,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
+    final message = unavailable
+        ? AuthCopy.biometricUnavailable
+        : _message(_last);
+    // Beyaz sayfa (tasarım v2 §7.2): 40 px logo karosu, `display` başlık, tek cümle; sonuç cümlesi
+    // bir kuyuda; eylemler altta (birincil kilit aç, ikincil şifreyle giriş).
+    return AppScaffold(
+      appBar: false,
+      showBell: false,
+      showOfflineBanner: false,
+      body: GateView(
+        icon: biometricIcon(kind),
+        tone: AknTone.neutral,
+        title: name == null
+            ? AuthCopy.lockedScreenTitle
+            : AuthCopy.welcomeBack(name),
+        message: name == null
+            ? AuthCopy.lockedBody
+            : '${AuthCopy.lockedScreenTitle}. ${AuthCopy.lockedBody}',
+        below: message == null
+            ? null
+            : AknBanner(
+                message: message,
+                tone: unavailable ? AknTone.warn : AknTone.neutral,
+                icon: unavailable
+                    ? Icons.no_encryption_gmailerrorred_outlined
+                    : biometricIcon(kind),
+              ),
+        primary: unavailable
+            ? null
+            : AknButton(
+                label: failed ? AuthCopy.tryUnlockAgain : unlockLabel(kind),
+                semanticLabel: unlockLabel(kind),
+                icon: biometricIcon(kind),
+                expand: true,
+                size: AknButtonSize.large,
+                loading: _busy,
+                loadingLabel: AuthCopy.checking,
+                onPressed: _signingOut ? null : _unlock,
+              ),
+        secondary: failed || unavailable
+            ? AknButton.secondary(
+                label: AuthCopy.passwordFallback,
+                icon: Icons.password_rounded,
+                expand: true,
+                size: AknButtonSize.large,
+                loading: _signingOut,
+                onPressed: _busy ? null : _passwordLogin,
+              )
+            : null,
       ),
     );
   }

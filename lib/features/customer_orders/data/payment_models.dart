@@ -149,15 +149,15 @@ class PaymentMethodOption {
     return null;
   }
 
-  /// Kart alt satırı: "Vadeli · 1–180 gün", "Peşin · taksit seçenekli", "Peşin".
+  /// Kart alt satırı: "Vadeli, 1–180 gün", "Peşin, taksit seçenekli", "Peşin".
   String get termLabel {
     if (maxTermDays > 0) {
       return minTermDays > 0
-          ? 'Vadeli · $minTermDays–$maxTermDays gün'
-          : 'Vadeli · en çok $maxTermDays gün';
+          ? 'Vadeli, $minTermDays–$maxTermDays gün'
+          : 'Vadeli, en çok $maxTermDays gün';
     }
     if (allowsInstallments && installmentOptions.length > 1) {
-      return 'Peşin · taksit seçenekli';
+      return 'Peşin, taksit seçenekli';
     }
     return 'Peşin';
   }

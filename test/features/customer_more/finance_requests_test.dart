@@ -70,7 +70,7 @@ void main() {
       await pumpCmApp(tester, env, location: '/company/requests');
       await pumpFor(tester, const Duration(seconds: 1));
       expect(find.byType(RequestCard), findsNWidgets(4));
-      expect(find.text('Talep #2987'), findsOneWidget);
+      expect(find.textContaining('Talep #2987'), findsOneWidget);
       expect(find.textContaining('1 sipariş oluştu'), findsOneWidget);
       expect(find.textContaining('Gerekçe:'), findsOneWidget);
       await finish(tester);

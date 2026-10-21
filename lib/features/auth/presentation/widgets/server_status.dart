@@ -65,7 +65,6 @@ class UpdateGateBody extends ConsumerWidget {
     final version = Text(
       AuthCopy.installedVersion(info.versionLabel),
       style: t.caption.copyWith(color: c.dim),
-      textAlign: TextAlign.center,
     );
     switch (reason) {
       case UpdateReason.forced:
@@ -79,7 +78,6 @@ class UpdateGateBody extends ConsumerWidget {
               ? null
               : AknButton(
                   label: AuthCopy.openStore,
-                  icon: Icons.open_in_new_rounded,
                   expand: true,
                   size: AknButtonSize.large,
                   onPressed: () => openStore(ref),
@@ -92,10 +90,9 @@ class UpdateGateBody extends ConsumerWidget {
             onPressedAsync: () => ref.read(appConfigProvider.notifier).load(),
           ),
           below: store == null
-              ? Text(
-                  AuthCopy.noStoreBody,
-                  style: t.bodySmall,
-                  textAlign: TextAlign.center,
+              ? const AknBanner(
+                  message: AuthCopy.noStoreBody,
+                  icon: Icons.storefront_outlined,
                 )
               : null,
           footer: version,
@@ -108,7 +105,6 @@ class UpdateGateBody extends ConsumerWidget {
           message: config.updateMessage ?? AuthCopy.optionalBody,
           primary: AknButton(
             label: AuthCopy.updateAction,
-            icon: Icons.open_in_new_rounded,
             expand: true,
             size: AknButtonSize.large,
             onPressed: () => openStore(ref),
@@ -140,7 +136,6 @@ class UpdateGateBody extends ConsumerWidget {
               : AuthCopy.serverBody,
           primary: AknButton(
             label: AuthCopy.tryAgain,
-            icon: Icons.refresh_rounded,
             expand: true,
             size: AknButtonSize.large,
             loading: checking,

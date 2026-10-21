@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
+import '../../../core/media/attachment_gallery.dart';
+import '../../../core/models/attachment.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/connectivity.dart';
@@ -20,9 +22,11 @@ import 'payments_page.dart';
 import 'widgets/payment_cards.dart';
 import 'widgets/status_sheets.dart';
 
-/// Ödeme ayrıntısı (spec A.4 A5): durum, yöntem satırları, çek / senet, belgeler (görüntüleyici),
-/// durum geçmişi (dayanak belgeyle) ve "Durumu değiştir" (StationPayments Düzenler +
-/// payment.status.update; yalnızca `allowedTransitions`).
+/// Ödeme ayrıntısı (spec A.4 A5; tasarım v2 §7.14): itilen başlıkta sipariş no; gövde cari adı
+/// (`display`) ve yöntem satırı, durum satırı (lamba + vade ipucu), **plaka** (tutar, kural, Vade /
+/// Yöntem / Son gün), ödeme bilgileri, portföy kaydı, belgeler ve durum geçmişi. Alt rıhtım:
+/// "Tahsil edildi olarak işaretle" (birincil, izinliyse), "Durumu değiştir", "Belgeyi kontrol et"
+/// (StationPayments Düzenler + payment.status.update; yalnızca `allowedTransitions`).
 class PaymentDetailPage extends ConsumerWidget {
   const PaymentDetailPage({super.key, required this.orderId});
 
@@ -41,7 +45,7 @@ class PaymentDetailPage extends ConsumerWidget {
 
     if (d == null) {
       return AppScaffold(
-        title: 'Tahsilat',
+        title: PaymentsCopy.title,
         body: async.hasError
             ? Center(
                 child: SingleChildScrollView(
@@ -67,9 +71,14 @@ class PaymentDetailPage extends ConsumerWidget {
     final canOpenOrder = RouteAccess.isAllowed(orderRoute, policy, features);
     final t = context.aknText;
     final c = context.akn;
+    final row = d.row;
 
-    Future<void> change() async {
-      final message = await showPaymentStatusSheet(context, orderId: orderId);
+    Future<void> change({PaymentStatus? initial}) async {
+      final message = await showPaymentStatusSheet(
+        context,
+        orderId: orderId,
+        initial: initial,
+      );
       if (message != null && context.mounted) {
         AppToast.success(message, context: context);
       }
@@ -86,180 +95,168 @@ class PaymentDetailPage extends ConsumerWidget {
       }
     }
 
-    final row = d.row;
+    void openDocuments([int index = 0]) {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          fullscreenDialog: true,
+          builder: (_) => AttachmentViewerPage(
+            attachments: d.documents,
+            initialIndex: index,
+          ),
+        ),
+      );
+    }
+
+    final facts = <Widget>[
+      // Siparişe gidilebiliyorsa durumu "Siparişi aç" satırında yazar.
+      if (!canOpenOrder)
+        FactRow(
+          label: 'Sipariş durumu',
+          value: row.orderStatusLabel ?? row.orderStatus.label,
+        ),
+      if (row.financeLabel != null)
+        FactRow(
+          label: 'Finans',
+          value: row.financeLabel!,
+          tone: AknStatus.finance(row.financeStatus).tone,
+        ),
+      // Taksitli ödemede plakanın üçüncü göstergesi taksittir; son gün buraya iner.
+      if (row.installments != null &&
+          row.installments! > 1 &&
+          row.dueDate != null)
+        FactRow(label: 'Son ödeme günü', value: Fmt.longDate(row.dueDate)),
+      for (final l in d.detailLines) FactRow(label: l.label, value: l.value),
+    ];
+
     return AppScaffold(
-      title: 'Tahsilat',
-      subtitle: row.orderNumber,
+      title: row.orderNumber,
       refreshing: async.isLoading,
-      actionBar: canChange || canOpenOrder
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (canChange && !online)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      PaymentsCopy.offline,
-                      style: t.bodySmall,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                Row(
-                  children: [
-                    if (canOpenOrder)
-                      Expanded(
-                        child: AknButton.secondary(
-                          label: 'Siparişi aç',
-                          icon: Icons.receipt_long_rounded,
-                          expand: true,
-                          onPressed: () => context.push(orderRoute),
-                        ),
-                      ),
-                    if (canOpenOrder && canChange) const SizedBox(width: 12),
-                    if (canChange)
-                      Expanded(
-                        flex: 2,
-                        child: AknButton(
-                          label: 'Durumu değiştir',
-                          icon: Icons.published_with_changes_rounded,
-                          expand: true,
-                          onPressed: online ? change : null,
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            )
-          : null,
+      actionBar: _dock(
+        context,
+        detail: d,
+        canChange: canChange,
+        online: online,
+        onChange: change,
+        onCheckDocument: openDocuments,
+      ),
       body: PullToRefresh(
         onRefresh: refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.only(bottom: 32),
           children: [
-            AknHeroPanel(
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: _HeroBody(detail: d),
-            ),
-            if (d.notice != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: AknBanner(tone: AknTone.info, message: d.notice!),
+            _Header(detail: d),
+            if (row.displayAmount != null)
+              _AmountPlate(detail: d)
+            else
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: AknBanner(
+                  message: 'Tutar, bayi teklif verince belli olur.',
+                ),
               ),
             if (d.missingRequiredDocument)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                 child: AknBanner(
                   tone: AknTone.warn,
                   message:
-                      '${d.documentKindLabel ?? d.uploadKind.label} henüz yüklenmedi. Bu ödeme yönteminde belge zorunlu.',
+                      '${d.documentKindLabel ?? d.uploadKind.label} henüz yüklenmedi. Bu yöntemde belge zorunlu; yüklenince ödeme kontrole düşer.',
+                  actionLabel: canChange && online ? 'Belge ekle' : null,
+                  onAction: canChange && online ? change : null,
                 ),
               ),
-            _Section(
-              title: 'Ödeme',
-              child: AknCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                child: Column(
-                  children: [
-                    FactRow(label: 'Yöntem', value: row.methodName ?? Fmt.dash),
-                    if (row.termDays != null)
-                      FactRow(
-                        label: 'Vade',
-                        value: row.termDays == 0
-                            ? 'Peşin'
-                            : '${row.termDays} gün',
-                      ),
-                    FactRow(
-                      label: 'Ödeme tarihi',
-                      value: Fmt.date(row.dueDate),
-                      tone: row.isOverdue ? AknTone.danger : null,
-                    ),
-                    if (row.installments != null && row.installments! > 1)
-                      FactRow(label: 'Taksit', value: '${row.installments}'),
-                    if (row.displayAmount != null)
-                      FactRow(
-                        label: row.isEstimate ? 'Tahmini tutar' : 'Tutar',
-                        value: Fmt.money(row.displayAmount),
-                      ),
-                    FactRow(
-                      label: 'Sipariş durumu',
-                      value: row.orderStatusLabel ?? row.orderStatus.label,
-                    ),
-                    if (row.financeLabel != null)
-                      FactRow(label: 'Finans', value: row.financeLabel!),
-                    for (final l in d.detailLines)
-                      FactRow(label: l.label, value: l.value),
-                  ],
-                ),
+            if (d.notice != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: AknBanner(message: d.notice!),
               ),
-            ),
+            if (facts.isNotEmpty)
+              LedgerSection(
+                title: 'Ödeme bilgileri',
+                child: FactList(facts: facts),
+              ),
             if (d.instrument != null)
-              _Section(
-                title: d.instrument!.displayKindLabel,
+              LedgerSection(
+                title: 'Portföy kaydı',
+                padded: false,
                 child: InstrumentRowCard(
                   instrument: d.instrument!,
+                  showCustomer: false,
                   onTap: () => openInstrument(d.instrument!),
                 ),
               ),
-            _Section(
+            if (canOpenOrder) ...[
+              const SizedBox(height: 16),
+              const AknLedgerDivider(),
+              AknListTile(
+                leadingIcon: Icons.receipt_long_outlined,
+                title: PaymentsCopy.openOrder,
+                subtitle: [row.orderNumber, ?row.orderStatusLabel].join(', '),
+                showChevron: true,
+                onTap: () => context.push(orderRoute),
+              ),
+              const AknLedgerDivider(),
+            ],
+            LedgerSection(
               title: 'Belgeler',
+              count: d.documents.isEmpty ? null : d.documents.length,
               subtitle: d.documentKindLabel == null
                   ? null
-                  : 'Yöntemin belgesi: ${d.documentKindLabel}${d.documentRequired ? ' (zorunlu)' : ''}',
+                  : 'Bu yöntemin belgesi ${lowerFirst(d.documentKindLabel!)}${d.documentRequired ? ', zorunlu' : ''}.',
               child: d.documents.isEmpty
-                  ? AknCard(
-                      child: Row(
-                        children: [
-                          Icon(Icons.folder_open_rounded, color: c.dim),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Bu ödemeye henüz belge eklenmedi.',
-                              style: t.bodySmall,
-                            ),
+                  ? Text(
+                      'Bu ödemeye henüz belge eklenmedi.',
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < d.documents.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 8),
+                          _DocumentTile(
+                            attachment: d.documents[i],
+                            onTap: () => openDocuments(i),
                           ),
                         ],
-                      ),
-                    )
-                  : A5AttachmentGrid(attachments: d.documents),
+                      ],
+                    ),
             ),
             if (d.history.isNotEmpty)
-              _Section(
+              LedgerSection(
                 title: 'Durum geçmişi',
-                child: AknCard(
-                  child: StepTimeline(
-                    steps: adaptSteps(context, [
-                      for (final h in d.history.reversed)
-                        TimelineStep(
-                          title: h.title,
-                          subtitle: [?h.changedByDisplay, ?h.note].join('\n'),
-                          time: shortStamp(h.changedAt),
-                          state: h.toStatus == PaymentStatus.bounced
-                              ? TimelineState.failed
-                              : TimelineState.done,
-                          icon: AknStatus.payment(h.toStatus).icon,
-                          content: h.attachmentPublicId == null
-                              ? null
-                              : Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: AknButton.ghost(
-                                    label: 'Dayanak belgeyi aç',
-                                    icon: Icons.attach_file_rounded,
-                                    size: AknButtonSize.small,
-                                    onPressed: () => openAttachmentById(
-                                      context,
-                                      publicId: h.attachmentPublicId!,
-                                      known: d.documents,
-                                    ),
+                child: StepTimeline(
+                  steps: adaptSteps(context, [
+                    for (final h in d.history.reversed)
+                      TimelineStep(
+                        title: h.title,
+                        subtitle: [
+                          'Önceki durum: ${lowerFirst(h.fromTitle)}',
+                          ?h.changedByDisplay,
+                          ?h.note,
+                        ].join('\n'),
+                        time: shortStamp(h.changedAt),
+                        state: h.toStatus == PaymentStatus.bounced
+                            ? TimelineState.failed
+                            : TimelineState.done,
+                        icon: AknStatus.payment(h.toStatus).icon,
+                        content: h.attachmentPublicId == null
+                            ? null
+                            : Align(
+                                alignment: Alignment.centerLeft,
+                                child: AknButton.ghost(
+                                  label: 'Dayanak belgeyi aç',
+                                  icon: Icons.attach_file_rounded,
+                                  size: AknButtonSize.small,
+                                  onPressed: () => openAttachmentById(
+                                    context,
+                                    publicId: h.attachmentPublicId!,
+                                    known: d.documents,
                                   ),
                                 ),
-                        ),
-                    ]),
-                  ),
+                              ),
+                      ),
+                  ]),
                 ),
               ),
           ],
@@ -267,10 +264,85 @@ class PaymentDetailPage extends ConsumerWidget {
       ),
     );
   }
+
+  /// Alt rıhtım (§6.1 `actionBar`, §7.14): bir birincil bölge. Yetkisi olmayana yalnızca belge
+  /// görüntüleme kalır (belge yoksa rıhtım yok).
+  Widget? _dock(
+    BuildContext context, {
+    required PaymentDetail detail,
+    required bool canChange,
+    required bool online,
+    required Future<void> Function({PaymentStatus? initial}) onChange,
+    required VoidCallback onCheckDocument,
+  }) {
+    final t = context.aknText;
+    final hasDocs = detail.documents.isNotEmpty;
+    final large = isLargeText(context);
+    final checkDoc = hasDocs
+        ? AknButton.secondary(
+            label: PaymentsCopy.checkDocument,
+            size: AknButtonSize.medium,
+            expand: true,
+            onPressed: onCheckDocument,
+          )
+        : null;
+    if (!canChange) {
+      return checkDoc;
+    }
+    final collect = detail.allowedTransitions.contains(PaymentStatus.collected);
+    final changeButton = collect
+        ? AknButton.secondary(
+            label: PaymentsCopy.changeStatus,
+            size: AknButtonSize.medium,
+            expand: true,
+            onPressed: online ? () => onChange() : null,
+          )
+        : AknButton(
+            label: PaymentsCopy.changeStatus,
+            expand: true,
+            onPressed: online ? () => onChange() : null,
+          );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!online)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(PaymentsCopy.offline, style: t.bodySmall),
+          ),
+        if (collect) ...[
+          AknButton(
+            label: PaymentsCopy.markCollected,
+            expand: true,
+            onPressed: online
+                ? () => onChange(initial: PaymentStatus.collected)
+                : null,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (checkDoc != null && collect && !large)
+          Row(
+            children: [
+              Expanded(child: changeButton),
+              const SizedBox(width: 8),
+              Expanded(child: checkDoc),
+            ],
+          )
+        else
+          changeButton,
+        if (checkDoc != null && !collect && !large) ...[
+          const SizedBox(height: 8),
+          checkDoc,
+        ],
+      ],
+    );
+  }
 }
 
-class _HeroBody extends StatelessWidget {
-  const _HeroBody({required this.detail});
+/// Gövdenin başı (§6.1 itilen sayfa, §7.8 düzeni): cari adı `display`, yöntem satırı, durum satırı.
+class _Header extends StatelessWidget {
+  const _Header({required this.detail});
 
   final PaymentDetail detail;
 
@@ -283,88 +355,157 @@ class _HeroBody extends StatelessWidget {
       row.paymentStatus,
     ).withLabel(row.paymentStatusLabel);
     final overdue = row.isOverdue || row.overdueDays > 0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  PaymentsCopy.methodIcon(row.methodCode),
-                  size: 18,
-                  color: c.dim,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    row.orderNumber,
-                    style: t.captionStrong.copyWith(color: c.dim),
-                  ),
-                ),
-              ],
+    final hint = row.dueHint;
+    final line = [
+      if (row.methodName != null) '${row.methodName} ile ödeme',
+      if (row.createdAt != null) 'sipariş ${dueDay(row.createdAt)}',
+    ].join(', ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Nesne başlığı (§6.1) kök başlık gibi en çok 1,5× büyür.
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.5,
+            child: Semantics(
+              header: true,
+              child: Text(row.customerTitle, style: t.display),
             ),
-            StatusChip.style(status),
+          ),
+          if (line.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(line, style: t.body.copyWith(color: c.dim)),
           ],
-        ),
-        const SizedBox(height: 12),
-        Semantics(header: true, child: Text(row.customerTitle, style: t.title)),
-        if (row.paymentLine.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(row.paymentLine, style: t.body.copyWith(color: c.dim)),
-        ],
-        if (row.displayAmount != null) ...[
-          const SizedBox(height: 14),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: AmountText(Fmt.money(row.displayAmount), large: true),
-          ),
-          if (row.isEstimate)
-            Text(
-              'Tahmini tutar (teklif henüz kesinleşmedi)',
-              style: t.caption.copyWith(color: c.dim),
-            ),
-        ],
-        if (row.dueHint != null) ...[
-          const SizedBox(height: 12),
-          StatusChip(
-            label: overdue ? 'Ödeme ${row.dueHint}' : 'Ödemeye ${row.dueHint}',
-            tone: dueTone(overdue: overdue, due: row.dueDate),
-            icon: overdue ? Icons.alarm_off_rounded : Icons.event_rounded,
+          const SizedBox(height: 16),
+          AknStatusLine(
+            lamp: AknLamp.style(status),
+            trailing: hint == null
+                ? null
+                : DueHint(
+                    text: dueHintText(hint),
+                    tone: dueTone(overdue: overdue, due: row.dueDate),
+                  ),
           ),
         ],
-      ],
+      ),
     );
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child, this.subtitle});
+/// Ödemenin plakası (§5.2, §7.14): tutar (kuruş birim tarzında), kural, Vade / Yöntem / Son gün.
+class _AmountPlate extends StatelessWidget {
+  const _AmountPlate({required this.detail});
 
-  final String title;
-  final String? subtitle;
-  final Widget child;
+  final PaymentDetail detail;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      SectionHeader(
+  Widget build(BuildContext context) {
+    final row = detail.row;
+    final amount = row.displayAmount!;
+    final whole = amount.truncate();
+    final kurus = ((amount - whole).abs() * 100).round();
+    final title = switch (row.paymentStatus) {
+      _ when row.isEstimate => 'Tahmini tutar',
+      PaymentStatus.collected => 'Tahsil edilen tutar',
+      PaymentStatus.refunded => 'İade edilen tutar',
+      PaymentStatus.bounced => 'Karşılıksız çıkan tutar',
+      PaymentStatus.cancelled => 'İptal edilen tutar',
+      _ => 'Tahsil edilecek tutar',
+    };
+    final term = row.termDays;
+    final installments = row.installments ?? 0;
+    // Vade / Yöntem / Son gün (§7.14); bilinmeyen gösterge yerine durum gelir — plakada boş çizgi yok.
+    final readouts = [
+      if (term != null)
+        PlateReadout(
+          label: 'Vade',
+          value: term == 0 ? 'Peşin' : '$term',
+          unit: term == 0 ? null : 'gün',
+        ),
+      if (row.methodName != null)
+        PlateReadout(label: 'Yöntem', value: row.methodName!),
+      if (installments > 1)
+        PlateReadout(label: 'Taksit', value: '$installments', unit: 'taksit')
+      else if (row.dueDate != null)
+        PlateReadout(label: 'Son gün', value: dueDay(row.dueDate)),
+    ];
+    if (readouts.length < 3) {
+      readouts.add(PlateReadout(label: 'Durum', value: row.displayStatusLabel));
+    }
+    return AknPlate(
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      semanticLabel: '$title ${Fmt.money(amount)}',
+      head: PlateHead(
+        icon: Icons.account_balance_wallet_outlined,
         title: title,
-        subtitle: subtitle,
-        padding: const EdgeInsets.fromLTRB(16, 20, 8, 8),
+        period: row.isEstimate ? 'teklif bekleniyor' : null,
       ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: child,
+      figure: PlateFigure(
+        value: Fmt.integer(whole),
+        decimals: ',${kurus.toString().padLeft(2, '0')}',
+        unit: '₺',
+        semanticLabel: Fmt.money(amount),
       ),
-    ],
-  );
+      below: plateReadouts(context, readouts),
+    );
+  }
+}
+
+/// Belge kutusu (§6.27): görselse küçük resim, değilse belge simgesi; dokununca görüntüleyici.
+class _DocumentTile extends StatelessWidget {
+  const _DocumentTile({required this.attachment, required this.onTap});
+
+  final Attachment attachment;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = attachment;
+    final meta = [
+      ?a.uploadedByName,
+      if (a.createdAt != null) shortStamp(a.createdAt),
+    ].join(', ');
+    return AttachmentTile(
+      fileName: a.fileName,
+      kindLabel: a.kindLabel,
+      sizeBytes: a.sizeBytes > 0 ? a.sizeBytes : null,
+      contentType: a.contentType,
+      subtitle: meta.isEmpty ? null : meta,
+      thumbnail: a.isImage ? _Thumb(publicId: a.publicId) : null,
+      // Büyük yazıda "Görüntüle" düğmesi satıra sığmaz; aynı eylem kısa sözle.
+      actionLabel: isLargeText(context) ? 'Aç' : null,
+      onTap: onTap,
+    );
+  }
+}
+
+class _Thumb extends ConsumerWidget {
+  const _Thumb({required this.publicId});
+
+  final String publicId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.akn;
+    final bytes = ref.watch(
+      attachmentBytesProvider((publicId: publicId, approvalId: null)),
+    );
+    return ColoredBox(
+      color: c.surfaceAlt,
+      child: bytes.maybeWhen(
+        data: (b) => Image.memory(
+          b,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          cacheWidth: 120,
+          errorBuilder: (_, _, _) =>
+              Icon(Icons.image_outlined, color: c.dim, size: 22),
+        ),
+        orElse: () => Icon(Icons.image_outlined, color: c.dim, size: 22),
+      ),
+    );
+  }
 }
 
 class _Skeleton extends StatelessWidget {
@@ -374,13 +515,23 @@ class _Skeleton extends StatelessWidget {
   Widget build(BuildContext context) => Shimmer(
     child: ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
       children: const [
-        SkeletonBox(height: 150, radius: 24),
+        SkeletonBox(height: 30, width: 240, radius: 6),
+        SizedBox(height: 10),
+        SkeletonBox(height: 14, width: 180),
+        SizedBox(height: 20),
+        SkeletonBox(height: 14, width: 120),
         SizedBox(height: 16),
-        SkeletonCard(lines: 5, leading: false, margin: EdgeInsets.zero),
-        SizedBox(height: 12),
-        SkeletonCard(margin: EdgeInsets.zero),
+        SkeletonBox(height: 196, radius: 20),
+        SizedBox(height: 28),
+        SkeletonBox(height: 20, width: 160),
+        SizedBox(height: 16),
+        SkeletonLine(),
+        SizedBox(height: 14),
+        SkeletonLine(widthFactor: 0.8),
+        SizedBox(height: 14),
+        SkeletonLine(widthFactor: 0.6),
       ],
     ),
   );

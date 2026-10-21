@@ -52,7 +52,7 @@ abstract final class AssistantCopy {
 
   // ------------------------------------------------------------------ Aydınlatma
   static const disclosureLead =
-      'Asistanı kullanmadan önce lütfen okuyun. Kullanmak isteğe bağlıdır.';
+      'Asistanı kullanmadan önce okuyun. Kullanmak isteğe bağlıdır.';
   static const accept = 'Kabul ediyorum';
   static const decline = 'Vazgeç';
   static const fullText = 'Tam metni açın';
@@ -61,7 +61,8 @@ abstract final class AssistantCopy {
       'Kart numarası, şifre, SMS kodu, kimlik ya da vergi numarası yazmayın.';
   static String retention(int days) => 'Kayıtlar $days gün saklanır';
   static const optional = 'İsteğe bağlı';
-  static const acceptFailed = 'Onayınız kaydedilemedi. Lütfen tekrar deneyin.';
+  static const acceptFailed =
+      'Onayınız kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin.';
 
   // ------------------------------------------------------------------ Durumlar
   static const disabledTitle = 'Asistan şu an kullanılamıyor';

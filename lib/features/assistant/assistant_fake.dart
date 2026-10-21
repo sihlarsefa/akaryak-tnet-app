@@ -86,7 +86,7 @@ void registerAssistantFakes(FakeServer s) {
     final version = req.json.str('version');
     if (version != ctl.version) {
       throw FakeResponse.validation({
-        'version': ['Aydınlatma metni güncellendi; lütfen yeniden okuyun.'],
+        'version': ['Aydınlatma metni güncellendi; yeniden okuyun.'],
       });
     }
     consents(req.world)[p.userId] = (
@@ -135,7 +135,7 @@ void registerAssistantFakes(FakeServer s) {
       throw FakeResponse.problem(
         429,
         'rate_limited',
-        'Çok fazla soru gönderdiniz. Lütfen biraz bekleyin.',
+        'Çok fazla soru gönderdiniz. Biraz bekleyip tekrar deneyin.',
         headers: {'retry-after': '20'},
       );
     }
@@ -145,7 +145,7 @@ void registerAssistantFakes(FakeServer s) {
       logs(req.world)[id] = p.userId;
       return {
         'reply':
-            'Asistan şu an yanıt veremiyor; lütfen daha sonra tekrar deneyin.',
+            'Asistan şu an yanıt veremiyor; birkaç dakika sonra tekrar deneyin.',
         'chatLogId': id,
         'isError': true,
       };

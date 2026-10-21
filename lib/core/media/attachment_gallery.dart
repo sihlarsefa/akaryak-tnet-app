@@ -263,7 +263,7 @@ class _AttachmentViewerPageState extends ConsumerState<AttachmentViewerPage> {
           children: [
             Text(a.kindLabel, style: const TextStyle(fontSize: 16)),
             Text(
-              '${a.fileName} · ${Fmt.fileSize(a.sizeBytes)}${a.createdAt == null ? '' : ' · ${Fmt.dateTime(a.createdAt)}'}',
+              '${a.fileName}, ${Fmt.fileSize(a.sizeBytes)}${a.createdAt == null ? '' : ', ${Fmt.dateTime(a.createdAt)}'}',
               style: const TextStyle(fontSize: 12, color: Colors.white70),
             ),
           ],

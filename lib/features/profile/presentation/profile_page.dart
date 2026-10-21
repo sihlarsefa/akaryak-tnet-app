@@ -30,7 +30,7 @@ import '../profile_paths.dart';
 import 'support_sheet.dart';
 import 'widgets/settings_widgets.dart';
 
-/// Profil ve ayarlar (spec A.4 A8): kullanıcı kartı + roller, güvenlik (biyometrik kilit, şifre,
+/// Profil ve ayarlar (spec A.4 A8; tasarım v2 §7.17): düz baş (avatar, ad, rol), olgu satırları, güvenlik (biyometrik kilit, şifre,
 /// profil, telefonla giriş, aktif oturumlar), bildirim tercihleri, tema, destek, yasal metinler,
 /// gizlilik (asistan onayı), bekleyen işlemler, hakkında, çıkış ve hesabımı sil.
 class ProfilePage extends ConsumerWidget {
@@ -60,12 +60,10 @@ class ProfilePage extends ConsumerWidget {
           bottom: 32 + MediaQuery.viewPaddingOf(context).bottom,
         ),
         children: [
-          if (access != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: _UserCard(access: access),
-            ),
-          const PendingOpsChip(margin: EdgeInsets.fromLTRB(16, 12, 16, 0)),
+          if (access != null) _ProfileHeader(access: access),
+          const PendingOpsChip(
+            margin: EdgeInsets.fromLTRB(AknSpace.page, 12, AknSpace.page, 0),
+          ),
 
           // ---------------------------------------------------------- Güvenlik
           const SettingsHeader(ProfileCopy.security),
@@ -74,19 +72,19 @@ class ProfilePage extends ConsumerWidget {
               const _BiometricTile(),
               SettingsTile(
                 icon: Icons.password_rounded,
-                title: ProfileCopy.changePassword,
+                title: ProfileCopy.passwordSave,
                 subtitle: ProfileCopy.changePasswordHint,
                 onTap: () => context.push(ProfilePaths.password),
               ),
               SettingsTile(
-                icon: Icons.badge_outlined,
+                icon: Icons.person_outline_rounded,
                 title: ProfileCopy.editTitle,
                 subtitle: ProfileCopy.editProfile,
                 onTap: () => context.push(ProfilePaths.edit),
               ),
               if (features.otpLogin && !isPlatform) const _PhoneLoginTile(),
               SettingsTile(
-                icon: Icons.devices_rounded,
+                icon: Icons.devices_outlined,
                 title: ProfileCopy.sessions,
                 subtitle: ProfileCopy.sessionsHint,
                 onTap: () => context.push(ProfilePaths.sessions),
@@ -116,14 +114,14 @@ class ProfilePage extends ConsumerWidget {
           SettingsGroup(
             children: [
               SettingsTile(
-                icon: Icons.support_agent_rounded,
+                icon: Icons.support_agent_outlined,
                 title: ProfileCopy.supportTitle,
                 subtitle: ProfileCopy.supportSubtitle,
                 onTap: () => unawaited(showSupportSheet(context)),
               ),
               if (assistantOn)
                 SettingsTile(
-                  icon: Icons.forum_outlined,
+                  icon: Icons.chat_bubble_outline_rounded,
                   title: ProfileCopy.askAssistant,
                   subtitle: ProfileCopy.askAssistantHint,
                   onTap: () => context.push(AppRoutes.assistant),
@@ -148,7 +146,7 @@ class ProfilePage extends ConsumerWidget {
                 onTap: () => unawaited(open(legal.kvkk)),
               ),
               SettingsTile(
-                icon: Icons.gavel_rounded,
+                icon: Icons.gavel_outlined,
                 title: ProfileCopy.terms,
                 external: true,
                 onTap: () => unawaited(open(legal.terms)),
@@ -185,7 +183,7 @@ class ProfilePage extends ConsumerWidget {
               const _AboutTile(),
               if (env.isFake || env.isDev)
                 SettingsTile(
-                  icon: Icons.developer_mode_rounded,
+                  icon: Icons.developer_mode_outlined,
                   title: ProfileCopy.devMenu,
                   subtitle: ProfileCopy.devMenuHint,
                   onTap: () => context.push(AppRoutes.dev),
@@ -195,8 +193,13 @@ class ProfilePage extends ConsumerWidget {
 
           // ---------------------------------------------------------- Çıkış
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
-            child: AknButton.secondary(
+            padding: const EdgeInsets.fromLTRB(
+              AknSpace.page,
+              28,
+              AknSpace.page,
+              0,
+            ),
+            child: AknButton.danger(
               label: ProfileCopy.signOut,
               icon: Icons.logout_rounded,
               expand: true,
@@ -228,97 +231,110 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
-/// Kullanıcı kartı: avatar, ad, çalıştığı yer, e-posta / telefon, rol çipleri, düzenle.
-class _UserCard extends StatelessWidget {
-  const _UserCard({required this.access});
+/// Profil başı (tasarım v2 §7.17): plaka yok — 56 px avatar, `display` ad, rol ve çalıştığı yer;
+/// altında e-posta ve telefon olgu satırları (beyaz grup kutusu). Düzenle sağ üstte.
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.access});
 
   final MeAccess access;
 
   @override
   Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
     final roles = <String>[
       ...access.bayiRoleNames,
       if (access.persona == Persona.customer) access.customerUserRole.label,
       if (access.persona == Persona.platform) Persona.platform.label,
     ];
-    return AknHeroPanel(
-      padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-      child: Builder(
-        builder: (context) {
-          final t = context.aknText;
-          final c = context.akn;
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AknAvatar(name: access.displayName, size: 56),
-              const SizedBox(width: 14),
-              Expanded(
+    final second = [
+      if (roles.isNotEmpty) roles.join(', '),
+      ?access.organizationTitle,
+    ].join(', ');
+    final facts = <(String, String)>[
+      if (access.email != null) (ProfileCopy.email, access.email!),
+      if (access.phoneMasked != null)
+        (ProfileCopy.mobilePhone, access.phoneMasked!),
+    ];
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final names = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Semantics(
+          header: true,
+          child: Text(
+            access.displayName,
+            style: t.display.copyWith(color: c.ink),
+            textScaler: MediaQuery.textScalerOf(
+              context,
+            ).clamp(maxScaleFactor: 1.6),
+          ),
+        ),
+        if (second.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(second, style: t.bodySmall.copyWith(color: c.dim)),
+        ],
+      ],
+    );
+    final edit = AknIconButton(
+      icon: Icons.edit_outlined,
+      semanticLabel: ProfileCopy.editProfile,
+      onPressed: () => context.push(ProfilePaths.edit),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 4, 8, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Büyük yazıda ad avatarın altına iner (tam genişlik).
+          if (large) ...[
+            Row(
+              children: [
+                AknAvatar(name: access.displayName, size: 56),
+                const Spacer(),
+                edit,
+              ],
+            ),
+            const SizedBox(height: 12),
+            names,
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                AknAvatar(name: access.displayName, size: 56),
+                const SizedBox(width: 16),
+                Expanded(child: names),
+                edit,
+              ],
+            ),
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.only(right: AknSpace.page - 8),
+              child: AknCard(
+                padding: EdgeInsets.zero,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Semantics(
-                      header: true,
-                      child: Text(access.displayName, style: t.headline),
-                    ),
-                    if (access.organizationTitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(access.organizationTitle!, style: t.bodySmall),
-                    ],
-                    if (access.email != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        access.email!,
-                        style: t.caption.copyWith(color: c.dim),
-                      ),
-                    ],
-                    if (access.phoneMasked != null)
-                      Text(
-                        access.phoneMasked!,
-                        style: t.caption.copyWith(color: c.dim),
-                      ),
-                    if (roles.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [for (final r in roles) _RoleChip(label: r)],
+                    for (var i = 0; i < facts.length; i++) ...[
+                      if (i > 0) const Divider(height: 1, indent: 16),
+                      FactRow(
+                        label: facts[i].$1,
+                        value: facts[i].$2,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                       ),
                     ],
                   ],
                 ),
               ),
-              AknIconButton(
-                icon: Icons.edit_outlined,
-                semanticLabel: ProfileCopy.editProfile,
-                color: c.ink,
-                onPressed: () => context.push(ProfilePaths.edit),
-              ),
-            ],
-          );
-        },
+            ),
+          ],
+        ],
       ),
-    );
-  }
-}
-
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: AknRadius.pillAll,
-        border: Border.all(color: c.lineStrong),
-      ),
-      child: Text(label, style: t.captionStrong.copyWith(color: c.ink)),
     );
   }
 }
@@ -375,7 +391,7 @@ class _PhoneLoginTile extends ConsumerWidget {
     final status = ref.watch(phoneStatusProvider).valueOrNull;
     final verified = status?.verified ?? false;
     return SettingsTile(
-      icon: Icons.sms_outlined,
+      icon: Icons.smartphone_outlined,
       title: verified ? ProfileCopy.phoneLogin : ProfileCopy.phoneLoginEnable,
       subtitle: status == null
           ? null
@@ -386,10 +402,10 @@ class _PhoneLoginTile extends ConsumerWidget {
           : ProfileCopy.phoneNotVerified,
       trailing: status == null
           ? null
-          : StatusChip(
+          : AknLamp(
               label: verified ? ProfileCopy.phoneOn : ProfileCopy.phoneOff,
               tone: verified ? AknTone.ok : AknTone.neutral,
-              size: StatusChipSize.small,
+              size: AknLampSize.small,
             ),
       onTap: () async {
         await context.push(AuthRoutes.phone);
@@ -399,7 +415,7 @@ class _PhoneLoginTile extends ConsumerWidget {
   }
 }
 
-/// Tema: Sistem / Açık / Koyu (çekirdek `themeModeProvider`).
+/// Görünüm: Sistem / Açık / Koyu (çekirdek `themeModeProvider`), bölmeli seçici (§6.11, §7.17).
 class _ThemePicker extends ConsumerWidget {
   const _ThemePicker();
 
@@ -409,31 +425,15 @@ class _ThemePicker extends ConsumerWidget {
     return Semantics(
       container: true,
       label: ProfileCopy.theme,
-      child: FilterChips<ThemeMode>(
-        options: const [
-          FilterOption(
-            value: ThemeMode.system,
-            label: ProfileCopy.themeSystem,
-            icon: Icons.brightness_auto_rounded,
-          ),
-          FilterOption(
-            value: ThemeMode.light,
-            label: ProfileCopy.themeLight,
-            icon: Icons.light_mode_rounded,
-          ),
-          FilterOption(
-            value: ThemeMode.dark,
-            label: ProfileCopy.themeDark,
-            icon: Icons.dark_mode_rounded,
-          ),
+      child: AknSegmented<ThemeMode>(
+        segments: const [
+          FilterOption(value: ThemeMode.system, label: ProfileCopy.themeSystem),
+          FilterOption(value: ThemeMode.light, label: ProfileCopy.themeLight),
+          FilterOption(value: ThemeMode.dark, label: ProfileCopy.themeDark),
         ],
-        selected: {mode},
-        allowEmpty: false,
-        onChanged: (m) {
-          if (m.isNotEmpty) {
-            unawaited(ref.read(themeModeProvider.notifier).set(m.first));
-          }
-        },
+        value: mode,
+        onChanged: (m) =>
+            unawaited(ref.read(themeModeProvider.notifier).set(m)),
       ),
     );
   }
@@ -474,24 +474,25 @@ class _AssistantConsentTile extends ConsumerWidget {
     final enabled = ref.watch(assistantEnabledProvider);
     return switch (gate) {
       GateReady(:final acceptedAt) => SettingsTile(
-        icon: Icons.forum_outlined,
+        icon: Icons.chat_bubble_outline_rounded,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentGiven(
           acceptedAt == null ? null : Fmt.date(acceptedAt),
         ),
-        trailing: TextButton(
+        trailing: AknButton.ghost(
+          label: ProfileCopy.withdraw,
+          size: AknButtonSize.small,
           onPressed: () => unawaited(_withdraw(context, ref)),
-          child: const Text(ProfileCopy.withdraw),
         ),
       ),
       GateNeedsConsent() => SettingsTile(
-        icon: Icons.forum_outlined,
+        icon: Icons.chat_bubble_outline_rounded,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentNotGiven,
         onTap: enabled ? () => context.push(AppRoutes.assistant) : null,
       ),
       GateChecking() => const SettingsTile(
-        icon: Icons.forum_outlined,
+        icon: Icons.chat_bubble_outline_rounded,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentChecking,
       ),
@@ -531,12 +532,15 @@ class _AboutTile extends ConsumerWidget {
     final env = ref.watch(appEnvProvider);
     final info = ref.watch(appInfoProvider);
     final extras = ref.watch(configExtrasProvider).valueOrNull;
-    final server = [?extras?.contractVersion, ?extras?.apiBuild].join(' · ');
+    final server = [?extras?.contractVersion, ?extras?.apiBuild].join(', ');
     return SettingsTile(
       icon: Icons.info_outline_rounded,
       title: ProfileCopy.about,
       subtitle: [
-        ProfileCopy.version(info.versionLabel, env.badge),
+        ProfileCopy.version(
+          info.versionLabel,
+          env.badge.replaceAll(' · ', ', '),
+        ),
         if (server.isNotEmpty) ProfileCopy.server(server),
       ].join('\n'),
     );

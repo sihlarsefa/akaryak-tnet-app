@@ -127,10 +127,11 @@ class _ReasonTile extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final icon = switch (reason) {
-      SignatureWaiverReason.noRecipient => Icons.local_gas_station_rounded,
-      SignatureWaiverReason.refused => Icons.do_not_touch_rounded,
+      SignatureWaiverReason.noRecipient => Icons.local_gas_station_outlined,
+      SignatureWaiverReason.refused => Icons.do_not_touch_outlined,
       SignatureWaiverReason.other => Icons.more_horiz_rounded,
     };
+    // Seçim kartı (§6.25): beyaz, 1 px çizgi, r12; seçilince 2 px mürekkep çerçeve ve sağ üstte onay.
     return Semantics(
       button: true,
       inMutuallyExclusiveGroup: true,
@@ -139,52 +140,70 @@ class _ReasonTile extends StatelessWidget {
       onTap: onTap,
       excludeSemantics: true,
       child: AnimatedContainer(
-        duration: AknMotion.of(context, AknMotion.base),
+        duration: AknMotion.of(context, AknMotion.fast),
         decoration: BoxDecoration(
-          color: selected ? c.brandSoft : c.surface,
+          color: c.isDark ? c.surfaceRaised : c.surface,
           borderRadius: AknRadius.card,
           border: Border.all(
-            color: selected ? c.brand : c.line,
-            width: selected ? 1.6 : 1,
+            color: selected ? c.ink : c.line,
+            width: selected ? 2 : 1,
           ),
         ),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             borderRadius: AknRadius.card,
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: c.surfaceAlt,
             onTap: () {
               AknHaptics.selection();
               onTap();
             },
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Row(
-                children: [
-                  AknIconBox(icon: icon, tone: selected ? AknTone.brand : null),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(reason.label, style: t.bodyStrong),
-                        const SizedBox(height: 2),
-                        Text(reason.description, style: t.bodySmall),
-                      ],
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: context.minTap),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  selected ? 13 : 14,
+                  selected ? 13 : 14,
+                  selected ? 13 : 14,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(icon, size: 24, color: c.dim),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            reason.label,
+                            style: t.bodyStrong.copyWith(color: c.ink),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            reason.description,
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  AnimatedSwitcher(
-                    duration: AknMotion.of(context, AknMotion.fast),
-                    child: Icon(
-                      selected
-                          ? Icons.radio_button_checked_rounded
-                          : Icons.radio_button_off_rounded,
-                      key: ValueKey(selected),
-                      color: selected ? c.brand : c.dim,
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: selected
+                          ? Icon(
+                              Icons.check_circle_rounded,
+                              size: 22,
+                              color: c.ink,
+                            )
+                          : null,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

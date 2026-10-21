@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -32,22 +33,35 @@ import 'widgets/location_card.dart';
 import 'widgets/op_status.dart';
 import 'widgets/permission_primer.dart';
 import 'widgets/photo_grid.dart';
+import 'widgets/stop_plate.dart';
 import 'widgets/waiver_sheet.dart';
 
-/// "Teslim et" / "Teslimatı düzelt" sihirbazı (spec A.4 A7): litre tuş takımı (en fazla planlanan) →
-/// irsaliye no → teslim alan → fotoğraflar → imza ya da "İmza alınamıyor" → özet → kaydırarak onay.
-/// Her adım yerelde saklanır (24 saat). Onaylanınca teslim bekleyen işlem olarak kuyruğa yazılır;
-/// sonuç ekranı işlemin durumunu izler (gönderiliyor / kaydedildi / gönderildi / reddedildi + Düzelt).
-class DeliverFlowPage extends ConsumerStatefulWidget {
+/// "Teslim et" / "Teslimatı düzelt" sihirbazı (spec A.4 A7, tasarım v2 §7.10): sayaç (tuş takımı, en
+/// fazla planlanan; plaka okumayı canlı gösterir) → irsaliye no → teslim alan → fotoğraflar → imza ya
+/// da "İmza alınamıyor" → özet → "Teslimatı kaydetmek için kaydırın". Sürücü kipinde çizilir. Her
+/// adım yerelde saklanır (24 saat). Onaylanınca teslim bekleyen işlem olarak kuyruğa yazılır; sonuç
+/// ekranı işlemin durumunu izler (gönderiliyor / telefona kaydedildi / kaydedildi / reddedildi +
+/// Düzelt).
+class DeliverFlowPage extends StatelessWidget {
   const DeliverFlowPage({super.key, required this.id});
 
   final int id;
 
   @override
-  ConsumerState<DeliverFlowPage> createState() => _DeliverFlowPageState();
+  Widget build(BuildContext context) =>
+      AknDriverScope(child: _DeliverFlowView(id: id));
 }
 
-class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
+class _DeliverFlowView extends ConsumerStatefulWidget {
+  const _DeliverFlowView({required this.id});
+
+  final int id;
+
+  @override
+  ConsumerState<_DeliverFlowView> createState() => _DeliverFlowPageState();
+}
+
+class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
   DeliverFlowModel? _model;
   late final LocationCapture _location;
   final SignaturePadController _pad = SignaturePadController();
@@ -474,24 +488,44 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         title: model.draft.correction
             ? DriverCopy.flowFixTitle
             : DriverCopy.flowTitle,
-        subtitle: [detail.code, ?detail.row.customerTitle].join(' · '),
+        subtitle: [detail.code, ?detail.row.customerTitle].join(', '),
         showBell: false,
         leading: _closeButton(),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            StepperHeader(steps: DriverCopy.stepShort, current: step.index),
-            Expanded(
-              child: SharedAxisSwitcher(
+        // Büyük yazıda (≥ 1,6×) ilerleme şeridi içerikle kayar: adım içeriğine yer kalır.
+        body: _largeText
+            ? SharedAxisSwitcher(
                 reverse: model.reverse,
                 child: KeyedSubtree(
                   key: ValueKey(step),
-                  child: _stepBody(model, step),
+                  child: _stepBody(
+                    model,
+                    step,
+                    header: StepperHeader(
+                      steps: DriverCopy.stepShort,
+                      current: step.index,
+                      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+                    ),
+                  ),
                 ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  StepperHeader(
+                    steps: DriverCopy.stepShort,
+                    current: step.index,
+                  ),
+                  Expanded(
+                    child: SharedAxisSwitcher(
+                      reverse: model.reverse,
+                      child: KeyedSubtree(
+                        key: ValueKey(step),
+                        child: _stepBody(model, step),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
         actionBar: _bottom(model, step),
       ),
     );
@@ -533,20 +567,46 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
     ),
   );
 
-  Widget _stepBody(DeliverFlowModel model, DeliverStep step) {
+  /// Yazı 1,6× ve üstü: şerit ve "Geri" kayan içeriğe geçer, alt raf yalnızca kaydırıcıdır.
+  bool get _largeText => MediaQuery.textScalerOf(context).scale(10) >= 16;
+
+  Widget _stepBody(DeliverFlowModel model, DeliverStep step, {Widget? header}) {
     final message = _message;
+    // QA LF-1: sayaç adımında tuş takımı alt rafın hemen üstüne sabitlenir (360×640'ta da tümüyle
+    // görünür); plaka ve not üstte kayar. Büyük yazıda (≥ 1,6×) her şey birlikte kayar.
+    final pinKeypad = step == DeliverStep.liters && !_largeText;
     final children = switch (step) {
-      DeliverStep.liters => _litersStep(model),
+      DeliverStep.liters => _litersStep(model, withKeypad: !pinKeypad),
       DeliverStep.document => _documentStep(model),
       DeliverStep.recipient => _recipientStep(model),
       DeliverStep.photos => _photosStep(model),
       DeliverStep.signature => _signatureStep(model),
       DeliverStep.summary => _summaryStep(model),
     };
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+    final heading = switch (step) {
+      DeliverStep.liters => null,
+      DeliverStep.document => DriverCopy.stepDocument,
+      DeliverStep.recipient => DriverCopy.stepRecipient,
+      DeliverStep.photos => DriverCopy.headPhotos,
+      DeliverStep.signature => DriverCopy.headSignature,
+      DeliverStep.summary => DriverCopy.headSummary,
+    };
+    final t = context.aknText;
+    final list = ListView(
+      padding: EdgeInsets.fromLTRB(20, 4, 20, pinKeypad ? 8 : 24),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
+        ?header,
+        if (heading != null) ...[
+          Semantics(
+            header: true,
+            child: Text(
+              heading,
+              style: t.title.copyWith(color: context.akn.ink),
+            ),
+          ),
+          const SizedBox(height: 4),
+        ],
         ...children,
         if (message != null && step != DeliverStep.liters) ...[
           const SizedBox(height: 12),
@@ -557,41 +617,84 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         ],
       ],
     );
+    if (!pinKeypad) return list;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: list),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+          child: LitreKeypad(onKey: model.key, onClear: model.clearLiters),
+        ),
+      ],
+    );
   }
 
-  List<Widget> _litersStep(DeliverFlowModel model) {
+  /// Sayaç adımı: ekranın tek plakası okumayı canlı gösterir (ADR levhası, "Sayaç okuması", litre;
+  /// altında planlanan, fark ve tank). Hata / uyarı plakanın altında (plakada durum rengi olmaz).
+  List<Widget> _litersStep(DeliverFlowModel model, {bool withKeypad = true}) {
     final t = context.aknText;
+    final c = context.akn;
+    final text = model.draft.litersText;
     final showError =
-        _showErrors.contains(DeliverStep.liters) ||
-        model.draft.litersText.isNotEmpty;
+        _showErrors.contains(DeliverStep.liters) || text.isNotEmpty;
+    final error = showError ? model.litersError : null;
+    final warning = model.tankWarning;
+    final liters = model.liters;
+    final diff = liters == null ? null : liters - model.plannedLiters;
+    final tank = model.detail.tankCapacityLiters;
+    final shown = LitersKeypad.display(text);
     return [
-      Text(DriverCopy.litersHint, style: t.bodySmall),
-      const SizedBox(height: 12),
-      LitersDisplay(
-        text: model.draft.litersText,
-        error: showError ? model.litersError : null,
-        warning: model.tankWarning,
-      ),
-      const SizedBox(height: 12),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          StatusChip(
-            label: DriverCopy.plannedChip(Fmt.liters(model.plannedLiters)),
-            tone: AknTone.info,
-            icon: Icons.local_gas_station_rounded,
+      DriverStopPlate(
+        product: model.detail.row.productName,
+        title: DriverCopy.plateReading,
+        figure: shown,
+        liveRegion: true,
+        semanticLabel: [
+          DriverCopy.stepLiters,
+          text.isEmpty ? 'girilmedi' : '$shown litre',
+          '${DriverCopy.readoutPlanned} ${Fmt.liters(model.plannedLiters)}',
+          if (diff != null && diff.abs() >= 0.001)
+            '${DriverCopy.readoutDiff} ${Fmt.liters(diff.abs())} '
+                '${diff < 0 ? 'eksik' : 'fazla'}',
+          ?error,
+          ?warning,
+        ].join(', '),
+        readouts: [
+          StopReadout(
+            label: DriverCopy.readoutPlanned,
+            value: Fmt.number(model.plannedLiters, maxFraction: 3),
+            unit: 'L',
           ),
-          AknButton.secondary(
-            label: DriverCopy.fillPlanned,
-            size: AknButtonSize.small,
-            onPressed: model.fillPlanned,
+          StopReadout(
+            label: DriverCopy.readoutDiff,
+            value: diff == null
+                ? Fmt.dash
+                : diff.abs() < 0.001
+                ? '0'
+                : '${diff < 0 ? '−' : '+'}${Fmt.number(diff.abs(), maxFraction: 3)}',
+            unit: diff == null ? null : 'L',
           ),
+          if (tank != null)
+            StopReadout(
+              label: DriverCopy.readoutTank,
+              value: Fmt.number(tank),
+              unit: 'L',
+            ),
         ],
       ),
-      const SizedBox(height: 16),
-      LitreKeypad(onKey: model.key, onClear: model.clearLiters),
+      const SizedBox(height: 10),
+      if (error != null || warning != null)
+        _NoteLine(
+          text: error ?? warning!,
+          tone: error != null ? AknTone.danger : AknTone.warn,
+        )
+      else if (withKeypad || MediaQuery.sizeOf(context).height >= 720)
+        Text(DriverCopy.litersHint, style: t.bodySmall.copyWith(color: c.dim)),
+      if (withKeypad) ...[
+        const SizedBox(height: 12),
+        LitreKeypad(onKey: model.key, onClear: model.clearLiters),
+      ],
     ];
   }
 
@@ -604,8 +707,10 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         controller: _doc,
         label: DriverCopy.documentLabel,
         requiredMark: true,
-        prefixIcon: Icons.receipt_long_rounded,
+        prefixIcon: Icons.receipt_long_outlined,
         textCapitalization: TextCapitalization.characters,
+        // Klavye ipucu yetmez (yapıştırma, donanım klavyesi): alan büyük harf yazar (QA LF-2).
+        inputFormatters: const [_UpperDocFormatter()],
         textInputAction: TextInputAction.next,
         maxLength: 100,
         errorText: _showErrors.contains(DeliverStep.document)
@@ -626,7 +731,7 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
       AknTextField(
         controller: _recipient,
         label: DriverCopy.recipientLabel,
-        prefixIcon: Icons.person_rounded,
+        prefixIcon: Icons.person_outline_rounded,
         textCapitalization: TextCapitalization.words,
         textInputAction: TextInputAction.next,
         autofillHints: const [AutofillHints.name],
@@ -641,8 +746,7 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
           alignment: AlignmentDirectional.centerStart,
           child: AknButton.ghost(
             label: '${DriverCopy.recipientUseContact}: $contact',
-            icon: Icons.person_add_alt_1_rounded,
-            size: AknButtonSize.small,
+            icon: Icons.person_add_alt_outlined,
             onPressed: () {
               _recipient.text = contact;
               model.setRecipient(contact);
@@ -658,29 +762,32 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
     final c = context.akn;
     final required = model.photoRequired;
     return [
-      Text(DriverCopy.photosHint, style: t.bodySmall),
-      const SizedBox(height: 6),
+      Text(DriverCopy.photosHint, style: t.bodySmall.copyWith(color: c.dim)),
+      const SizedBox(height: 10),
       Row(
         children: [
-          Icon(
-            required ? Icons.photo_camera_rounded : Icons.info_outline_rounded,
-            size: 16,
-            color: required && model.photoCount == 0 ? c.warn.fg : c.dim,
-          ),
-          const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              required ? DriverCopy.photosRequired : DriverCopy.photosOptional,
-              style: t.caption.copyWith(
-                color: required && model.photoCount == 0 ? c.warn.fg : c.dim,
-              ),
+            child: AknLamp(
+              label: required
+                  ? DriverCopy.photosRequired
+                  : DriverCopy.photosOptional,
+              tone: required && model.photoCount == 0
+                  ? AknTone.warn
+                  : model.photoCount > 0
+                  ? AknTone.ok
+                  : AknTone.neutral,
             ),
           ),
-          if (model.photoCount > 0)
+          if (model.photoCount > 0) ...[
+            const SizedBox(width: 12),
             Text(
               DriverCopy.photoCount(model.photoCount),
-              style: t.captionStrong,
+              style: t.label.copyWith(
+                color: c.ink,
+                fontWeight: FontWeight.w600,
+              ),
             ),
+          ],
         ],
       ),
       const SizedBox(height: 12),
@@ -693,7 +800,7 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         const SizedBox(height: 12),
         AknBanner(
           tone: AknTone.warn,
-          icon: Icons.no_photography_rounded,
+          icon: Icons.no_photography_outlined,
           title: DriverCopy.cameraDenied,
           message: DriverCopy.cameraDeniedBody,
           actionLabel: DriverCopy.locationOpenSettings,
@@ -705,14 +812,14 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
       const SizedBox(height: 16),
       AknButton(
         label: DriverCopy.photoTake,
-        icon: Icons.photo_camera_rounded,
+        icon: Icons.photo_camera_outlined,
         expand: true,
         onPressed: model.photoCount < 20 ? () => unawaited(_takePhoto()) : null,
       ),
       const SizedBox(height: 8),
       AknButton.secondary(
         label: DriverCopy.photoPick,
-        icon: Icons.photo_library_rounded,
+        icon: Icons.photo_library_outlined,
         expand: true,
         onPressed: model.photoCount < 20
             ? () => unawaited(_pickPhotos())
@@ -730,64 +837,60 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         path == null && model.draft.signaturePublicId != null;
     if (waiver != null) {
       return [
-        AknCard(
-          color: c.warn.bg,
-          borderColor: c.warn.line,
-          shadow: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: c.surfaceAlt,
+            borderRadius: AknRadius.card,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.edit_off_rounded, color: c.warn.fg),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DriverCopy.signatureWaived,
-                          style: t.bodyStrong.copyWith(color: c.warn.fg),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(waiver.text, style: t.body),
-                        const SizedBox(height: 6),
-                        Text(DriverCopy.waiverSubtitle, style: t.bodySmall),
-                      ],
+              Icon(Icons.edit_off_outlined, color: c.warn.fg, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      DriverCopy.signatureWaived,
+                      style: t.bodyStrong.copyWith(color: c.ink),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                alignment: WrapAlignment.end,
-                children: [
-                  AknButton.ghost(
-                    label: DriverCopy.waiverChange,
-                    size: AknButtonSize.small,
-                    onPressed: () => unawaited(_chooseWaiver()),
-                  ),
-                  AknButton.secondary(
-                    label: DriverCopy.waiverBackToSignature,
-                    icon: Icons.draw_rounded,
-                    size: AknButtonSize.small,
-                    onPressed: model.clearWaiver,
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(waiver.text, style: t.body.copyWith(color: c.ink)),
+                    const SizedBox(height: 6),
+                    Text(
+                      DriverCopy.waiverSubtitle,
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
+        ),
+        const SizedBox(height: 12),
+        AknButton.secondary(
+          label: DriverCopy.waiverBackToSignature,
+          icon: Icons.draw_outlined,
+          expand: true,
+          onPressed: model.clearWaiver,
+        ),
+        const SizedBox(height: 4),
+        AknButton.ghost(
+          label: DriverCopy.waiverChange,
+          expand: true,
+          onPressed: () => unawaited(_chooseWaiver()),
         ),
       ];
     }
     final hint = model.signatureRequired
         ? DriverCopy.signatureHint
         : '${DriverCopy.signatureHint} ${DriverCopy.signatureOptional}';
+    const paper = AknColors.light;
     return [
-      Text(hint, style: t.bodySmall),
+      Text(hint, style: t.bodySmall.copyWith(color: c.dim)),
       const SizedBox(height: 12),
       if (path != null || hasRemoteSignature) ...[
         Semantics(
@@ -796,7 +899,7 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
           child: Container(
             height: 200,
             decoration: BoxDecoration(
-              color: const Color(0xFFFFFFFF),
+              color: paper.surface,
               borderRadius: AknRadius.card,
               border: Border.all(color: c.lineStrong),
             ),
@@ -807,10 +910,10 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => const SizedBox.shrink(),
                   )
-                : const Center(
+                : Center(
                     child: Icon(
-                      Icons.verified_rounded,
-                      color: Color(0xFF15803D),
+                      Icons.verified_outlined,
+                      color: paper.ok.fg,
                       size: 40,
                     ),
                   ),
@@ -819,12 +922,10 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Icon(Icons.check_circle_rounded, size: 18, color: c.ok.fg),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                DriverCopy.signatureTaken,
-                style: t.label.copyWith(color: c.ok.fg),
+            const Expanded(
+              child: AknLamp(
+                label: DriverCopy.signatureTaken,
+                tone: AknTone.ok,
               ),
             ),
             AknButton.ghost(
@@ -840,17 +941,16 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
           controller: _pad,
           height: 220,
           hint: DriverCopy.signaturePadHint,
-          ink: const Color(0xFF0F172A),
-          background: const Color(0xFFFFFFFF),
+          ink: paper.ink,
+          background: paper.surface,
           borderColor: c.lineStrong,
         ),
       const SizedBox(height: 12),
-      Center(
-        child: AknButton.ghost(
-          label: DriverCopy.signatureCantGet,
-          icon: Icons.edit_off_rounded,
-          onPressed: () => unawaited(_chooseWaiver()),
-        ),
+      AknButton.ghost(
+        label: DriverCopy.signatureCantGet,
+        icon: Icons.edit_off_outlined,
+        expand: true,
+        onPressed: () => unawaited(_chooseWaiver()),
       ),
       if (_showErrors.contains(DeliverStep.signature) &&
           model.signatureError != null &&
@@ -866,64 +966,58 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
   }
 
   List<Widget> _summaryStep(DeliverFlowModel model) {
-    final t = context.aknText;
-    final c = context.akn;
     final d = model.draft;
     final liters = model.liters;
     final diff = liters == null ? null : liters - model.plannedLiters;
     final missing = model.firstInvalidStep;
     return [
-      AknCard(
-        padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
-        child: Column(
-          children: [
-            _SummaryRow(
-              label: DriverCopy.stepLiters,
-              value: liters == null ? Fmt.dash : Fmt.liters(liters),
-              detail: diff == null || diff.abs() < 0.001
-                  ? null
-                  : DriverCopy.differenceLine(
-                      Fmt.liters(diff.abs()),
-                      Fmt.liters(model.plannedLiters),
-                      less: diff < 0,
-                    ),
-              invalid: model.litersError != null,
-              onEdit: () => _goTo(DeliverStep.liters),
-            ),
-            _SummaryRow(
-              label: DriverCopy.documentNo,
-              value: d.documentNo.trim().isEmpty
-                  ? Fmt.dash
-                  : d.documentNo.trim(),
-              invalid: model.documentError != null,
-              onEdit: () => _goTo(DeliverStep.document),
-            ),
-            _SummaryRow(
-              label: DriverCopy.recipient,
-              value: d.recipientName.trim().isEmpty
-                  ? Fmt.dash
-                  : d.recipientName.trim(),
-              onEdit: () => _goTo(DeliverStep.recipient),
-            ),
-            _SummaryRow(
-              label: DriverCopy.stepPhotos,
-              value: DriverCopy.summaryPhotos(model.photoCount),
-              invalid: model.photosError != null,
-              onEdit: () => _goTo(DeliverStep.photos),
-            ),
-            _SummaryRow(
-              label: DriverCopy.stepSignature,
-              value: d.waiver != null
-                  ? '${DriverCopy.signatureWaived}: ${d.waiver!.text}'
-                  : d.hasSignature
-                  ? DriverCopy.signatureTaken
-                  : Fmt.dash,
-              invalid: model.signatureError != null,
-              onEdit: () => _goTo(DeliverStep.signature),
-              last: true,
-            ),
-          ],
-        ),
+      const SizedBox(height: 4),
+      Column(
+        children: [
+          _SummaryRow(
+            label: DriverCopy.stepLiters,
+            value: liters == null ? Fmt.dash : Fmt.liters(liters),
+            detail: diff == null || diff.abs() < 0.001
+                ? null
+                : DriverCopy.differenceLine(
+                    Fmt.liters(diff.abs()),
+                    Fmt.liters(model.plannedLiters),
+                    less: diff < 0,
+                  ),
+            invalid: model.litersError != null,
+            onEdit: () => _goTo(DeliverStep.liters),
+          ),
+          _SummaryRow(
+            label: DriverCopy.documentNo,
+            value: d.documentNo.trim().isEmpty ? Fmt.dash : d.documentNo.trim(),
+            invalid: model.documentError != null,
+            onEdit: () => _goTo(DeliverStep.document),
+          ),
+          _SummaryRow(
+            label: DriverCopy.recipient,
+            value: d.recipientName.trim().isEmpty
+                ? Fmt.dash
+                : d.recipientName.trim(),
+            onEdit: () => _goTo(DeliverStep.recipient),
+          ),
+          _SummaryRow(
+            label: DriverCopy.stepPhotos,
+            value: DriverCopy.summaryPhotos(model.photoCount),
+            invalid: model.photosError != null,
+            onEdit: () => _goTo(DeliverStep.photos),
+          ),
+          _SummaryRow(
+            label: DriverCopy.stepSignature,
+            value: d.waiver != null
+                ? '${DriverCopy.signatureWaived}: ${d.waiver!.text}'
+                : d.hasSignature
+                ? DriverCopy.signatureTaken
+                : Fmt.dash,
+            invalid: model.signatureError != null,
+            onEdit: () => _goTo(DeliverStep.signature),
+            last: true,
+          ),
+        ],
       ),
       if (d.hasSignature && d.recipientName.trim().isEmpty) ...[
         const SizedBox(height: 12),
@@ -949,9 +1043,20 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
       ),
       if (missing != null) ...[
         const SizedBox(height: 4),
-        Text(
-          '${DriverCopy.summaryNotReady} (${DriverCopy.stepShort[missing.index]})',
-          style: t.bodySmall.copyWith(color: c.danger.fg),
+        _NoteLine(
+          text:
+              '${DriverCopy.summaryNotReady} (${DriverCopy.stepShort[missing.index]})',
+          tone: AknTone.danger,
+        ),
+      ],
+      if (_largeText) ...[
+        // Konum eksikse yukarıdaki konum kuyusu söyler.
+        const SizedBox(height: 16),
+        AknButton.secondary(
+          label: DriverCopy.back,
+          icon: Icons.arrow_back_rounded,
+          expand: true,
+          onPressed: _back,
         ),
       ],
     ];
@@ -974,35 +1079,35 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (reason != null)
+              if (reason != null && !_largeText)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Text(
                     reason,
-                    style: context.aknText.bodySmall,
+                    style: context.aknText.bodySmall.copyWith(
+                      color: context.akn.ink,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
-              Row(
-                children: [
-                  AknIconButton(
-                    icon: Icons.arrow_back_rounded,
-                    semanticLabel: DriverCopy.back,
-                    onPressed: _back,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SlideToConfirm(
-                      key: _slideKey,
-                      label: DriverCopy.slideDeliver,
-                      doneLabel: DriverCopy.slideStartDone,
-                      enabled: ready,
-                      semanticHint: 'Teslim etmek için iki kez dokunun',
-                      onConfirmed: _submit,
-                    ),
-                  ),
-                ],
+              SlideToConfirm(
+                key: _slideKey,
+                label: DriverCopy.slideDeliver,
+                doneLabel: DriverCopy.slideStartDone,
+                enabled: ready,
+                semanticHint: 'Teslim etmek için iki kez dokunun',
+                confirmLabel: DriverCopy.confirmDeliver,
+                onConfirmed: _submit,
               ),
+              if (!_largeText) ...[
+                const SizedBox(height: 8),
+                AknButton.ghost(
+                  label: DriverCopy.back,
+                  icon: Icons.arrow_back_rounded,
+                  expand: true,
+                  onPressed: _back,
+                ),
+              ],
             ],
           );
         },
@@ -1011,34 +1116,58 @@ class _DeliverFlowPageState extends ConsumerState<DeliverFlowPage> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [_stepButtons(step)],
+      children: [_stepButtons(model, step)],
     );
   }
 
-  Widget _stepButtons(DeliverStep step) {
-    return Row(
-      children: [
-        if (step.previous != null) ...[
-          Expanded(
-            child: AknButton.secondary(
-              label: DriverCopy.back,
-              icon: Icons.arrow_back_rounded,
-              expand: true,
-              onPressed: _back,
-            ),
-          ),
-          const SizedBox(width: 10),
-        ],
-        Expanded(
-          flex: 2,
-          child: AknButton(
-            label: DriverCopy.next,
-            trailingIcon: Icons.arrow_forward_rounded,
+  /// İlk adımda solda "Planlananı yaz", sonrakilerde "Geri"; sağda birincil "İleri".
+  Widget _stepButtons(DeliverFlowModel model, DeliverStep step) {
+    final left = step.previous != null
+        ? AknButton.secondary(
+            label: DriverCopy.back,
+            icon: Icons.arrow_back_rounded,
             expand: true,
-            onPressed: () => unawaited(_next()),
-          ),
-        ),
-      ],
+            onPressed: _back,
+          )
+        : AknButton.secondary(
+            label: DriverCopy.fillPlanned,
+            expand: true,
+            onPressed: model.fillPlanned,
+          );
+    final right = AknButton(
+      label: DriverCopy.next,
+      expand: true,
+      onPressed: () => unawaited(_next()),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final half = (box.maxWidth - 10) / 2;
+        final leftLabel = step.previous != null
+            ? DriverCopy.back
+            : DriverCopy.fillPlanned;
+        final side = AknButton.fitsOneLine(
+          context,
+          leftLabel,
+          half,
+          icon: step.previous != null,
+          bordered: true,
+          size: AknButtonSize.large,
+        );
+        if (!side) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [right, const SizedBox(height: 8), left],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: left),
+            const SizedBox(width: 10),
+            Expanded(child: right),
+          ],
+        );
+      },
     );
   }
 
@@ -1096,13 +1225,7 @@ class _LeaveSheet extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 4),
-        const Center(
-          child: AknIconBox(
-            icon: Icons.save_outlined,
-            tone: AknTone.brand,
-            size: 56,
-          ),
-        ),
+        Center(child: Icon(Icons.save_outlined, size: 40, color: c.ink)),
         const SizedBox(height: 16),
         Semantics(
           header: true,
@@ -1142,6 +1265,8 @@ class _LeaveSheet extends StatelessWidget {
   }
 }
 
+/// Özet satırı: etiket (15/20 soluk) üstte, değer (17/24 600) altında; sağda yazılı "Düzenle"
+/// (şoförde simge-yalnız düğme yok). Eksikse kırmızı simge + değer. Satırlar arasında ince çizgi.
 class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.label,
@@ -1163,59 +1288,102 @@ class _SummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
+    final edit = AknButton.ghost(
+      label: DriverCopy.summaryEdit,
+      size: AknButtonSize.small,
+      semanticLabel: '$label: ${TurkishText.lower(DriverCopy.summaryEdit)}',
+      onPressed: onEdit,
+    );
+    // Büyük yazıda "Düzenle" değerin altına iner (değer sığsın).
+    final stacked = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final content = Semantics(
+      label: '$label: $value${detail == null ? '' : ', $detail'}',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: t.bodySmall.copyWith(color: c.dim)),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                if (invalid) ...[
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 18,
+                    color: c.danger.fg,
+                  ),
+                  const SizedBox(width: 6),
+                ],
+                Flexible(
+                  child: Text(
+                    value,
+                    style: t.bodyStrong.copyWith(
+                      color: invalid ? c.danger.fg : c.ink,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (detail != null)
+              Text(detail!, style: t.bodySmall.copyWith(color: c.ink)),
+          ],
+        ),
+      ),
+    );
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: c.lineSoft)),
+        border: last ? null : Border(bottom: BorderSide(color: c.line)),
       ),
+      child: stacked
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                content,
+                Padding(padding: const EdgeInsets.only(bottom: 6), child: edit),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(child: content),
+                const SizedBox(width: 8),
+                edit,
+              ],
+            ),
+    );
+  }
+}
+
+/// Plakanın altındaki uyarı / hata satırı: ton simgesi + ton yazısı (beyaz zeminde durum rengi).
+class _NoteLine extends StatelessWidget {
+  const _NoteLine({required this.text, required this.tone});
+
+  final String text;
+  final AknTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final tc = context.akn.tone(tone);
+    return Semantics(
+      liveRegion: true,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(AknStatus.toneIcon(tone), size: 18, color: tc.fg),
+          ),
+          const SizedBox(width: 8),
           Expanded(
-            child: Semantics(
-              label: '$label: $value${detail == null ? '' : ', $detail'}',
-              excludeSemantics: true,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: t.caption),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        if (invalid) ...[
-                          Icon(
-                            Icons.error_outline_rounded,
-                            size: 16,
-                            color: c.danger.fg,
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Flexible(
-                          child: Text(
-                            value,
-                            style: t.bodyStrong.copyWith(
-                              color: invalid ? c.danger.fg : null,
-                              fontFeatures: const [
-                                FontFeature.tabularFigures(),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (detail != null)
-                      Text(detail!, style: t.caption.copyWith(color: c.text)),
-                  ],
-                ),
+            child: Text(
+              text,
+              style: context.aknText.bodySmall.copyWith(
+                color: tc.fg,
+                fontWeight: FontWeight.w500,
               ),
             ),
-          ),
-          AknIconButton(
-            icon: Icons.edit_rounded,
-            semanticLabel:
-                '$label: ${TurkishText.lower(DriverCopy.summaryEdit)}',
-            size: 20,
-            onPressed: onEdit,
           ),
         ],
       ),
@@ -1256,7 +1424,7 @@ class _DeliverResultState extends State<_DeliverResult> {
       _announced = phase;
       final text = switch (phase) {
         OpPhase.sending => DriverCopy.sendingTitle,
-        OpPhase.queued => DriverCopy.queuedTitle,
+        OpPhase.queued => DriverCopy.queuedDeliverTitle,
         OpPhase.sent => DriverCopy.deliverSentTitle,
         OpPhase.attention => DriverCopy.deliverFailedTitle,
       };
@@ -1325,7 +1493,7 @@ class _DeliverResultState extends State<_DeliverResult> {
         key: const ValueKey('queued'),
         tone: AknTone.warn,
         icon: Icons.schedule_rounded,
-        title: DriverCopy.queuedTitle,
+        title: DriverCopy.queuedDeliverTitle,
         message: DriverCopy.queuedDeliverBody,
         details: details,
         primaryLabel: DriverCopy.backToList,
@@ -1356,4 +1524,15 @@ class _DeliverResultState extends State<_DeliverResult> {
     };
     return FadeThroughSwitcher(child: view);
   }
+}
+
+/// İrsaliye no alanı büyük harf yazar (bayi "Teslim bildir" ile aynı; QA LF-2).
+class _UpperDocFormatter extends TextInputFormatter {
+  const _UpperDocFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) => newValue.copyWith(text: newValue.text.asciiUpper);
 }

@@ -87,7 +87,8 @@ class PaymentRow {
   final String? financeLabel;
   final String? orderStatusLabel;
 
-  /// "Çek · 90 gün · vade 20.07.2026".
+  /// Sunucunun özet satırı (eski biçim "Çek · 90 gün · vade 20.07.2026"); arayüz satırı alanlardan
+  /// kurar (tasarım v2 §10.1: " · " yok).
   final String paymentLine;
 
   /// "bugün", "3 gün kaldı", "5 gün gecikti".
@@ -145,8 +146,11 @@ class PaymentHistoryEntry {
   final String? changedByDisplay;
   final DateTime? changedAt;
 
-  String get title =>
-      '${fromStatusLabel ?? fromStatus.label} → ${toStatusLabel ?? toStatus.label}';
+  /// Yeni durum ("Tahsil edildi"); önceki durum [fromTitle].
+  String get title => toStatusLabel ?? toStatus.label;
+
+  /// Önceki durum ("Bekliyor").
+  String get fromTitle => fromStatusLabel ?? fromStatus.label;
 }
 
 /// Çek / senet / teminat mektubu (`PaymentInstrumentMobileDto`).

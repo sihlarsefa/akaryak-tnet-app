@@ -164,7 +164,15 @@ void main() {
     expect(find.text(DriverCopy.disputedTitle), findsOneWidget);
     expect(find.textContaining('5.650 L'), findsOneWidget);
     expect(find.text(DriverCopy.actionFix), findsOneWidget);
-    // Teslim kanıtı (önceki bildirim) görünür.
+    // Plaka teslim edilen litreyi taşır (tek plaka).
+    expect(find.byType(AknPlate), findsOneWidget);
+    expect(find.text(DriverCopy.plateDelivered), findsOneWidget);
+    // Teslim kanıtı (önceki bildirim) aşağıda.
+    await tester.scrollUntilVisible(
+      find.text('IRS-779104'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text(DriverCopy.proofTitle), findsOneWidget);
     expect(find.text('IRS-779104'), findsOneWidget);
     await finish(tester);
@@ -172,6 +180,11 @@ void main() {
 
   testWidgets('kabul bekleyen: teslim kanıtı, eylem yok', (tester) async {
     await open(tester, () => idWhere(2));
+    await tester.scrollUntilVisible(
+      find.text('IRS-778812'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text(DriverCopy.proofTitle), findsOneWidget);
     expect(find.text('IRS-778812'), findsOneWidget);
     expect(find.text('Kemal Uçar'), findsWidgets);

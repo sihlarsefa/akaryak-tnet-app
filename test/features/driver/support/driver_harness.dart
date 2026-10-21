@@ -120,6 +120,10 @@ class FakeLocation implements DriverLocationService {
   bool approximate = false;
   double? accuracy = 8;
   bool fail = false;
+
+  /// Cihazın konumu (varsayılan: Pendik Lojistik Merkezi'nin birkaç metre yanı).
+  double latitude = 40.911912;
+  double longitude = 29.301417;
   int requests = 0;
   int settingsOpened = 0;
 
@@ -146,8 +150,8 @@ class FakeLocation implements DriverLocationService {
     fail
         ? null
         : DriverPosition(
-            latitude: 40.911912,
-            longitude: 29.301417,
+            latitude: latitude,
+            longitude: longitude,
             accuracyMeters: accuracy,
             approximate: approximate,
             capturedAt: DateTime.now().toUtc(),

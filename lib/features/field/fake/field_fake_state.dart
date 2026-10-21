@@ -433,7 +433,7 @@ class FieldFakeState {
     // Onaylarım'daki 9002 (kârlılık, yönetici bandı) bu formu gösterir.
     final f1 = newForm(
       id: 7001,
-      number: 'SF-2026-00007',
+      number: seedFormNumber(world, 7001),
       customerId: 103,
       createdBy: 'u-saha',
       repId: 31,
@@ -467,7 +467,7 @@ class FieldFakeState {
     // Onaylarım'daki 9006 (saha formu finans onayı; onaylar sahtesi tohumlar).
     final f2 = newForm(
       id: 7002,
-      number: 'SF-2026-00011',
+      number: seedFormNumber(world, 7002),
       customerId: 104,
       createdBy: 'u-saha',
       repId: 31,
@@ -529,7 +529,7 @@ class FieldFakeState {
     // Onaylarım'daki 9012 (satış müdürü reddetti).
     final f4 = newForm(
       id: 6998,
-      number: 'SF-2026-00004',
+      number: seedFormNumber(world, 6998),
       customerId: 104,
       createdBy: 'u-saha',
       repId: 31,
@@ -721,6 +721,25 @@ class FieldFakeState {
     'marginPercent': null,
     'decidedAt': FakeWorld.utc(at),
   };
+
+  /// Tohum formlarının numarası (QA LF-4): sunucu biçimi `SSF-yyyyMMdd-nnnnnn`, gün formun gönderildiği
+  /// gün. Onaylar sahtesi (Onaylarım 9002 / 9006 / 9012) aynı numarayı buradan alır; iki sahte aynı
+  /// formu aynı numarayla gösterir.
+  static String seedFormNumber(FakeWorld world, int formId) {
+    final (hours, seq) = switch (formId) {
+      7001 => (-1.5, 7),
+      7002 => (-9.0, 8),
+      6998 => (-80.0, 9),
+      _ => throw ArgumentError.value(formId, 'formId', 'tohum formu değil'),
+    };
+    final at = world.seededAt.add(Duration(minutes: (hours * 60).round()));
+    return 'SSF-${_day(at)}-${seq.toString().padLeft(6, '0')}';
+  }
+
+  /// Saha formu onay bandının metni (alan sahtesi ve onaylar sahtesi aynı sözcükleri kullanır).
+  static const bandManager = 'Bayi yöneticisi onayı';
+  static const bandUpper = 'Üst onay';
+  static const bandAutoReject = 'Otomatik ret';
 
   static String _day(DateTime instant) {
     final w = TrTime.wall(instant);

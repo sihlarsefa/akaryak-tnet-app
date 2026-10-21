@@ -390,7 +390,12 @@ void main() {
           find.widgetWithText(AknButton, ApprovalDecision.reject.label),
         );
         expect(approve.width, greaterThan(300));
-        expect(reject.bottom, lessThanOrEqualTo(approve.top));
+        // v2 dock (§7.8, §7.13): the primary has the full width and the
+        // secondaries sit on their own row (above or below it).
+        expect(
+          reject.bottom <= approve.top || reject.top >= approve.bottom,
+          isTrue,
+        );
       },
       skip: skip != null,
     );

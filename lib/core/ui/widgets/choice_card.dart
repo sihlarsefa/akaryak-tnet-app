@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
-import 'cards.dart';
 
-/// Selectable card for one-of-many choices with more than a label: payment
-/// method, delivery point, driver, vehicle. Selection shows a brand border,
-/// a soft tint and a filled check (never colour alone).
+/// Selectable tile for one-of-many choices with more than a label (§6.25):
+/// product, payment method, delivery point, driver, vehicle.
+///
+/// White, 1 px hairline, r12, padding 14 / 16; the title is 17/22 600 and
+/// the subtitle 14/20 dim ("son alım 42,35 ₺/L"). Selected = a 2 px ink
+/// border and a filled ink check top-right — never an orange fill, never
+/// colour alone. Pressed = Beton. Disabled = Beton fill and faint text.
 class ChoiceCard extends StatelessWidget {
   const ChoiceCard({
     super.key,
@@ -30,9 +33,12 @@ class ChoiceCard extends StatelessWidget {
   /// Null or [enabled] false disables the card.
   final VoidCallback? onTap;
   final Widget? leading;
+
+  /// A plain 24 px dim icon before the texts (never in a tinted box).
   final IconData? leadingIcon;
 
-  /// Small pill next to the title ("Önerilen", "Son kullanılan").
+  /// Small tag next to the title ("Önerilen", "Son kullanılan"): a Beton
+  /// label, r6.
   final String? tag;
 
   /// Extra content on the right (amount, due date).
@@ -45,14 +51,15 @@ class ChoiceCard extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final active = enabled && onTap != null;
-    final duration = AknMotion.of(context, AknMotion.base);
+    final duration = AknMotion.of(context, AknMotion.fast);
     final lead =
         leading ??
         (leadingIcon == null
             ? null
-            : AknIconBox(
-                icon: leadingIcon!,
-                tone: selected ? AknTone.brand : null,
+            : Icon(
+                leadingIcon,
+                size: 24,
+                color: active ? (selected ? c.ink : c.dim) : c.faint,
               ));
     Widget card = Semantics(
       button: true,
@@ -66,18 +73,23 @@ class ChoiceCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: duration,
         curve: AknMotion.standard,
-        decoration: BoxDecoration(
-          color: selected ? c.brandSoft : c.surface,
+        foregroundDecoration: BoxDecoration(
           borderRadius: AknRadius.card,
           border: Border.all(
-            color: selected ? c.brand : c.line,
-            width: selected ? 1.6 : 1,
+            color: selected ? c.ink : c.line,
+            width: selected ? 2 : 1,
           ),
+        ),
+        decoration: BoxDecoration(
+          color: active ? c.surface : c.surfaceAlt,
+          borderRadius: AknRadius.card,
         ),
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
             borderRadius: AknRadius.card,
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: c.surfaceAlt,
             onTap: active
                 ? () {
                     AknHaptics.selection();
@@ -85,10 +97,11 @@ class ChoiceCard extends StatelessWidget {
                   }
                 : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (lead != null) ...[lead, const SizedBox(width: 12)],
+                  if (lead != null) ...[lead, const SizedBox(width: 14)],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -101,26 +114,24 @@ class ChoiceCard extends StatelessWidget {
                           children: [
                             Text(
                               title,
-                              style: t.bodyStrong.copyWith(
+                              style: t.headline.copyWith(
                                 color: active ? c.ink : c.faint,
                               ),
                             ),
                             if (tag != null)
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
+                                  horizontal: 6,
                                   vertical: 1,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: c.brandTone.bg,
-                                  borderRadius: AknRadius.pillAll,
-                                  border: Border.all(color: c.brandTone.line),
+                                  color: c.surfaceAlt,
+                                  borderRadius: AknRadius.tag,
                                 ),
                                 child: Text(
                                   tag!,
                                   style: t.captionStrong.copyWith(
-                                    color: c.brandTone.fg,
-                                    fontSize: 11,
+                                    color: active ? c.ink : c.faint,
                                   ),
                                 ),
                               ),
@@ -128,7 +139,12 @@ class ChoiceCard extends StatelessWidget {
                         ),
                         if (subtitle != null) ...[
                           const SizedBox(height: 2),
-                          Text(subtitle!, style: t.bodySmall),
+                          Text(
+                            subtitle!,
+                            style: t.bodySmall.copyWith(
+                              color: active ? c.dim : c.faint,
+                            ),
+                          ),
                         ],
                       ],
                     ),
@@ -137,8 +153,8 @@ class ChoiceCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     trailing!,
                   ],
-                  const SizedBox(width: 12),
-                  _CheckMark(selected: selected, colors: c),
+                  const SizedBox(width: 10),
+                  _CheckMark(selected: selected, colors: c, enabled: active),
                 ],
               ),
             ),
@@ -151,37 +167,47 @@ class ChoiceCard extends StatelessWidget {
   }
 }
 
+/// Top-right selection mark: a filled ink check when selected, an empty
+/// control ring otherwise.
 class _CheckMark extends StatelessWidget {
-  const _CheckMark({required this.selected, required this.colors});
+  const _CheckMark({
+    required this.selected,
+    required this.colors,
+    required this.enabled,
+  });
 
   final bool selected;
   final AknColors colors;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final duration = AknMotion.of(context, AknMotion.fast);
-    return AnimatedContainer(
-      duration: duration,
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? colors.brandFill : const Color(0x00000000),
-        border: Border.all(
-          color: selected ? colors.brandFill : colors.lineStrong,
-          width: 2,
+    return Padding(
+      padding: const EdgeInsets.only(top: 1),
+      child: SizedBox.square(
+        dimension: 20,
+        child: AnimatedSwitcher(
+          duration: duration,
+          child: selected
+              ? Icon(
+                  Icons.check_circle_rounded,
+                  key: const ValueKey('on'),
+                  size: 20,
+                  color: colors.ink,
+                )
+              : Container(
+                  key: const ValueKey('off'),
+                  margin: const EdgeInsets.all(1.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: enabled ? colors.lineStrong : colors.line,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
         ),
-      ),
-      child: AnimatedSwitcher(
-        duration: duration,
-        child: selected
-            ? Icon(
-                Icons.check_rounded,
-                key: const ValueKey('on'),
-                size: 14,
-                color: colors.onBrandFill,
-              )
-            : const SizedBox.shrink(key: ValueKey('off')),
       ),
     );
   }

@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../tokens.dart';
 
-/// Circular progress (quote expiry countdown, limit usage, step progress).
-/// Changes of [value] animate (base 250 ms); reduce motion jumps.
+/// Circular progress (upload progress, limit usage): a logo-orange arc on the
+/// chart track (§2.1 rule 3: progress fills are orange). Changes of [value]
+/// animate (base 250 ms); reduce motion jumps.
 class ProgressRing extends StatelessWidget {
   const ProgressRing({
     super.key,
@@ -53,8 +54,8 @@ class ProgressRing extends StatelessWidget {
           painter: ProgressRingPainter(
             value: animated,
             strokeWidth: strokeWidth,
-            color: color ?? c.brand,
-            trackColor: trackColor ?? c.lineSoft,
+            color: color ?? c.brandBright,
+            trackColor: trackColor ?? c.chartTrack,
           ),
           child: child,
         ),

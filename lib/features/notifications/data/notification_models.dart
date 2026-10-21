@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/json.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/turkish_text.dart';
 
 /// Bildirim kategorileri (sunucu `NotificationCategories`; tercih ekranındaki sıra).
 abstract final class NotificationCategory {
@@ -81,8 +82,8 @@ class UserNotification {
     category: r.str('category', NotificationCategory.system),
     categoryLabel: r.nonEmpty('categoryLabel'),
     eventCode: r.str('eventCode'),
-    title: r.str('title'),
-    body: r.str('body'),
+    title: TurkishText.commaList(r.str('title')),
+    body: TurkishText.commaList(r.str('body')),
     severity: r.integer('severity'),
     route: r.nonEmpty('route'),
     entityType: r.nonEmpty('entityType'),

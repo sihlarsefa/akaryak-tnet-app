@@ -11,13 +11,14 @@ import '../../../core/offline/connectivity.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
+import '../../../core/utils/tr_time.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../application/approval_detail_controller.dart';
 import '../application/approvals_providers.dart';
 import '../copy.dart';
 import '../data/approval_models.dart';
 import '../shared/attachment_grid.dart';
 import '../shared/failure_view.dart';
-import '../shared/layout.dart';
 import '../shared/uploads.dart';
 import 'widgets/approval_card.dart';
 import 'widgets/approval_timelines.dart';
@@ -321,13 +322,20 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       );
     }
 
+    final readouts = plateReadoutsFor(d);
+    final usedFacts = {for (final r in readouts) r.label};
+    final facts = [
+      for (final f in d.summary.facts)
+        if (!usedFacts.contains(f.label)) f,
+    ];
     final children = <Widget>[
-      _ApprovalHero(detail: d),
+      _Header(detail: d),
+      // Sonuç ve "sıra sizde" blokları plakadan önce: ne oldu, ne yapmalı.
       _DecisionOutcomeBanner(detail: d),
       if (CompanyRequestOutcome.applies(d)) CompanyRequestOutcome(detail: d),
       if (d.canProvideInfo && d.infoRequest != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: InfoReplyCard(
             detail: d,
             note: _reply,
@@ -337,12 +345,13 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         )
       else if (d.canResumeInfo && d.infoRequest != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: InfoWaitingCard(detail: d),
         ),
+      _ApprovalPlate(detail: d, readouts: readouts),
       if (d.modes.isEmpty && d.decisionHint != null && !d.canProvideInfo)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.neutral,
             icon: Icons.info_outline_rounded,
@@ -351,27 +360,27 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         ),
       if (d.onBehalfOfName != null && d.modes.isNotEmpty)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.info,
-            icon: Icons.share_rounded,
+            icon: Icons.share_outlined,
             message: '${d.onBehalfOfName} ${ApprovalsCopy.behalfNote}',
           ),
         ),
       if (lead?.isForwardedToHq ?? false)
         const Padding(
-          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.info,
-            icon: Icons.upload_rounded,
+            icon: Icons.upload_outlined,
             message: 'Talep merkez onayına iletildi.',
           ),
         ),
       WarningBanners(warnings: d.summary.warnings),
-      if (d.summary.facts.isNotEmpty)
+      if (facts.isNotEmpty)
         DetailSection(
           title: 'Özet',
-          child: FactsCard(facts: d.summary.facts),
+          child: FactsCard(facts: facts),
         ),
       if (d.summary.lines.isNotEmpty &&
           d.type != ApprovalType.companyOrderRequest)
@@ -422,14 +431,18 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
 
     return AppScaffold(
       title: d.type.label,
-      subtitle: d.row.subjectNumber,
       refreshing: s.refreshing,
       actionBar: actionBar,
       body: PullToRefresh(
         onRefresh: _ctrl.refresh,
-        child: ListView(
+        // Ayrıntı sınırlı uzunlukta: hepsi kurulur (başlıktaki durum ve süreç kaydırınca da ağaçta
+        // kalır, ekran okuyucu tüm sayfayı görür).
+        child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: children,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         ),
       ),
     );
@@ -463,22 +476,10 @@ class _BarColumn extends StatelessWidget {
   );
 }
 
-/// Lacivert başlık: tür, durum, sunucu başlığı, tutar / litre, SLA geri sayımı ve kademe
-/// (cari görünümünde yok), talep eden ve zaman.
-class _ApprovalHero extends StatelessWidget {
-  const _ApprovalHero({required this.detail});
-
-  final ApprovalDetail detail;
-
-  @override
-  Widget build(BuildContext context) => AknHeroPanel(
-    margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-    child: _HeroBody(detail: detail),
-  );
-}
-
-class _HeroBody extends StatelessWidget {
-  const _HeroBody({required this.detail});
+/// Düz beyaz başlık (tasarım v2 §7.13): onaylanacak şeyin adı (`display`), numara ve sunucu alt
+/// satırı, izleyiciye göre lamba ve son tarih (bayi görünümünde), talep eden, zaman ve kademe.
+class _Header extends StatelessWidget {
+  const _Header({required this.detail});
 
   final ApprovalDetail detail;
 
@@ -487,7 +488,7 @@ class _HeroBody extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     final d = detail;
-    final status = approvalStatusStyle(
+    final lamp = approvalRowLamp(
       d.row,
       customerSide: d.customerView,
       canProvideInfo: d.canProvideInfo,
@@ -501,131 +502,224 @@ class _HeroBody extends StatelessWidget {
         parts.length > 1 &&
         !parts.first.contains(' ') &&
         RegExp(r'\d').hasMatch(parts.first);
-    final number = codeFirst ? parts.first : null;
-    final title = codeFirst ? parts.skip(1).join(' · ') : headline;
+    final number = codeFirst ? parts.first : d.row.subjectNumber;
+    final title = codeFirst ? parts.skip(1).join(', ') : plainSummary(headline);
     final overdue =
         d.row.slaState == ApprovalSlaState.overdue ||
         (d.row.dueAt != null && d.row.dueAt!.isBefore(DateTime.now().toUtc()));
-    final amount = d.summary.amount ?? d.row.amount;
-    final liters = d.summary.liters ?? d.row.liters;
-    final band = d.summary.band;
     final showSla = !d.customerView && d.isOpen && d.row.dueAt != null;
-    final showLevels = !d.customerView && d.isOpen && d.row.hasLevels;
-    final typeStyle = AknStatus.approvalType(d.type);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 10,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(typeStyle.icon, size: 18, color: c.dim),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    d.row.displayTypeLabel,
-                    style: t.captionStrong.copyWith(color: c.dim),
-                  ),
-                ),
-              ],
+    final levels = !d.customerView && d.isOpen && d.row.hasLevels
+        ? 'kademe ${d.row.currentLevelNo}/${d.row.levelCount}'
+        : null;
+    final sub = [
+      ?number,
+      if (d.summary.subline != null) plainSummary(d.summary.subline),
+    ].join(', ');
+    final meta = [
+      if (d.row.requestedByName != null) 'Talep eden: ${d.row.requestedByName}',
+      TurkishText.lower(Fmt.relative(d.row.createdAt)),
+      ?levels,
+    ].join(', ');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.5,
+            child: Semantics(
+              header: true,
+              child: Text(
+                title.isEmpty ? d.row.title : title,
+                style: t.display.copyWith(color: c.ink),
+              ),
             ),
-            Shrinkable(child: StatusChip.style(status)),
+          ),
+          if (sub.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(sub, style: t.bodySmall.copyWith(color: c.dim)),
           ],
-        ),
-        const SizedBox(height: 12),
-        if (number != null)
-          Text(
-            number,
-            style: t.label.copyWith(
-              color: c.dim,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        Semantics(
-          header: true,
-          child: Text(title.isEmpty ? d.row.title : title, style: t.title),
-        ),
-        if (d.summary.subline != null) ...[
-          const SizedBox(height: 4),
-          Text(d.summary.subline!, style: t.body.copyWith(color: c.dim)),
-        ],
-        if (amount != null || liters != null) ...[
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 4,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            children: [
-              if (amount != null)
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: AmountText(Fmt.money(amount), large: true),
-                ),
-              if (liters != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: AmountText(
-                    Fmt.liters(liters),
-                    style: t.bodyStrong.copyWith(color: c.text),
-                  ),
-                ),
-            ],
-          ),
-        ],
-        if (showSla || showLevels || band != null) ...[
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (showSla && overdue)
-                Shrinkable(
-                  child: StatusChip.style(
-                    AknStatus.sla(ApprovalSlaState.overdue),
-                  ),
-                )
-              else if (showSla)
-                Shrinkable(
-                  child: CountdownBadge(
+          AknStatusLine(
+            lamp: AknLamp.status(lamp),
+            trailing: showSla && !overdue
+                ? CountdownBadge(
                     deadline: d.row.dueAt!,
                     start: d.row.createdAt,
-                    prefix: 'Kalan',
-                  ),
-                ),
-              if (showLevels)
-                Shrinkable(
-                  child: StatusChip(
-                    label: 'Kademe ${d.row.currentLevelNo}/${d.row.levelCount}',
-                    tone: AknTone.neutral,
-                    icon: Icons.layers_rounded,
-                  ),
-                ),
-              if (band != null)
-                Shrinkable(
-                  child: StatusChip.style(
-                    AknStatus.custom(band.label, tone: band.tone),
-                  ),
-                ),
-            ],
+                    yourMove: lamp.yourMove,
+                    subject: 'Onay süresi',
+                  )
+                : null,
           ),
+          const SizedBox(height: 4),
+          Text(meta, style: t.label.copyWith(color: c.dim)),
         ],
-        const SizedBox(height: 12),
-        Text(
-          [
-            if (d.row.requestedByName != null)
-              'Talep eden: ${d.row.requestedByName}',
-            Fmt.relative(d.row.createdAt),
-          ].join(' · '),
-          style: t.caption.copyWith(color: c.dim),
-        ),
-      ],
+      ),
     );
   }
+}
+
+/// Plakadaki okuma (etiket, değer, birim).
+typedef ApprovalReadout = ({String label, String value, String? unit});
+
+/// Plakanın altındaki okumalar: sunucu özetinin kısa sayısal satırlarından en çok üçü (Miktar, Kâr
+/// oranı, Risk sınıfı, Talep edilen vade …). Uzun metinler okumaya girmez, Özet'te kalır.
+List<ApprovalReadout> plateReadoutsFor(ApprovalDetail d) {
+  const preferred = [
+    'Miktar',
+    'Toplam miktar',
+    'Aylık ihtiyaç',
+    'Kâr',
+    'Kâr oranı',
+    'Risk sınıfı',
+    'Talep edilen vade',
+    'Vade',
+    'Gecikmiş bakiye',
+  ];
+  final hasAmount = (d.summary.amount ?? d.row.amount) != null;
+  final out = <ApprovalReadout>[];
+  for (final label in preferred) {
+    if (out.length == 3) break;
+    final f = d.summary.facts.where((f) => f.label == label).firstOrNull;
+    if (f == null) continue;
+    // Risk bandı plakada siyah çipte; okumada tekrarlanmaz.
+    if (label == 'Risk sınıfı' && d.summary.band != null) continue;
+    final v = f.value.trim();
+    if (v.isEmpty || v.length > 16) continue;
+    // Tutar yokken litre plakanın kendisidir; okumada tekrarlanmaz.
+    if (!hasAmount && v.endsWith(' L')) continue;
+    final m = RegExp(r'^([%+\-]?[\d.,]+)\s+(\S.*)$').firstMatch(v);
+    if (m == null) {
+      out.add((label: label, value: v, unit: null));
+      continue;
+    }
+    // Plakada kuruş yazılmaz ("21.060 ₺").
+    final number = m[2] == '₺' && m[1]!.endsWith(',00')
+        ? m[1]!.substring(0, m[1]!.length - 3)
+        : m[1]!;
+    out.add((label: label, value: number, unit: m[2]));
+  }
+  return out;
+}
+
+/// Ekranın tek plakası (§7.13): söz konusu tutar (finans: sipariş tutarı ya da talep edilen limit;
+/// şirket onayı: tahmini tutar), risk bandı siyah çipte, okumalar. Tutar da litre de yoksa plaka yok.
+class _ApprovalPlate extends StatelessWidget {
+  const _ApprovalPlate({required this.detail, required this.readouts});
+
+  final ApprovalDetail detail;
+  final List<ApprovalReadout> readouts;
+
+  static String _title(ApprovalType t) => switch (t) {
+    ApprovalType.orderFinance => 'Sipariş tutarı',
+    ApprovalType.fieldFormFinance ||
+    ApprovalType.fieldOrderProfit => 'Form tutarı',
+    ApprovalType.limitChange ||
+    ApprovalType.customerOnboarding ||
+    ApprovalType.leadFinance => 'Talep edilen limit',
+    ApprovalType.companyOrderRequest => 'Tahmini tutar',
+    ApprovalType.unknown => 'Tutar',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final d = detail;
+    final amount = d.summary.amount ?? d.row.amount;
+    final liters = d.summary.liters ?? d.row.liters;
+    if (amount == null && liters == null) return const SizedBox.shrink();
+    final band = d.summary.band;
+    final typeStyle = AknStatus.approvalType(d.type);
+    final String value;
+    final String? decimals;
+    final String unit;
+    final String spoken;
+    if (amount != null) {
+      final fixed = Fmt.number(amount, minFraction: 2, maxFraction: 2);
+      final comma = fixed.lastIndexOf(',');
+      value = comma < 0 ? fixed : fixed.substring(0, comma);
+      decimals = comma < 0 || fixed.endsWith(',00')
+          ? null
+          : fixed.substring(comma);
+      unit = '₺';
+      spoken = '${_title(d.type)} ${Fmt.money(amount)}';
+    } else {
+      value = Fmt.number(liters, maxFraction: 3);
+      decimals = null;
+      unit = 'L';
+      spoken = 'Miktar ${Fmt.liters(liters)}';
+    }
+    return AknPlate(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      semanticLabel: spoken,
+      head: PlateHead(
+        icon: typeStyle.icon,
+        title: amount == null ? 'Miktar' : _title(d.type),
+        period: whenStamp(d.row.createdAt),
+      ),
+      figure: PlateFigure(
+        value: value,
+        decimals: decimals,
+        unit: unit,
+        semanticLabel: spoken,
+      ),
+      delta: band == null ? null : _BandChip(label: band.label),
+      below: readouts.isEmpty
+          ? null
+          // Okumalar en çok 1,5× (sütunlar korunur, değer sığmazsa küçülür).
+          : MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.5,
+              child: PlateReadouts(
+                items: [
+                  for (final r in readouts)
+                    PlateReadout(label: r.label, value: r.value, unit: r.unit),
+                ],
+              ),
+            ),
+    );
+  }
+}
+
+/// Karttaki risk / barem bandı: delta çipi dilinde (açık turuncu zemin, Pas yazı); uzun etiket
+/// satır kaydırır, taşmaz.
+class _BandChip extends StatelessWidget {
+  const _BandChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        // Sahip kararı G: karttaki bant çipi delta çipi gibi (#FFF1E8 zemin, Pas yazı).
+        decoration: BoxDecoration(
+          color: c.deltaFill,
+          borderRadius: AknRadius.tag,
+        ),
+        child: Text(
+          label,
+          style: t.bodySmall.copyWith(
+            height: 20 / 14,
+            fontWeight: FontWeight.w700,
+            color: c.brandInk,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "bugün 10:05", "dün 14:20", "21 Eki 09:10".
+String whenStamp(DateTime? at) {
+  if (at == null) return Fmt.dash;
+  final diff = TrTime.dayDiff(TrTime.now(), at);
+  final time = Fmt.time(at);
+  if (diff == 0) return 'bugün $time';
+  if (diff == -1) return 'dün $time';
+  return '${Fmt.dayMonth(at)} $time';
 }
 
 /// Sonuçlanmış talebin kararı (cari görünümünde yalnızca ret gerekçesi).
@@ -639,7 +733,7 @@ class _DecisionOutcomeBanner extends StatelessWidget {
     final d = detail;
     final when = d.decidedAt == null ? null : Fmt.dateTime(d.decidedAt);
     final who = d.customerView ? null : d.decidedByName;
-    final meta = [?who, ?when].join(' · ');
+    final meta = [?who, ?when].join(', ');
     final (tone, title) = switch (d.status) {
       ApprovalStatus.approved => (
         AknTone.ok,
@@ -657,7 +751,7 @@ class _DecisionOutcomeBanner extends StatelessWidget {
         : d.decisionNote;
     final message = [if (meta.isNotEmpty) meta, ?note].join('\n');
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: AknBanner(
         tone: tone,
         title: title,
@@ -675,15 +769,17 @@ class _DetailSkeleton extends StatelessWidget {
     return Shimmer(
       child: ListView(
         physics: const NeverScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         children: const [
-          SkeletonBox(height: 180, radius: 24),
+          SkeletonBox(height: 34, width: 240, radius: 6),
+          SizedBox(height: 10),
+          SkeletonBox(height: 14, width: 180, radius: 6),
+          SizedBox(height: 20),
+          SkeletonBox(height: 180, radius: 20),
+          SizedBox(height: 20),
+          SkeletonCard(lines: 3, margin: EdgeInsets.zero),
           SizedBox(height: 16),
-          SkeletonCard(lines: 4, leading: false, margin: EdgeInsets.zero),
-          SizedBox(height: 12),
-          SkeletonCard(lines: 3, leading: false, margin: EdgeInsets.zero),
-          SizedBox(height: 12),
-          SkeletonCard(margin: EdgeInsets.zero),
+          SkeletonCard(lines: 3, margin: EdgeInsets.zero),
         ],
       ),
     );

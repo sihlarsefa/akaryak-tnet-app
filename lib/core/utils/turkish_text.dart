@@ -44,6 +44,17 @@ abstract final class TurkishText {
     return searchKey(haystack ?? '').contains(q);
   }
 
+  /// Sunucu / web metnindeki " · " ayırıcılarını v2 yazımına çevirir ("A · B" → "A, B"; tasarım v2 §1
+  /// kural 7). Ekranda gösterilen sunucu özetleri, bildirim metinleri ve çip satırları için.
+  static String commaList(String s) => s.replaceAll(' · ', ', ');
+
+  /// [commaList] + sonuç oku: "Satır 5 · Min %4 → Bayi yöneticisi onayı" → "Satır 5, Min %4: Bayi
+  /// yöneticisi onayı" (barem çipi gibi sunucu satırları; "→" yazımda kullanılmaz).
+  static String plainMeta(String s) => commaList(s).replaceAll(' → ', ': ');
+
+  /// Boş değeri koruyan [plainMeta].
+  static String? plainMetaOrNull(String? s) => s == null ? null : plainMeta(s);
+
   /// Baş harfler (avatar): "Ahmet Yılmaz" → "AY".
   static String initials(String? name, {int max = 2}) {
     final parts = (name ?? '')

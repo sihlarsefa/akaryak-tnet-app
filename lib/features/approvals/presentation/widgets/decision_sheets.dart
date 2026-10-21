@@ -388,34 +388,63 @@ class _Recap extends StatelessWidget {
     final headline = d.summary.headline.isNotEmpty
         ? d.summary.headline
         : (d.row.subjectNumber ?? d.row.title);
-    return AknCard(
-      color: context.akn.surfaceAlt,
-      shadow: false,
-      child: Row(
-        children: [
-          AknIconBox(
-            icon: AknStatus.approvalType(d.type).icon,
-            tone: AknTone.brand,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
+    final c = context.akn;
+    final figure = amount != null || liters != null
+        ? Text(
+            amount != null ? Fmt.money(amount) : Fmt.liters(liters),
+            style: t.amount.copyWith(color: c.ink),
+            maxLines: 1,
+            softWrap: false,
+          )
+        : null;
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          headline.replaceAll(' · ', ', '),
+          style: t.bodyStrong.copyWith(color: c.ink),
+        ),
+        Text(d.row.displayTypeLabel, style: t.label.copyWith(color: c.dim)),
+      ],
+    );
+    // QA BO-04: tutar başlığın yanında esnemiyordu (2,0× ve 11+ haneli tutarda taşma). Büyük
+    // yazıda tutar başlığın altında kendi satırına iner; normal yazıda yer kalmazsa küçülür.
+    final large = MediaQuery.textScalerOf(context).scale(10) > 13;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: AknRadius.card,
+      ),
+      child: figure == null
+          ? heading
+          : large
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                heading,
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: figure,
+                ),
+              ],
+            )
+          : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(headline, style: t.bodyStrong),
-                Text(
-                  [
-                    d.row.displayTypeLabel,
-                    if (amount != null) Fmt.money(amount),
-                    if (liters != null) Fmt.liters(liters),
-                  ].join(' · '),
-                  style: t.label,
+                Expanded(child: heading),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: AlignmentDirectional.topEnd,
+                    child: figure,
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

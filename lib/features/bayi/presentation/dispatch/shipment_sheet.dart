@@ -29,7 +29,7 @@ Future<void> showShipmentSheet(
 }) => showAppSheet<void>(
   context: context,
   title: code ?? 'SVK-${shipmentId.toString().padLeft(8, '0')}',
-  subtitle: 'Sevkiyat ayrıntısı',
+  subtitle: 'Sevkiyat',
   builder: (_) => ShipmentSheetBody(shipmentId: shipmentId),
 );
 
@@ -169,13 +169,11 @@ class _ShipmentSheetBodyState extends ConsumerState<ShipmentSheetBody> {
       if (f != null) {
         return FailureView(failure: f, compact: true, onRetry: _refresh);
       }
-      return const Shimmer(
-        child: Column(
-          children: [
-            SkeletonCard(lines: 4, margin: EdgeInsets.only(bottom: 12)),
-            SkeletonCard(lines: 3, margin: EdgeInsets.only(bottom: 12)),
-          ],
-        ),
+      return const SkeletonList(
+        itemCount: 3,
+        lines: 3,
+        padding: EdgeInsets.zero,
+        shrinkWrap: true,
       );
     }
     return _Content(
@@ -221,34 +219,128 @@ class _Content extends ConsumerWidget {
     final hasActions = canDispatch || canReport || canReassign || canCancel;
     final diff = d.differenceLiters;
     final point = d.deliveryPoint;
+    final lamp = AknStatus.shipmentLamp(d.status, grants.viewer);
+    final facts = <Widget>[
+      FactRow(label: 'Plan zamanı', value: Fmt.dateTime(d.scheduledAt)),
+      if (d.dispatchedAt != null)
+        FactRow(label: 'Yola çıkış', value: Fmt.dateTime(d.dispatchedAt)),
+      if (d.deliveredAt != null)
+        FactRow(
+          label: 'Teslim',
+          value: d.timeSource == 'device'
+              ? '${Fmt.dateTime(d.deliveredAt)} (cihaz saati)'
+              : Fmt.dateTime(d.deliveredAt),
+        ),
+      if (d.acceptedAt != null)
+        FactRow(
+          label: 'Cari kabulü',
+          value: Fmt.dateTime(d.acceptedAt),
+          tone: AknTone.ok,
+        ),
+      if (d.driverLabel != null)
+        FactRow(
+          label: 'Şoför',
+          value:
+              d.driverAccountName != null && d.driverAccountName != d.driverName
+              ? '${d.driverLabel} (${d.driverAccountName})'
+              : d.driverLabel!,
+        ),
+      if (d.driverUserId == null && d.viewerSide == 'bayi')
+        const FactRow(
+          label: 'Şoför hesabı',
+          value: 'Atanmamış (uygulamada görünmez)',
+          tone: AknTone.warn,
+        ),
+      if (d.deliveryDocumentNo != null)
+        FactRow(label: 'İrsaliye no', value: d.deliveryDocumentNo!),
+      if (d.recipientName != null)
+        FactRow(label: 'Teslim alan', value: d.recipientName!),
+      if (d.reportedByName != null)
+        FactRow(label: 'Bildiren', value: d.reportedByName!),
+      if (d.distanceToDeliveryPointMeters != null)
+        FactRow(
+          label: 'Teslim konumu',
+          value: 'Noktaya ${Fmt.integer(d.distanceToDeliveryPointMeters)} m',
+          tone: d.distanceToDeliveryPointMeters! > 500 ? AknTone.warn : null,
+        ),
+    ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         Wrap(
-          spacing: 8,
+          spacing: 12,
           runSpacing: 6,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            FitStart(
-              child: StatusChip.style(
-                d.status.statusStyle.withLabel(d.statusLabel),
+            AknLamp.status(lamp),
+            if (d.isAppDriver)
+              const AknLamp(
+                label: 'uygulamada',
+                tone: AknTone.ok,
+                size: AknLampSize.small,
               ),
-            ),
-            if (d.isAppDriver) const InAppBadge(),
           ],
         ),
-        const SizedBox(height: 8),
-        Text(d.customerTitle ?? '', style: t.headline),
-        Text([?d.productName, d.orderNumber].join(' · '), style: t.bodySmall),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.customerTitle ?? '',
+                    style: t.headline.copyWith(color: c.ink),
+                  ),
+                  Text(
+                    [?d.productName, d.orderNumber].join(', '),
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
+                ],
+              ),
+            ),
+            if (AdrPlate.forProduct(d.productName, height: 30) case final adr?)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(start: 12),
+                child: adr,
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        KpiRow(
+          children: [
+            KpiTile(
+              label: 'Planlanan',
+              value: d.plannedLiters,
+              format: (v) => Fmt.number(v, maxFraction: 3),
+              unit: 'L',
+            ),
+            if (d.deliveredLiters != null)
+              KpiTile(
+                label: 'Teslim edilen',
+                value: d.deliveredLiters,
+                format: (v) => Fmt.number(v, maxFraction: 3),
+                unit: 'L',
+              ),
+            if (diff != null && diff.abs() >= 0.001)
+              KpiTile(
+                label: 'Fark',
+                value: diff,
+                format: (v) =>
+                    '${v > 0 ? '+' : ''}${Fmt.number(v, maxFraction: 3)}',
+                unit: 'L',
+              ),
+          ],
+        ),
         if (d.status == ShipmentStatus.inTransit) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           TruckRoute(
             moving: true,
-            height: 40,
             originLabel: d.dispatchedAt == null
                 ? 'Yolda'
-                : 'Yolda · ${Fmt.time(d.dispatchedAt)}\'de çıktı',
+                : '${Fmt.time(d.dispatchedAt)} çıktı',
             destinationLabel: point.name,
             semanticLabel:
                 'Yolda, canlı konum değildir${d.dispatchedAt == null ? '' : ', ${Fmt.time(d.dispatchedAt)} çıkış'}',
@@ -258,7 +350,7 @@ class _Content extends ConsumerWidget {
           const SizedBox(height: 12),
           AknBanner(
             tone: AknTone.danger,
-            icon: Icons.report_rounded,
+            icon: Icons.report_outlined,
             title: 'Carinin itirazı',
             message: d.disputeNote!,
           ),
@@ -272,154 +364,90 @@ class _Content extends ConsumerWidget {
             message: d.signatureWaiverLabel!,
           ),
         ],
-        const SizedBox(height: 12),
-        AknCard(
-          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-          child: Column(
-            children: [
-              FactRow(label: 'Planlanan', value: Fmt.liters(d.plannedLiters)),
-              if (d.deliveredLiters != null)
-                FactRow(
-                  label: 'Teslim edilen',
-                  value: Fmt.liters(d.deliveredLiters),
-                ),
-              if (diff != null && diff.abs() >= 0.001)
-                FactRow(
-                  label: 'Fark',
-                  value: '${diff > 0 ? '+' : ''}${Fmt.liters(diff)}',
-                  tone: AknTone.warn,
-                ),
-              FactRow(label: 'Plan zamanı', value: Fmt.dateTime(d.scheduledAt)),
-              if (d.dispatchedAt != null)
-                FactRow(
-                  label: 'Yola çıkış',
-                  value: Fmt.dateTime(d.dispatchedAt),
-                ),
-              if (d.deliveredAt != null)
-                FactRow(
-                  label: 'Teslim',
-                  value: d.timeSource == 'device'
-                      ? '${Fmt.dateTime(d.deliveredAt)} (cihaz saati)'
-                      : Fmt.dateTime(d.deliveredAt),
-                ),
-              if (d.acceptedAt != null)
-                FactRow(
-                  label: 'Cari kabulü',
-                  value: Fmt.dateTime(d.acceptedAt),
-                  tone: AknTone.ok,
-                ),
-              if (d.driverLabel != null)
-                FactRow(
-                  label: 'Şoför',
-                  value:
-                      d.driverAccountName != null &&
-                          d.driverAccountName != d.driverName
-                      ? '${d.driverLabel} (${d.driverAccountName})'
-                      : d.driverLabel!,
-                ),
-              if (d.driverUserId == null && d.viewerSide == 'bayi')
-                const FactRow(
-                  label: 'Şoför hesabı',
-                  value: 'Atanmamış (uygulamada görünmez)',
-                  tone: AknTone.warn,
-                ),
-              if (d.deliveryDocumentNo != null)
-                FactRow(label: 'İrsaliye no', value: d.deliveryDocumentNo!),
-              if (d.recipientName != null)
-                FactRow(label: 'Teslim alan', value: d.recipientName!),
-              if (d.reportedByName != null)
-                FactRow(label: 'Bildiren', value: d.reportedByName!),
-              if (d.distanceToDeliveryPointMeters != null)
-                FactRow(
-                  label: 'Teslim konumu',
-                  value:
-                      'Noktaya ${Fmt.integer(d.distanceToDeliveryPointMeters)} m',
-                  tone: d.distanceToDeliveryPointMeters! > 500
-                      ? AknTone.warn
-                      : null,
-                ),
-            ],
-          ),
-        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < facts.length; i++) ...[
+          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+          facts[i],
+        ],
         if (d.vehiclePlate != null) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text('Plaka', style: t.bodySmall),
-              const SizedBox(width: 12),
-              Flexible(child: PlateBadge(plate: d.vehiclePlate!, fontSize: 15)),
-            ],
+          Divider(height: 1, thickness: 1, color: c.line),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Plaka',
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
+                ),
+                PlateBadge(plate: d.vehiclePlate!),
+              ],
+            ),
           ),
         ],
         if (d.deliveryNote != null) ...[
           const SizedBox(height: 12),
-          Text('Teslim notu', style: t.label),
+          Text('Teslim notu', style: t.label.copyWith(color: c.ink)),
           const SizedBox(height: 2),
-          Text(d.deliveryNote!, style: t.body),
+          Text(d.deliveryNote!, style: t.body.copyWith(color: c.ink)),
         ],
         if (d.proofAttachments.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Teslim kanıtı', style: t.bodyStrong),
+          Text('Teslim kanıtı', style: t.bodyStrong.copyWith(color: c.ink)),
           const SizedBox(height: 8),
           AttachmentGallery(attachments: d.proofAttachments),
         ],
         if (d.disputeAttachments.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('İtiraz fotoğrafları', style: t.bodyStrong),
+          Text(
+            'İtiraz fotoğrafları',
+            style: t.bodyStrong.copyWith(color: c.ink),
+          ),
           const SizedBox(height: 8),
           AttachmentGallery(attachments: d.disputeAttachments),
         ],
         const SizedBox(height: 16),
-        AknCard(
-          padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(point.name ?? 'Teslimat noktası', style: t.bodyStrong),
-              if (point.address != null || point.place != null)
-                Text(
-                  [?point.address, ?point.place].join(', '),
-                  style: t.bodySmall,
-                ),
-              if (point.window != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    'Teslim penceresi ${point.window}',
-                    style: t.bodySmall,
-                  ),
-                ),
-              Wrap(
-                spacing: 4,
-                children: [
-                  if (point.canOpenMap)
-                    TextButton.icon(
-                      onPressed: () => openMap(
-                        context,
-                        latitude: point.latitude!,
-                        longitude: point.longitude!,
-                        label: point.name,
-                      ),
-                      icon: const Icon(Icons.map_outlined, size: 18),
-                      label: const Text('Haritada aç'),
-                    ),
-                  if (grants.viewOrders)
-                    TextButton.icon(
-                      onPressed: () {
-                        final router = GoRouter.of(context);
-                        Navigator.of(context).pop();
-                        unawaited(router.push(AppRoutes.bayiOrder(d.orderId)));
-                      },
-                      icon: const Icon(Icons.receipt_long_outlined, size: 18),
-                      label: const Text('Siparişi aç'),
-                    ),
-                ],
-              ),
-            ],
+        Text(
+          point.name ?? 'Teslimat noktası',
+          style: t.bodyStrong.copyWith(color: c.ink),
+        ),
+        if (point.address != null || point.place != null)
+          Text(
+            [?point.address, ?point.place].join(', '),
+            style: t.bodySmall.copyWith(color: c.dim),
           ),
+        if (point.window != null)
+          Text(
+            'Teslim penceresi ${point.window}',
+            style: t.bodySmall.copyWith(color: c.dim),
+          ),
+        Wrap(
+          spacing: 20,
+          children: [
+            if (point.canOpenMap)
+              AknInlineLink(
+                label: 'Haritada aç',
+                onTap: () => openMap(
+                  context,
+                  latitude: point.latitude!,
+                  longitude: point.longitude!,
+                  label: point.name,
+                ),
+              ),
+            if (grants.viewOrders)
+              AknInlineLink(
+                label: 'Siparişi aç',
+                onTap: () {
+                  final router = GoRouter.of(context);
+                  Navigator.of(context).pop();
+                  unawaited(router.push(AppRoutes.bayiOrder(d.orderId)));
+                },
+              ),
+          ],
         ),
         if (hasActions) ...[
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           if (!online)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
@@ -431,7 +459,6 @@ class _Content extends ConsumerWidget {
           if (canDispatch)
             _ActionButton(
               label: 'Yola çıkar',
-              icon: Icons.local_shipping_rounded,
               primary: true,
               loading: busy == 'dispatch',
               enabled: online && busy == null,
@@ -442,8 +469,7 @@ class _Content extends ConsumerWidget {
               label: d.status == ShipmentStatus.disputed
                   ? 'Teslimatı düzelt'
                   : 'Teslim bildir',
-              icon: Icons.fact_check_rounded,
-              primary: true,
+              primary: !canDispatch,
               loading: busy == 'report',
               enabled: online && busy == null,
               onPressed: onReport,
@@ -451,7 +477,6 @@ class _Content extends ConsumerWidget {
           if (canReassign)
             _ActionButton(
               label: 'Şoför değiştir',
-              icon: Icons.swap_horiz_rounded,
               loading: busy == 'reassign',
               enabled: online && busy == null,
               onPressed: onReassign,
@@ -459,7 +484,6 @@ class _Content extends ConsumerWidget {
           if (canCancel)
             _ActionButton(
               label: 'Planı iptal et',
-              icon: Icons.block_rounded,
               danger: true,
               loading: busy == 'cancel',
               enabled: online && busy == null,
@@ -474,7 +498,6 @@ class _Content extends ConsumerWidget {
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
     required this.label,
-    required this.icon,
     required this.onPressed,
     required this.enabled,
     this.loading = false,
@@ -483,7 +506,6 @@ class _ActionButton extends StatelessWidget {
   });
 
   final String label;
-  final IconData icon;
   final VoidCallback onPressed;
   final bool enabled;
   final bool loading;
@@ -494,24 +516,16 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final cb = enabled ? onPressed : null;
     final Widget b = danger
-        ? AknButton.ghost(
+        ? AknButton.danger(
             label: label,
-            icon: icon,
             expand: true,
             loading: loading,
             onPressed: cb,
           )
         : primary
-        ? AknButton(
-            label: label,
-            icon: icon,
-            expand: true,
-            loading: loading,
-            onPressed: cb,
-          )
+        ? AknButton(label: label, expand: true, loading: loading, onPressed: cb)
         : AknButton.secondary(
             label: label,
-            icon: icon,
             expand: true,
             loading: loading,
             onPressed: cb,

@@ -160,8 +160,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.dispatch,
     label: 'Sevkiyat',
-    icon: Icons.route_outlined,
-    selectedIcon: Icons.route_rounded,
+    icon: Icons.local_shipping_outlined,
+    selectedIcon: Icons.local_shipping_rounded,
     path: AppRoutes.dispatch,
     priority: 7,
     visible: (p, f) => p.isBayi && p.can(Pg.stationShipmentBoard),
@@ -169,8 +169,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.payments,
     label: 'Tahsilat',
-    icon: Icons.payments_outlined,
-    selectedIcon: Icons.payments_rounded,
+    icon: Icons.account_balance_wallet_outlined,
+    selectedIcon: Icons.account_balance_wallet_rounded,
     path: AppRoutes.payments,
     priority: 8,
     visible: (p, f) => p.isBayi && p.can(Pg.stationPayments),
@@ -197,8 +197,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.field,
     label: 'Saha',
-    icon: Icons.storefront_outlined,
-    selectedIcon: Icons.storefront_rounded,
+    icon: Icons.badge_outlined,
+    selectedIcon: Icons.badge_rounded,
     path: AppRoutes.field,
     priority: 11,
     visible: (p, f) =>
@@ -216,8 +216,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.staff,
     label: 'Ekip',
-    icon: Icons.badge_outlined,
-    selectedIcon: Icons.badge_rounded,
+    icon: Icons.supervisor_account_outlined,
+    selectedIcon: Icons.supervisor_account_rounded,
     path: AppRoutes.bayiStaff,
     priority: 13,
     visible: (p, f) => p.isBayi && !p.isFieldSales && p.can(Pg.stationStaff),
@@ -309,7 +309,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.notifications,
     label: 'Bildirimler',
     barLabel: 'Bildirim',
-    icon: Icons.notifications_outlined,
+    icon: Icons.notifications_none_rounded,
     selectedIcon: Icons.notifications_rounded,
     path: AppRoutes.notifications,
     priority: 31,

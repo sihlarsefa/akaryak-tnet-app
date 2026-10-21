@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/session_controller.dart';
 import '../ui/ui.dart';
 import '../utils/tr_time.dart';
+import '../utils/turkish_text.dart';
 
-/// Ana sayfa yer tutucusu (aşama 0): lacivert karşılama + bu ana sayfada neler olacağı. Özellik
-/// ajanları kendi ana sayfalarıyla değiştirir (`CustomerHome`, `BayiHome`, `FieldHome`, `DriverHome`).
+/// Ana sayfa yer tutucusu (aşama 0; tasarım v2 §7.6): plaka yok — ana sayfa başlığı (logo karosu,
+/// çalıştığı yer, ad ve roller), `display` karşılama ve bu ana sayfada neler olacağı (defter satırları).
+/// Özellik ajanları kendi ana sayfalarıyla değiştirir (`CustomerHome`, `BayiHome`, `FieldHome`,
+/// `DriverHome`).
 class HomePlaceholder extends ConsumerWidget {
   const HomePlaceholder({
     super.key,
@@ -33,71 +36,52 @@ class HomePlaceholder extends ConsumerWidget {
     final access = ref.watch(sessionControllerProvider).access;
     final t = context.aknText;
     final c = context.akn;
-    final firstName = (access?.displayName ?? '').split(' ').first;
+    final name = access?.displayName ?? '';
+    final firstName = name.split(' ').first;
     final roles = access?.bayiRoleNames.isNotEmpty ?? false
         ? access!.bayiRoleNames
         : [roleLabel];
+    // "Selin Aydın, şoför": rol cümle içinde küçük harfle (§6.2).
+    final person = [
+      if (name.isNotEmpty) name,
+      ...roles.map(TurkishText.lower),
+    ].join(', ');
     return AppScaffold(
-      navy: true,
-      title: 'AkaryakıtNet',
+      homeHeader: AknHomeHeader(
+        company: access?.organizationTitle ?? 'AkaryakıtNet',
+        person: person,
+      ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
-          AknHeroPanel(
-            margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${greeting()}${firstName.isEmpty ? '' : ', $firstName'}',
-                  style: t.title,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  access?.organizationTitle ?? roleLabel,
-                  style: t.body.copyWith(color: c.onNavyDim),
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final r in roles)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: c.onNavy.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          r,
-                          style: t.label.copyWith(color: c.onNavy),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AknSpace.page,
+              16,
+              AknSpace.page,
+              0,
+            ),
+            child: Semantics(
+              header: true,
+              child: Text(
+                '${greeting()}${firstName.isEmpty ? '' : ', $firstName'}',
+                style: t.display.copyWith(color: c.ink),
+                textScaler: MediaQuery.textScalerOf(
+                  context,
+                ).clamp(maxScaleFactor: 1.6),
+              ),
             ),
           ),
           const SectionHeader(
             title: 'Yakında burada',
-            subtitle: 'Bu ana sayfa hazırlanıyor',
+            subtitle: 'Bu ana sayfa hazırlanıyor.',
           ),
-          for (final (icon, title, text) in upcoming)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: AknCard(
-                child: AknListTile(
-                  title: title,
-                  subtitle: text,
-                  leadingIcon: icon,
-                  padding: EdgeInsets.zero,
-                ),
-              ),
-            ),
+          AknLedger(
+            children: [
+              for (final (icon, title, text) in upcoming)
+                AknListTile(title: title, subtitle: text, leadingIcon: icon),
+            ],
+          ),
         ],
       ),
     );

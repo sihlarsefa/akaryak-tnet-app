@@ -218,7 +218,7 @@ void registerDriverFakes(FakeServer server) {
       eventCode: 'shipment.reported',
       title: 'Teslimatı onaylayın',
       body:
-          '${s['orderNumber']} için ${_liters(liters)} teslim edildi. Lütfen kontrol edip onaylayın.',
+          '${s['orderNumber']} için ${_liters(liters)} teslim edildi. Kontrol edip onaylayın.',
       route: '/shipments/$id',
       entityType: 'Shipment',
       entityId: id,
@@ -523,7 +523,7 @@ void _notifyBayi(FakeWorld w, JsonMap s, {required String actor}) {
       eventCode: 'shipment.reported',
       title: 'Teslimat bildirildi',
       body:
-          '${s['orderNumber']} · ${s['customerName']} · müşteri onayı bekleniyor.',
+          '${s['orderNumber']}, ${s['customerName']}: müşteri onayı bekleniyor.',
       route: '/bayi/orders/${s['orderId']}',
       entityType: 'Order',
       entityId: s['orderId'] as int?,

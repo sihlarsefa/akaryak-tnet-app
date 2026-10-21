@@ -12,6 +12,7 @@ import '../core/offline/pending_ops_chip.dart';
 import '../core/push/app_badge.dart';
 import '../core/push/push_providers.dart';
 import '../core/push/unread_count_provider.dart';
+import '../core/routing/app_location.dart';
 import '../core/routing/app_routes.dart';
 import '../core/routing/nav_keys.dart';
 import '../core/storage/prefs_store.dart';
@@ -99,7 +100,7 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
       actionLabel: route == null ? null : 'Aç',
       onAction: route == null
           ? null
-          : () => ref.read(routerProvider).push(route),
+          : () => openAppLocation(ref.read(routerProvider), route),
     );
   }
 
@@ -154,7 +155,10 @@ class _ChromeHost extends ConsumerWidget {
         unreadCountProvider.select((u) => u.notifications),
       ),
       onOpenNotifications: signedIn
-          ? () => ref.read(routerProvider).push(AppRoutes.notifications)
+          ? () => openAppLocation(
+              ref.read(routerProvider),
+              AppRoutes.notifications,
+            )
           : null,
       offline: !ref.watch(isOnlineProvider),
       pendingOps: ref.watch(pendingOpsCountProvider),

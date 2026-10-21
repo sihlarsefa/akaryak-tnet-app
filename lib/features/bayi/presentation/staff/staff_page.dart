@@ -8,6 +8,7 @@ import '../../../../core/auth/session_controller.dart';
 import '../../../../core/offline/connectivity.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/staff_controller.dart';
 import '../../copy.dart';
@@ -61,7 +62,6 @@ class _StaffPageState extends ConsumerState<StaffPage> {
     final rows = s.visible;
     return AppScaffold(
       title: 'Ekip',
-      subtitle: s.data.hasData ? '${s.all.length} personel' : null,
       refreshing: s.data.refreshing,
       body: LoadableBody<List<StaffMember>>(
         state: s.data,
@@ -73,9 +73,9 @@ class _StaffPageState extends ConsumerState<StaffPage> {
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: SearchField(
-                  hint: 'Ad, e-posta, telefon, rol',
+                  hint: 'Ad, e-posta, telefon ya da rol',
                   controller: _search,
                   onChanged: c.setQuery,
                 ),
@@ -88,17 +88,15 @@ class _StaffPageState extends ConsumerState<StaffPage> {
                 value: s.filter,
                 onChanged: c.setFilter,
               ),
-              const SizedBox(height: 12),
               if (!g.manageStaff)
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: AknBanner(
-                    tone: AknTone.neutral,
-                    icon: Icons.visibility_outlined,
-                    message:
-                        'Ekibi görüntüleyebilirsiniz; aktif / pasif ve şifre işlemleri için yetkiniz yok.',
-                  ),
+                const PageWell(
+                  top: 12,
+                  tone: AknTone.neutral,
+                  icon: Icons.visibility_outlined,
+                  message:
+                      'Ekibi görüntüleyebilirsiniz; aktif / pasif ve şifre işlemleri için yetkiniz yok.',
                 ),
+              const SizedBox(height: 8),
               if (rows.isEmpty)
                 const EmptyState(
                   compact: true,
@@ -107,20 +105,19 @@ class _StaffPageState extends ConsumerState<StaffPage> {
                   illustration: AknIllustration.customers,
                 )
               else
-                StaggerScope(
-                  child: Column(
-                    children: [
-                      for (var i = 0; i < rows.length; i++)
-                        StaggerItem(
-                          index: i,
-                          child: _StaffCard(
-                            member: rows[i],
-                            manage: g.manageStaff,
-                            busy: s.busy.contains(rows[i].userId),
-                          ),
-                        ),
-                    ],
-                  ),
+                AknLedger(
+                  children: [
+                    for (final m in rows)
+                      StaffRow(
+                        member: m,
+                        manage: g.manageStaff,
+                        busy: s.busy.contains(m.userId),
+                      ),
+                  ],
+                ),
+              if (rows.isNotEmpty)
+                ListFooterNote(
+                  '${s.all.length} personel. Rolleri ve yeni personeli web portalından yönetebilirsiniz.',
                 ),
             ],
           ),
@@ -130,8 +127,11 @@ class _StaffPageState extends ConsumerState<StaffPage> {
   }
 }
 
-class _StaffCard extends ConsumerWidget {
-  const _StaffCard({
+/// Ekip satırı (defter satırı): baş harf, ad ("Siz", "Pasif" lambaları), e-posta, roller, son giriş;
+/// arama düğmesi; yönetici için aktif / pasif anahtarı ve "Şifre bağlantısı gönder".
+class StaffRow extends ConsumerWidget {
+  const StaffRow({
+    super.key,
     required this.member,
     required this.manage,
     required this.busy,
@@ -201,10 +201,17 @@ class _StaffCard extends ConsumerWidget {
     final me = ref.watch(currentUserIdProvider) == m.userId;
     final login = m.lastLoginAt == null
         ? 'Henüz giriş yapmadı'
-        : 'Son giriş ${Fmt.relative(m.lastLoginAt)}';
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+        : 'Son giriş ${TurkishText.lower(Fmt.relative(m.lastLoginAt))}';
+    final roles = [
+      for (final r in m.roles.where((r) => r.roleIsActive)) r.label,
+      if (m.roles.isEmpty && m.permissionGroupName != null)
+        m.permissionGroupName!,
+      if (m.isFieldSales &&
+          !m.roles.any((r) => r.templateCode == BayiRoleCodes.fieldRep))
+        'Saha satış',
+    ];
+    return Padding(
+      padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 8, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -213,37 +220,58 @@ class _StaffCard extends ConsumerWidget {
             children: [
               Opacity(
                 opacity: m.isActive ? 1 : 0.6,
-                child: AknAvatar(name: m.displayName, size: 44),
+                child: AknAvatar(name: m.displayName, size: 40),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
+                      spacing: 12,
+                      runSpacing: 2,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Text(m.displayName, style: t.bodyStrong),
+                        Text(
+                          m.displayName,
+                          style: t.headline.copyWith(
+                            color: m.isActive ? c.ink : c.dim,
+                          ),
+                        ),
                         if (me)
-                          const StatusChip(
+                          const AknLamp(
                             label: 'Siz',
-                            tone: AknTone.brand,
-                            icon: Icons.person_rounded,
-                            size: StatusChipSize.small,
+                            tone: AknTone.info,
+                            size: AknLampSize.small,
                           ),
                         if (!m.isActive)
-                          const StatusChip(
+                          const AknLamp(
                             label: 'Pasif',
                             tone: AknTone.neutral,
-                            icon: Icons.block_rounded,
-                            size: StatusChipSize.small,
+                            size: AknLampSize.small,
                           ),
                       ],
                     ),
+                    Text(m.email, style: t.bodySmall.copyWith(color: c.dim)),
+                    if (roles.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: [
+                          for (var i = 0; i < roles.length; i++)
+                            Text(
+                              roles[i],
+                              semanticsLabel: roles[i],
+                              style: t.bodySmall.copyWith(
+                                color: c.ink,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 2),
-                    Text(m.email, style: t.bodySmall),
                     Text(login, style: t.caption.copyWith(color: c.dim)),
                   ],
                 ),
@@ -256,92 +284,48 @@ class _StaffCard extends ConsumerWidget {
                 ),
             ],
           ),
-          if (m.roleLabels.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final r in m.roles.where((r) => r.roleIsActive))
-                  StatusChip(
-                    label: r.label,
-                    tone: AknTone.neutral,
-                    icon: _roleIcon(r.templateCode),
-                    size: StatusChipSize.small,
-                  ),
-                if (m.roles.isEmpty && m.permissionGroupName != null)
-                  StatusChip(
-                    label: m.permissionGroupName!,
-                    tone: AknTone.neutral,
-                    icon: Icons.group_outlined,
-                    size: StatusChipSize.small,
-                  ),
-                if (m.isFieldSales &&
-                    !m.roles.any(
-                      (r) => r.templateCode == BayiRoleCodes.fieldRep,
-                    ))
-                  const StatusChip(
-                    label: 'Saha satış',
-                    tone: AknTone.neutral,
-                    icon: Icons.storefront_rounded,
-                    size: StatusChipSize.small,
-                  ),
-              ],
-            ),
-          ],
-          if (manage && !me) ...[
-            const Divider(height: 20),
-            // Anahtar ve "Şifre bağlantısı gönder" alt alta: dar telefonda da etiket bütün kalır.
-            MergeSemantics(
-              child: Row(
+          if (manage && !me)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 54, top: 6),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Semantics(
-                    label: '${m.displayName} hesabı',
-                    child: Switch(
-                      value: m.isActive,
-                      onChanged: busy || !online
-                          ? null
-                          : (v) => unawaited(_toggle(context, ref, v)),
+                  MergeSemantics(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Semantics(
+                          label: '${m.displayName} hesabı',
+                          child: Switch(
+                            value: m.isActive,
+                            onChanged: busy || !online
+                                ? null
+                                : (v) => unawaited(_toggle(context, ref, v)),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          m.isActive ? 'Aktif' : 'Pasif',
+                          style: t.label.copyWith(color: c.ink),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Flexible(
-                    child: Text(m.isActive ? 'Aktif' : 'Pasif', style: t.label),
-                  ),
+                  if (m.isActive)
+                    AknButton.ghost(
+                      label: 'Şifre bağlantısı gönder',
+                      size: AknButtonSize.small,
+                      onPressed: busy || !online
+                          ? null
+                          : () => unawaited(_sendLink(context, ref)),
+                    ),
                 ],
               ),
             ),
-            if (m.isActive)
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: AknButton.ghost(
-                  label: 'Şifre bağlantısı gönder',
-                  icon: Icons.mark_email_read_outlined,
-                  size: AknButtonSize.small,
-                  onPressed: busy || !online
-                      ? null
-                      : () => unawaited(_sendLink(context, ref)),
-                ),
-              ),
-          ],
         ],
       ),
     );
   }
-
-  static IconData _roleIcon(String? code) => switch (code) {
-    BayiRoleCodes.owner ||
-    BayiRoleCodes.manager => Icons.workspace_premium_outlined,
-    BayiRoleCodes.financeManager ||
-    BayiRoleCodes.financeSpecialist => Icons.account_balance_outlined,
-    BayiRoleCodes.accounting => Icons.payments_outlined,
-    BayiRoleCodes.salesManager ||
-    BayiRoleCodes.fieldRep => Icons.storefront_outlined,
-    BayiRoleCodes.orderDesk => Icons.request_quote_outlined,
-    BayiRoleCodes.dispatch => Icons.route_outlined,
-    BayiRoleCodes.driver => Icons.local_shipping_outlined,
-    BayiRoleCodes.depot => Icons.local_gas_station_outlined,
-    BayiRoleCodes.viewer => Icons.visibility_outlined,
-    _ => Icons.badge_outlined,
-  };
 }

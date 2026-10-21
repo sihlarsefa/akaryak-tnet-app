@@ -1,6 +1,6 @@
 import '../../core/models/json.dart';
 import '../../core/models/me_access.dart';
-import '../../core/network/fake/fake_auth.dart';
+import '../../core/network/fake/fake_auth.dart' show FakeDeviceSession;
 import '../../core/network/fake/fake_personas.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/network/fake/fake_world.dart';
@@ -102,7 +102,7 @@ void registerProfileFakes(FakeServer s) {
           'Cep telefonu 05xx xxx xx xx biçiminde, SMS alabilen bir Türkiye GSM numarası olmalıdır.',
         ]);
       }
-      if (r.str('currentPassword') != FakeAuth.password) {
+      if (!s.auth.acceptsPassword(p.key, r.str('currentPassword'))) {
         throw failed([
           'Telefon numarasını değiştirmek için mevcut şifrenizi doğru girin.',
         ]);
@@ -125,7 +125,9 @@ void registerProfileFakes(FakeServer s) {
     if (current == next) {
       throw failed(['Yeni şifre mevcut şifreden farklı olmalıdır.']);
     }
-    if (current != FakeAuth.password) throw failed(['Mevcut şifre hatalı.']);
+    if (!s.auth.acceptsPassword(p.key, current)) {
+      throw failed(['Mevcut şifre hatalı.']);
+    }
     final errors = [
       if (next.length < 8) 'Şifre en az 8 karakter olmalıdır.',
       if (!RegExp(r'\d').hasMatch(next)) 'Şifre en az bir rakam içermelidir.',
@@ -136,6 +138,8 @@ void registerProfileFakes(FakeServer s) {
     ];
     if (errors.isNotEmpty) throw failed(errors);
     ctl.passwordChanges++;
+    // QA SC-04: yeni şifreyle giriş de kabul edilir (`demo` geçerli kalır).
+    s.auth.changedPasswords[p.key] = next;
     // Sunucu güvenlik damgasını yeniler: tüm mobil oturumlar kapanır.
     s.auth.revokeAll(p.key);
     return ok();
@@ -144,7 +148,7 @@ void registerProfileFakes(FakeServer s) {
   s.post('me/deletion-request', (req) {
     final p = req.requireUser();
     final r = req.json;
-    if (r.str('password') != FakeAuth.password) {
+    if (!s.auth.acceptsPassword(p.key, r.str('password'))) {
       throw FakeResponse.validation({
         'password': ['Şifre hatalı.'],
       }, 'Şifre hatalı.');

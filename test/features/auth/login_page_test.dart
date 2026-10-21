@@ -1,31 +1,81 @@
 // Giriş ekranı (spec A.4 A1, C.7): erişilebilirlik matrisi, hatalı şifre, kilitlenme geri sayımı,
-// telefon sekmesi, "Hesabım yok", yasal bağlantılar, "Şifremi unuttum", demo hesapları.
+// telefonla giriş, "Bayinizden davet isteyin", yasal bağlantılar, "Şifremi unuttum", demo hesapları
+// (sahip kararı 2026-10-21: bandın altında Müşteri / Bayi / Merkez kartları, tek dokunuşla giriş;
+// canlı kipte yok).
+import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
+import 'package:akaryakitnet/core/env/app_env.dart';
 import 'package:akaryakitnet/core/models/app_config.dart';
+import 'package:akaryakitnet/core/models/me_access.dart';
+import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/auth/application/auth_throttle.dart';
 import 'package:akaryakitnet/features/auth/application/login_effects.dart';
 import 'package:akaryakitnet/features/auth/auth_fake.dart';
 import 'package:akaryakitnet/features/auth/presentation/code_page.dart';
+import 'package:akaryakitnet/features/auth/presentation/widgets/demo_accounts.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'auth_test_support.dart';
 
-Finder _field(String label) => find.widgetWithText(TextField, label);
+/// Etiketi alanın üstünde duran (tasarım v2 §6.10) metin alanı.
+Finder _field(String label) => find.descendant(
+  of: find.ancestor(of: find.text(label), matching: find.byType(AknTextField)),
+  matching: find.byType(TextField),
+);
 
 void main() {
-  a11yMatrix('giriş (şifre)', (tester, scale, b) async {
+  a11yMatrix('giriş (şifre, demo derlemesi)', (tester, scale, b) async {
     await pumpAuthRoute(tester, '/login', textScale: scale, brightness: b);
     expect(find.text('Giriş yap'), findsOneWidget);
-    expect(find.text('Hesabınıza giriş yapın'), findsOneWidget);
-    expect(find.text('Şifreyle'), findsOneWidget);
+    expect(find.text('Hoş geldiniz'), findsOneWidget);
+    expect(find.text('Numara ile'), findsOneWidget);
+    // Demo bölümü bandın altında, formun üstünde; başlığın yerini ayraç alır.
+    expect(find.text('Demo hesaplarıyla girin'), findsOneWidget);
+    expect(find.text('Kendi hesabınızla girin'), findsOneWidget);
+    expect(find.text('Giriş yapın'), findsNothing);
+    _expectAbove(tester, 'Demo hesaplarıyla girin', 'Kendi hesabınızla girin');
+    _expectAbove(
+      tester,
+      'Kendi hesabınızla girin',
+      'E-posta ya da kullanıcı adı',
+    );
+  });
+
+  a11yMatrix('giriş (canlı derleme: demo yok)', (tester, scale, b) async {
+    await pumpAuthRoute(
+      tester,
+      '/login',
+      textScale: scale,
+      brightness: b,
+      overrides: [demoLoginsEnabledProvider.overrideWithValue(false)],
+    );
+    expect(find.text('Giriş yap'), findsOneWidget);
+    expect(find.text('Giriş yapın'), findsOneWidget);
+    expect(find.text('Demo hesaplarıyla girin'), findsNothing);
+    expect(find.text('Kendi hesabınızla girin'), findsNothing);
+    expect(find.byType(DemoPersonaCard), findsNothing);
+  });
+
+  a11yMatrix('giriş (demo kartları kaydırılmış)', (tester, scale, b) async {
+    await pumpAuthRoute(tester, '/login', textScale: scale, brightness: b);
+    await tester.scrollUntilVisible(
+      find.text('Merkez Operasyon'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pump();
+    expect(find.text('Genel merkez'), findsOneWidget);
   });
 
   a11yMatrix('giriş (telefon sekmesi)', (tester, scale, b) async {
     await pumpAuthRoute(tester, '/login', textScale: scale, brightness: b);
-    await tapVisible(tester, find.text('Telefonla'));
+    await tapVisible(tester, find.text('Numara ile'));
     await pumpFor(tester, const Duration(milliseconds: 600));
     expect(find.text('Kod gönder'), findsOneWidget);
+    expect(find.text('Şifre ile'), findsOneWidget);
     expect(_field('Cep telefonu'), findsOneWidget);
   });
 
@@ -52,7 +102,7 @@ void main() {
         );
     await tester.pump();
     expect(find.text('Giriş geçici olarak kapalı'), findsOneWidget);
-    expect(find.text('Tekrar dene · 15:00'), findsOneWidget);
+    expect(find.text('Tekrar dene (15:00)'), findsOneWidget);
   });
 
   testWidgets('boş alanlar: alan hataları, istek gitmez', (tester) async {
@@ -73,7 +123,7 @@ void main() {
   ) async {
     setPhoneSize(tester);
     await pumpAuthRoute(tester, '/login');
-    await tester.enterText(_field('Kullanıcı adı veya e-posta'), 'musteri');
+    await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'musteri');
     await tester.enterText(_field('Şifre'), 'yanlis');
     await tapVisible(tester, find.text('Giriş yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
@@ -110,19 +160,22 @@ void main() {
         overrides: clockAndLinks(clock: clock),
       );
       for (var i = 0; i < 5; i++) {
-        await tester.enterText(_field('Kullanıcı adı veya e-posta'), 'musteri');
+        await tester.enterText(
+          _field('E-posta ya da kullanıcı adı'),
+          'musteri',
+        );
         await tester.enterText(_field('Şifre'), 'yanlis');
         await tapVisible(tester, find.text('Giriş yap'));
         await pumpFor(tester, const Duration(milliseconds: 300));
       }
       expect(find.text('Giriş geçici olarak kapalı'), findsOneWidget);
       expect(find.textContaining('15 dakika kapatıldı'), findsOneWidget);
-      expect(find.text('Tekrar dene · 15:00'), findsOneWidget);
+      expect(find.text('Tekrar dene (15:00)'), findsOneWidget);
       expect(find.text('Giriş yap'), findsNothing);
 
       clock.advance(const Duration(minutes: 5));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Tekrar dene · 10:00'), findsOneWidget);
+      expect(find.text('Tekrar dene (10:00)'), findsOneWidget);
 
       clock.advance(const Duration(minutes: 10, seconds: 1));
       await tester.pump(const Duration(seconds: 1));
@@ -138,7 +191,7 @@ void main() {
     (tester) async {
       setPhoneSize(tester);
       await pumpAuthRoute(tester, '/login');
-      await tapVisible(tester, find.text('Telefonla'));
+      await tapVisible(tester, find.text('Numara ile'));
       await pumpFor(tester, const Duration(milliseconds: 500));
       await tester.enterText(_field('Cep telefonu'), '123');
       await tapVisible(tester, find.text('Kod gönder'));
@@ -155,7 +208,7 @@ void main() {
       await tapVisible(tester, find.text('Kod gönder'));
       await pumpFor(tester, const Duration(milliseconds: 800));
       expect(find.byType(CodePage), findsOneWidget);
-      expect(find.text('Telefonla giriş'), findsWidgets);
+      expect(find.text('Kodu girin'), findsOneWidget);
       expect(find.textContaining('0532 *** ** 01'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
@@ -175,68 +228,52 @@ void main() {
       anonymous: true,
     );
     await pumpAuthRoute(tester, '/login', harness: h);
-    expect(find.text('Telefonla'), findsNothing);
+    expect(find.text('Numara ile'), findsNothing);
     expect(find.text('Giriş yap'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('"Hesabım yok": açıklama ve destek kanalları açılır', (
+  testWidgets(
+    '"Bayinizden davet isteyin": açıklama ve destek kanalları açılır',
+    (tester) async {
+      setPhoneSize(tester);
+      final links = LinkLog();
+      await pumpAuthRoute(
+        tester,
+        '/login',
+        overrides: clockAndLinks(links: links),
+      );
+      await tapVisible(tester, find.text('Bayinizden davet isteyin'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      // Satırdaki soru + sayfanın başlığı.
+      expect(find.text('Hesabınız yok mu?'), findsNWidgets(2));
+      expect(find.textContaining('bayiniz ya da şirketinizin'), findsOneWidget);
+      expect(find.text('Destek hattını arayın'), findsOneWidget);
+      expect(find.text('WhatsApp\'tan yazın'), findsOneWidget);
+      expect(find.text('E-posta gönderin'), findsOneWidget);
+
+      await tapVisible(tester, find.text('Destek hattını arayın'));
+      await tapVisible(tester, find.text('WhatsApp\'tan yazın'));
+      await tapVisible(tester, find.text('E-posta gönderin'));
+      expect(links.uris.map((u) => u.scheme).toList(), [
+        'tel',
+        'https',
+        'mailto',
+      ]);
+      expect(links.uris[1].host, 'wa.me');
+      expect(links.opened.every((o) => o.external), isTrue);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('girişte alt bilgi yok (yasal bağlantılar ve sürüm Profil\'de)', (
     tester,
   ) async {
     setPhoneSize(tester);
-    final links = LinkLog();
-    await pumpAuthRoute(
-      tester,
-      '/login',
-      overrides: clockAndLinks(links: links),
-    );
-    await tapVisible(tester, find.text('Hesabım yok'));
-    await pumpFor(tester, const Duration(milliseconds: 600));
-    expect(find.text('Hesabınız yok mu?'), findsOneWidget);
-    expect(find.textContaining('bayiniz ya da şirketinizin'), findsOneWidget);
-    expect(find.text('Destek hattını arayın'), findsOneWidget);
-    expect(find.text('WhatsApp\'tan yazın'), findsOneWidget);
-    expect(find.text('E-posta gönderin'), findsOneWidget);
-
-    await tapVisible(tester, find.text('Destek hattını arayın'));
-    await tapVisible(tester, find.text('WhatsApp\'tan yazın'));
-    await tapVisible(tester, find.text('E-posta gönderin'));
-    expect(links.uris.map((u) => u.scheme).toList(), [
-      'tel',
-      'https',
-      'mailto',
-    ]);
-    expect(links.uris[1].host, 'wa.me');
-    expect(links.opened.every((o) => o.external), isTrue);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('alt bilgi: Gizlilik · KVKK · Koşullar uygulama içi tarayıcıda', (
-    tester,
-  ) async {
-    setPhoneSize(tester);
-    final links = LinkLog();
-    await pumpAuthRoute(
-      tester,
-      '/login',
-      overrides: clockAndLinks(links: links),
-    );
-    await tester.scrollUntilVisible(
-      find.text('Gizlilik'),
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
-    for (final label in ['Gizlilik', 'KVKK', 'Koşullar']) {
-      await tapVisible(tester, find.text(label));
-      await tester.pump();
+    await pumpAuthRoute(tester, '/login');
+    for (final label in ['Gizlilik', 'KVKK', 'Koşullar', 'Sürüm 1.0.0 (1)']) {
+      expect(find.text(label), findsNothing, reason: label);
     }
-    expect(links.uris.map((u) => u.path).toList(), [
-      '/gizlilik',
-      '/kvkk',
-      '/kullanim-kosullari',
-    ]);
-    expect(links.opened.every((o) => !o.external), isTrue);
-    expect(find.text('Sürüm 1.0.0 (1)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -265,7 +302,7 @@ void main() {
     );
     expect(
       tester
-          .widget<TextField>(_field('Kullanıcı adı veya e-posta'))
+          .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
           .controller!
           .text,
       'musteri',
@@ -290,6 +327,272 @@ void main() {
     expect(find.text('Güncelle'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  group('demo hesapları', () {
+    testWidgets('tüm demo hesapları tek satırda, her persona bir kart', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      await pumpAuthRoute(tester, '/login');
+      expect(find.text('Demo hesaplarıyla girin'), findsOneWidget);
+      expect(find.textContaining('Tek dokunuşla giriş.'), findsOneWidget);
+      expect(find.text('Tümünü gör'), findsOneWidget);
+      // Sahip kararı: Müşteri, Bayi ve Merkez hesapları grup başlığı olmadan tek yatay satırda.
+      for (final g in ['Müşteri', 'Bayi', 'Merkez']) {
+        expect(find.text(g), findsNothing, reason: g);
+      }
+      expect(find.byType(DemoPersonaCard), findsNWidgets(fakePersonas.length));
+      for (final p in fakePersonas) {
+        expect(find.text(p.displayName), findsOneWidget, reason: p.key);
+      }
+      // Kısa roller (sahip kararındaki adlar).
+      for (final role in [
+        'Şirket yöneticisi',
+        'Onaylayan',
+        'Talep eden',
+        'Bayi sahibi',
+        'Bayi müdürü',
+        'Finans müdürü',
+        'Finans uzmanı',
+        'Muhasebe',
+        'Satış müdürü',
+        'Saha satış',
+        'Sipariş masası',
+        'Sevkiyat',
+        'Şoför',
+        'Depo',
+        'Görüntüleyici',
+        'Genel merkez',
+      ]) {
+        expect(find.text(role), findsOneWidget, reason: role);
+      }
+      // Kartlar yatay kayar: müşteri kartları aynı satırda, soldan sağa, aynı boyda.
+      Finder card(String name) => find.ancestor(
+        of: find.text(name),
+        matching: find.byType(DemoPersonaCard),
+      );
+      final selin = tester.getRect(card('Selin Aydın'));
+      final elif = tester.getRect(card('Elif Demir'));
+      expect(elif.top, selin.top);
+      expect(elif.height, selin.height);
+      expect(elif.left, greaterThan(selin.right));
+      // Ekran okuyucu kartı tek düğme olarak okur.
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel('Selin Aydın, Müşteri, Şirket yöneticisi'),
+        findsOneWidget,
+      );
+      semantics.dispose();
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('karta dokunmak o hesapla giriş yapar (müşteri)', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      final c = await pumpAuthRoute(tester, '/login');
+      await tapVisible(tester, find.text('Selin Aydın'));
+      await pumpUntil(tester, () => isSignedIn(c));
+      expect(isSignedIn(c), isTrue);
+      expect(c.read(sessionControllerProvider).access!.userName, 'musteri');
+      // Form alanları doldurulmaz (parola yöneticisi demo hesabını kaydetmez).
+      expect(
+        tester
+            .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
+            .controller!
+            .text,
+        isEmpty,
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('merkez kartı: SMS kodu kendiliğinden, kod ekranı yok', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      final c = await pumpAuthRoute(tester, '/login');
+      await tapVisible(tester, find.text('Merkez Operasyon'));
+      await pumpUntil(tester, () => isSignedIn(c));
+      await tester.pump();
+      expect(isSignedIn(c), isTrue);
+      expect(
+        c.read(sessionControllerProvider).access!.persona,
+        Persona.platform,
+      );
+      expect(find.byType(CodePage), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('formdan merkez girişi kod ekranını açar (demo kısayolu yok)', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      await pumpAuthRoute(tester, '/login');
+      await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'merkez');
+      await tester.enterText(_field('Şifre'), 'demo');
+      await tapVisible(tester, find.text('Giriş yap'));
+      await pumpFor(tester, const Duration(milliseconds: 800));
+      expect(find.byType(CodePage), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Bayi satırı yatay kayar; sondaki karta dokunmak giriş yapar', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      final c = await pumpAuthRoute(tester, '/login', textScale: 2);
+      final row = find.ancestor(
+        of: find.text('Mehmet Demir'),
+        matching: find.byType(Scrollable),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Kemal Aydın'),
+        200,
+        scrollable: row.first,
+      );
+      await tapVisible(tester, find.text('Kemal Aydın'));
+      await pumpUntil(tester, () => isSignedIn(c));
+      expect(c.read(sessionControllerProvider).access!.userName, 'ozelrol');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('"Tümünü gör": gruplu liste, açıklamalar; satır giriş yapar', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      final c = await pumpAuthRoute(tester, '/login');
+      await tapVisible(tester, find.text('Tümünü gör'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      final sheet = find.byType(BottomSheet);
+      expect(sheet, findsOneWidget);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Demo hesabı seçin')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: sheet,
+          matching: find.text('Talep eden (şirket içi onaya düşer)'),
+        ),
+        findsOneWidget,
+      );
+      final burak = find.descendant(
+        of: sheet,
+        matching: find.text('Burak Yılmaz'),
+      );
+      await tapVisible(tester, burak);
+      await pumpUntil(tester, () => isSignedIn(c));
+      expect(c.read(sessionControllerProvider).access!.userName, 'talep');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('canlı kipte bölüm, kartlar ve "Demo" bağlantısı yok', (
+      tester,
+    ) async {
+      setPhoneSize(tester, const Size(360, 1400));
+      await pumpAuthRoute(
+        tester,
+        '/login',
+        overrides: [demoLoginsEnabledProvider.overrideWithValue(false)],
+      );
+      expect(find.text('Demo hesaplarıyla girin'), findsNothing);
+      expect(find.text('Tümünü gör'), findsNothing);
+      expect(find.byType(DemoPersonaCard), findsNothing);
+      expect(find.byType(OwnAccountDivider), findsNothing);
+      expect(find.text('Demo'), findsNothing);
+      expect(find.text('Selin Aydın'), findsNothing);
+      expect(find.text('Giriş yapın'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    test('canlı API ortamında kapalı, sahte kipte açık', () {
+      const live = AppEnv(
+        env: AknEnv.test,
+        apiBaseUrl: 'http://134.149.201.54:3108/',
+        apiMode: ApiMode.live,
+        portalBaseUrl: 'http://134.149.201.54:3107/',
+      );
+      final liveContainer = ProviderContainer(
+        overrides: [appEnvProvider.overrideWithValue(live)],
+      );
+      addTearDown(liveContainer.dispose);
+      expect(liveContainer.read(demoLoginsEnabledProvider), isFalse);
+
+      final fakeContainer = ProviderContainer(
+        overrides: [appEnvProvider.overrideWithValue(AppEnv.fakeForTests)],
+      );
+      addTearDown(fakeContainer.dispose);
+      expect(fakeContainer.read(demoLoginsEnabledProvider), kFakeApiCompiled);
+    });
+
+    test(
+      'sıra ve gruplar: Müşteri, Bayi, Merkez (sahip kararındaki sırayla)',
+      () {
+        final all = demoAccounts();
+        expect(all.length, fakePersonas.length);
+        expect(all.map((a) => a.key).toSet(), {
+          for (final p in fakePersonas) p.key,
+        });
+        final groups = demoGroups(all);
+        expect(groups.map((g) => g.$1).toList(), DemoGroup.values);
+        expect(groups[0].$2.map((a) => a.key).toList(), [
+          'musteri',
+          'onay',
+          'talep',
+        ]);
+        expect(groups[1].$2.map((a) => a.key).take(11).toList(), [
+          'sahip',
+          'mudur',
+          'finans',
+          'finansuzman',
+          'muhasebe',
+          'satis',
+          'saha',
+          'siparis',
+          'sevkiyat',
+          'sofor',
+          'depo',
+        ]);
+        expect(groups[2].$2.single.key, 'merkez');
+        // Ayrıntıda grup öneki ve " · " yok.
+        for (final a in all) {
+          expect(a.detail, isNot(contains(' · ')), reason: a.key);
+          expect(a.role, isNotEmpty, reason: a.key);
+        }
+        expect(
+          all.firstWhere((a) => a.key == 'talep').detail,
+          'Talep eden (şirket içi onaya düşer)',
+        );
+      },
+    );
+
+    test('listede olmayan persona türünden gruba ve özetinden role düşer', () {
+      const extra = FakePersona(
+        key: 'yeni',
+        displayName: 'Yeni Kişi',
+        phone: '5320000999',
+        persona: Persona.customer,
+        roles: [],
+        summary: 'Müşteri · muhasebe izleyicisi (salt okunur)',
+        pages: {},
+      );
+      final a = demoAccounts([extra]).single;
+      expect(a.group, DemoGroup.customer);
+      expect(a.role, 'Muhasebe izleyicisi');
+      expect(a.detail, 'Muhasebe izleyicisi (salt okunur)');
+      expect(a.tone, DemoTone.orange);
+    });
+  });
+}
+
+/// [upper] metni [lower] metninin üstünde.
+void _expectAbove(WidgetTester tester, String upper, String lower) {
+  expect(
+    tester.getTopLeft(find.text(upper)).dy,
+    lessThan(tester.getTopLeft(find.text(lower)).dy),
+    reason: '"$upper" "$lower" üstünde olmalı',
+  );
 }
 
 class _FixedConfig extends AppConfigController {

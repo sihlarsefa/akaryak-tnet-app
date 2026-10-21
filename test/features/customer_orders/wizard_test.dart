@@ -22,10 +22,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../support/fonts.dart';
 import 'support/a2_support.dart';
 
 void main() {
   late A2Env env;
+
+  // Gerçek yüz (Mona Sans): plaka göstergeleri ve büyük yazı yerleşimi cihazdaki gibi ölçülür
+  // (tasarım v2 §14.1). Dosyalar yoksa test yazı tipiyle sürer.
+  setUpAll(loadRealFonts);
 
   setUp(() async {
     env = await A2Env.create();
@@ -73,10 +78,19 @@ void main() {
     String liters, {
     String product = 'Motorin',
   }) async {
-    await tapVisible(tester, find.widgetWithText(ChoiceChip, product).first);
+    await tapVisible(tester, find.widgetWithText(ChoiceCard, product).first);
     await tester.enterText(find.byType(TextField).first, liters);
     await tester.pump();
   }
+
+  /// Etiketi alanın üstünde duran (tasarım v2) metin alanı.
+  Finder fieldLabelled(String label) => find.descendant(
+    of: find.ancestor(
+      of: find.text(label),
+      matching: find.byType(AknTextField),
+    ),
+    matching: find.byType(TextField),
+  );
 
   Future<void> pumpUntilGone(WidgetTester tester, Finder finder) async {
     for (var i = 0; i < 60 && finder.evaluate().isNotEmpty; i++) {
@@ -168,10 +182,10 @@ void main() {
       await pumpUntil(tester, find.text('Çek ayrıntıları'));
       expect(find.text('421.000,00'), findsOneWidget);
       final tomorrow = TrTime.addDays(TrTime.todayStart(), 1);
-      // Vade alanında ve ödeme özetinde ("Çek · 30 gün · vade …").
+      // Ödeme özetinde ("Çek, 30 gün, vade …"; vade alanı tarihi gün adıyla yazar).
       expect(
         find.textContaining(Fmt.date(TrTime.addDays(tomorrow, 30))),
-        findsNWidgets(2),
+        findsWidgets,
       );
       expect(find.text(OrdersCopy.financeHint), findsOneWidget);
       expect(find.text(OrdersCopy.instrumentPhotoLater), findsOneWidget);
@@ -197,10 +211,10 @@ void main() {
     await pumpUntil(tester, find.textContaining('şablonu yüklendi'));
     await pumpReal(tester);
     expect(find.text('5.000'), findsOneWidget);
-    final chip = tester.widget<ChoiceChip>(
-      find.widgetWithText(ChoiceChip, 'Kurşunsuz Benzin 95'),
+    final card = tester.widget<ChoiceCard>(
+      find.widgetWithText(ChoiceCard, 'Kurşunsuz Benzin 95'),
     );
-    expect(chip.selected, isTrue);
+    expect(card.selected, isTrue);
     await tearDownUi(tester);
   });
 
@@ -278,7 +292,7 @@ void main() {
       await toSummary(tester, '25000');
       expect(find.text('Şirket içi onaya düşecek'), findsOneWidget);
       expect(find.textContaining('Teklif yaklaşık'), findsNothing);
-      final note = find.widgetWithText(TextField, OrdersCopy.noteForApprover);
+      final note = fieldLabelled(OrdersCopy.noteForApprover);
       expect(note, findsOneWidget);
       await tester.enterText(note, 'Şantiye bekliyor');
       await tester.pump();
@@ -309,10 +323,7 @@ void main() {
       await openWizard(tester);
       await toSummary(tester, '25000');
       expect(find.text('Şirket içi onaya düşecek'), findsNothing);
-      expect(
-        find.widgetWithText(TextField, OrdersCopy.noteForApprover),
-        findsNothing,
-      );
+      expect(fieldLabelled(OrdersCopy.noteForApprover), findsNothing);
       expect(find.textContaining('Teklif yaklaşık'), findsOneWidget);
 
       await tapVisible(tester, find.text(OrdersCopy.saveAsTemplate));
@@ -387,7 +398,7 @@ void main() {
         waitFor: find.textContaining('siparişi tekrarlanıyor'),
       );
       expect(summaryMarker, findsOneWidget);
-      expect(find.text('Motorin · 20.000 L'), findsOneWidget);
+      expect(find.text('Motorin, 20.000 L'), findsOneWidget);
       expect(find.textContaining('Açık hesap'), findsWidgets);
       await tearDownUi(tester);
     },

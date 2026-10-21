@@ -181,7 +181,7 @@ class GeolocatorFieldLocationService implements FieldLocationService {
     } catch (e) {
       AppLog.warn('Konum alınamadı', error: e);
       throw const FieldLocationException(
-        'Konum alınamadı. Lütfen tekrar deneyin.',
+        'Konum alınamadı. Konum iznini kontrol edip tekrar deneyin.',
       );
     }
   }

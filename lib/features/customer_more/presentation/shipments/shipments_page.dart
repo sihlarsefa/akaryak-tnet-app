@@ -7,6 +7,7 @@ import '../../../../core/models/shipment.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/shipments_controller.dart';
 import '../../copy.dart';
 import '../cm_widgets.dart';
@@ -43,7 +44,7 @@ class ShipmentsPage extends ConsumerWidget {
       refreshing: s.page.refreshing,
       body: Column(
         children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           CmSegmented<ShipmentSegment>(
             segments: [
               for (final seg in ShipmentSegment.values)
@@ -59,8 +60,8 @@ class ShipmentsPage extends ConsumerWidget {
             onChanged: ctrl.setSegment,
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: SearchField(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+            child: CmSearchField(
               hint: 'Sipariş no, SVK kodu, plaka ara',
               onChanged: ctrl.setSearch,
             ),
@@ -80,9 +81,9 @@ class ShipmentsPage extends ConsumerWidget {
                       awaiting > 0 &&
                       s.status != ShipmentStatus.reported
                   ? AknBanner(
-                      margin: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                      tone: AknTone.warn,
-                      icon: Icons.fact_check_rounded,
+                      margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                      tone: AknTone.brand,
+                      icon: Icons.fact_check_outlined,
                       title: '$awaiting ${CmCopy.awaitingBanner}',
                       message:
                           'Teslim edilen miktarı ve kanıtları kontrol edip onaylayın ya da itiraz edin.',
@@ -148,39 +149,42 @@ class _ShipmentList extends ConsumerWidget {
           if (n.metrics.extentAfter < 400) ctrl.loadMore();
           return false;
         },
-        child: StaggerScope(
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 8, bottom: 16),
-            itemCount: p.items.length + 1 + (leading == null ? 0 : 1),
-            itemBuilder: (context, index) {
-              final lead = leading;
-              if (lead != null && index == 0) return lead;
-              final i = lead == null ? index : index - 1;
-              if (i == p.items.length) {
-                return LoadMoreFooter(
-                  loading: p.loadingMore,
-                  error: p.loadMoreError,
-                  onRetry: ctrl.loadMore,
-                );
-              }
-              final item = p.items[i];
-              return StaggerItem(
-                index: i,
-                child: ShipmentCard(
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(top: 4, bottom: 16),
+          itemCount: p.items.length + 1 + (leading == null ? 0 : 1),
+          itemBuilder: (context, index) {
+            final lead = leading;
+            if (lead != null && index == 0) return lead;
+            final i = lead == null ? index : index - 1;
+            if (i == p.items.length) {
+              return LoadMoreFooter(
+                loading: p.loadingMore,
+                error: p.loadMoreError,
+                onRetry: ctrl.loadMore,
+              );
+            }
+            final item = p.items[i];
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (i > 0) const AknLedgerDivider(),
+                ShipmentCard(
                   item: item,
                   onTap: () => context.push(AppRoutes.shipment(item.id)),
                 ),
-              );
-            },
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// Teslimat satırı.
+/// Teslimat satırı (tasarım v2 §6.8, ledger): ürün ve litre, nokta ve gün, durum lambası (müşterinin
+/// gözünden: "Teslimatı onaylayın" sıra sizde) ve sağda saat; yoldaysa rota çizgisi, itirazlıysa not.
 class ShipmentCard extends StatelessWidget {
   const ShipmentCard({super.key, required this.item, this.onTap});
 
@@ -191,111 +195,74 @@ class ShipmentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final st = item.status.statusStyle;
     final reported = item.status == ShipmentStatus.reported;
     final disputed = item.status == ShipmentStatus.disputed;
+    final inTransit = item.status == ShipmentStatus.inTransit;
     final delivered = item.deliveredLiters;
+    final lamp = AknStatus.shipmentLamp(
+      item.status,
+      const StatusViewer.customer(),
+    );
+    final day = item.deliveredAt ?? item.scheduledAt;
     final place = [
-      item.deliveryPointName,
-      [
-        item.deliveryDistrict,
-        item.deliveryCity,
-      ].whereType<String>().join(' / '),
-    ].whereType<String>().where((x) => x.isNotEmpty).join(' · ');
-    final when = item.deliveredAt != null
-        ? 'Teslim ${Fmt.dayLabel(item.deliveredAt)} ${Fmt.time(item.deliveredAt)}'
-        : 'Plan ${Fmt.dayLabel(item.scheduledAt)} ${Fmt.time(item.scheduledAt)}';
+      item.deliveryPointName ??
+          [
+            item.deliveryDistrict,
+            item.deliveryCity,
+          ].whereType<String>().join(' / '),
+      if (day != null) TurkishText.lower(Fmt.dayLabel(day)),
+    ].where((x) => x.isNotEmpty).join(', ');
+    final time = item.deliveredAt != null
+        ? 'teslim ${Fmt.time(item.deliveredAt)}'
+        : (item.scheduledAt == null
+              ? null
+              : '${inTransit ? 'varış' : 'plan'} ${Fmt.time(item.scheduledAt)}');
     final litres = delivered == null
         ? Fmt.liters(item.plannedLiters)
-        : '${Fmt.liters(delivered)} / ${Fmt.liters(item.plannedLiters)}';
+        : Fmt.liters(delivered);
+    final title = '${item.productName}, $litres';
+    final plate = item.vehiclePlate.isEmpty
+        ? null
+        : Fmt.plate(item.vehiclePlate);
     final label = [
-      item.code,
-      st.label,
-      '${item.productName} $litres',
+      title,
+      if (delivered != null) 'planlanan ${Fmt.liters(item.plannedLiters)}',
       if (place.isNotEmpty) place,
-      when,
-      if (item.vehiclePlate.isNotEmpty) 'Plaka ${Fmt.plate(item.vehiclePlate)}',
-      if (reported) 'Teslimatı onaylayın',
+      lamp.label,
+      ?time,
+      if (plate != null) 'plaka $plate',
+      item.code,
+      'sipariş ${item.orderNumber}',
+      if (disputed && item.disputeNote != null) 'itiraz: ${item.disputeNote}',
     ].join(', ');
-    return AknCard(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      onTap: onTap,
-      accent: reported ? AknTone.warn : (disputed ? AknTone.danger : null),
-      semanticLabel: label,
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            CmHeadRow(
-              title: Text(
-                '${item.code} · ${item.orderNumber}',
-                style: t.caption,
-              ),
-              trailing: StatusChip.style(st, size: StatusChipSize.small),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${item.productName} · $litres',
-              style: t.bodyStrong.copyWith(
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-            if (place.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(place, style: t.bodySmall),
-            ],
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 10,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      item.deliveredAt != null
-                          ? Icons.task_alt_rounded
-                          : Icons.event_rounded,
-                      size: 16,
-                      color: c.dim,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(child: Text(when, style: t.caption)),
-                  ],
+    return AknListTile(
+      title: title,
+      subtitle: place.isEmpty ? item.code : place,
+      meta: plate,
+      status: AknStatusLine(
+        lamp: AknLamp.status(lamp),
+        trailing: time == null
+            ? null
+            : Text(
+                time,
+                style: t.bodySmall.copyWith(
+                  color: reported ? c.brandInk : c.ink,
+                  fontWeight: FontWeight.w500,
                 ),
-                if (item.vehiclePlate.isNotEmpty)
-                  PlateBadge(plate: item.vehiclePlate, fontSize: 11),
-              ],
-            ),
-            if (reported) ...[
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Icon(Icons.fact_check_rounded, size: 18, color: c.warn.fg),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Teslimatı onaylayın',
-                      style: t.label.copyWith(color: c.warn.fg),
-                    ),
-                  ),
-                  Icon(Icons.chevron_right_rounded, color: c.warn.fg),
-                ],
               ),
-            ],
-            if (disputed && item.disputeNote != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'İtiraz: ${item.disputeNote}',
-                style: t.bodySmall.copyWith(color: c.danger.fg),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ],
-        ),
       ),
+      footer: inTransit
+          ? const TruckRoute(moving: true, height: 22)
+          : (disputed && item.disputeNote != null
+                ? Text(
+                    'İtiraz: ${item.disputeNote}',
+                    style: t.bodySmall.copyWith(color: c.danger.fg),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : null),
+      semanticLabel: label,
+      onTap: onTap,
     );
   }
 }

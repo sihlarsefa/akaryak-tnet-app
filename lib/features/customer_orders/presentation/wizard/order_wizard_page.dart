@@ -131,7 +131,7 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
       AknHaptics.warning();
       SemanticsService.sendAnnouncement(
         View.of(context),
-        'Lütfen işaretli alanları kontrol edin.',
+        'İşaretli alanları kontrol edin.',
         TextDirection.ltr,
       );
       return;
@@ -238,11 +238,14 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
       } else {
         body = Column(
           children: [
-            // Adıma dokunarak dönüş yok: çekirdek başlığın dokunma alanı 16 px (C.7); geri dönüş
-            // "Geri" ve özetteki "Düzenle" ile yapılır.
+            // Tamamlanan adıma dokunarak dönülür (48 dp hedefler); ayrıca "Geri" ve özetteki
+            // "Değiştir".
             StepperHeader(
               steps: [for (final s in steps) s.label],
               current: index,
+              onStepTap: (i) {
+                if (i < index) ctrl.goTo(steps[i]);
+              },
             ),
             Expanded(
               child: SharedAxisSwitcher(
@@ -262,32 +265,26 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
         );
         final last = step == WizardStep.summary;
         final predicted = ctrl.companyRequestPredicted;
-        actionBar = ButtonRow(
-          children: [
-            AknButton.secondary(
-              label: index == 0 ? 'Vazgeç' : 'Geri',
-              expand: true,
-              onPressed: _back,
-            ),
-            if (last)
-              AknButton(
+        final primary = last
+            ? AknButton(
                 label: predicted ? OrdersCopy.sendForApproval : OrdersCopy.send,
-                icon: Icons.send_rounded,
                 expand: true,
                 onPressedAsync: _submit,
                 showSuccess: false,
               )
-            else
-              AknButton(
+            : AknButton(
                 label: 'Devam',
-                trailingIcon: Icons.arrow_forward_rounded,
                 expand: true,
                 onPressed: w.checkingOrdering && step == WizardStep.products
                     ? null
                     : _next,
-              ),
-          ],
+              );
+        final back = AknButton.ghost(
+          label: index == 0 ? 'Vazgeç' : 'Geri',
+          expand: MediaQuery.textScalerOf(context).scale(15) > 19.5,
+          onPressed: _back,
         );
+        actionBar = _WizardDock(primary: primary, back: back);
       }
     }
 
@@ -298,7 +295,8 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
         unawaited(_close());
       },
       child: AppScaffold(
-        title: OrdersCopy.newOrder,
+        title: OrdersCopy.wizardTitle,
+        largeTitle: false,
         showBell: false,
         leading: AknIconButton(
           icon: Icons.close_rounded,
@@ -324,28 +322,15 @@ class _ExitSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 4),
-        const Center(
-          child: AknIconBox(
-            icon: Icons.edit_note_rounded,
-            tone: AknTone.brand,
-            size: 56,
-          ),
-        ),
-        const SizedBox(height: 16),
         Semantics(
           header: true,
           child: Text(
             OrdersCopy.exitTitle,
-            style: t.headline,
-            textAlign: TextAlign.center,
+            style: t.title.copyWith(color: c.ink),
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          OrdersCopy.exitMessage,
-          style: t.body.copyWith(color: c.dim),
-          textAlign: TextAlign.center,
-        ),
+        Text(OrdersCopy.exitMessage, style: t.body.copyWith(color: c.dim)),
         const SizedBox(height: 24),
         AknButton(
           label: OrdersCopy.keepDraft,
@@ -364,6 +349,35 @@ class _ExitSheet extends StatelessWidget {
           expand: true,
           onPressed: () => Navigator.of(context).pop('stay'),
         ),
+      ],
+    );
+  }
+}
+
+/// Sihirbaz çubuğu (§7.9): solda hayalet "Geri" / "Vazgeç", sağda tam genişlikte birincil "Devam" /
+/// "Siparişi gönder". Büyük yazıda aynı sırayla alt alta: "Geri" üstte, birincil başparmağa yakın
+/// altta.
+class _WizardDock extends StatelessWidget {
+  const _WizardDock({required this.primary, required this.back});
+
+  final Widget primary;
+  final Widget back;
+
+  @override
+  Widget build(BuildContext context) {
+    final stacked = MediaQuery.textScalerOf(context).scale(15) > 19.5;
+    if (stacked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [back, const SizedBox(height: 4), primary],
+      );
+    }
+    return Row(
+      children: [
+        back,
+        const SizedBox(width: 8),
+        Expanded(child: primary),
       ],
     );
   }
