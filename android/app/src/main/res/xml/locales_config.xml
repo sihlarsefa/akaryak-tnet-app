@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uygulama dili (Android 13+ uygulama başına dil ayarı): yalnızca Türkçe (spec C.1). -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="tr"/>
+</locale-config>

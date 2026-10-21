@@ -1,0 +1,5 @@
+{
+  "status": "ok",
+  "tokens": {"accessToken": "eyJ.sahte.belirtec", "accessExpiresAt": "2026-10-21T09:30:00+00:00", "refreshToken": "c2FodGUteWVuaWxlbWU", "refreshExpiresAt": "2026-10-22T09:15:00+00:00", "userId": "4d6f2b1e-0000-4000-8000-00000000a001", "displayName": "Mehmet Demir"},
+  "challenge": null
+}

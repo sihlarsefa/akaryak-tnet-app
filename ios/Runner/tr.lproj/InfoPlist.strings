@@ -1,0 +1,7 @@
+/* AkaryakıtNet izin açıklamaları (spec D.7.2). Info.plist ile aynı metinler; Türkçe yerelde gösterilir. */
+"CFBundleDisplayName" = "AkaryakıtNet";
+"NSCameraUsageDescription" = "Çek/senet, vergi levhası, teslimat ve itiraz fotoğraflarını çekip ilgili siparişe veya kayda eklemeniz için kameranızı kullanırız.";
+"NSPhotoLibraryUsageDescription" = "Galerinizden belge veya fotoğraf seçip siparişe, teslimata ya da ön kayda eklemeniz için kullanırız.";
+"NSPhotoLibraryAddUsageDescription" = "Paylaştığınız fotoğrafları galerinize kaydedebilmeniz için kullanırız.";
+"NSLocationWhenInUseUsageDescription" = "Teslimatı başlatırken ve tamamlarken, saha ziyaretini kaydederken ve bulunduğunuz yerin hava durumunu gösterirken konumunuzu kullanırız. Konumunuz yalnızca bu işlemlerde kaydedilir.";
+"NSFaceIDUsageDescription" = "Uygulamayı Face ID ile kilitleyip hızlıca açabilmeniz için kullanırız.";

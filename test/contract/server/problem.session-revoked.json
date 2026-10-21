@@ -1,0 +1,7 @@
+{
+  "title": "Oturum sonland\u0131r\u0131ld\u0131",
+  "status": 401,
+  "detail": "Oturumunuz sonland\u0131r\u0131ld\u0131; l\u00FCtfen yeniden giri\u015F yap\u0131n.",
+  "code": "session_revoked",
+  "traceId": "ornek-iz-0001"
+}

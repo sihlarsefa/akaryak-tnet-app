@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# AkaryakıtNet: gizli ve makineye özel dosyalar (spec C.9). Değerleri asla commit etmeyin.
+ios/Flutter/Secrets.xcconfig
+android/key.properties
+*.jks
+*.keystore
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+env/*.local.json
+
+# flutter drive ekran görüntüleri (integration_test/screenshots_test.dart)
+/screenshots/

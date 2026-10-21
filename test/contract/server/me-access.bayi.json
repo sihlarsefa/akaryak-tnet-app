@@ -1,0 +1,117 @@
+{
+  "userId": "4d70e58b-f794-492a-a028-e3736b5c104a",
+  "userName": "bayi",
+  "displayName": "BAYI",
+  "email": "bayi@firma.test",
+  "phoneMasked": "9053*****01",
+  "persona": "bayi",
+  "roles": [
+    "Station"
+  ],
+  "stationId": 1,
+  "stationTitle": "Merkez Petrol",
+  "customerId": null,
+  "customerTitle": null,
+  "customerUserRole": null,
+  "customerUserRoleLabel": null,
+  "bayiRoleCodes": [],
+  "bayiRoleNames": [],
+  "pages": [
+    "StationQuoteDesk:Gorur",
+    "StationQuoteDesk:Ekler",
+    "StationOrders:Gorur",
+    "StationShipments:Gorur"
+  ],
+  "capabilities": [
+    {
+      "code": "approvals.chain.edit",
+      "limit": null
+    },
+    {
+      "code": "approvals.delegate",
+      "limit": null
+    },
+    {
+      "code": "approve.field.exception",
+      "limit": null
+    },
+    {
+      "code": "approve.field.manager",
+      "limit": null
+    },
+    {
+      "code": "approve.field.senior",
+      "limit": null
+    },
+    {
+      "code": "approve.finance.lead",
+      "limit": null
+    },
+    {
+      "code": "approve.finance.onboarding",
+      "limit": null
+    },
+    {
+      "code": "approve.finance.order",
+      "limit": null
+    },
+    {
+      "code": "approve.order.executive",
+      "limit": null
+    },
+    {
+      "code": "costs.view",
+      "limit": null
+    },
+    {
+      "code": "field.strategic.flag",
+      "limit": null
+    },
+    {
+      "code": "finance.profile.edit",
+      "limit": null
+    },
+    {
+      "code": "finance.riskreport.pull",
+      "limit": null
+    },
+    {
+      "code": "finance.rules.edit",
+      "limit": null
+    },
+    {
+      "code": "lead.viewAll",
+      "limit": null
+    },
+    {
+      "code": "loading.record",
+      "limit": null
+    },
+    {
+      "code": "payment.instrument.manage",
+      "limit": null
+    },
+    {
+      "code": "payment.status.update",
+      "limit": null
+    },
+    {
+      "code": "roles.manage",
+      "limit": null
+    },
+    {
+      "code": "shipment.assign",
+      "limit": null
+    },
+    {
+      "code": "staff.manage",
+      "limit": null
+    }
+  ],
+  "delegations": [],
+  "isFieldSales": false,
+  "isStationOwner": true,
+  "assignedOpenShipments": 0,
+  "phoneVerified": false,
+  "accessVersion": "cbf104ee483484bf"
+}

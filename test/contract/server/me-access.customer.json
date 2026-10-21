@@ -1,0 +1,31 @@
+{
+  "userId": "826b18dc-56da-4161-b309-65b85e6bb016",
+  "userName": "talep",
+  "displayName": "TALEP",
+  "email": "talep@firma.test",
+  "phoneMasked": "9053*****04",
+  "persona": "customer",
+  "roles": [
+    "Customer"
+  ],
+  "stationId": null,
+  "stationTitle": null,
+  "customerId": 1,
+  "customerTitle": "Acar Nakliyat",
+  "customerUserRole": 1,
+  "customerUserRoleLabel": "Talep eden",
+  "bayiRoleCodes": [],
+  "bayiRoleNames": [],
+  "pages": [
+    "CustomerOrders:Gorur",
+    "CustomerCreateOrder:Gorur",
+    "CustomerCreateOrder:Ekler"
+  ],
+  "capabilities": [],
+  "delegations": [],
+  "isFieldSales": false,
+  "isStationOwner": false,
+  "assignedOpenShipments": 0,
+  "phoneVerified": false,
+  "accessVersion": "065f141bfd84c777"
+}

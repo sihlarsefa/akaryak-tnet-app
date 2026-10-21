@@ -1,0 +1,7 @@
+{
+  "title": "Kay\u0131t de\u011Fi\u015Fti",
+  "status": 409,
+  "detail": "Kay\u0131t ba\u015Fka bir kullan\u0131c\u0131 taraf\u0131ndan de\u011Fi\u015Ftirildi; g\u00FCncel h\u00E2lini g\u00F6r\u00FCp yeniden deneyin.",
+  "code": "concurrency_conflict",
+  "traceId": "ornek-iz-0001"
+}

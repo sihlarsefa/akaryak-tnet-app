@@ -1,0 +1,7 @@
+{
+  "AKN_ENV": "dev",
+  "API_MODE": "fake",
+  "API_BASE_URL": "http://localhost:3108/",
+  "PORTAL_BASE_URL": "http://localhost:3107/",
+  "MAPS_ENABLED": false
+}

@@ -1,0 +1,158 @@
+{
+  "fields": [
+    {
+      "key": "limitAmount",
+      "label": "Onaylanan limit (\u20BA)",
+      "type": "money",
+      "required": false,
+      "min": 0,
+      "max": 999999999999,
+      "current": "750000",
+      "currentLabel": "Kartta: 750.000\u00A0\u20BA",
+      "suggestion": null,
+      "suggestionLabel": null,
+      "hint": null
+    },
+    {
+      "key": "limitPeriod",
+      "label": "Limit d\u00F6nemi",
+      "type": "period",
+      "required": false,
+      "min": null,
+      "max": null,
+      "current": "Ayl\u0131k",
+      "currentLabel": "Ayl\u0131k",
+      "suggestion": null,
+      "suggestionLabel": null,
+      "hint": "Bo\u015F b\u0131rak\u0131l\u0131rsa ayl\u0131k."
+    },
+    {
+      "key": "maxTermDays",
+      "label": "En uzun vade (g\u00FCn)",
+      "type": "int",
+      "required": false,
+      "min": 0,
+      "max": 365,
+      "current": "45",
+      "currentLabel": "Kartta: 45 g\u00FCn",
+      "suggestion": null,
+      "suggestionLabel": null,
+      "hint": null
+    },
+    {
+      "key": "allowedMethodCodes",
+      "label": "\u0130zinli \u00F6deme y\u00F6ntemleri",
+      "type": "methods",
+      "required": false,
+      "min": null,
+      "max": null,
+      "current": "HAVALE,CEK",
+      "currentLabel": "Kartta: Havale / EFT, \u00C7ek",
+      "suggestion": null,
+      "suggestionLabel": null,
+      "hint": "Se\u00E7ilmezse kartta oldu\u011Fu gibi kal\u0131r."
+    },
+    {
+      "key": "riskClass",
+      "label": "Risk s\u0131n\u0131f\u0131",
+      "type": "riskClass",
+      "required": false,
+      "min": null,
+      "max": null,
+      "current": "2",
+      "currentLabel": "B",
+      "suggestion": "3",
+      "suggestionLabel": "Rapor \u00F6nerisi: C",
+      "hint": null
+    },
+    {
+      "key": "collateralRatioPercent",
+      "label": "Teminat oran\u0131 (%)",
+      "type": "percent",
+      "required": false,
+      "min": 0,
+      "max": 100,
+      "current": "10",
+      "currentLabel": "Kartta: %10",
+      "suggestion": "15",
+      "suggestionLabel": "\u00D6neri: %15",
+      "hint": null
+    },
+    {
+      "key": "nextReviewDate",
+      "label": "Sonraki g\u00F6zden ge\u00E7irme",
+      "type": "date",
+      "required": false,
+      "min": null,
+      "max": null,
+      "current": "2027-04-21",
+      "currentLabel": "Kartta: 21.04.2027",
+      "suggestion": "2027-04-21",
+      "suggestionLabel": "\u00D6neri: 21.04.2027",
+      "hint": null
+    }
+  ],
+  "methodOptions": [
+    {
+      "code": "HAVALE",
+      "name": "Havale / EFT",
+      "isDeferred": false,
+      "minTermDays": null,
+      "maxTermDays": null
+    },
+    {
+      "code": "CEK",
+      "name": "\u00C7ek",
+      "isDeferred": true,
+      "minTermDays": 0,
+      "maxTermDays": 120
+    },
+    {
+      "code": "SENET",
+      "name": "Senet",
+      "isDeferred": true,
+      "minTermDays": 0,
+      "maxTermDays": 90
+    },
+    {
+      "code": "ACIK_HESAP",
+      "name": "A\u00E7\u0131k hesap",
+      "isDeferred": true,
+      "minTermDays": 0,
+      "maxTermDays": 60
+    }
+  ],
+  "periodOptions": [
+    {
+      "code": "Ayl\u0131k",
+      "label": "Ayl\u0131k"
+    },
+    {
+      "code": "Haftal\u0131k",
+      "label": "Haftal\u0131k"
+    },
+    {
+      "code": "G\u00FCnl\u00FCk",
+      "label": "G\u00FCnl\u00FCk"
+    }
+  ],
+  "riskClassOptions": [
+    {
+      "code": "1",
+      "label": "A (d\u00FC\u015F\u00FCk risk)"
+    },
+    {
+      "code": "2",
+      "label": "B"
+    },
+    {
+      "code": "3",
+      "label": "C"
+    },
+    {
+      "code": "4",
+      "label": "D (y\u00FCksek risk)"
+    }
+  ],
+  "hint": "Onaylanan de\u011Ferler finans kart\u0131na yaz\u0131l\u0131r."
+}
