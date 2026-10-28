@@ -17,13 +17,13 @@ StatusStyle approvalStatusStyle(
       case ApprovalStatus.pending:
         return const StatusStyle(
           tone: AknTone.warn,
-          icon: Icons.hourglass_top_rounded,
+          icon: PhosphorIconsRegular.hourglassHigh,
           label: 'Bayi değerlendirmesi',
         );
       case ApprovalStatus.infoRequested:
         return StatusStyle(
           tone: canProvideInfo ? AknTone.brand : AknTone.info,
-          icon: Icons.contact_support_rounded,
+          icon: PhosphorIconsFill.chatCircleDots,
           label: canProvideInfo
               ? 'Yanıtınız bekleniyor'
               : 'Ek bilgi bekleniyor',
@@ -76,18 +76,21 @@ StatusLamp approvalRowLamp(
 /// Sunucu özetindeki " · " ayırıcılarını v2 yazımına çevirir (", ").
 String plainSummary(String? s) => (s ?? '').replaceAll(' · ', ', ').trim();
 
-/// Onaylarım satırı (tasarım v2 §7.13 defter satırı):
+/// Onay kartı (tasarım v3 "Akış" §4 liste kartı, §7.13): sayfanın 20 px kenarında yüzen beyaz kart
+/// (r20, yumuşak kart gölgesi), solda türün simgesi 40 px yumuşak kuyuda:
 ///
 /// ```
-/// Sipariş finans: Marmara İnşaat Taahhüt Ltd. Şti.   1.052.500,00 ₺
-/// SIP-20261021-12005, Çek, 60 gün vade, …                3 sa önce
-/// ● Onayınızı bekliyor                          ⏱ 1 sa 20 dk kaldı
-/// Talep: Deniz Koç, kademe 1/2
+/// [▣] Sipariş finans: Marmara İnşaat Taahhüt Ltd. Şti.   1.052.500,00 ₺
+///     SIP-20261021-12005, Çek, 60 gün vade, …
+///     (● Onayınızı bekliyor)                   ⏱ 1 sa 20 dk kaldı
+///     Talep: Deniz Koç, kademe 1/2, 3 sa önce
 /// ```
 ///
-/// Başlık onaylanacak şeyi söyler (tür: karşı taraf); sağda tutar (ya da litre) ve zaman; durum
-/// satırında izleyiciye göre lamba ve son tarih geri sayımı. Renk tek başına değil: lamba metni de
-/// söyler.
+/// Başlık onaylanacak şeyi söyler (tür: karşı taraf); sağda tutar (ya da litre, tablo rakamları);
+/// durum satırında izleyiciye göre lamba hapı ve sağda son tarih geri sayımı ya da zaman. Sıra
+/// izleyicideyse ("sıra sizde") kartın kenarı yumuşak turuncu, simge kuyusu turuncudur ve lamba
+/// nefes alır. Basınca kart küçülür, gölgesi oturur (seçim titreşimi). Renk tek başına değil: lamba
+/// metni de söyler.
 class ApprovalCard extends StatelessWidget {
   const ApprovalCard({
     super.key,
@@ -119,8 +122,8 @@ class ApprovalCard extends StatelessWidget {
       customerSide: customerSide,
       canProvideInfo: needsReply,
     );
-    // Karşı taraf: cari için bayi (şirket içi talepte talep eden); bayi için cari. Cari kaydı olmayan
-    // taleplerde (ön kayıt, yeni cari) özetin ilk parçası firmanın adıdır.
+    // Karşı taraf: cari için bayi (şirket içi talepte talep eden); bayi için cari. Cari kaydı
+    // olmayan taleplerde (ön kayıt, yeni cari) özetin ilk parçası firmanın adıdır.
     final summaryParts = (row.summary ?? '').split(' · ');
     final summaryHead = summaryParts.first.trim();
     final fromSummary =
@@ -154,7 +157,10 @@ class ApprovalCard extends StatelessWidget {
     final requester = !customerSide && row.requestedByName != null
         ? 'Talep: ${row.requestedByName}'
         : null;
-    final note = [?requester, ?levels].join(', ');
+    // Zaman sağ sütunda değil durum satırında: alt satır tam genişlik kalır ve uzun sipariş
+    // numarası ("SIP-20261028-12012") harf ortasından bölünmez. Geri sayım varken zaman not satırına
+    // iner.
+    final note = [?requester, ?levels, if (countdown) when].join(', ');
     final subtitle = [
       ?number,
       if (!internal && detailLine.isNotEmpty) detailLine,
@@ -170,41 +176,62 @@ class ApprovalCard extends StatelessWidget {
       when,
     ].join(', ');
 
+    final yourMove = lamp.yourMove;
     return Semantics(
       button: true,
       label: semantic,
       excludeSemantics: true,
       onTap: onTap,
-      child: AknListTile(
-        title: '${row.displayTypeLabel}: $headline',
-        subtitle: subtitle.isEmpty ? null : subtitle,
-        subtitleMaxLines: 2,
-        amount: amount != null
-            ? Fmt.money(amount)
-            : (row.liters != null ? Fmt.liters(row.liters) : null),
-        amountMeta: amount != null || row.liters != null ? when : null,
-        meta: amount == null && row.liters == null ? when : null,
-        status: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AknStatusLine(
-              lamp: AknLamp.status(lamp),
-              trailing: countdown
-                  ? CountdownBadge(
-                      deadline: due,
-                      yourMove: lamp.yourMove,
-                      subject: 'Onay süresi',
-                    )
-                  : null,
-            ),
-            if (note.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(note, style: t.label.copyWith(color: c.dim)),
-            ],
-          ],
-        ),
+      child: AknCard(
         onTap: onTap,
+        padding: EdgeInsets.zero,
+        borderColor: yourMove ? c.brandLine : null,
+        child: AknListTile(
+          leading: AknIconBox(
+            icon: AknStatus.approvalType(row.type).icon,
+            tone: yourMove ? AknTone.brand : null,
+          ),
+          title: '${row.displayTypeLabel}: $headline',
+          subtitle: subtitle.isEmpty ? null : subtitle,
+          subtitleMaxLines: 2,
+          amount: amount != null
+              ? Fmt.money(amount)
+              : (row.liters != null ? Fmt.liters(row.liters) : null),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          status: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AknStatusLine(
+                lamp: AknLamp.status(lamp),
+                trailing: countdown
+                    ? CountdownBadge(
+                        deadline: due,
+                        yourMove: yourMove,
+                        subject: 'Onay süresi',
+                      )
+                    : Text(
+                        when,
+                        style: t.bodySmall.copyWith(
+                          color: c.dim,
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
+              ),
+              if (note.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  note,
+                  style: t.label.copyWith(
+                    color: c.dim,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: AknNumerals.tabular,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -35,9 +35,9 @@ String metricText(
   required double liters,
 }) => m == SpendingMetric.amount ? Fmt.money(amount) : Fmt.liters(liters);
 
-/// Aylık sütun grafiği (tasarım v2 §6.20): tek seri vurgu — seçili ay (yoksa son ay)
-/// `chartHighlight`, diğerleri `chartContext`; sütunlar 16 geniş, üstte 4 yuvarlak, 1 px taban
-/// çizgisinde düz; ızgara ve eksen yok. Seçili sütunun değeri üstünde yazar. Her sütun 48 dp dokunma
+/// Aylık sütun grafiği (tasarım v3 §4, §5): tek seri vurgu — seçili ay (yoksa son ay) turuncu
+/// dikey geçiş ve küçük hale, diğerleri `chartContext`; sütunlar 16 geniş, üstte 6 yuvarlak, 1 px
+/// taban çizgisinde düz, ilk görünüşte soldan sağa birbiri ardına büyür; ızgara ve eksen yok. Seçili sütunun değeri üstünde yazar. Her sütun 48 dp dokunma
 /// alanıdır; ekran okuyucu "Ekim 2026: 12.500 L" duyurur. Çok ayda yatay kaydırılır (son aylar
 /// görünür). Altında seçili ayın ayrıntısı.
 class MonthBarChart extends StatefulWidget {
@@ -135,95 +135,116 @@ class _MonthBarChartState extends State<MonthBarChart> {
               top: 22 + plotH,
               child: Container(height: 1, color: c.line),
             ),
-            ListView.builder(
+            // Kaydırılınca dışarıda kalan yandaki sütunlar yumuşakça söner (kesik sütun yerine
+            // "kaydırılabilir" ipucu).
+            _EdgeFade(
               controller: _scroll,
-              scrollDirection: Axis.horizontal,
-              itemCount: months.length,
-              itemExtent: columnWidth,
-              itemBuilder: (context, i) {
-                final m = months[i];
-                final v = _value(m);
-                final isCur = i == current;
-                final h = maxV <= 0 ? 0.0 : (v / maxV) * plotH;
-                final showYear = i == 0 || m.month == 1;
-                return Semantics(
-                  button: true,
-                  selected: _selected == i,
-                  label: '${m.label}: ${_text(m)}',
-                  excludeSemantics: true,
-                  onTap: () => setState(() => _selected = i),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      AknHaptics.selection();
-                      setState(() => _selected = _selected == i ? null : i);
-                    },
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 22,
-                          child: isCur && v > 0
-                              ? OverflowBox(
-                                  maxWidth: columnWidth * 2,
-                                  child: Text(
-                                    _short(m),
-                                    maxLines: 1,
-                                    textAlign: TextAlign.center,
-                                    style: t.captionStrong.copyWith(
-                                      color: c.ink,
-                                      fontWeight: FontWeight.w700,
+              child: ListView.builder(
+                controller: _scroll,
+                scrollDirection: Axis.horizontal,
+                itemCount: months.length,
+                itemExtent: columnWidth,
+                itemBuilder: (context, i) {
+                  final m = months[i];
+                  final v = _value(m);
+                  final isCur = i == current;
+                  final h = maxV <= 0 ? 0.0 : (v / maxV) * plotH;
+                  final showYear = i == 0 || m.month == 1;
+                  return Semantics(
+                    button: true,
+                    selected: _selected == i,
+                    label: '${m.label}: ${_text(m)}',
+                    excludeSemantics: true,
+                    onTap: () => setState(() => _selected = i),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        AknHaptics.selection();
+                        setState(() => _selected = _selected == i ? null : i);
+                      },
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            height: 22,
+                            child: isCur && v > 0
+                                ? OverflowBox(
+                                    maxWidth: columnWidth * 2,
+                                    child: Text(
+                                      _short(m),
+                                      maxLines: 1,
+                                      textAlign: TextAlign.center,
+                                      style: t.captionStrong.copyWith(
+                                        color: c.ink,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        SizedBox(
-                          height: plotH,
-                          child: Align(
-                            alignment: Alignment.bottomCenter,
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(begin: 0, end: h),
-                              duration: duration,
-                              curve: AknMotion.emphasizedCurve,
-                              builder: (context, value, _) => Container(
-                                width: barWidth,
-                                height: v <= 0 ? 0 : math.max(3, value),
-                                decoration: BoxDecoration(
-                                  color: isCur
-                                      ? c.chartHighlight
-                                      : c.chartContext,
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(4),
+                                  )
+                                : null,
+                          ),
+                          SizedBox(
+                            height: plotH,
+                            child: Align(
+                              alignment: Alignment.bottomCenter,
+                              // Sütunlar soldan sağa birbiri ardına büyür (v3 §5).
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: h),
+                                duration: duration == Duration.zero
+                                    ? duration
+                                    : duration +
+                                          AknMotion.barsStagger *
+                                              math.min(i, 12),
+                                curve: AknMotion.emphasizedCurve,
+                                builder: (context, value, _) => Container(
+                                  width: barWidth,
+                                  height: v <= 0 ? 0 : math.max(3, value),
+                                  decoration: BoxDecoration(
+                                    color: isCur ? null : c.chartContext,
+                                    gradient: isCur
+                                        ? LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: [
+                                              c.brandFillStart,
+                                              c.brandFill,
+                                            ],
+                                          )
+                                        : null,
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(6),
+                                    ),
+                                    boxShadow: isCur
+                                        ? AknShadows.glow(c.brand)
+                                        : null,
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 7),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            m.abbrev,
-                            style: t.caption.copyWith(
-                              color: isCur ? c.ink : c.dim,
-                              fontWeight: isCur ? FontWeight.w700 : null,
-                            ),
-                          ),
-                        ),
-                        if (showYear)
+                          const SizedBox(height: 7),
                           FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              '${m.year}',
-                              style: t.caption.copyWith(color: c.dim),
+                              m.abbrev,
+                              style: t.caption.copyWith(
+                                color: isCur ? c.ink : c.dim,
+                                fontWeight: isCur ? FontWeight.w700 : null,
+                              ),
                             ),
                           ),
-                      ],
+                          if (showYear)
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                '${m.year}',
+                                style: t.caption.copyWith(color: c.dim),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -295,9 +316,53 @@ class _MonthBarChartState extends State<MonthBarChart> {
   }
 }
 
-/// Kırılım çubukları (tasarım v2 §6.20 "ranked bars"; en fazla 5 + "Diğer"): ad solda, değer ve pay
-/// sağda, altında 8 px mürekkep çubuk (`chartTrack` üstünde; "Diğer" bağlam renginde) ve ortalama
-/// ₺/L. Dokununca ayrıntı.
+/// Yatay kayan grafiğin kenar sönümü: içerik solda (ya da sağda) görünür alanın dışına taşıyorsa o
+/// kenarda 28 px'lik yumuşak bir geçişle söner; kaydırma kenara dayanınca sönüm kalkar.
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({required this.controller, required this.child});
+
+  final ScrollController controller;
+  final Widget child;
+
+  static const double _width = 28;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    child: child,
+    builder: (context, child) {
+      final pos = controller.hasClients ? controller.position : null;
+      final ready = pos != null && pos.hasContentDimensions;
+      final before = !ready
+          ? 0.0
+          : ((pos.pixels - pos.minScrollExtent) / _width).clamp(0.0, 1.0);
+      final after = !ready
+          ? 0.0
+          : ((pos.maxScrollExtent - pos.pixels) / _width).clamp(0.0, 1.0);
+      // Maske hep yerinde kalır (liste yeniden kurulup kaydırma konumunu kaybetmesin).
+      return ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) {
+          final f = rect.width <= 0 ? 0.0 : math.min(_width / rect.width, 0.5);
+          return LinearGradient(
+            colors: [
+              Colors.black.withValues(alpha: 1 - before),
+              Colors.black,
+              Colors.black,
+              Colors.black.withValues(alpha: 1 - after),
+            ],
+            stops: [0, f, 1 - f, 1],
+          ).createShader(rect);
+        },
+        child: child,
+      );
+    },
+  );
+}
+
+/// Kırılım çubukları (tasarım v3, "ranked bars"; en fazla 5 + "Diğer"): ad solda, değer ve pay
+/// sağda, altında 10 px turuncu geçişli hap çubuk (`chartTrack` üstünde; "Diğer" bağlam renginde)
+/// birbiri ardına büyüyerek ve ortalama ₺/L. Dokununca ayrıntı.
 class BucketBars extends StatelessWidget {
   const BucketBars({
     super.key,
@@ -342,8 +407,13 @@ class BucketBars extends StatelessWidget {
               excludeSemantics: true,
               onTap: tappable ? () => onTap!(b) : null,
               child: InkWell(
-                onTap: tappable ? () => onTap!(b) : null,
-                borderRadius: AknRadius.chip,
+                onTap: tappable
+                    ? () {
+                        AknHaptics.selection();
+                        onTap!(b);
+                      }
+                    : null,
+                borderRadius: AknRadius.input,
                 highlightColor: c.surfaceAlt,
                 splashFactory: NoSplash.splashFactory,
                 child: Padding(
@@ -380,32 +450,39 @@ class BucketBars extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      // Pay çubuğu: turuncu geçiş (Diğer bağlam rengi), ilk görünüşte soldan
+                      // büyür, değer değişince yeni boyuna kayar.
                       ClipRRect(
-                        borderRadius: const BorderRadius.horizontal(
-                          right: Radius.circular(4),
-                        ),
+                        borderRadius: AknRadius.pillAll,
                         child: SizedBox(
-                          height: 8,
+                          height: 10,
                           child: Stack(
                             fit: StackFit.expand,
                             children: [
                               ColoredBox(color: c.chartTrack),
                               TweenAnimationBuilder<double>(
-                                tween: Tween(begin: f, end: f),
-                                duration: duration,
+                                tween: Tween(begin: 0, end: f),
+                                duration: duration == Duration.zero
+                                    ? duration
+                                    : duration + AknMotion.barsStagger * i,
                                 curve: AknMotion.emphasizedCurve,
                                 builder: (context, w, _) =>
                                     FractionallySizedBox(
                                       alignment:
                                           AlignmentDirectional.centerStart,
-                                      widthFactor: w,
+                                      widthFactor: w.clamp(0.0, 1.0),
                                       child: DecoratedBox(
                                         decoration: BoxDecoration(
-                                          color: other ? c.chartContext : c.ink,
-                                          borderRadius:
-                                              const BorderRadius.horizontal(
-                                                right: Radius.circular(4),
-                                              ),
+                                          color: other ? c.chartContext : null,
+                                          gradient: other
+                                              ? null
+                                              : LinearGradient(
+                                                  colors: [
+                                                    c.brandFillStart,
+                                                    c.brandFill,
+                                                  ],
+                                                ),
+                                          borderRadius: AknRadius.pillAll,
                                         ),
                                       ),
                                     ),

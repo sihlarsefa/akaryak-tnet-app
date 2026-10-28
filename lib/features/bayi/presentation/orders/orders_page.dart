@@ -17,9 +17,10 @@ import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 import 'order_filters_sheet.dart';
 
-/// Siparişler (spec A.4, tasarım v2 §7.7): kök başlık, segment çipleri (`bayi/orders/counts`), arama
-/// kuyusu, durum / ödeme / finans / cari / tarih süzgeçleri, sonsuz kaydırma; defter satırına
-/// dokununca sipariş ayrıntısı.
+/// Siparişler (spec A.4, tasarım v3 "Akış"): kök başlık, segment çipleri (`bayi/orders/counts`), arama
+/// kuyusu, durum / ödeme / finans / cari / tarih süzgeçleri, sonsuz kaydırma. Her sipariş sayfa
+/// zemininde süzülen beyaz bir kart: kartlar art arda yükselerek gelir (segment değişince yeniden),
+/// dokununca hafifçe küçülür ve sipariş ayrıntısını açar.
 class BayiOrdersPage extends ConsumerStatefulWidget {
   const BayiOrdersPage({super.key});
 
@@ -85,7 +86,7 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
             onChanged: (v) => c.setSegment(v.isEmpty ? null : v.first),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
             child: SearchField(
               hint: 'Sipariş no, cari, ürün ya da nokta',
               controller: _search,
@@ -136,6 +137,10 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
                     ? 'Süzgece uyan ${Fmt.integer(total)} sipariş gösteriliyor.'
                     : 'Toplam ${Fmt.integer(total)} sipariş. Tamamlanan ve iptal olanları süzgeçten bulabilirsiniz.',
               ),
+        // Segment değişince kartlar yeniden art arda gelir (aramada değil: yazarken liste zıplamaz).
+        staggerKey: f.segment,
+        // Satır kendi basılı hâlini çizer (içeride küçülür); kart sabit kalır.
+        pressableCards: false,
         itemBuilder: (context, row, _) => BayiOrderCard(row: row),
       ),
     );
@@ -165,7 +170,7 @@ ShipmentStatus? bayiShipmentStatus(BayiShipmentState s) => switch (s) {
   BayiShipmentState.partial || BayiShipmentState.none => null,
 };
 
-/// Sipariş satırı (tasarım v2 §6.8 defter satırı, bayi):
+/// Sipariş kartı (tasarım v3 liste kartı, bayi; kartı [PagedListBody] çizer):
 ///
 /// ```
 /// Körfez Nakliyat ve Ticaret                     338.800,00 ₺
@@ -173,6 +178,8 @@ ShipmentStatus? bayiShipmentStatus(BayiShipmentState s) => switch (s) {
 /// ● Müşteri kararında                       ⏱ 2 sa 57 dk kaldı
 /// [ödeme notu] [yolda ise rota çizgisi]
 /// ```
+///
+/// Tutarlar tablo rakamlı; durum yumuşak tonlu çip; yoldaki siparişte tır rota çizgisinde ilerler.
 class BayiOrderCard extends ConsumerWidget {
   const BayiOrderCard({super.key, required this.row});
 
@@ -228,6 +235,7 @@ class BayiOrderCard extends ConsumerWidget {
     final inTransit = r.shipmentState == BayiShipmentState.inTransit;
 
     return AknListTile(
+      padding: kCardRowPadding,
       title: r.customerTitle ?? Fmt.dash,
       subtitle: keepUnits(
         [
@@ -247,7 +255,7 @@ class BayiOrderCard extends ConsumerWidget {
           if (payment != null) ...[
             const SizedBox(height: 4),
             RowNote(
-              icon: Icons.payments_outlined,
+              icon: PhosphorIconsRegular.money,
               text: payment,
               tone: r.paymentStatus.statusStyle.tone,
             ),
@@ -276,7 +284,8 @@ class _Note extends StatelessWidget {
     text,
     style: context.aknText.bodySmall.copyWith(
       color: context.akn.ink,
-      fontWeight: FontWeight.w500,
+      fontWeight: FontWeight.w600,
+      fontFeatures: AknNumerals.tabular,
     ),
   );
 }

@@ -11,10 +11,11 @@ import '../copy.dart';
 /// Limitlerim rotası (spec C.4 derin bağlantı).
 const limitsRoute = '/limits';
 
-/// Bir bayideki limit kullanımı, ledger satırı olarak (tasarım v2 §6.8): bayi ve dönem solda, kalan
-/// tutar sağda ("360.000 ₺ / kalan"), altında kullanım göstergesi (mürekkep; %80 üstü uyarı, %100
-/// üstü tehlike rengi ve sözcükle). Tam görünümde ([compact] false) kullanılan / limit ve tür satırı
-/// da yazılır. Limitsiz bayide gösterge yok, sağda "Limitsiz".
+/// Bir bayideki limit kullanımı, kart satırı olarak (tasarım v3 §4 AknListTile): durumun
+/// kuyusunda gösterge karosu, bayi ve dönem solda, tablo rakamlı kalan tutar sağda ("360.000 ₺ /
+/// Kalan"), altında soldan dolan kullanım çubuğu (%80 üstü uyarı, %100 üstü tehlike rengi ve
+/// sözcükle). Tam görünümde ([compact] false) kullanılan / limit ve tür satırı da yazılır.
+/// Limitsiz bayide çubuk yok, sağda "Limitsiz".
 class LimitMeter extends StatelessWidget {
   const LimitMeter({
     super.key,
@@ -26,7 +27,7 @@ class LimitMeter extends StatelessWidget {
   final CustomerLimit limit;
   final bool compact;
 
-  /// Satır dolgusu (varsayılan ledger satırı).
+  /// Satır dolgusu (varsayılan kart satırı).
   final EdgeInsetsGeometry? padding;
 
   String _fmt(double? v) => v == null
@@ -38,9 +39,12 @@ class LimitMeter extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     final l = limit;
+    final titleStyle = t.bodyStrong.copyWith(height: 20 / 15, color: c.ink);
     if (!l.hasLimit) {
       return AknListTile(
         padding: padding,
+        leading: const _LimitTile(tone: AknTone.ok),
+        titleStyle: titleStyle,
         title: l.stationTitle,
         subtitle: HomeCopy.unlimitedMessage,
         amount: HomeCopy.unlimited,
@@ -62,6 +66,14 @@ class LimitMeter extends StatelessWidget {
     final usedLine = '${_fmt(l.used)} kullanıldı, limit ${_fmt(l.amount)}';
     return AknListTile(
       padding: padding,
+      leading: _LimitTile(
+        tone: full
+            ? AknTone.danger
+            : near
+            ? AknTone.warn
+            : null,
+      ),
+      titleStyle: titleStyle,
       title: l.stationTitle,
       subtitle: '${l.periodLabel}, $pctText kullanıldı',
       amount: _fmt(l.remaining),
@@ -95,7 +107,37 @@ class LimitMeter extends StatelessWidget {
   }
 }
 
-/// Limitlerim (spec A.4): bayi başına limit kullanımı (ana sayfa verisinden), ledger satırları.
+/// Limit satırının baş karosu: gösterge simgesi, durumun yumuşak kuyusunda (limitsiz yeşil, %80
+/// üstü uyarı, dolu tehlike; olağan kullanım sessiz kuyu).
+class _LimitTile extends StatelessWidget {
+  const _LimitTile({this.tone});
+
+  final AknTone? tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final tn = tone;
+    final (bg, fg) = tn == null
+        ? (c.surfaceAlt, c.ink)
+        : (c.tone(tn).bg, c.tone(tn).fg);
+    return ExcludeSemantics(
+      child: Container(
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AknRadius.sm),
+        ),
+        child: Icon(PhosphorIconsRegular.gauge, size: 22, color: fg),
+      ),
+    );
+  }
+}
+
+/// Limitlerim (spec A.4): bayi başına limit kullanımı (ana sayfa verisinden); her bayi kırık beyaz
+/// sayfada yüzen beyaz bir kartta, kartlar sırayla yükselerek gelir (tasarım v3).
 class LimitsPage extends ConsumerWidget {
   const LimitsPage({super.key});
 
@@ -125,7 +167,9 @@ class LimitsPage extends ConsumerWidget {
         onRefresh: () => ref.read(customerHomeProvider.notifier).refresh(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
+          padding: EdgeInsets.only(
+            bottom: 32 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             LastUpdatedNote(
               updatedAt: s.updatedAt,
@@ -151,8 +195,22 @@ class LimitsPage extends ConsumerWidget {
                   ),
                 ),
               ),
-              AknLedger(
-                children: [for (final l in limits) LimitMeter(limit: l)],
+              StaggerScope(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (i, l) in limits.indexed)
+                      StaggerItem(
+                        index: i,
+                        child: _LimitCard(
+                          child: LimitMeter(
+                            limit: l,
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ],
           ],
@@ -163,6 +221,30 @@ class LimitsPage extends ConsumerWidget {
       title: HomeCopy.limits,
       refreshing: s.refreshing,
       body: body,
+    );
+  }
+}
+
+/// Limit kartı (tasarım v3 §3): beyaz r20, yumuşak kart gölgesi (koyu temada 1 px çizgi).
+class _LimitCard extends StatelessWidget {
+  const _LimitCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: AknRadius.card,
+          boxShadow: AknShadows.card(c),
+          border: c.isDark ? Border.all(color: c.line) : null,
+        ),
+        child: child,
+      ),
     );
   }
 }

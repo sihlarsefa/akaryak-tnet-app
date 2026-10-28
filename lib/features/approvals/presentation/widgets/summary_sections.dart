@@ -11,8 +11,9 @@ import '../../../../core/routing/route_access.dart';
 import '../../../../core/ui/ui.dart';
 import '../../data/approval_models.dart';
 
-/// Bölüm başlığı + içerik (tasarım v2 §4.5 "Section": başlık ve içerik, kutu yok). İçerik 20 px
-/// kenarda; [bleed] iken tam genişlik (defter satırları kendi kenar boşluğunu verir).
+/// Bölüm başlığı + içerik (tasarım v3 §4: 18/24 800 başlık, içerik genelde beyaz kart). İçerik 20
+/// px kenarda; [bleed] iken tam genişlik (sayfa düzeyindeki satır grubu kendini kart olarak
+/// yüzdürür).
 class DetailSection extends StatelessWidget {
   const DetailSection({
     super.key,
@@ -56,7 +57,8 @@ class DetailSection extends StatelessWidget {
   }
 }
 
-/// Sunucunun Türkçe biçimli etiket – değer satırları: kutu yok, aralarında ince çizgi.
+/// Sunucunun Türkçe biçimli etiket – değer satırları (tasarım v3 §4): beyaz kart (r20, kart
+/// gölgesi), etiket solda soluk, değer sağda; satırlar arasında içeriden ince çizgi.
 class FactsCard extends StatelessWidget {
   const FactsCard({super.key, required this.facts});
 
@@ -64,19 +66,21 @@ class FactsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < facts.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
-          FactRow(
-            label: facts[i].label,
-            value: facts[i].value.replaceAll(' · ', ', '),
-            tone: _tone(facts[i].tone),
-          ),
+    return AknCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < facts.length; i++) ...[
+            if (i > 0) const AknLedgerDivider(indent: 0),
+            FactRow(
+              label: facts[i].label,
+              value: facts[i].value.replaceAll(' · ', ', '),
+              tone: _tone(facts[i].tone),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -86,7 +90,8 @@ class FactsCard extends StatelessWidget {
   }
 }
 
-/// Kalemler (sipariş satırları, ürünler): defter satırları, değer sağda (`amount`).
+/// Kalemler (sipariş satırları, ürünler; tasarım v3 §4): beyaz kartta satırlar, solda ürün kuyusu,
+/// değer sağda (`amount`, tablo rakamları); aralarında içeriden ince çizgi.
 class LinesCard extends StatelessWidget {
   const LinesCard({super.key, required this.lines});
 
@@ -96,56 +101,68 @@ class LinesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < lines.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
-          Semantics(
-            container: true,
-            label: [
-              lines[i].title,
-              ?lines[i].subtitle,
-              ?lines[i].value,
-            ].join(', '),
-            excludeSemantics: true,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lines[i].title,
-                          style: t.bodyStrong.copyWith(color: c.ink),
-                        ),
-                        if (lines[i].subtitle != null)
-                          Text(
-                            lines[i].subtitle!.replaceAll(' · ', ', '),
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
-                      ],
+    return AknCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < lines.length; i++) ...[
+            if (i > 0) const AknLedgerDivider(indent: 0),
+            Semantics(
+              container: true,
+              label: [
+                lines[i].title,
+                ?lines[i].subtitle,
+                ?lines[i].value,
+              ].join(', '),
+              excludeSemantics: true,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AknIconBox(
+                      icon: PhosphorIconsRegular.gasPump,
+                      size: 36,
                     ),
-                  ),
-                  if (lines[i].value != null) ...[
                     const SizedBox(width: 12),
-                    Flexible(
-                      child: Text(
-                        lines[i].value!,
-                        style: t.amount.copyWith(fontSize: 15, color: c.ink),
-                        textAlign: TextAlign.end,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            lines[i].title,
+                            style: t.bodyStrong.copyWith(color: c.ink),
+                          ),
+                          if (lines[i].subtitle != null)
+                            Text(
+                              lines[i].subtitle!.replaceAll(' · ', ', '),
+                              style: t.bodySmall.copyWith(color: c.dim),
+                            ),
+                        ],
                       ),
                     ),
+                    if (lines[i].value != null) ...[
+                      const SizedBox(width: 12),
+                      // Değer doğal genişliğinde, sağa yaslı (en çok ekranın %40'ı; uzunsa sarar).
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.sizeOf(context).width * 0.4,
+                        ),
+                        child: Text(
+                          lines[i].value!,
+                          style: t.amount.copyWith(fontSize: 15, color: c.ink),
+                          textAlign: TextAlign.end,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -190,7 +207,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
     out.add(
       RelatedLink(
         'Siparişi aç',
-        Icons.receipt_long_outlined,
+        PhosphorIconsRegular.receipt,
         customer
             ? AppRoutes.order(l.orderId!)
             : AppRoutes.bayiOrder(l.orderId!),
@@ -201,7 +218,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
     out.add(
       RelatedLink(
         'Sipariş talebini aç',
-        Icons.fact_check_outlined,
+        PhosphorIconsRegular.listChecks,
         AppRoutes.companyRequest(d.companyRequestId!),
       ),
     );
@@ -211,7 +228,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Saha formunu aç',
-          Icons.assignment_outlined,
+          PhosphorIconsRegular.clipboardText,
           AppRoutes.fieldForm(l.fieldOrderId!),
         ),
       );
@@ -220,7 +237,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Ön kaydı aç',
-          Icons.how_to_reg_outlined,
+          PhosphorIconsRegular.userCheck,
           AppRoutes.fieldLead(l.leadId!),
         ),
       );
@@ -229,7 +246,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Finans kartını aç',
-          Icons.account_balance_outlined,
+          PhosphorIconsRegular.bank,
           AppRoutes.financeCustomer(l.stationCustomerId!),
         ),
       );
@@ -238,7 +255,7 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
       out.add(
         RelatedLink(
           'Cari kartını aç',
-          Icons.apartment_outlined,
+          PhosphorIconsRegular.buildings,
           AppRoutes.customer(l.customerId!),
         ),
       );

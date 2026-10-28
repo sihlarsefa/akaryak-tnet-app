@@ -9,10 +9,11 @@ import '../../copy.dart';
 import '../../data/driver_models.dart';
 import 'navigation.dart';
 
-/// "Teslimat noktası" bölümü (tasarım v2 §4.5: başlık + içerik, kutu yok): harita açık derlemelerde
-/// küçük harita iğnesi, nokta adı ve adres, "Yol tarifi" (alttaki rafta yoksa) ve "Haritada aç";
-/// teslim saatleri ve tank kapasitesi olgu satırları. Kapı notu ve teslim alacak kişi plakanın
-/// hemen altında durur (ayrıntı sayfası).
+/// "Teslimat noktası" kartı (tasarım v3 §4: beyaz kart r20, kart gölgesi, sayfanın 20 px
+/// kenarında): harita açık derlemelerde üstte küçük harita iğnesi (r14), solda yumuşak turuncu
+/// kuyuda konum simgesi, nokta adı ve adres, "Yol tarifi" (alttaki rafta yoksa) ve "Haritada aç";
+/// teslim saatleri ve tank kapasitesi içeriden ince çizgilerle ayrılmış olgu satırları. Kapı notu
+/// ve teslim alacak kişi plakanın hemen altında durur (ayrıntı sayfası).
 class DeliveryPointCard extends ConsumerWidget {
   const DeliveryPointCard({
     super.key,
@@ -35,94 +36,114 @@ class DeliveryPointCard extends ConsumerWidget {
     final lat = detail.latitude;
     final lng = detail.longitude;
     final hasTarget = detail.hasCoordinates || address != null;
+    final facts = [
+      if (row.windowLabel != null)
+        FactRow(
+          icon: PhosphorIconsRegular.clock,
+          label: DriverCopy.window,
+          value: row.windowLabel!,
+        ),
+      if (detail.tankCapacityLiters != null)
+        FactRow(
+          icon: PhosphorIconsRegular.cylinder,
+          label: DriverCopy.tankCapacity,
+          value: Fmt.liters(detail.tankCapacityLiters),
+        ),
+    ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (mapsEnabled && lat != null && lng != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: _MapPin(lat: lat, lng: lng, title: row.deliveryPointName),
-          ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
-          child: Row(
+    return AknCard(
+      margin: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (mapsEnabled && lat != null && lng != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _MapPin(lat: lat, lng: lng, title: row.deliveryPointName),
+            ),
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(Icons.place_outlined, size: 22, color: c.dim),
+              SizedBox.square(
+                dimension: 40,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.brandSoft,
+                    borderRadius: const BorderRadius.all(
+                      Radius.circular(AknRadius.sm),
+                    ),
+                  ),
+                  child: Icon(
+                    PhosphorIconsRegular.mapPin,
+                    size: 22,
+                    color: c.brandInk,
+                  ),
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       row.deliveryPointName ?? DriverCopy.deliveryPoint,
-                      style: t.bodyStrong.copyWith(color: c.ink),
+                      style: t.bodyStrong.copyWith(
+                        color: c.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
+                    const SizedBox(height: 2),
                     Text(
                       address ?? DriverCopy.noAddress,
-                      style: t.body.copyWith(color: c.ink),
+                      style: t.body.copyWith(color: c.dim),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-        ),
-        if (hasTarget)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: Wrap(
-              spacing: 10,
-              runSpacing: 8,
-              children: [
-                if (showNavigate)
-                  AknButton.secondary(
-                    label: DriverCopy.actionNavigate,
-                    icon: Icons.directions_outlined,
-                    onPressed: () => openNavigation(
+          if (hasTarget)
+            Padding(
+              padding: const EdgeInsets.only(top: 14),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  if (showNavigate)
+                    AknButton.secondary(
+                      label: DriverCopy.actionNavigate,
+                      icon: PhosphorIconsRegular.navigationArrow,
+                      onPressed: () => openNavigation(
+                        context,
+                        lat: lat,
+                        lng: lng,
+                        address: address,
+                      ),
+                    ),
+                  AknButton.ghost(
+                    label: DriverCopy.openInMaps,
+                    icon: PhosphorIconsRegular.mapTrifold,
+                    onPressed: () => showOnMap(
                       context,
                       lat: lat,
                       lng: lng,
                       address: address,
                     ),
                   ),
-                AknButton.ghost(
-                  label: DriverCopy.openInMaps,
-                  icon: Icons.map_outlined,
-                  onPressed: () =>
-                      showOnMap(context, lat: lat, lng: lng, address: address),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        if (row.windowLabel != null || detail.tankCapacityLiters != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: Column(
-              children: [
-                if (row.windowLabel != null)
-                  FactRow(
-                    icon: Icons.schedule_outlined,
-                    label: DriverCopy.window,
-                    value: row.windowLabel!,
-                  ),
-                if (row.windowLabel != null &&
-                    detail.tankCapacityLiters != null)
-                  Divider(height: 1, thickness: 1, color: c.line),
-                if (detail.tankCapacityLiters != null)
-                  FactRow(
-                    icon: Icons.propane_tank_outlined,
-                    label: DriverCopy.tankCapacity,
-                    value: Fmt.liters(detail.tankCapacityLiters),
-                  ),
-              ],
-            ),
-          ),
-      ],
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (var i = 0; i < facts.length; i++) ...[
+              const AknLedgerDivider(indent: 0),
+              facts[i],
+            ],
+          ],
+          if (facts.isEmpty) const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
@@ -142,7 +163,7 @@ class _MapPin extends StatelessWidget {
       label: '${DriverCopy.deliveryPoint} haritası',
       excludeSemantics: true,
       child: ClipRRect(
-        borderRadius: AknRadius.card,
+        borderRadius: const BorderRadius.all(Radius.circular(AknRadius.md)),
         child: SizedBox(
           height: 150,
           child: GoogleMap(

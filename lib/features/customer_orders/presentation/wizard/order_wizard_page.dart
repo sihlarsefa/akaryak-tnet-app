@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -40,6 +42,9 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
   /// Geçiş yönü: adım geri gidince ters (Geri, "Düzenle", hatalı adıma dönüş).
   bool _reverse = false;
   int _lastIndex = 0;
+
+  /// Buzlu alt çubuğun ölçülen yüksekliği (adım listeleri sonlarına bu kadar boşluk ekler).
+  double? _dockHeight;
 
   @override
   void initState() {
@@ -180,7 +185,7 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
     final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
 
     Widget body;
-    Widget? actionBar;
+    Widget? dock;
     if (!canCreate) {
       body = const Center(
         child: EmptyState(
@@ -190,21 +195,27 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
         ),
       );
     } else if (submitting) {
-      body = SubmissionView(
-        onEditRemaining: () async {
-          await ref.read(orderWizardProvider.notifier).reloadFromStore();
-        },
-        onSendRemaining: () async {
-          await ref.read(orderWizardProvider.notifier).reloadFromStore();
-          final req = ref.read(orderWizardProvider.notifier).buildRequest();
-          await ref.read(orderSubmitProvider.notifier).sendRemaining(req);
-        },
-        onBackToEditing: () async {
-          await ref.read(orderSubmitProvider.notifier).backToEditing();
-          await ref.read(orderWizardProvider.notifier).reloadFromStore();
-        },
-        onClose: _close,
-        onOpen: _leaveResult,
+      // Gönderim ekranı yükselerek gelir (v3 §5).
+      body = A2Rise(
+        index: 0,
+        offset: 16,
+        scale: 0.97,
+        child: SubmissionView(
+          onEditRemaining: () async {
+            await ref.read(orderWizardProvider.notifier).reloadFromStore();
+          },
+          onSendRemaining: () async {
+            await ref.read(orderWizardProvider.notifier).reloadFromStore();
+            final req = ref.read(orderWizardProvider.notifier).buildRequest();
+            await ref.read(orderSubmitProvider.notifier).sendRemaining(req);
+          },
+          onBackToEditing: () async {
+            await ref.read(orderSubmitProvider.notifier).backToEditing();
+            await ref.read(orderWizardProvider.notifier).reloadFromStore();
+          },
+          onClose: _close,
+          onOpen: _leaveResult,
+        ),
       );
     } else if (w.loadError != null && !w.ready) {
       body = Center(
@@ -244,9 +255,13 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
               steps: [for (final s in steps) s.label],
               current: index,
               onStepTap: (i) {
-                if (i < index) ctrl.goTo(steps[i]);
+                if (i < index) {
+                  AknHaptics.selection();
+                  ctrl.goTo(steps[i]);
+                }
               },
             ),
+            _ProgressLine(value: (index + 1) / steps.length),
             Expanded(
               child: SharedAxisSwitcher(
                 reverse: _reverse,
@@ -284,8 +299,51 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
           expand: MediaQuery.textScalerOf(context).scale(15) > 19.5,
           onPressed: _back,
         );
-        actionBar = _WizardDock(primary: primary, back: back);
+        dock = _WizardDock(primary: primary, back: back);
       }
+    }
+
+    final d = dock;
+    if (d != null) {
+      // Adımlar buzlu çubuğun altından kayar; listeler sonlarına çubuğun yüksekliği kadar boşluk
+      // ekler (MediaQuery alt boşluğu), böylece son satır da çubuğun üstüne çıkabilir. Klavye
+      // açıkken çubuk aşağı kayıp gizlenir (içerik yerini alır).
+      final keyboard = MediaQuery.viewInsetsOf(context).bottom > 0;
+      final mq = MediaQuery.of(context);
+      final inset = keyboard
+          ? 0.0
+          : (_dockHeight ?? 88 + mq.viewPadding.bottom);
+      body = Stack(
+        children: [
+          Positioned.fill(
+            child: MediaQuery(
+              data: mq.copyWith(padding: mq.padding.copyWith(bottom: inset)),
+              child: body,
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: IgnorePointer(
+              ignoring: keyboard,
+              child: AnimatedSlide(
+                offset: keyboard ? const Offset(0, 1) : Offset.zero,
+                duration: AknMotion.of(context, AknMotion.base),
+                curve: AknMotion.emphasizedCurve,
+                child: _SizeReport(
+                  onSize: (size) {
+                    if (mounted && size.height != _dockHeight) {
+                      setState(() => _dockHeight = size.height);
+                    }
+                  },
+                  child: _FrostedDock(child: d),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     }
 
     return PopScope(
@@ -299,14 +357,126 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
         largeTitle: false,
         showBell: false,
         leading: AknIconButton(
-          icon: Icons.close_rounded,
+          icon: PhosphorIconsRegular.x,
           semanticLabel: 'Kapat',
           onPressed: _close,
         ),
-        actionBar: actionBar,
         body: body,
       ),
     );
+  }
+}
+
+/// Sihirbazın ilerleme çizgisi (tasarım v3 §5): adım şeridinin altında, sayfa genişliğinde 3 px;
+/// turuncu dolgu ilk açılışta soldan uzar, adım değişince yay eğrisiyle yeni yerine kayar.
+class _ProgressLine extends StatelessWidget {
+  const _ProgressLine({required this.value});
+
+  /// 0–1.
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Semantics(
+      excludeSemantics: true,
+      child: SizedBox(
+        height: 3,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ColoredBox(color: c.lineSoft),
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: value),
+              duration: AknMotion.of(context, AknMotion.emphasized),
+              curve: AknMotion.curveOf(context, AknMotion.spring),
+              builder: (context, v, _) => FractionallySizedBox(
+                alignment: AlignmentDirectional.centerStart,
+                widthFactor: v.clamp(0.0, 1.0),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [c.brandFillStart, c.brand],
+                    ),
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(3),
+                    ),
+                    boxShadow: AknShadows.glow(c.brand),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Buzlu alt çubuk (tasarım v3 §4): içerik altından kayarken %86 opak yüzey ve bulanıklık
+/// (sigma 20), üstünde yumuşak çubuk gölgesi, ince çizgi yok; 12/20 dolgu ve güvenli alan.
+class _FrostedDock extends StatelessWidget {
+  const _FrostedDock({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final surface = c.isDark ? c.surface : c.surfaceRaised;
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: AknTheme.overlayFor(c.brightness),
+      child: DecoratedBox(
+        decoration: BoxDecoration(boxShadow: AknShadows.bar(c)),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: ColoredBox(
+              color: surface.withValues(alpha: 0.86),
+              child: SafeArea(
+                top: false,
+                minimum: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Çocuğunun yerleşim sonrası boyutunu bildirir (boyut değiştiğinde, çizimden sonra).
+class _SizeReport extends SingleChildRenderObjectWidget {
+  const _SizeReport({required this.onSize, required super.child});
+
+  final ValueChanged<Size> onSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSizeReport(onSize);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderSizeReport r) =>
+      r.onSize = onSize;
+}
+
+class _RenderSizeReport extends RenderProxyBox {
+  _RenderSizeReport(this.onSize);
+
+  ValueChanged<Size> onSize;
+  Size? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final s = size;
+    if (s == _last) return;
+    _last = s;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onSize(s));
   }
 }
 
@@ -322,6 +492,20 @@ class _ExitSheet extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 4),
+        const Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: FadeUp(
+            offset: 8,
+            scale: 0.8,
+            curve: AknMotion.pop,
+            child: A2IconTile(
+              icon: PhosphorIconsRegular.notePencil,
+              tone: AknTone.brand,
+              size: 52,
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
         Semantics(
           header: true,
           child: Text(

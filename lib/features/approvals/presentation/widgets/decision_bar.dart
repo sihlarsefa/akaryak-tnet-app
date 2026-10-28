@@ -6,13 +6,14 @@ import '../../../../core/offline/connectivity.dart';
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 import '../../data/approval_models.dart';
+import '../../shared/layout.dart';
 
 IconData decisionIcon(ApprovalDecision d) => switch (d) {
-  ApprovalDecision.approve => Icons.check_rounded,
-  ApprovalDecision.conditionalApprove => Icons.rule_rounded,
-  ApprovalDecision.requestInfo => Icons.contact_support_rounded,
-  ApprovalDecision.reject => Icons.close_rounded,
-  ApprovalDecision.unknown => Icons.help_outline_rounded,
+  ApprovalDecision.approve => PhosphorIconsRegular.check,
+  ApprovalDecision.conditionalApprove => PhosphorIconsRegular.listChecks,
+  ApprovalDecision.requestInfo => PhosphorIconsFill.chatCircleDots,
+  ApprovalDecision.reject => PhosphorIconsRegular.x,
+  ApprovalDecision.unknown => PhosphorIconsRegular.question,
 };
 
 String decisionDescription(ApprovalDecision d) => switch (d) {
@@ -33,12 +34,14 @@ typedef _Secondary = ({
   VoidCallback? onTap,
 });
 
-/// Karar çubuğu (spec A.4, tasarım v2 §7.13 / §7.8 karar rıhtımı): yalnızca sunucunun verdiği
-/// [ApprovalDetail.modes].
+/// Karar çubuğu (spec A.4, tasarım v3 §4 karar rıhtımı; alttaki buzlu rafta): yalnızca sunucunun
+/// verdiği [ApprovalDetail.modes].
 ///
-/// - Üstte tam genişlik birincil "Onayla" (turuncu, siyah yazı); altında ikinciller yan yana:
-///   "Ek bilgi iste" / "Koşullu onayla" ikincil, "Reddet" tehlike düğmesi (48 yüksek). Üçten fazla
-///   karar varsa fazlası "Diğer kararlar" sayfasında.
+/// - Üstte tam genişlik birincil "Onayla" (turuncu degrade, beyaz yazı, sıcak parıltı); altında
+///   ikinciller yan yana: "Ek bilgi iste" / "Koşullu onayla" ikincil, "Reddet" tehlike düğmesi (48
+///   yüksek). Üçten fazla karar varsa fazlası "Diğer kararlar" sayfasında (seçenekler sırayla
+///   yükselir).
+/// - Çubuk ilk belirişte aşağıdan yükselir; düğmeler basınca küçülür ve hafif titreşir.
 /// - Büyük yazıda ikinciller alt alta dizilir.
 /// - Çevrimdışıyken düğmeler kapalıdır (spec C.4a).
 class DecisionBar extends ConsumerWidget {
@@ -61,7 +64,7 @@ class DecisionBar extends ConsumerWidget {
       title: 'Diğer kararlar',
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
+        children: a5Staggered([
           for (final m in modes)
             AknListTile(
               leadingIcon: decisionIcon(m),
@@ -73,7 +76,7 @@ class DecisionBar extends ConsumerWidget {
               subtitleMaxLines: 3,
               onTap: () => Navigator.of(ctx).pop(m),
             ),
-        ],
+        ]),
       ),
     );
     if (picked != null) onDecision(picked);
@@ -113,14 +116,14 @@ class DecisionBar extends ConsumerWidget {
       if (overflow.isNotEmpty)
         (
           label: 'Diğer',
-          icon: Icons.more_horiz_rounded,
+          icon: PhosphorIconsRegular.dotsThree,
           semantic: 'Diğer kararlar: ${overflow.map(d.modeLabel).join(', ')}',
           onTap: online ? () => _more(context, overflow) : null,
         ),
       if (onForward != null && hasApprove)
         (
           label: 'Merkeze ilet',
-          icon: Icons.upload_rounded,
+          icon: PhosphorIconsRegular.uploadSimple,
           semantic: null,
           onTap: online ? onForward : null,
         ),
@@ -211,21 +214,43 @@ class DecisionBar extends ConsumerWidget {
       },
     );
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (!online)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              ApprovalsCopy.offlineDecision,
-              style: t.bodySmall,
-              textAlign: TextAlign.center,
-            ),
+    return A5FadeUp(
+      offset: 16,
+      duration: AknMotion.stagger,
+      curve: AknMotion.emphasizedCurve,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AknAnimatedSize(
+            alignment: Alignment.bottomCenter,
+            child: online
+                ? const SizedBox(width: double.infinity)
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          PhosphorIconsRegular.cloudSlash,
+                          size: 16,
+                          color: context.akn.dim,
+                        ),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            ApprovalsCopy.offlineDecision,
+                            style: t.bodySmall,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
           ),
-        bar,
-      ],
+          bar,
+        ],
+      ),
     );
   }
 }

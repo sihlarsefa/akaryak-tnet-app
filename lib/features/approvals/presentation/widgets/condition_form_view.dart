@@ -206,7 +206,9 @@ class _ConditionFormViewState extends State<ConditionFormView> {
   );
 }
 
-/// Alan çerçevesi: etiket, giriş, "Şu an …", öneri (Uygula), ipucu ve hata.
+/// Alan çerçevesi (tasarım v3): etiket (13/18 600), giriş, "Şu an …" (geçmiş simgesiyle), öneri
+/// (turuncu ışıltı simgesi + "Öneriyi kullan"; uygulanınca bağlantı söner), ipucu ve hata (uyarı
+/// simgesiyle, yumuşakça açılır).
 class _FieldShell extends StatelessWidget {
   const _FieldShell({
     required this.child,
@@ -230,50 +232,103 @@ class _FieldShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
+    final meta = t.caption.copyWith(color: c.dim);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (label != null) ...[
           Text(label!, style: t.label),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
         ],
         child,
         if (current != null)
           Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              current!.contains(':') ? current! : 'Şu an: $current',
-              style: t.caption,
+            padding: const EdgeInsets.only(top: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Icon(
+                    PhosphorIconsRegular.clockCounterClockwise,
+                    size: 14,
+                    color: c.dim,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    current!.contains(':') ? current! : 'Şu an: $current',
+                    style: meta,
+                  ),
+                ),
+              ],
             ),
           ),
         if (suggestionLabel != null)
-          Row(
-            children: [
-              Icon(Icons.auto_awesome_outlined, size: 14, color: c.dim),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  suggestionLabel!,
-                  style: t.caption.copyWith(color: c.dim),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              children: [
+                Icon(PhosphorIconsRegular.sparkle, size: 14, color: c.brandInk),
+                const SizedBox(width: 6),
+                Expanded(child: Text(suggestionLabel!, style: meta)),
+                AnimatedSwitcher(
+                  duration: AknMotion.of(context, AknMotion.base),
+                  transitionBuilder: (child, a) => FadeTransition(
+                    opacity: a,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.9, end: 1).animate(a),
+                      child: child,
+                    ),
+                  ),
+                  child: onUseSuggestion == null
+                      ? const SizedBox.shrink(key: ValueKey('used'))
+                      : AknInlineLink(
+                          key: const ValueKey('use'),
+                          label: 'Öneriyi kullan',
+                          onTap: () {
+                            AknHaptics.selection();
+                            onUseSuggestion!();
+                          },
+                        ),
                 ),
-              ),
-              if (onUseSuggestion != null)
-                AknInlineLink(label: 'Öneriyi kullan', onTap: onUseSuggestion!),
-            ],
+              ],
+            ),
           ),
         if (hint != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Text(hint!, style: t.caption),
+            child: Text(hint!, style: meta),
           ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              error!,
-              style: t.captionStrong.copyWith(color: c.danger.fg),
-            ),
-          ),
+        AknAnimatedSize(
+          alignment: Alignment.topCenter,
+          child: error == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Icon(
+                          PhosphorIconsRegular.warningCircle,
+                          size: 16,
+                          color: c.danger.fg,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          error!,
+                          style: t.captionStrong.copyWith(color: c.danger.fg),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       ],
     );
   }

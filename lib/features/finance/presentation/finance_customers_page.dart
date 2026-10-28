@@ -15,8 +15,10 @@ import '../copy.dart';
 import '../data/finance_models.dart';
 import '../data/finance_repository.dart';
 
-/// Finans (spec A.4 A5; tasarım v2 §7.7, §7.13): kök başlık, arama kuyusu, durum için bölmeli seçici,
-/// risk ve "gözden geçirmesi geçen" çipleri, cari finans kartları ledger satırları olarak.
+/// Finans (spec A.4 A5; tasarım v3 "Akış"): kök başlık, arama kuyusu, durum için bölmeli seçici, risk
+/// ve "gözden geçirmesi geçen" çipleri; her cari finans kartı sayfa zemininde süzülen beyaz bir kart
+/// (limit kullanım çubuğu dolarak gelir). Kartlar art arda yükselerek gelir (süzgeç değişince yeniden),
+/// dokununca hafifçe küçülür.
 class FinanceCustomersPage extends ConsumerStatefulWidget {
   const FinanceCustomersPage({super.key});
 
@@ -48,8 +50,8 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
         staggerKey: q,
         onRefresh: ctrl.refresh,
         onLoadMore: () => unawaited(ctrl.loadMore()),
-        padding: const EdgeInsets.only(top: 4, bottom: 24),
-        itemSpacing: 0,
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+        itemSpacing: 12,
         header: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
@@ -98,18 +100,12 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
             ),
           ),
         ],
-        itemBuilder: (context, item, i) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (i > 0) const AknLedgerDivider(),
-            FinanceRowCard(
-              item: item,
-              onTap: () => context.push(
-                AppRoutes.financeCustomer(item.stationCustomerId),
-              ),
-            ),
-          ],
+        itemBuilder: (context, item, i) => _ListCard(
+          child: FinanceRowCard(
+            item: item,
+            onTap: () =>
+                context.push(AppRoutes.financeCustomer(item.stationCustomerId)),
+          ),
         ),
         empty: q.isFiltered
             ? EmptyState(
@@ -214,8 +210,9 @@ String riskShort(RiskClass r) => 'Risk ${r.label.split(' ').first}';
 /// Risk sınıfının lambası: A iyi, B süreçte, C uyarı, D tehlike (her zaman "Risk X" sözüyle).
 StatusStyle riskLamp(RiskClass r) => AknStatus.risk(r).withLabel(riskShort(r));
 
-/// Finans kartı satırı (tasarım v2 §6.8): cari, sağda limit; ikinci satırda VKN ve risk sınıfı, sağda
-/// kullanım oranı; durum satırında kart durumu ve (varsa) sorunlar; altta ince limit ölçeri.
+/// Finans kartı satırı (tasarım v3 liste kartının içi): cari, sağda limit (tablo rakamları); ikinci
+/// satırda VKN ve risk sınıfı, sağda kullanım oranı; durum satırında kart durumu çipi ve (varsa)
+/// sorunlar; altta ince limit ölçeri, ilk görünüşte dolarak gelir.
 class FinanceRowCard extends StatelessWidget {
   const FinanceRowCard({super.key, required this.item, required this.onTap});
 
@@ -230,7 +227,7 @@ class FinanceRowCard extends StatelessWidget {
     final status = item.status == null
         ? const StatusStyle(
             tone: AknTone.neutral,
-            icon: Icons.history_rounded,
+            icon: PhosphorIconsRegular.clockCounterClockwise,
             label: 'Kart yok (eski cari)',
           )
         : financeProfileLamp(item.status!);
@@ -259,7 +256,9 @@ class FinanceRowCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            dangers.isNotEmpty ? Icons.error_rounded : Icons.event_busy_rounded,
+            dangers.isNotEmpty
+                ? PhosphorIconsFill.warningCircle
+                : PhosphorIconsRegular.calendarX,
             size: MediaQuery.textScalerOf(context).scale(17).clamp(17.0, 30.0),
             color: color,
           ),
@@ -296,6 +295,7 @@ class FinanceRowCard extends StatelessWidget {
         'gözden geçirme ${Fmt.date(item.nextReviewDate)}',
     ].join(', ');
     return AknListTile(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       title: item.customerTitle,
       subtitle: second.isEmpty ? null : second,
       amount: item.limitAmount == null ? null : amount(item.limitAmount),
@@ -305,9 +305,52 @@ class FinanceRowCard extends StatelessWidget {
       status: AknStatusLine(lamp: AknLamp.style(status), trailing: trailing),
       footer: usage == null
           ? null
-          : ExcludeSemantics(child: UsageBar(value: usage, height: 4)),
+          : ExcludeSemantics(
+              // Ölçer sıfırdan dolarak gelir (çekirdek [UsageBar]); rengi son değerden (dolarken
+              // değişmez).
+              child: UsageBar(
+                value: usage,
+                height: 6,
+                tone: usage >= 1
+                    ? AknTone.danger
+                    : usage >= 0.8
+                    ? AknTone.warn
+                    : null,
+              ),
+            ),
       semanticLabel: semantic,
       onTap: onTap,
+    );
+  }
+}
+
+/// Liste kartı (tasarım v3): sayfa zemininde süzülen beyaz yüzey (20 köşe, kart gölgesi; koyu temada 1 px
+/// ince çizgi), içerik köşelere kırpılır ve kartta olduğunu bilir ([AknCardScope]). Satır kendi basılı
+/// hâlini çizer (Beton dolgu ve 0,97 içeride); kart sabit kalır.
+class _ListCard extends StatelessWidget {
+  const _ListCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: AknRadius.card,
+        boxShadow: AknShadows.card(c),
+      ),
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: AknRadius.card,
+          border: c.isDark ? Border.all(color: c.line) : null,
+        ),
+        child: AknCardScope(
+          child: ClipRRect(borderRadius: AknRadius.card, child: child),
+        ),
+      ),
     );
   }
 }

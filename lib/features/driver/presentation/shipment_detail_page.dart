@@ -22,8 +22,9 @@ import '../copy.dart';
 import '../data/driver_models.dart';
 import '../data/driver_outbox.dart';
 import '../driver_paths.dart';
-import 'driver_home.dart' show ContactRow, distanceReadout;
+import 'driver_home.dart' show ContactRow, DoorNoteRow, distanceReadout;
 import 'widgets/delivery_point_card.dart';
+import 'widgets/entrance.dart';
 import 'widgets/evidence_grid.dart';
 import 'widgets/location_card.dart';
 import 'widgets/navigation.dart';
@@ -31,14 +32,16 @@ import 'widgets/op_status.dart';
 import 'widgets/stop_dock.dart';
 import 'widgets/stop_plate.dart';
 
-/// Teslimat ayrıntısı (tasarım v2 §5.2 ve §7.11; spec A.4 A7). Sürücü kipinde: müşteri ve adres,
-/// durum lambası; **tek plaka** (açık teslimatta bu durağın litresi + plan / uzaklık / teslim saati,
-/// teslim edilende teslim edilen litre + planlanan / fark / saat); kapı notu ve teslim alacak kişi;
-/// teslimat noktası, hava durumu, sipariş bilgileri ve teslim kanıtı bölümleri.
+/// Teslimat ayrıntısı (tasarım v3 "Akış", §7.11; spec A.4 A7). Sürücü kipinde: müşteri (24/30 800)
+/// ve adres, durum lambaları; **tek plaka** — beyaz kahraman kart yükselerek gelir (açık teslimatta
+/// bu durağın litresi, canlı güzergâh çizgisi + plan / uzaklık / teslim saati; teslim edilende
+/// teslim edilen litre + planlanan / fark / saat); kapı notu ve teslim alacak kişi kartı; teslimat
+/// noktası, hava durumu, sipariş bilgileri ve teslim kanıtı beyaz kartlarda. Bölümler sırayla
+/// yükselir, kaydırdıkça yenileri belirir.
 ///
-/// Alt raf durumuna göre: planlıysa "Yola çıkmak için kaydırın" (konum satırıyla); yoldaysa
-/// "Yol tarifi" + "Teslim et" (birincil olan tırı izler); itirazlıysa "Teslimatı düzelt"; bekleyen
-/// işlem varsa sonucu (gönderiliyor / telefona kaydedildi / gönderildi / reddedildi).
+/// Alt raf durumuna göre: planlıysa "Yola çıkmak için kaydırın" (konum satırıyla); yoldaysa "Yol
+/// tarifi" + "Teslim et" (birincil olan tırı izler); itirazlıysa "Teslimatı düzelt"; bekleyen işlem
+/// varsa sonucu (gönderiliyor / telefona kaydedildi / gönderildi / reddedildi).
 class ShipmentDetailPage extends StatelessWidget {
   const ShipmentDetailPage({super.key, required this.id});
 
@@ -156,77 +159,76 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
       showBell: false,
       body: PullToRefresh(
         onRefresh: controller.refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
-          children: [
-            if (state.refreshError != null || state.cachedAt != null || !online)
-              _StaleNote(
-                at: state.cachedAt,
-                offline: !online || state.refreshError is OfflineFailure,
-              ),
-            _Head(detail: d, ops: ops),
-            if (row.isDisputed)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: AknBanner(
-                  tone: AknTone.danger,
-                  icon: Icons.report_outlined,
-                  title: DriverCopy.disputedTitle,
-                  message: row.disputeNote ?? DriverCopy.disputedFallback,
+        child: StaggerScope(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 32),
+            children: driverStaggered([
+              if (state.refreshError != null ||
+                  state.cachedAt != null ||
+                  !online)
+                _StaleNote(
+                  at: state.cachedAt,
+                  offline: !online || state.refreshError is OfflineFailure,
+                ),
+              _Head(detail: d, ops: ops),
+              if (row.isDisputed)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: AknBanner(
+                    tone: AknTone.danger,
+                    icon: PhosphorIconsRegular.warningOctagon,
+                    title: DriverCopy.disputedTitle,
+                    message: row.disputeNote ?? DriverCopy.disputedFallback,
+                  ),
+                ),
+              // Ekranın tek plakası yükselerek gelir (v3 §5 kahraman yükselişi).
+              DriverFadeUp(
+                offset: 24,
+                scale: 0.94,
+                duration: AknMotion.heroRise,
+                curve: AknMotion.emphasizedCurve,
+                child: ListenableBuilder(
+                  listenable: _proximity,
+                  builder: (context, _) => _plate(d),
                 ),
               ),
-            ListenableBuilder(
-              listenable: _proximity,
-              builder: (context, _) => _plate(d),
-            ),
-            if (open && d.accessNotes != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: _DoorNote(text: d.accessNotes!),
-              ),
-            if (open && (d.contactName != null || d.contactPhone != null))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: ContactRow(
-                  name: d.contactName,
-                  phone: d.contactPhone,
-                  role: DriverCopy.recipientRole,
+              if (open &&
+                  (d.accessNotes != null ||
+                      d.contactName != null ||
+                      d.contactPhone != null))
+                _ContactCard(detail: d, role: DriverCopy.recipientRole),
+              if (weatherOn && d.hasCoordinates && row.isOpen)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      DrivingAlertBanner(
+                        lat: d.latitude!,
+                        lng: d.longitude!,
+                        at: row.scheduledAt,
+                      ),
+                      WeatherCard(lat: d.latitude!, lng: d.longitude!),
+                    ],
+                  ),
                 ),
-              ),
-            if (weatherOn && d.hasCoordinates && row.isOpen)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    DrivingAlertBanner(
-                      lat: d.latitude!,
-                      lng: d.longitude!,
-                      at: row.scheduledAt,
-                    ),
-                    WeatherCard(lat: d.latitude!, lng: d.longitude!),
-                  ],
-                ),
-              ),
-            const SectionHeader(title: DriverCopy.deliveryPoint),
-            DeliveryPointCard(detail: d, showNavigate: !dockHasNavigate),
-            if (!open && (d.contactName != null || d.contactPhone != null))
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: ContactRow(
-                  name: d.contactName,
-                  phone: d.contactPhone,
+              const SectionHeader(title: DriverCopy.deliveryPoint),
+              DeliveryPointCard(detail: d, showNavigate: !dockHasNavigate),
+              if (!open && (d.contactName != null || d.contactPhone != null))
+                _ContactCard(
+                  detail: d,
                   role: DriverCopy.contactRole,
+                  showDoor: false,
                 ),
-              ),
-            const SectionHeader(title: DriverCopy.order),
-            _OrderFacts(detail: d),
-            if (row.deliveredLiters != null || d.attachments.isNotEmpty) ...[
-              const SectionHeader(title: DriverCopy.proofTitle),
-              _Proof(detail: d),
-            ],
-          ],
+              const SectionHeader(title: DriverCopy.order),
+              _OrderFacts(detail: d),
+              if (row.deliveredLiters != null || d.attachments.isNotEmpty) ...[
+                const SectionHeader(title: DriverCopy.proofTitle),
+                _Proof(detail: d),
+              ],
+            ]),
+          ),
         ),
       ),
       actionBar: _barOf(
@@ -253,6 +255,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
         title: DriverCopy.plateDelivered,
         figure: Fmt.number(delivered, maxFraction: 3),
         margin: margin,
+        chart: const TruckRoute(progress: 1),
         readouts: [
           StopReadout(
             label: DriverCopy.readoutPlanned,
@@ -279,10 +282,19 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
     final dist = row.isOpen
         ? _proximity.distanceTo(d.latitude, d.longitude)
         : null;
+    // Güzergâh: planlıyken tır depoda, yoldayken yolun ortasında (300 m içinde noktanın önünde).
+    // Çıkış saati başlıktaki lambanın yanında yazar; çizgide tekrarlanmaz.
+    final route = TruckRoute(
+      moving: row.isInTransit,
+      progress: row.isInTransit
+          ? (dist != null && dist < 300 ? 0.92 : null)
+          : 0,
+    );
     return DriverStopPlate(
       product: row.productName,
       figure: Fmt.number(row.plannedLiters, maxFraction: 3),
       margin: margin,
+      chart: row.isOpen ? route : null,
       readouts: [
         if (at != null)
           StopReadout(
@@ -361,7 +373,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
       actionLabel: hasDraft
           ? DriverCopy.actionResume
           : DriverCopy.actionDeliver,
-      actionIcon: Icons.task_alt_rounded,
+      actionIcon: PhosphorIconsFill.checkCircle,
       actionSemanticLabel: hasDraft
           ? '${DriverCopy.actionDeliver}: ${DriverCopy.resumeDraft}'
           : null,
@@ -400,7 +412,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
     if (d.actions.canDeliver && d.row.isDisputed) {
       return AknButton(
         label: hasDraft ? DriverCopy.actionResume : DriverCopy.actionFix,
-        icon: Icons.edit_note_rounded,
+        icon: PhosphorIconsRegular.notePencil,
         expand: true,
         onPressed: () => unawaited(_openDeliver(d)),
       );
@@ -409,18 +421,45 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
     if (d.row.status == ShipmentStatus.reported ||
         d.row.status == ShipmentStatus.accepted) {
       final c = context.akn;
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+      // Yeşil kuyu: kapanmış teslimatın sakin özeti (işaret yaylanarak belirir).
+      return Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+        decoration: BoxDecoration(
+          color: c.ok.bg,
+          borderRadius: AknRadius.card,
+          border: Border.all(color: c.ok.line),
+        ),
         child: Row(
           children: [
-            Icon(Icons.verified_outlined, color: c.ok.fg, size: 22),
-            const SizedBox(width: 10),
+            FadeUp(
+              offset: 0,
+              scale: 0.6,
+              curve: AknMotion.pop,
+              child: SizedBox.square(
+                dimension: 36,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.isDark ? c.surfaceRaised : c.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    PhosphorIconsRegular.sealCheck,
+                    color: c.ok.fg,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Text(
                 d.row.status == ShipmentStatus.reported
                     ? 'Teslimat bildirildi; müşteri onayı bekleniyor.'
                     : 'Teslimat müşteri tarafından onaylandı.',
-                style: context.aknText.bodySmall.copyWith(color: c.ink),
+                style: context.aknText.bodySmall.copyWith(
+                  color: c.ink,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -453,7 +492,9 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
             SizedBox(height: 8),
             SkeletonLine(widthFactor: 0.9, height: 16),
             SizedBox(height: 16),
-            SkeletonBox(height: 214, radius: 20),
+            SkeletonBox(height: 260, radius: AknRadius.plateRadius),
+            SizedBox(height: 16),
+            SkeletonBox(height: 120, radius: 20),
             SizedBox(height: 16),
             SkeletonLine(widthFactor: 0.8, height: 16),
             SizedBox(height: 8),
@@ -508,36 +549,54 @@ class _StaleNote extends StatelessWidget {
               ? DriverCopy.offlineLine
               : '${DriverCopy.offlineLine} ${DriverCopy.lastUpdated} ${Fmt.time(at)}.'
         : '${DriverCopy.lastUpdated} ${Fmt.time(at)}';
+    final tc = c.tone(offline ? AknTone.warn : AknTone.neutral);
+    // Bayat veri hapı (v3 §4): tonun yumuşak kuyusu, simge ve etiket.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(
-              offline ? Icons.cloud_off_outlined : Icons.history_rounded,
-              size: 20,
-              color: c.dim,
-            ),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Container(
+          padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 14, 6),
+          decoration: BoxDecoration(
+            color: tc.bg,
+            borderRadius: AknRadius.pillAll,
+            border: Border.all(color: tc.line),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: t.label.copyWith(
-                color: c.dim,
-                fontWeight: FontWeight.w500,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Icon(
+                  offline
+                      ? PhosphorIconsRegular.cloudSlash
+                      : PhosphorIconsRegular.clockCounterClockwise,
+                  size: 18,
+                  color: tc.fg,
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  text,
+                  style: t.label.copyWith(
+                    color: tc.fg,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: AknNumerals.tabular,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Başlık: müşteri (24/30), adres, durum lambası ve (varsa) işlem lambası; yoldaysa çıkış saati.
+/// Başlık: müşteri (24/30 800), adres (soluk), durum lambası ve (varsa) işlem lambası; yoldaysa
+/// çıkış saati.
 class _Head extends StatelessWidget {
   const _Head({required this.detail, this.ops});
 
@@ -568,25 +627,32 @@ class _Head extends StatelessWidget {
               header: true,
               child: Text(
                 row.customerTitle ?? row.code,
-                style: AknDriverMode.stopName(
-                  t,
-                ).copyWith(color: c.ink, letterSpacing: -0.4),
+                style: AknDriverMode.stopName(t).copyWith(
+                  color: c.ink,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
+                ),
               ),
             ),
           ),
-          if (place.isNotEmpty)
-            Text(place, style: t.body.copyWith(color: c.ink)),
-          const SizedBox(height: 8),
+          if (place.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(place, style: t.body.copyWith(color: c.dim)),
+          ],
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 16,
-            runSpacing: 6,
+            spacing: 10,
+            runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               AknLamp.style(style),
               if (row.isInTransit && dispatched != null)
                 Text(
                   DriverCopy.dispatchedMeta(Fmt.time(dispatched)),
-                  style: t.bodySmall.copyWith(color: c.dim),
+                  style: t.bodySmall.copyWith(
+                    color: c.dim,
+                    fontFeatures: AknNumerals.tabular,
+                  ),
                 ),
               if (row.isOverdue(TrTime.now()))
                 const AknLamp(label: DriverCopy.overdue, tone: AknTone.danger),
@@ -599,43 +665,46 @@ class _Head extends StatelessWidget {
   }
 }
 
-class _DoorNote extends StatelessWidget {
-  const _DoorNote({required this.text});
+/// Kapı notu ve teslim alacak (ya da yetkili) kişi kartı: beyaz kart, satırlar arasında içeriden
+/// ince çizgi.
+class _ContactCard extends StatelessWidget {
+  const _ContactCard({
+    required this.detail,
+    required this.role,
+    this.showDoor = true,
+  });
 
-  final String text;
+  final DriverShipmentDetail detail;
+  final String role;
+  final bool showDoor;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(Icons.door_front_door_outlined, size: 22, color: c.ink),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text.rich(
-            TextSpan(
-              children: [
-                const TextSpan(
-                  text: '${DriverCopy.doorNote} ',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                TextSpan(text: text),
-              ],
+    final d = detail;
+    final door = showDoor ? d.accessNotes : null;
+    final hasContact = d.contactName != null || d.contactPhone != null;
+    return AknCard(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (door != null) DoorNoteRow(text: door),
+          if (door != null && hasContact)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: AknLedgerDivider(indent: 0),
             ),
-            style: t.body.copyWith(color: c.ink),
-          ),
-        ),
-      ],
+          if (hasContact)
+            ContactRow(name: d.contactName, phone: d.contactPhone, role: role),
+        ],
+      ),
     );
   }
 }
 
-/// Olgu satırları (bölüm, kutu yok): etiket solda soluk, değer sağda; aralarında ince çizgi.
+/// Olgu satırları (tasarım v3 §4): beyaz kart, etiket solda soluk, değer sağda; aralarında içeriden
+/// ince çizgi.
 class _Facts extends StatelessWidget {
   const _Facts({required this.children});
 
@@ -643,14 +712,15 @@ class _Facts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+    if (children.isEmpty) return const SizedBox.shrink();
+    return AknCard(
+      margin: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+            if (i > 0) const AknLedgerDivider(indent: 0),
             children[i],
           ],
         ],
@@ -748,7 +818,7 @@ class _Proof extends StatelessWidget {
         ),
         if (detail.attachments.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: EvidenceGrid(attachments: detail.attachments),
           ),
       ],

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,57 +28,236 @@ class HomeLocalRevision extends Notifier<int> {
   void bump() => state++;
 }
 
-/// Ana sayfanın sayfa kenarı (tasarım v2 §4.1: 20).
-const _gutter = AknSpace.page;
+/// Bölüm kartlarının iç kenarı (satırlar, başlık ve içerik bu çizgide hizalanır).
+const _gutter = 18.0;
 
-/// Bant altındaki kutuların ve kuyuların yan boşluğu (karar G: 18, kahraman kartıyla hizalı).
-const _boxGutter = 18.0;
+/// Bant altındaki kartların ve kuyuların yan boşluğu: kahraman kartıyla aynı kenar (bant
+/// bindirmesinin, [AknBandOverlap], yan boşluğu — tüm rollerin ana sayfasında aynı).
+double homeBoxGutter(BuildContext context) => const AknBandOverlap(
+  child: SizedBox.shrink(),
+).padding.resolve(Directionality.of(context)).left;
 
 /// Kuyuların (uyarı, ipucu, taslak) dış boşluğu.
-EdgeInsets _wellMargin(double top) =>
-    EdgeInsets.fromLTRB(_boxGutter, top, _boxGutter, 0);
+EdgeInsets _wellMargin(BuildContext context, double top) {
+  final g = homeBoxGutter(context);
+  return EdgeInsets.fromLTRB(g, top, g, 0);
+}
 
-/// Ana sayfa bölüm kutusu (sahip kararı G "F2GO kart dili"): bandın altındaki #F9FAFB sayfada
-/// beyaz, 18 köşeli, 1 px ince çizgili kap. Bölümün başlığı ve satırları içinde durur; basılı satır
-/// vurgusu köşelere kırpılır.
-class HomeSectionBox extends StatelessWidget {
-  const HomeSectionBox({
-    super.key,
-    required this.child,
-    this.top = 12,
-    this.padding = const EdgeInsets.only(bottom: 4),
-  });
+/// Ana sayfa kartının yüzeyi (tasarım v3 §3): beyaz, r22, yumuşak kart gölgesi (koyu temada kısa
+/// gölge + 1 px çizgi); içerik köşelere kırpılır. [pressable]: basınca 0,97'ye iner ve gölge
+/// sayfaya oturur.
+class _HomeSurface extends StatefulWidget {
+  const _HomeSurface({required this.child, this.pressable = false});
 
   final Widget child;
+  final bool pressable;
 
-  /// Kutunun üstündeki boşluk.
-  final double top;
+  @override
+  State<_HomeSurface> createState() => _HomeSurfaceState();
+}
 
-  /// Kutunun iç boşluğu (bölümlerin kendi yan boşlukları korunur).
-  final EdgeInsetsGeometry padding;
+class _HomeSurfaceState extends State<_HomeSurface> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (!widget.pressable || _down == v) return;
+    setState(() => _down = v);
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(_boxGutter, top, _boxGutter, 0),
-      child: Material(
+    const radius = AknRadius.section;
+    Widget surface = AnimatedContainer(
+      duration: AknMotion.of(
+        context,
+        _down ? AknMotion.press : AknMotion.pressOut,
+      ),
+      curve: AknMotion.standard,
+      decoration: BoxDecoration(
         color: c.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: AknRadius.section,
-          side: BorderSide(color: c.lineSoft),
+        borderRadius: radius,
+        boxShadow: _down ? AknShadows.pressed(c) : AknShadows.card(c),
+      ),
+      foregroundDecoration: c.isDark
+          ? BoxDecoration(
+              borderRadius: radius,
+              border: Border.all(color: c.line),
+            )
+          : null,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Material(type: MaterialType.transparency, child: widget.child),
+      ),
+    );
+    if (widget.pressable) {
+      surface = Listener(
+        onPointerDown: (_) => _set(true),
+        onPointerUp: (_) => _set(false),
+        onPointerCancel: (_) => _set(false),
+        child: PressScale(child: surface),
+      );
+    }
+    return surface;
+  }
+}
+
+/// 40 px yuvarlak köşeli simge karosu (tasarım v3 §4): sessiz kuyu ve mürekkep simge; [tone]
+/// verilirse tonun yumuşak kuyusu ("sıra sizde" turuncu, tamam yeşil, sorun kırmızı).
+class _Tile extends StatelessWidget {
+  const _Tile({this.icon, this.tone, this.child})
+    : assert(icon != null || child != null);
+
+  final IconData? icon;
+  final AknTone? tone;
+
+  /// [icon] yerine (ör. dönen gösterge).
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final (bg, fg) = switch (tone) {
+      null || AknTone.info => (c.surfaceAlt, c.ink),
+      AknTone.neutral => (c.surfaceAlt, c.dim),
+      AknTone.brand => (c.brandSoft, c.brandInk),
+      final t => (c.tone(t).bg, c.tone(t).fg),
+    };
+    return ExcludeSemantics(
+      child: AnimatedContainer(
+        duration: AknMotion.of(context, AknMotion.base),
+        width: 40,
+        height: 40,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AknRadius.sm),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(padding: padding, child: child),
+        child: child ?? Icon(icon, size: 22, color: fg),
       ),
     );
   }
 }
 
-/// Bölüm başlığının hemen altındaki satırın dolgusu: başlıkla satır arası panodaki gibi sıkı
-/// (eylemli başlık 48 px dokunma alanı nedeniyle zaten 11 px boşluk bırakır).
+/// Bölüm satırı başlığı (tasarım v3 §4 AknListTile): 15/20 600 mürekkep.
+TextStyle _rowTitle(BuildContext context) => context.aknText.bodyStrong
+    .copyWith(height: 20 / 15, color: context.akn.ink);
+
+/// Satırda tutar başlığın yanında mı durur (tasarım v3): başlık tek satırda kalmalı; sağdaki tutar
+/// sütunuyla aynı satıra sığmıyorsa tutar alt satıra iner ([_AmountLine]). [width]: metin sütunu.
+bool _amountBeside(
+  BuildContext context, {
+  required double width,
+  required String title,
+  String? amount,
+  String? meta,
+}) {
+  if (amount == null && meta == null) return true;
+  if (!width.isFinite) return true;
+  final t = context.aknText;
+  final scaler = MediaQuery.textScalerOf(context);
+  double measure(String? s, TextStyle style) {
+    if (s == null) return 0;
+    final tp = TextPainter(
+      text: TextSpan(text: s, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final w = tp.width;
+    tp.dispose();
+    return w;
+  }
+
+  final right = math.max(measure(amount, t.amount), measure(meta, t.bodySmall));
+  return measure(title, _rowTitle(context)) + 12 + right <= width;
+}
+
+/// Rakamdan sonra gelen birimin önündeki boşluk ("8.000 L", "338.800,00 ₺", "42,35 ₺/L").
+final RegExp _unitGap = RegExp(
+  r'(\d) (?=(?:L|₺|m³)(?![\p{L}\p{N}]))',
+  unicode: true,
+);
+
+/// Sayıyı birimiyle aynı satırda tutar (bölünmez boşluk): satır kırılırsa "8.000" / "L" kopukluğu
+/// olmaz. Görünüm aynıdır.
+String _keepUnits(String text) =>
+    text.replaceAllMapped(_unitGap, (m) => '${m[1]}\u00A0');
+
+/// Satır başlığı tek satıra sığıyorsa aynen; sığmıyorsa sayı birimiyle aynı satırda kalarak
+/// kaydırılır ("Motorin," / "30.000 L"). [width]: metin sütunu.
+String _wrapSafeTitle(BuildContext context, String title, double width) {
+  if (!width.isFinite || !_unitGap.hasMatch(title)) return title;
+  final tp = TextPainter(
+    text: TextSpan(text: title, style: _rowTitle(context)),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final fits = tp.width <= width;
+  tp.dispose();
+  return fits ? title : _keepUnits(title);
+}
+
+/// Başlığın yanına sığmayan tutar: alt satırda tablo rakamlı tutar ve küçük açıklaması.
+class _AmountLine extends StatelessWidget {
+  const _AmountLine({required this.amount, this.meta});
+
+  final String amount;
+  final String? meta;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    return Text.rich(
+      TextSpan(
+        text: amount,
+        style: t.amount.copyWith(color: c.ink),
+        children: [
+          if (meta != null)
+            TextSpan(
+              text: '  $meta',
+              style: t.bodySmall.copyWith(color: c.dim),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ana sayfa bölüm kartı (tasarım v3 §4): bandın altındaki kırık beyaz sayfada yüzen beyaz kart,
+/// r22, yumuşak kart gölgesi. Bölümün başlığı ve satırları içinde durur; basılı satır vurgusu
+/// köşelere kırpılır.
+class HomeSectionBox extends StatelessWidget {
+  const HomeSectionBox({
+    super.key,
+    required this.child,
+    this.top = 12,
+    this.padding = const EdgeInsets.only(bottom: 6),
+  });
+
+  final Widget child;
+
+  /// Kartın üstündeki boşluk.
+  final double top;
+
+  /// Kartın iç boşluğu (bölümlerin kendi yan boşlukları korunur).
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: _wellMargin(context, top),
+    child: _HomeSurface(
+      child: Padding(padding: padding, child: child),
+    ),
+  );
+}
+
+/// Bölüm başlığının hemen altındaki satırın dolgusu: başlıkla satır arası sıkı (eylemli başlık
+/// 48 px dokunma alanı nedeniyle zaten boşluk bırakır).
 EdgeInsets homeFirstRow({required bool action}) =>
-    EdgeInsets.fromLTRB(_gutter, action ? 0 : 10, _gutter, 12);
+    EdgeInsets.fromLTRB(_gutter, action ? 2 : 10, _gutter, 12);
 
 /// "1–21 Ekim": bu ayın bugüne kadarki dönemi.
 String monthToDateLabel(DateTime wall) => wall.day == 1
@@ -92,9 +272,10 @@ String monthToDateLabel(DateTime wall) => wall.day == 1
   return (s.substring(0, i), s.substring(i + 1));
 }
 
-/// Ana sayfa bölüm başlığı (tasarım v2 §6.7): [SectionHeader], başlık satırı eylemin 48 px dokunma
-/// alanı yüzünden aşağı kaymasın diye dolgusu ölçülür; böylece başlığın üstü her zaman [top] (ilk
-/// bölümde 16, sonra 20) olur. Altındaki ilk satır [homeFirstRow] dolgusunu alır.
+/// Ana sayfa bölüm başlığı (tasarım v3 §4 SectionHeader): 18/24 800 başlık, sayı hapı ve sağda
+/// "Tümü" bağlantısı. Başlık satırı eylemin 48 px dokunma alanı yüzünden aşağı kaymasın diye
+/// dolgusu ölçülür; böylece başlığın kartın üstüne uzaklığı her zaman [top] olur. Altındaki ilk
+/// satır [homeFirstRow] dolgusunu alır.
 class HomeSectionHeader extends StatelessWidget {
   const HomeSectionHeader({
     super.key,
@@ -118,8 +299,9 @@ class HomeSectionHeader extends StatelessWidget {
     final action = actionLabel != null && onAction != null;
     var lift = 0.0;
     if (action) {
+      // Başlık 18/24 (v3 §4), en çok 1,6× büyür.
       final scaler = MediaQuery.textScalerOf(context);
-      final line = scaler.scale(20) * 26 / 20;
+      final line = scaler.clamp(maxScaleFactor: 1.6).scale(18) * 24 / 18;
       final sub = subtitle == null ? 0.0 : 2 + scaler.scale(14) * 20 / 14;
       lift = ((AknSpace.minTap - line - sub) / 2).clamp(0.0, 12.0);
     }
@@ -134,16 +316,17 @@ class HomeSectionHeader extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
         _gutter,
         (top - lift).clamp(0.0, top),
-        12,
+        action ? 8 : _gutter,
         0,
       ),
     );
   }
 }
 
-/// Bu ayın plakası (tasarım v2 §5.1, §7.4): yönetici destesi görünmediğinde ekranın tek plakası.
-/// Bu ayın harcaması (onaylanmış teklif tutarları), son altı ayın çubukları (varsa) ve okumalar:
-/// alınan yakıt, sipariş sayısı, geçen ayın toplamı. Dokununca Harcamalar açılır.
+/// Bu ayın kahraman kartı (tasarım v3 §4 AknPlate): yönetici destesi görünmediğinde bandın üstüne
+/// binen tek kart. Bu ayın harcaması (onaylanmış teklif tutarları; rakamlar yuvarlanarak gelir),
+/// son altı ayın çubukları (varsa; bu ay turuncu geçişli) ve okumalar: alınan yakıt, sipariş sayısı,
+/// geçen ayın toplamı. Dokununca Harcamalar açılır.
 class MonthPlate extends StatelessWidget {
   const MonthPlate({
     super.key,
@@ -198,7 +381,7 @@ class MonthPlate extends StatelessWidget {
     final plate = AknPlate(
       compact: compact,
       head: PlateHead(
-        icon: Icons.payments_outlined,
+        icon: PhosphorIconsRegular.money,
         title: HomeCopy.monthPlate,
         period: period,
       ),
@@ -264,13 +447,15 @@ class OrderingBanner extends StatelessWidget {
     final info = o?.infoRequested ?? false;
     final approval = o?.openApprovalRequestId;
     return Padding(
-      padding: _wellMargin(top),
+      padding: _wellMargin(context, top),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknBanner(
             tone: info ? AknTone.warn : AknTone.danger,
-            icon: info ? Icons.mark_email_unread_outlined : Icons.block_rounded,
+            icon: info
+                ? PhosphorIconsRegular.envelopeSimple
+                : PhosphorIconsRegular.prohibit,
             title: info ? HomeCopy.financeInfo : HomeCopy.blockedTitle,
             message:
                 o?.blockReason ??
@@ -296,7 +481,8 @@ class OrderingBanner extends StatelessWidget {
   }
 }
 
-/// Dokunulabilir kuyu (Beton, r12): simge, başlık, bir cümle ve ok. Taslak ve gönderim durumu.
+/// Dokunulabilir durum kartı (tasarım v3 §4): beyaz r22 kart; başta tonun yumuşak kuyusunda simge
+/// karosu, başlık, bir cümle ve ok. Basınca kart 0,97'ye iner. Taslak ve gönderim durumu.
 class HomeWell extends StatelessWidget {
   const HomeWell({
     super.key,
@@ -323,55 +509,49 @@ class HomeWell extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final tc = c.tone(tone);
     final msg = message;
-    final lead =
-        leading ??
-        Icon(icon ?? AknStatus.toneIcon(tone), size: 20, color: tc.fg);
+    final tap = onTap;
     return Padding(
-      padding: _wellMargin(top),
+      padding: _wellMargin(context, top),
       child: Semantics(
-        button: onTap != null,
+        button: tap != null,
         label: msg == null || msg.isEmpty ? title : '$title. $msg',
         excludeSemantics: true,
-        onTap: onTap,
-        child: Material(
-          color: c.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: AknRadius.section,
-            side: BorderSide(color: c.lineSoft),
-          ),
-          clipBehavior: Clip.antiAlias,
+        onTap: tap,
+        child: _HomeSurface(
+          pressable: tap != null,
           child: InkWell(
-            onTap: onTap,
+            onTap: tap == null
+                ? null
+                : () {
+                    AknHaptics.selection();
+                    tap();
+                  },
             highlightColor: c.surfaceAlt,
             splashFactory: NoSplash.splashFactory,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+              constraints: const BoxConstraints(minHeight: 64),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: lead,
+                    _Tile(
+                      icon: icon ?? AknStatus.toneIcon(tone),
+                      tone: tone,
+                      child: leading,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            title,
-                            style: t.bodyStrong.copyWith(color: c.ink),
-                          ),
+                          Text(title, style: _rowTitle(context)),
                           if (msg != null && msg.isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
                               msg,
-                              style: t.bodySmall.copyWith(color: c.ink),
+                              style: t.bodySmall.copyWith(color: c.dim),
                               maxLines: 4,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -379,9 +559,13 @@ class HomeWell extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (onTap != null) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.chevron_right_rounded, size: 22, color: c.dim),
+                    if (tap != null) ...[
+                      const SizedBox(width: 6),
+                      Icon(
+                        PhosphorIconsRegular.caretRight,
+                        size: 18,
+                        color: c.dim,
+                      ),
                     ],
                   ],
                 ),
@@ -406,31 +590,31 @@ class SubmissionStatusCard extends ConsumerWidget {
     final (tone, icon, title, message) = switch (state.phase) {
       SubmitPhase.success => (
         AknTone.ok,
-        Icons.check_circle_rounded,
+        PhosphorIconsFill.checkCircle,
         OrdersCopy.successTitle,
         state.result?.message ?? '',
       ),
       SubmitPhase.partial => (
         AknTone.warn,
-        Icons.call_split_rounded,
+        PhosphorIconsRegular.arrowsSplit,
         OrdersCopy.partialTitle,
         state.result?.partialError ?? '',
       ),
       SubmitPhase.failed => (
         AknTone.danger,
-        Icons.error_outline_rounded,
+        PhosphorIconsRegular.warningCircle,
         'Sipariş gönderilemedi',
         state.failure?.message ?? '',
       ),
       SubmitPhase.uncertain || SubmitPhase.askNewKey => (
         AknTone.warn,
-        Icons.schedule_rounded,
+        PhosphorIconsRegular.clock,
         OrdersCopy.uncertainTitle,
         'Sonucu görmek için dokunun.',
       ),
       _ => (
         AknTone.info,
-        Icons.sync_rounded,
+        PhosphorIconsRegular.arrowsClockwise,
         OrdersCopy.checking,
         'Bağlantı yavaş; aynı işlem güvenle yeniden deneniyor.',
       ),
@@ -466,8 +650,8 @@ class ResumeDraftCard extends StatelessWidget {
       top: top,
       tone: AknTone.brand,
       icon: summary.pendingSubmission
-          ? Icons.sync_rounded
-          : Icons.edit_note_rounded,
+          ? PhosphorIconsRegular.arrowsClockwise
+          : PhosphorIconsRegular.notePencil,
       title: summary.pendingSubmission
           ? HomeCopy.resumeChecking
           : HomeCopy.resumeTitle,
@@ -492,10 +676,10 @@ class FirstOrderTip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: _wellMargin(top),
+    padding: _wellMargin(context, top),
     child: AknBanner(
       tone: AknTone.brand,
-      icon: Icons.tips_and_updates_outlined,
+      icon: PhosphorIconsRegular.lightbulbFilament,
       title: HomeCopy.tipTitle,
       message: HomeCopy.tipMessage,
       actionLabel: HomeCopy.newOrder,
@@ -513,9 +697,10 @@ String? deliveryDayPhrase(DateTime? instant) {
       '${Fmt.weekdayNames[w.weekday - 1]} teslim';
 }
 
-/// Karar bekleyen teklifler (tasarım v2 §7.4): yalnızca en acil satır; birden fazlaysa "Tümü".
-/// Satır: "Demir Petrol teklifi" ve tutar, ürün / litre / nokta ve ₺/L, teslim günü ve geri sayım
-/// (karar verebilen için Pas).
+/// Karar bekleyen teklifler (tasarım v3 §4 bölüm kartı): yalnızca en acil satır; birden fazlaysa
+/// "Tümü". Satır: turuncu kuyuda teklif karosu, "Demir Petrol teklifi" ve tablo rakamlı tutar,
+/// ürün / litre / nokta ve ₺/L; içeriden bir çizginin altında teslim günü ve geri sayım (karar
+/// verebilen için turuncu, "sıra sizde").
 class DecisionsSection extends ConsumerWidget {
   const DecisionsSection({
     super.key,
@@ -585,32 +770,68 @@ class DecisionsSection extends ConsumerWidget {
               ? () => context.push('${AppRoutes.orders}?segment=decision')
               : null,
         ),
-        AknListTile(
-          padding: homeFirstRow(action: total > 1),
-          title: HomeCopy.quoteTitle(r.stationTitle),
-          subtitle: [
-            r.productName,
-            Fmt.liters(r.quantityLiters),
-            r.deliveryPointName,
-          ].whereType<String>().join(', '),
-          amount: r.latestTotalAmountTry == null
-              ? null
-              : Fmt.money(r.latestTotalAmountTry),
-          amountMeta: r.latestUnitPriceTry == null
-              ? null
-              : Fmt.unitPrice(r.latestUnitPriceTry),
-          status: AknStatusLine(
-            lamp: lamp,
-            trailing: deadline == null
+        LayoutBuilder(
+          builder: (context, box) {
+            final title = HomeCopy.quoteTitle(r.stationTitle);
+            final amount = r.latestTotalAmountTry == null
                 ? null
-                : CountdownBadge(
-                    deadline: deadline,
-                    yourMove: canDecide,
-                    subject: 'Teklif',
+                : Fmt.money(r.latestTotalAmountTry);
+            final meta = r.latestUnitPriceTry == null
+                ? null
+                : Fmt.unitPrice(r.latestUnitPriceTry);
+            final beside = _amountBeside(
+              context,
+              width: box.maxWidth - 2 * _gutter - 56,
+              title: title,
+              amount: amount,
+              meta: meta,
+            );
+            return AknListTile(
+              padding: homeFirstRow(action: total > 1),
+              leading: _Tile(
+                icon: PhosphorIconsRegular.invoice,
+                tone: canDecide ? AknTone.brand : null,
+              ),
+              titleStyle: _rowTitle(context),
+              title: title,
+              subtitle: _keepUnits(
+                [
+                  r.productName,
+                  Fmt.liters(r.quantityLiters),
+                  r.deliveryPointName,
+                ].whereType<String>().join(', '),
+              ),
+              amount: beside ? amount : null,
+              amountMeta: beside ? meta : null,
+              status: beside || amount == null
+                  ? null
+                  : _AmountLine(amount: amount, meta: meta),
+              // Teslim günü ve geri sayım kart genişliğince, ince bir çizginin altında.
+              footer: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Divider(height: 1, thickness: 1, color: c.lineSoft),
+                  const SizedBox(height: 10),
+                  AknStatusLine(
+                    lamp: lamp,
+                    trailing: deadline == null
+                        ? null
+                        : CountdownBadge(
+                            deadline: deadline,
+                            yourMove: canDecide,
+                            subject: 'Teklif',
+                          ),
                   ),
-          ),
-          semanticLabel: spoken,
-          onTap: () => context.push(AppRoutes.order(r.orderId)),
+                ],
+              ),
+              semanticLabel: spoken,
+              onTap: () {
+                AknHaptics.selection();
+                context.push(AppRoutes.order(r.orderId));
+              },
+            );
+          },
         ),
       ],
     );
@@ -658,7 +879,17 @@ class PendingDocumentsSection extends StatelessWidget {
           children: [
             for (final (i, d) in shown.indexed)
               AknListTile(
-                padding: i == 0 ? homeFirstRow(action: false) : null,
+                padding: i == 0
+                    ? homeFirstRow(action: false)
+                    : const EdgeInsets.symmetric(
+                        horizontal: _gutter,
+                        vertical: 12,
+                      ),
+                leading: const _Tile(
+                  icon: PhosphorIconsRegular.fileArrowUp,
+                  tone: AknTone.brand,
+                ),
+                titleStyle: _rowTitle(context),
                 title: d.label,
                 subtitle: [
                   d.orderNumber,
@@ -667,7 +898,7 @@ class PendingDocumentsSection extends StatelessWidget {
                 ].join(', '),
                 trailing: AknButton.secondary(
                   label: 'Yükle',
-                  icon: Icons.upload_rounded,
+                  icon: PhosphorIconsRegular.uploadSimple,
                   size: AknButtonSize.small,
                   semanticLabel: '${d.orderNumber} ${d.label} yükle',
                   onPressed: () async {
@@ -687,9 +918,10 @@ class PendingDocumentsSection extends StatelessWidget {
   }
 }
 
-/// Teslimat bölümü (tasarım v2 §7.4): sevkiyat yoldayken "Yolda", değilse "Teslimat". Tek satır:
-/// nokta, saat (planlanan varış), litre / ürün / plaka ve yoldaysa rota çizgisi. Canlı konum
-/// iddiası yok: araç işareti rotanın ortasında durur, saat bayinin planladığı saattir.
+/// Teslimat bölümü (tasarım v3 §4 bölüm kartı): sevkiyat yoldayken "Yolda", değilse "Teslimat".
+/// Tek satır: tır karosu, nokta, büyük saat (planlanan varış), litre / ürün / plaka ve yoldaysa
+/// turuncu rota çizgisi. Canlı konum iddiası yok: araç işareti rotanın ortasında durur, saat
+/// bayinin planladığı saattir.
 class ActiveDeliveryCard extends StatelessWidget {
   const ActiveDeliveryCard({
     super.key,
@@ -781,10 +1013,11 @@ class _DeliveryRowState extends State<DeliveryRow> {
         ? null
         : TurkishText.lower(s.productName!);
     final liters = Fmt.liters(s.deliveredLiters ?? s.plannedLiters);
-    final second = [
+    final secondParts = [
       product == null ? liters : '$liters $product',
       if (s.vehiclePlate != null) Fmt.plate(s.vehiclePlate),
-    ].join(', ');
+    ];
+    final second = secondParts.join(', ');
     final lamp = inTransit
         ? null
         : AknLamp.status(
@@ -810,65 +1043,110 @@ class _DeliveryRowState extends State<DeliveryRow> {
     Widget content(bool stack) {
       final titleText = Text(
         title,
-        style: t.headline.copyWith(color: c.ink),
+        style: _rowTitle(context),
         maxLines: stack ? 4 : 2,
         overflow: TextOverflow.ellipsis,
       );
-      final secondText = Text(
-        second,
-        style: metaStyle,
-        maxLines: stack ? 4 : 2,
-        overflow: TextOverflow.ellipsis,
-      );
-      final lines = <Widget>[
-        if (stack) ...[
-          titleText,
-          if (atText != null) ...[
+      // Plaka bölünmez: sığmazsa bütün olarak alt satıra geçer.
+      // Litre birimiyle aynı satırda kalır ("10.000 L motorin").
+      final Widget secondText = secondParts.length < 2
+          ? Text(
+              _keepUnits(second),
+              style: metaStyle,
+              maxLines: stack ? 4 : 2,
+              overflow: TextOverflow.ellipsis,
+            )
+          : Wrap(
+              children: [
+                Text('${_keepUnits(secondParts.first)}, ', style: metaStyle),
+                Text(secondParts.last, style: metaStyle, softWrap: false),
+              ],
+            );
+      final Widget main;
+      if (stack) {
+        main = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            titleText,
+            if (atText != null) ...[
+              const SizedBox(height: 4),
+              Text.rich(
+                TextSpan(
+                  text: atText,
+                  style: whenStyle,
+                  children: [TextSpan(text: '  $atMeta', style: metaStyle)],
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
-            Text.rich(
-              TextSpan(
-                text: atText,
-                style: whenStyle,
-                children: [TextSpan(text: '  $atMeta', style: metaStyle)],
+            secondText,
+          ],
+        );
+      } else {
+        // Baş karosu (tır), başlık ve saat; altında ikinci satır ve "planlanan varış".
+        main = Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Tile(
+              icon: PhosphorIconsRegular.truck,
+              tone: inTransit ? null : lamp?.tone,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(child: titleText),
+                      if (atText != null) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          atText,
+                          style: whenStyle,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(child: secondText),
+                      if (atMeta != null) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          atMeta,
+                          style: metaStyle,
+                          maxLines: 1,
+                          softWrap: false,
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ),
             ),
           ],
-          const SizedBox(height: 4),
-          secondText,
-        ] else ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: titleText),
-              if (atText != null) ...[
-                const SizedBox(width: 12),
-                Text(atText, style: whenStyle, maxLines: 1, softWrap: false),
-              ],
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Expanded(child: secondText),
-              if (atMeta != null) ...[
-                const SizedBox(width: 12),
-                Text(atMeta, style: metaStyle, maxLines: 1, softWrap: false),
-              ],
-            ],
-          ),
-        ],
-        if (lamp != null) ...[const SizedBox(height: 8), lamp],
-        if (inTransit) ...[
-          const SizedBox(height: 14),
-          const TruckRoute(moving: true, height: 22),
-        ],
-      ];
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: lines,
+        children: [
+          main,
+          if (lamp != null) ...[const SizedBox(height: 10), lamp],
+          if (inTransit) ...[
+            const SizedBox(height: 16),
+            const TruckRoute(moving: true, height: 22),
+          ],
+        ],
       );
     }
 
@@ -881,7 +1159,10 @@ class _DeliveryRowState extends State<DeliveryRow> {
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
-          onTap: widget.onTap,
+          onTap: () {
+            AknHaptics.selection();
+            widget.onTap();
+          },
           splashFactory: NoSplash.splashFactory,
           highlightColor: Colors.transparent,
           onHighlightChanged: (v) {
@@ -942,6 +1223,11 @@ class CompanyRequestsSection extends ConsumerWidget {
       if (items.isEmpty)
         AknListTile(
           padding: homeFirstRow(action: action),
+          leading: const _Tile(
+            icon: PhosphorIconsRegular.userCircleCheck,
+            tone: AknTone.brand,
+          ),
+          titleStyle: _rowTitle(context),
           title: HomeCopy.approvalsWaiting(total),
           status: AknLamp.status(
             AknStatus.companyRequestLamp(
@@ -956,7 +1242,9 @@ class CompanyRequestsSection extends ConsumerWidget {
       else
         for (final (i, r) in items.indexed)
           _RequestRow(
-            padding: i == 0 ? homeFirstRow(action: action) : null,
+            padding: i == 0
+                ? homeFirstRow(action: action)
+                : const EdgeInsets.symmetric(horizontal: _gutter, vertical: 12),
             request: r,
             approver: approver,
             onTap: () => context.push(
@@ -1022,28 +1310,63 @@ class _RequestRow extends StatelessWidget {
         ? '${r.requestedByName.trim()} talep etti'
         : null;
     final title = '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}';
-    return AknListTile(
-      padding: padding,
-      title: title,
-      subtitle: subtitle.isEmpty ? r.number : subtitle,
-      amount: r.estimatedAmount == null ? null : Fmt.money(r.estimatedAmount),
-      amountMeta: r.estimatedAmount == null ? null : 'tahmini',
-      status: AknStatusLine(
-        lamp: AknLamp.status(lamp),
-        trailing: who == null
-            ? null
-            : Text(who, style: t.bodySmall.copyWith(color: c.dim)),
-      ),
-      semanticLabel: [
-        r.number,
-        title,
-        if (subtitle.isNotEmpty) subtitle,
-        if (r.estimatedAmount != null)
-          'tahmini ${Fmt.money(r.estimatedAmount)}',
-        lamp.label,
-        ?who,
-      ].join(', '),
-      onTap: onTap,
+    final amount = r.estimatedAmount == null
+        ? null
+        : Fmt.money(r.estimatedAmount);
+    final meta = r.estimatedAmount == null ? null : 'tahmini';
+    final status = AknStatusLine(
+      lamp: AknLamp.status(lamp),
+      trailing: who == null
+          ? null
+          : Text(who, style: t.bodySmall.copyWith(color: c.dim)),
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        final pad = (padding ?? AknSpace.row).horizontal;
+        final beside = _amountBeside(
+          context,
+          width: box.maxWidth - pad - 56,
+          title: title,
+          amount: amount,
+          meta: meta,
+        );
+        return AknListTile(
+          padding: padding,
+          leading: _Tile(
+            icon: PhosphorIconsRegular.clipboardText,
+            tone: lamp.tone,
+          ),
+          titleStyle: _rowTitle(context),
+          title: _wrapSafeTitle(context, title, box.maxWidth - pad - 56),
+          subtitle: subtitle.isEmpty ? r.number : subtitle,
+          amount: beside ? amount : null,
+          amountMeta: beside ? meta : null,
+          status: beside || amount == null
+              ? status
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _AmountLine(amount: amount, meta: meta),
+                    const SizedBox(height: 8),
+                    status,
+                  ],
+                ),
+          semanticLabel: [
+            r.number,
+            title,
+            if (subtitle.isNotEmpty) subtitle,
+            if (r.estimatedAmount != null)
+              'tahmini ${Fmt.money(r.estimatedAmount)}',
+            lamp.label,
+            ?who,
+          ].join(', '),
+          onTap: () {
+            AknHaptics.selection();
+            onTap();
+          },
+        );
+      },
     );
   }
 }
@@ -1077,7 +1400,12 @@ class LimitsSection extends StatelessWidget {
               LimitMeter(
                 limit: l,
                 compact: true,
-                padding: i == 0 ? homeFirstRow(action: true) : null,
+                padding: i == 0
+                    ? homeFirstRow(action: true)
+                    : const EdgeInsets.symmetric(
+                        horizontal: _gutter,
+                        vertical: 12,
+                      ),
               ),
           ],
         ),
@@ -1113,13 +1441,25 @@ class TemplatesSection extends StatelessWidget {
         children: [
           for (final (i, tpl) in templates.take(3).indexed)
             AknListTile(
-              padding: i == 0 ? homeFirstRow(action: true) : null,
+              padding: i == 0
+                  ? homeFirstRow(action: true)
+                  : const EdgeInsets.symmetric(
+                      horizontal: _gutter,
+                      vertical: 12,
+                    ),
+              leading: const _Tile(
+                icon: PhosphorIconsRegular.bookmarkSimple,
+                tone: AknTone.brand,
+              ),
+              titleStyle: _rowTitle(context),
               title: tpl.name,
               subtitle: tpl.subtitle.replaceAll(' · ', ', '),
               showChevron: true,
               semanticLabel: '${tpl.name} şablonuyla sipariş ver',
-              onTap: () =>
-                  context.push('${AppRoutes.orderNew}?fromTemplate=${tpl.id}'),
+              onTap: () {
+                AknHaptics.selection();
+                context.push('${AppRoutes.orderNew}?fromTemplate=${tpl.id}');
+              },
             ),
         ],
       ),
@@ -1218,10 +1558,9 @@ class AssistantCard extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(_gutter, 12, 4, 12),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 1),
+                      const _Tile(
+                        tone: AknTone.brand,
                         child: LogoMark(size: 24, semanticLabel: null),
                       ),
                       const SizedBox(width: 14),
@@ -1231,7 +1570,7 @@ class AssistantCard extends StatelessWidget {
                           children: [
                             Text(
                               HomeCopy.assistantTitle,
-                              style: t.headline.copyWith(color: c.ink),
+                              style: _rowTitle(context),
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -1250,7 +1589,7 @@ class AssistantCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4, right: 8),
             child: AknIconButton(
-              icon: Icons.close_rounded,
+              icon: PhosphorIconsRegular.x,
               semanticLabel: 'Asistan kartını kapat',
               color: c.dim,
               size: 20,
@@ -1281,14 +1620,30 @@ class StationSection extends StatelessWidget {
       children: [
         HomeSectionHeader(title: HomeCopy.station, top: headerTop),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: _gutter),
+          padding: const EdgeInsets.fromLTRB(_gutter, 12, _gutter, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(station.title, style: t.headline.copyWith(color: c.ink)),
-              if (station.city != null)
-                Text(station.city!, style: t.bodySmall.copyWith(color: c.dim)),
-              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const _Tile(icon: PhosphorIconsRegular.storefront),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(station.title, style: _rowTitle(context)),
+                        if (station.city != null)
+                          Text(
+                            station.city!,
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
               StationContactButtons(station: station, dense: true),
             ],
           ),

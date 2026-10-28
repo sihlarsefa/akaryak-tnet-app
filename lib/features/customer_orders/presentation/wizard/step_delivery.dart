@@ -16,9 +16,10 @@ import '../../data/form_models.dart';
 import '../widgets/common.dart';
 import 'wizard_parts.dart';
 
-/// Adım 2 (tasarım v2 §7.9 "Teslimat"): teslimat noktası satırları (seçim halkası, ad + adres,
-/// teslim saatleri ve tank; seçilince erişim notları), teslim tarihi (hızlı seçimlerle; en erken
-/// tarihten önce olamaz), tank aşımı uyarısı ve satır bazında farklı nokta / tarih.
+/// Adım 2 (tasarım v3 "Teslimat"): teslimat noktası seçim kartları (konum karosu, ad + adres,
+/// teslim saatleri ve tank; seçilince turuncu ışık, onay işareti ve açılan erişim notları), teslim
+/// tarihi (hızlı seçimlerle; en erken tarihten önce olamaz), tank aşımı uyarısı ve satır bazında
+/// farklı nokta / tarih. Adım açılınca kartlar birbiri ardına yükselerek gelir.
 class StepDelivery extends ConsumerWidget {
   const StepDelivery({super.key});
 
@@ -48,92 +49,104 @@ class StepDelivery extends ConsumerWidget {
     }
     final min = ctrl.minDate;
     final byPoint = d.litersByPoint();
+    // Bölümler ve nokta kartları birbiri ardına yükselerek gelir (v3 §5).
+    final enter = WizardCascade();
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+    return WizardStepList(
       children: [
-        ContentWidth(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const WizardHeading('Teslimat noktası'),
-              if (points.isEmpty)
-                EmptyState(
-                  title: 'Teslimat noktanız yok',
-                  message:
-                      'Sipariş verebilmek için önce bir teslimat noktası ekleyin.',
-                  illustration: AknIllustration.delivery,
-                  compact: true,
-                  actionLabel: 'Teslimat noktası ekle',
-                  onAction: () => context.push(AppRoutes.deliveryPoints),
-                )
-              else
-                AknLedger(
-                  children: [
-                    for (final p in points)
-                      _PointRow(
-                        point: p,
-                        selected: d.pointId == p.id,
-                        lastUsed: p.id == lastPoint,
-                        liters: byPoint[p.id],
-                        onTap: () => ctrl.setPoint(p.id),
-                      ),
-                  ],
-                ),
-              if (errorFor('point') != null) WizardError(errorFor('point')!),
-              for (final warning in tank)
-                WizardPad(
-                  AknBanner(
-                    tone: AknTone.warn,
-                    icon: Icons.propane_tank_outlined,
-                    title: 'Tank kapasitesi aşılıyor',
-                    message: warning.message,
-                  ),
-                ),
-              const WizardHeading('Teslim günü', top: 24),
-              WizardPad(
-                top: 0,
-                DateField(
-                  label: 'Teslim tarihi',
-                  value: d.date,
-                  firstDate: min,
-                  lastDate: TrTime.addDays(TrTime.todayStart(), 120),
-                  requiredMark: true,
-                  helper: TrTime.isSameDay(min, TrTime.todayStart())
-                      ? 'Bayi teslim planına göre değişebilir.'
-                      : 'En erken ${Fmt.date(min)} (bayinin teslim süresi).',
-                  errorText: errorFor('date'),
-                  onChanged: ctrl.setDate,
-                ),
+        enter('points-heading', const WizardHeading('Teslimat noktası')),
+        if (points.isEmpty)
+          enter(
+            'no-points',
+            EmptyState(
+              title: 'Teslimat noktanız yok',
+              message:
+                  'Sipariş verebilmek için önce bir teslimat noktası ekleyin.',
+              illustration: AknIllustration.delivery,
+              compact: true,
+              actionLabel: 'Teslimat noktası ekle',
+              onAction: () => context.push(AppRoutes.deliveryPoints),
+            ),
+          )
+        else
+          for (final p in points)
+            enter(
+              'point-${p.id}',
+              _PointRow(
+                point: p,
+                selected: d.pointId == p.id,
+                lastUsed: p.id == lastPoint,
+                liters: byPoint[p.id],
+                onTap: () => ctrl.setPoint(p.id),
               ),
-              if (d.lines.length > 1) ...[
-                const WizardHeading('Satır bazında', top: 24),
-                WizardPad(
-                  top: 0,
-                  Text(
-                    'Bir satır başka noktaya ya da başka güne gidecekse “Farklı nokta/tarih”i açın.',
-                    style: t.bodySmall.copyWith(color: c.dim),
-                  ),
-                ),
-                for (var i = 0; i < d.lines.length; i++)
-                  _LineOverride(
-                    index: i,
-                    lineUid: d.lines[i].uid,
-                    points: points,
-                    minDate: min,
-                    error: errorFor(d.lines[i].uid),
-                  ),
-              ],
-            ],
+            ),
+        if (errorFor('point') != null) WizardError(errorFor('point')!),
+        for (final (i, warning) in tank.indexed)
+          enter(
+            'tank-$i',
+            WizardPad(
+              AknBanner(
+                tone: AknTone.warn,
+                icon: PhosphorIconsRegular.cylinder,
+                title: 'Tank kapasitesi aşılıyor',
+                message: warning.message,
+              ),
+            ),
+          ),
+        enter('date-heading', const WizardHeading('Teslim günü', top: 24)),
+        enter(
+          'date',
+          WizardPad(
+            top: 0,
+            DateField(
+              label: 'Teslim tarihi',
+              value: d.date,
+              firstDate: min,
+              lastDate: TrTime.addDays(TrTime.todayStart(), 120),
+              requiredMark: true,
+              helper: TrTime.isSameDay(min, TrTime.todayStart())
+                  ? 'Bayi teslim planına göre değişebilir.'
+                  : 'En erken ${Fmt.date(min)} (bayinin teslim süresi).',
+              errorText: errorFor('date'),
+              onChanged: ctrl.setDate,
+            ),
           ),
         ),
+        if (d.lines.length > 1) ...[
+          enter('lines-heading', const WizardHeading('Satır bazında', top: 24)),
+          enter(
+            'lines-hint',
+            WizardPad(
+              top: 0,
+              Text(
+                'Bir satır başka noktaya ya da başka güne gidecekse “Farklı nokta/tarih”i açın.',
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+            ),
+          ),
+          for (var i = 0; i < d.lines.length; i++)
+            enter(
+              'line-${d.lines[i].uid}',
+              _LineOverride(
+                index: i,
+                lineUid: d.lines[i].uid,
+                points: points,
+                minDate: min,
+                error: errorFor(d.lines[i].uid),
+              ),
+            ),
+        ],
       ],
     );
   }
 }
 
-/// Teslimat noktası satırı: seçim halkası, ad (17/22 600) ve "Son kullanılan", adres, teslim
-/// saatleri ve tank; seçiliyken erişim notu ve yetkili kişi bir Beton kuyuda.
+/// Teslimat noktası kartı (tasarım v3 §4, sihirbazın diğer seçim kartlarıyla — [ChoiceCard] — aynı
+/// dil): beyaz r20 kart, başta 40 px konum karosu, ad ve "Son kullanılan" etiketi, adres, teslim
+/// saatleri ve tank; sağ üstte seçim işareti. Seçilince kartın üstüne yumuşak turuncu bir ışık
+/// yayılır, 2 px turuncu çerçeve gelir, karo beyaza dönüp turuncu simgeyle hafifçe yükselir ve
+/// dolu onay işareti yayla belirir; erişim notu ve yetkili kişi sessiz bir kuyuda açılır. Basınca
+/// kart 0,98'e iner. Renk tek başına anlam taşımaz (işaret + ekran okuyucuda "seçili").
 class _PointRow extends StatelessWidget {
   const _PointRow({
     required this.point,
@@ -151,15 +164,12 @@ class _PointRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
     final p = point;
     final facts = [
       if (p.windowLabel != null) 'Teslim saatleri ${p.windowLabel}',
       if (p.tankCapacityLiters != null)
         'tank ${Fmt.liters(p.tankCapacityLiters)}',
     ].join(', ');
-    final notes = selected && (p.accessNotes != null || p.contactName != null);
     return Semantics(
       button: true,
       inMutuallyExclusiveGroup: true,
@@ -172,26 +182,91 @@ class _PointRow extends StatelessWidget {
       ].join(', '),
       excludeSemantics: true,
       onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+        child: PressScale(
+          scale: 0.98,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: selected ? 1 : 0),
+            duration: AknMotion.of(context, const Duration(milliseconds: 280)),
+            curve: AknMotion.standard,
+            builder: (context, s, _) => _PointBody(
+              row: this,
+              // Sayı birimiyle aynı satırda kalır ("tank 30.000 L").
+              facts: keepUnits(facts),
+              progress: s,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Nokta kartının seçim ilerlemesindeki ([progress] 0 durgun → 1 seçili) görünümü.
+class _PointBody extends StatelessWidget {
+  const _PointBody({
+    required this.row,
+    required this.facts,
+    required this.progress,
+  });
+
+  final _PointRow row;
+  final String facts;
+  final double progress;
+
+  static Color _mix(Color a, Color b, double t) =>
+      t <= 0 ? a : (t >= 1 ? b : Color.lerp(a, b, t)!);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    final p = row.point;
+    final s = progress.clamp(0.0, 1.0);
+    final selected = row.selected;
+    final notes = selected && (p.accessNotes != null || p.contactName != null);
+    // Yumuşak turuncu ışık: üst köşede brandSoft, karta doğru söner.
+    final wash = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        _mix(c.surface, c.brandSoft, s),
+        _mix(c.surface, Color.lerp(c.brandSoft, c.surface, 0.45)!, s),
+      ],
+    );
+    final restBorder = c.isDark ? c.line : c.surface.withValues(alpha: 0);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: wash,
+        borderRadius: AknRadius.card,
+        border: Border.fromBorderSide(
+          BorderSide(
+            color: _mix(restBorder, c.brand, s),
+            width: c.isDark ? 1 + s : 2,
+            strokeAlign: BorderSide.strokeAlignInside,
+          ),
+        ),
+        boxShadow: c.isDark ? null : AknShadows.card(c),
+      ),
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
-          onTap: () {
-            AknHaptics.selection();
-            onTap();
-          },
+          borderRadius: AknRadius.card,
           splashFactory: NoSplash.splashFactory,
-          highlightColor: c.surfaceAlt,
+          highlightColor: c.ink.withValues(alpha: 0.04),
+          onTap: () {
+            if (!selected) AknHaptics.selection();
+            row.onTap();
+          },
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 64),
             child: Padding(
-              padding: AknSpace.row,
+              padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: _Radio(selected: selected),
-                  ),
+                  _PinTile(progress: s),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -204,21 +279,29 @@ class _PointRow extends StatelessWidget {
                           children: [
                             Text(
                               p.name,
-                              style: t.headline.copyWith(color: c.ink),
+                              style: t.headline.copyWith(
+                                fontSize: 16,
+                                height: 22 / 16,
+                                color: c.ink,
+                              ),
                             ),
-                            if (lastUsed)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 1,
-                                ),
+                            if (row.lastUsed)
+                              DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: c.surfaceAlt,
+                                  color: _mix(c.surfaceAlt, c.surface, s),
                                   borderRadius: AknRadius.tag,
                                 ),
-                                child: Text(
-                                  'Son kullanılan',
-                                  style: t.captionStrong.copyWith(color: c.ink),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 2,
+                                  ),
+                                  child: Text(
+                                    'Son kullanılan',
+                                    style: t.captionStrong.copyWith(
+                                      color: _mix(c.ink, c.brandInk, s),
+                                    ),
+                                  ),
                                 ),
                               ),
                           ],
@@ -240,42 +323,109 @@ class _PointRow extends StatelessWidget {
                         SafeAnimatedSize(
                           child: !notes
                               ? const SizedBox(width: double.infinity)
-                              : Container(
-                                  width: double.infinity,
-                                  margin: const EdgeInsets.only(top: 10),
-                                  padding: AknSpace.well,
-                                  decoration: BoxDecoration(
-                                    color: c.surfaceAlt,
-                                    borderRadius: AknRadius.card,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (p.accessNotes != null)
-                                        _NoteLine(
-                                          icon: Icons.door_front_door_outlined,
-                                          text: 'Erişim: ${p.accessNotes}',
-                                        ),
-                                      if (p.contactName != null) ...[
+                              : FadeUp(
+                                  offset: 6,
+                                  child: Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(top: 10),
+                                    padding: AknSpace.well,
+                                    decoration: BoxDecoration(
+                                      color: c.isDark
+                                          ? c.surfaceAlt
+                                          : c.surface.withValues(alpha: 0.72),
+                                      borderRadius: AknRadius.card,
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
                                         if (p.accessNotes != null)
-                                          const SizedBox(height: 6),
-                                        _NoteLine(
-                                          icon: Icons.person_outline_rounded,
-                                          text:
-                                              '${p.contactName}${p.contactPhone == null ? '' : ', ${Fmt.phone(p.contactPhone)}'}',
-                                        ),
+                                          _NoteLine(
+                                            icon: PhosphorIconsRegular.door,
+                                            text: 'Erişim: ${p.accessNotes}',
+                                          ),
+                                        if (p.contactName != null) ...[
+                                          if (p.accessNotes != null)
+                                            const SizedBox(height: 6),
+                                          _NoteLine(
+                                            icon: PhosphorIconsRegular.user,
+                                            text:
+                                                '${p.contactName}${p.contactPhone == null ? '' : ', ${Fmt.phone(p.contactPhone)}'}',
+                                          ),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
                                 ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  _CheckMark(selected: selected),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 40 px konum karosu: durgunken sessiz kuyu ve mürekkep iğne; seçilince beyaza (koyu temada
+/// kart rengine) döner, iğne turuncu dolar ve karo hafifçe yükselir.
+class _PinTile extends StatelessWidget {
+  const _PinTile({required this.progress});
+
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final s = progress;
+    return ExcludeSemantics(
+      child: Transform.scale(
+        scale: 1 + 0.04 * s,
+        child: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Color.lerp(c.surfaceAlt, c.isDark ? c.surface : c.plate, s),
+            borderRadius: const BorderRadius.all(Radius.circular(AknRadius.sm)),
+            boxShadow: s > 0 && !c.isDark
+                ? [
+                    BoxShadow(
+                      color: c.plateAccent.withValues(alpha: 0.16 * s),
+                      offset: Offset(0, 3 * s),
+                      blurRadius: 8 * s,
+                      spreadRadius: -2,
+                    ),
+                  ]
+                : null,
+          ),
+          // Seçilince iğne çizgiden doluya geçer.
+          child: AnimatedSwitcher(
+            duration: AknMotion.of(context, AknMotion.iconSwap),
+            switchInCurve: AknMotion.pop,
+            transitionBuilder: (child, a) => FadeTransition(
+              opacity: a,
+              child: ScaleTransition(scale: a, child: child),
+            ),
+            child: s >= 0.5
+                ? Icon(
+                    PhosphorIconsFill.mapPin,
+                    key: const ValueKey('on'),
+                    size: 22,
+                    color: c.plateAccent,
+                  )
+                : Icon(
+                    PhosphorIconsRegular.mapPin,
+                    key: const ValueKey('off'),
+                    size: 22,
+                    color: c.ink,
+                  ),
           ),
         ),
       ),
@@ -306,36 +456,52 @@ class _NoteLine extends StatelessWidget {
   }
 }
 
-/// Seçim halkası (§6.11): seçiliyken mürekkep dolgu ve beyaz nokta; değilse 1,6 px kontrol
-/// çizgisi.
-class _Radio extends StatelessWidget {
-  const _Radio({required this.selected});
+/// Sağ üstteki seçim işareti (tasarım v3 §5 seçim): seçilince dolu turuncu onay yayla büyüyerek
+/// belirir; değilse 1,5 px kontrol çizgili boş halka.
+class _CheckMark extends StatelessWidget {
+  const _CheckMark({required this.selected});
 
   final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    return AnimatedContainer(
-      duration: AknMotion.of(context, AknMotion.fast),
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: selected ? c.ink : Colors.transparent,
-        border: Border.all(
-          color: selected ? c.ink : c.lineStrong,
-          width: selected ? 2 : 1.6,
+    return Padding(
+      padding: const EdgeInsets.only(top: 1),
+      child: SizedBox.square(
+        dimension: 22,
+        child: AnimatedSwitcher(
+          duration: AknMotion.of(context, const Duration(milliseconds: 320)),
+          reverseDuration: AknMotion.of(context, AknMotion.fast),
+          transitionBuilder: (child, a) => FadeTransition(
+            opacity: a.drive(CurveTween(curve: Curves.easeOut)),
+            child: ScaleTransition(
+              scale: a.drive(
+                Tween<double>(
+                  begin: 0.3,
+                  end: 1,
+                ).chain(CurveTween(curve: AknMotion.pop)),
+              ),
+              child: child,
+            ),
+          ),
+          child: selected
+              ? Icon(
+                  PhosphorIconsFill.checkCircle,
+                  key: const ValueKey('on'),
+                  size: 22,
+                  color: c.brandFill,
+                )
+              : Container(
+                  key: const ValueKey('off'),
+                  margin: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: c.lineStrong, width: 1.5),
+                  ),
+                ),
         ),
       ),
-      alignment: Alignment.center,
-      child: selected
-          ? Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(shape: BoxShape.circle, color: c.bg),
-            )
-          : null,
     );
   }
 }
@@ -367,7 +533,7 @@ class _LineOverride extends ConsumerWidget {
     final product = form?.product(l.productId)?.name ?? 'Ürün seçilmedi';
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-      child: AknCard(
+      child: A2Card(
         padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

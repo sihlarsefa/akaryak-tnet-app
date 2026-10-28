@@ -23,7 +23,7 @@ DateTime predictedQuoteWindow(DateTime now) {
   return later.isBefore(end) ? later : end;
 }
 
-/// Adım 4 (tasarım v2 §7.9 "Özet"): **sihirbaz plakası** (tahmini tutar; kural; Litre / Birim
+/// Adım 4 (tasarım v3 "Özet"): yükselerek gelen **özet kartı** (tahmini tutar; kural; Litre / Birim
 /// fiyat / Teslim), teklif süresi notu, sipariş / teslimat / ödeme bilgileri ("Değiştir" ile ilgili
 /// adıma döner), şirket içi onay uyarısı ve "Onaylayana not" (Talep eden), "Şablon olarak kaydet".
 class StepSummary extends ConsumerStatefulWidget {
@@ -87,211 +87,254 @@ class _StepSummaryState extends ConsumerState<StepSummary> {
     final station = home?.stationById(d.stationId);
     final point = form?.point(d.pointId);
     final created = ctrl.created;
+    // Uyarılar ve bölümler birbiri ardına yükselerek gelir; plaka kendi kahraman yükselişini
+    // yapar, bölümler onun ardından (v3 §5).
+    final enter = WizardCascade();
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+    return WizardStepList(
       children: [
-        ContentWidth(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (w.notice != null && d.origin == DraftOrigin.reorder)
-                WizardPad(
-                  AknBanner(
-                    tone: AknTone.info,
-                    icon: Icons.replay_rounded,
-                    message: w.notice!,
-                  ),
-                ),
-              if (d.origin == DraftOrigin.partial && created.isNotEmpty)
-                WizardPad(
-                  AknBanner(
-                    tone: AknTone.info,
-                    icon: Icons.call_split_rounded,
-                    title: 'Kalan satırlar',
-                    message:
-                        'Önceki gönderimde ${created.length} sipariş oluştu '
-                        '(${created.map((o) => o.orderNumber).join(', ')}). '
-                        'Kalan satırlar aynı ödeme grubuyla gönderilecek.',
-                  ),
-                ),
-              if (predicted && rule != null)
-                WizardPad(
-                  AknBanner(
-                    tone: AknTone.info,
-                    icon: Icons.how_to_reg_outlined,
-                    title: 'Şirket içi onaya düşecek',
-                    message:
-                        '${rule.text} Onaylanınca siparişleriniz bayiye iletilir.',
-                  ),
-                ),
-              WizardPad(
-                _SummaryPlate(
-                  totalLiters: d.totalLiters,
-                  estimate: est.value,
-                  date: d.date,
-                  station: shortCompany(station?.title),
+        if (w.notice != null && d.origin == DraftOrigin.reorder)
+          enter(
+            'reorder',
+            WizardPad(
+              AknBanner(
+                tone: AknTone.info,
+                icon: PhosphorIconsRegular.arrowCounterClockwise,
+                message: w.notice!,
+              ),
+            ),
+          ),
+        if (d.origin == DraftOrigin.partial && created.isNotEmpty)
+          enter(
+            'partial',
+            WizardPad(
+              AknBanner(
+                tone: AknTone.info,
+                icon: PhosphorIconsRegular.arrowsSplit,
+                title: 'Kalan satırlar',
+                message:
+                    'Önceki gönderimde ${created.length} sipariş oluştu '
+                    '(${created.map((o) => o.orderNumber).join(', ')}). '
+                    'Kalan satırlar aynı ödeme grubuyla gönderilecek.',
+              ),
+            ),
+          ),
+        if (predicted && rule != null)
+          enter(
+            'company-approval',
+            WizardPad(
+              AknBanner(
+                tone: AknTone.info,
+                icon: PhosphorIconsRegular.userCheck,
+                title: 'Şirket içi onaya düşecek',
+                message:
+                    '${rule.text} Onaylanınca siparişleriniz bayiye iletilir.',
+              ),
+            ),
+          ),
+        // Adımın kahraman kartı yükselerek gelir (v3 §5; içerik yeniden kurulmaz, rakamlar bir kez
+        // yuvarlanır).
+        WizardPad(
+          key: const ValueKey('plate'),
+          A2Rise(
+            index: enter.take(2),
+            offset: 24,
+            scale: 0.94,
+            duration: AknMotion.heroRise,
+            child: _SummaryPlate(
+              totalLiters: d.totalLiters,
+              estimate: est.value,
+              date: d.date,
+              station: shortCompany(station?.title),
+            ),
+          ),
+        ),
+        if (expiryOn && !predicted)
+          enter(
+            'expiry',
+            WizardPad(
+              A2Card(
+                padding: const EdgeInsets.all(14),
+                child: FactLine(
+                  icon: PhosphorIconsRegular.timer,
+                  tone: AknTone.brand,
+                  text:
+                      'Teklif yaklaşık ${withDative(Fmt.time(predictedQuoteWindow(TrTime.now())))} '
+                      'kadar geçerli; gün sonunda kapanır.',
                 ),
               ),
-              if (expiryOn && !predicted)
-                WizardPad(
-                  FactLine(
-                    icon: Icons.timer_outlined,
-                    text:
-                        'Teklif yaklaşık ${withDative(Fmt.time(predictedQuoteWindow(TrTime.now())))} '
-                        'kadar geçerli; gün sonunda kapanır.',
+            ),
+          ),
+        enter(
+          'order',
+          OrderSection(
+            title: 'Sipariş',
+            actionLabel: 'Değiştir',
+            onAction: () => ctrl.goTo(WizardStep.products),
+            bleed: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (station != null && (home?.stations.length ?? 0) > 1)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: FactRow(label: 'Bayi', value: station.title),
                   ),
-                ),
-              SectionHeader(
-                title: 'Sipariş',
-                actionLabel: 'Değiştir',
-                onAction: () => ctrl.goTo(WizardStep.products),
-              ),
-              if (station != null && (home?.stations.length ?? 0) > 1)
-                WizardPad(top: 0, FactRow(label: 'Bayi', value: station.title)),
-              AknLedger(
-                children: [
-                  for (final l in d.lines)
-                    AknListTile(
-                      dense: true,
-                      title: orderTitle(
-                        form?.product(l.productId)?.name ?? 'Ürün',
-                        l.liters ?? 0,
+                AknLedger(
+                  children: [
+                    for (final l in d.lines)
+                      AknListTile(
+                        dense: true,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
+                        title: orderTitle(
+                          form?.product(l.productId)?.name ?? 'Ürün',
+                          l.liters ?? 0,
+                        ),
+                        subtitle: l.custom
+                            ? [
+                                form?.point(d.pointOf(l))?.name,
+                                if (d.dateOf(l) != null)
+                                  dayMonthLong(d.dateOf(l)),
+                              ].whereType<String>().join(', ')
+                            : null,
+                        amount: Estimate.line(l, w.prices) == null
+                            ? null
+                            : Fmt.money(Estimate.line(l, w.prices)),
+                        amountMeta: Estimate.line(l, w.prices) == null
+                            ? null
+                            : 'tahmini',
                       ),
-                      subtitle: l.custom
-                          ? [
-                              form?.point(d.pointOf(l))?.name,
-                              if (d.dateOf(l) != null)
-                                dayMonthLong(d.dateOf(l)),
-                            ].whereType<String>().join(', ')
-                          : null,
-                      amount: Estimate.line(l, w.prices) == null
-                          ? null
-                          : Fmt.money(Estimate.line(l, w.prices)),
-                      amountMeta: Estimate.line(l, w.prices) == null
-                          ? null
-                          : 'tahmini',
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        enter(
+          'delivery',
+          OrderSection(
+            title: 'Teslimat',
+            actionLabel: 'Değiştir',
+            onAction: () => ctrl.goTo(WizardStep.delivery),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FactRow(label: 'Nokta', value: point?.name ?? Fmt.dash),
+                if (point?.windowLabel != null)
+                  FactRow(label: 'Teslim saatleri', value: point!.windowLabel!),
+                FactRow(label: 'Tarih', value: dayMonthWeekday(d.date)),
+              ],
+            ),
+          ),
+        ),
+        if (w.hasPaymentStep)
+          enter(
+            'payment',
+            OrderSection(
+              title: 'Ödeme',
+              actionLabel: 'Değiştir',
+              onAction: () => ctrl.goTo(WizardStep.payment),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  FactRow(
+                    label: 'Yöntem',
+                    value: WizardRules.paymentSummary(d, m),
+                  ),
+                  if (m?.requiresFinance ?? false)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        OrdersCopy.financeHint,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                    ),
+                  if (m?.isInstrument ?? false)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        '${m!.displayName} görselini sipariş oluşunca yükleyeceksiniz.',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
                     ),
                 ],
               ),
-              SectionHeader(
-                title: 'Teslimat',
-                actionLabel: 'Değiştir',
-                onAction: () => ctrl.goTo(WizardStep.delivery),
+            ),
+          ),
+        if (predicted)
+          enter(
+            'note',
+            WizardPad(
+              top: 20,
+              AknTextField(
+                controller: _note,
+                label: OrdersCopy.noteForApprover,
+                hint: 'Onaylayacak kişiye kısa bir not (isteğe bağlı)',
+                maxLines: 3,
+                minLines: 2,
+                maxLength: WizardRules.maxNote,
+                textCapitalization: TextCapitalization.sentences,
+                errorText: errorFor('note'),
+                onChanged: ctrl.setNote,
               ),
-              WizardPad(
-                top: 0,
-                Column(
+            ),
+          ),
+        if (d.origin != DraftOrigin.partial)
+          enter(
+            'template',
+            WizardPad(
+              top: 14,
+              A2Card(
+                padding: const EdgeInsets.fromLTRB(18, 4, 10, 12),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    FactRow(label: 'Nokta', value: point?.name ?? Fmt.dash),
-                    if (point?.windowLabel != null)
-                      FactRow(
-                        label: 'Teslim saatleri',
-                        value: point!.windowLabel!,
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: d.saveAsTemplate,
+                      title: Text(
+                        OrdersCopy.saveAsTemplate,
+                        style: t.bodyStrong.copyWith(color: c.ink),
                       ),
-                    FactRow(label: 'Tarih', value: dayMonthWeekday(d.date)),
+                      subtitle: Text(
+                        d.templateId != null
+                            ? 'Bu sipariş bir şablondan; yeni bir şablon olarak da saklayabilirsiniz.'
+                            : 'Sonraki siparişlerde tek dokunuşla kullanın.',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                      onChanged: (v) {
+                        ctrl.setSaveAsTemplate(v);
+                        if (v && _name.text.trim().isEmpty) {
+                          _name.text = _suggestName(d);
+                          ctrl.setTemplateName(_name.text);
+                        }
+                      },
+                    ),
+                    // Şablon adı alanı yumuşakça açılır / kapanır.
+                    SafeAnimatedSize(
+                      child: !d.saveAsTemplate
+                          ? const SizedBox(width: double.infinity)
+                          : Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: AknTextField(
+                                controller: _name,
+                                label: OrdersCopy.templateName,
+                                maxLength: WizardRules.maxTemplateName,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                errorText: errorFor('templateName'),
+                                onChanged: ctrl.setTemplateName,
+                              ),
+                            ),
+                    ),
                   ],
                 ),
               ),
-              if (w.hasPaymentStep) ...[
-                SectionHeader(
-                  title: 'Ödeme',
-                  actionLabel: 'Değiştir',
-                  onAction: () => ctrl.goTo(WizardStep.payment),
-                ),
-                WizardPad(
-                  top: 0,
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      FactRow(
-                        label: 'Yöntem',
-                        value: WizardRules.paymentSummary(d, m),
-                      ),
-                      if (m?.requiresFinance ?? false)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            OrdersCopy.financeHint,
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
-                        ),
-                      if (m?.isInstrument ?? false)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            '${m!.displayName} görselini sipariş oluşunca yükleyeceksiniz.',
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-              if (predicted)
-                WizardPad(
-                  top: 20,
-                  AknTextField(
-                    controller: _note,
-                    label: OrdersCopy.noteForApprover,
-                    hint: 'Onaylayacak kişiye kısa bir not (isteğe bağlı)',
-                    maxLines: 3,
-                    minLines: 2,
-                    maxLength: WizardRules.maxNote,
-                    textCapitalization: TextCapitalization.sentences,
-                    errorText: errorFor('note'),
-                    onChanged: ctrl.setNote,
-                  ),
-                ),
-              if (d.origin != DraftOrigin.partial)
-                WizardPad(
-                  top: 20,
-                  AknCard(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          value: d.saveAsTemplate,
-                          title: Text(
-                            OrdersCopy.saveAsTemplate,
-                            style: t.bodyStrong.copyWith(color: c.ink),
-                          ),
-                          subtitle: Text(
-                            d.templateId != null
-                                ? 'Bu sipariş bir şablondan; yeni bir şablon olarak da saklayabilirsiniz.'
-                                : 'Sonraki siparişlerde tek dokunuşla kullanın.',
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
-                          onChanged: (v) {
-                            ctrl.setSaveAsTemplate(v);
-                            if (v && _name.text.trim().isEmpty) {
-                              _name.text = _suggestName(d);
-                              ctrl.setTemplateName(_name.text);
-                            }
-                          },
-                        ),
-                        if (d.saveAsTemplate)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: AknTextField(
-                              controller: _name,
-                              label: OrdersCopy.templateName,
-                              maxLength: WizardRules.maxTemplateName,
-                              textCapitalization: TextCapitalization.sentences,
-                              errorText: errorFor('templateName'),
-                              onChanged: ctrl.setTemplateName,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -319,7 +362,7 @@ class _SummaryPlate extends StatelessWidget {
     final avg = est == null || totalLiters <= 0 ? null : est / totalLiters;
     return AknPlate(
       head: PlateHead(
-        icon: Icons.receipt_long_outlined,
+        icon: PhosphorIconsRegular.receipt,
         title: est == null ? 'Sipariş özeti' : 'Tahmini tutar',
         period: station.isEmpty ? null : station,
       ),

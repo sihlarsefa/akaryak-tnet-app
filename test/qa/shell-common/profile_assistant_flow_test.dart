@@ -34,6 +34,17 @@ Future<void> _openProfile(WidgetTester tester, QaApp app) async {
   await settleIo(tester);
 }
 
+/// Şifre değiştir formunu doldurur: mevcut (`demo`), yeni ve tekrar. Tasarım v3'te yeni şifrenin
+/// altında kural kuyusu (güç çizgisi + dört canlı kural) var; 360×640'ta "tekrar" alanı ilk ekranın
+/// altında kalır (tembel listede görünmeyen öğe bulunamaz), bu yüzden önce ona kaydırılır.
+Future<void> _fillPasswordForm(WidgetTester tester, String next) async {
+  await tester.enterText(qaField('Mevcut şifre'), 'demo');
+  await tester.enterText(qaField('Yeni şifre'), next);
+  final again = qaField('Yeni şifre (tekrar)');
+  await qaScrollTo(tester, again);
+  await tester.enterText(again, next);
+}
+
 void main() {
   testWidgets('şifre değiştir → giriş ekranı → yeniden giriş (musteri)', (
     tester,
@@ -48,9 +59,7 @@ void main() {
       await qaTap(tester, pwRow.first);
       await pumpSteps(tester, const Duration(milliseconds: 1000));
       qa.check(tester, 'şifre sayfası');
-      await tester.enterText(qaField('Mevcut şifre'), 'demo');
-      await tester.enterText(qaField('Yeni şifre'), 'Yeni12345');
-      await tester.enterText(qaField('Yeni şifre (tekrar)'), 'Yeni12345');
+      await _fillPasswordForm(tester, 'Yeni12345');
       await pumpSteps(tester, const Duration(milliseconds: 300));
       await qaTap(tester, find.widgetWithText(AknButton, 'Şifreyi değiştir'));
       await _waitFor(tester, () => app.session is SessionUnauthenticated);
@@ -105,9 +114,7 @@ void main() {
       await qaScrollTo(tester, pwRow);
       await qaTap(tester, pwRow.first);
       await pumpSteps(tester, const Duration(milliseconds: 1000));
-      await tester.enterText(qaField('Mevcut şifre'), 'demo');
-      await tester.enterText(qaField('Yeni şifre'), 'Yeni12345');
-      await tester.enterText(qaField('Yeni şifre (tekrar)'), 'Yeni12345');
+      await _fillPasswordForm(tester, 'Yeni12345');
       await qaTap(tester, find.widgetWithText(AknButton, 'Şifreyi değiştir'));
       await _waitFor(tester, () => app.session is SessionUnauthenticated);
       await pumpSteps(tester, const Duration(seconds: 1));

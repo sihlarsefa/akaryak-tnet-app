@@ -19,10 +19,12 @@ import 'widgets/order_parts.dart';
 import 'widgets/order_row_card.dart';
 import 'widgets/search_well.dart';
 
-/// Siparişlerim (spec A.4; tasarım v2 §7.7, pano ekran 4): kök başlık (display) + şablon kısayolu
-/// → sekmeler (Karar bekleyen, Aktif, Geçmiş; sayılarıyla, turuncu iğne) → arama kuyusu →
-/// ledger satırları → kayıtların nereye gittiğini söyleyen dip cümlesi. Geçmiş güne göre
-/// gruplanır. Sunucu araması, sonsuz kaydırma, çevrimdışı ilk sayfa ("Son güncelleme").
+/// Siparişlerim (spec A.4; tasarım v3 §4, pano ekran 4): kök başlık (display) + şablon kısayolu
+/// → sekmeler (Karar bekleyen, Aktif, Geçmiş; sayı haplarıyla, altta yayla kayan turuncu çubuk)
+/// → arama kuyusu → yüzen beyaz sipariş kartları ([OrderRowCard]; birbiri ardına yükselerek gelir,
+/// aşağıdakiler kaydırınca belirir; sekme değişince liste solup yenisi büyüyerek gelir) →
+/// kayıtların nereye gittiğini söyleyen dip cümlesi. Geçmiş güne göre gruplanır. Sunucu araması,
+/// sonsuz kaydırma, çevrimdışı ilk sayfa ("Son güncelleme").
 class OrdersPage extends ConsumerStatefulWidget {
   const OrdersPage({super.key, this.initialSegment});
 
@@ -98,7 +100,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       actions: [
         if (policy.can(Pg.customerCreateOrder))
           AknIconButton(
-            icon: Icons.bookmarks_outlined,
+            icon: PhosphorIconsRegular.bookmarks,
             semanticLabel: OrdersCopy.templates,
             onPressed: () => context.push(templatesRoute),
           ),
@@ -115,7 +117,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           ),
           ContentWidth(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
               child: OrdersSearchWell(
                 controller: _search,
                 hint: OrdersCopy.searchHint,
@@ -144,9 +146,10 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   }
 }
 
-/// Sekmeler (§6.11): etiket 16/20 600 (seçili mürekkep, diğerleri soluk) + sayı 500; seçilinin
-/// altında 3 px turuncu iğne, altta 1 px çizgi. Büyük yazıda yatay kayar ve seçili sekme görünür
-/// alana getirilir.
+/// Sekmeler (tasarım v3 §4 Tabs): etiket 16/20 700 (seçili mürekkep, diğerleri soluk) ve sayı
+/// hapı — "Karar bekleyen"de turuncu (sıra sizde); seçilinin altındaki 3 px turuncu çubuk sekmeden
+/// sekmeye yay eğrisiyle kayar. Büyük yazıda satır yatay kayar ve seçili sekme görünür alana
+/// getirilir.
 class _SegmentTabs extends StatefulWidget {
   const _SegmentTabs({
     required this.value,
@@ -164,6 +167,13 @@ class _SegmentTabs extends StatefulWidget {
 
 class _SegmentTabsState extends State<_SegmentTabs> {
   final _keys = {for (final s in OrderSegment.values) s: GlobalKey()};
+  final _row = GlobalKey();
+
+  /// Seçili sekmenin satırdaki yeri (çubuk bunun altında durur).
+  Rect? _bar;
+
+  /// İlk ölçümde çubuk yerinde belirir; sonrakilerde kayar.
+  bool _slide = false;
 
   @override
   void initState() {
@@ -194,27 +204,67 @@ class _SegmentTabsState extends State<_SegmentTabs> {
     });
   }
 
+  /// Sekme genişlikleri sayı gelince ve yazı ölçeğiyle değişir: her çizimden sonra seçili sekme
+  /// yeniden ölçülür (yalnızca yer değiştiyse yeniden çizilir).
+  void _measure() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final row = _row.currentContext?.findRenderObject();
+      final tab = _keys[widget.value]?.currentContext?.findRenderObject();
+      if (row is! RenderBox || tab is! RenderBox) return;
+      if (!row.hasSize || !tab.hasSize) return;
+      final rect = tab.localToGlobal(Offset.zero, ancestor: row) & tab.size;
+      if (rect == _bar) return;
+      setState(() {
+        _slide = _bar != null;
+        _bar = rect;
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    return Container(
+    _measure();
+    final bar = _bar;
+    return SizedBox(
       width: double.infinity,
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: c.line)),
-      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Stack(
           children: [
-            for (final (seg, count) in widget.segments)
-              _Tab(
-                key: _keys[seg],
-                label: seg.label,
-                count: count,
-                selected: seg == widget.value,
-                onTap: () => widget.onChanged(seg),
+            Row(
+              key: _row,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final (seg, count) in widget.segments)
+                  _Tab(
+                    key: _keys[seg],
+                    label: seg.label,
+                    count: count,
+                    selected: seg == widget.value,
+                    yourMove: seg == OrderSegment.decision,
+                    onTap: () => widget.onChanged(seg),
+                  ),
+              ],
+            ),
+            if (bar != null)
+              AnimatedPositioned(
+                duration: _slide
+                    ? AknMotion.of(context, AknMotion.thumb)
+                    : Duration.zero,
+                curve: AknMotion.curveOf(context, AknMotion.spring),
+                left: bar.left + 10,
+                width: (bar.width - 20).clamp(0, double.infinity),
+                bottom: 0,
+                height: 3,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.brand,
+                    borderRadius: AknRadius.pillAll,
+                  ),
+                ),
               ),
           ],
         ),
@@ -230,63 +280,73 @@ class _Tab extends StatelessWidget {
     required this.count,
     required this.selected,
     required this.onTap,
+    this.yourMove = false,
   });
 
   final String label;
   final int? count;
   final bool selected;
+
+  /// Sayı "sıra sizde" turuncusuyla (karar bekleyen teklifler).
+  final bool yourMove;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final style = t.button.copyWith(color: selected ? c.ink : c.dim);
+    final duration = AknMotion.of(context, AknMotion.base);
+    final n = count;
     return Semantics(
       button: true,
       selected: selected,
-      label: count == null ? label : '$label, $count sipariş',
+      label: n == null ? label : '$label, $n sipariş',
       excludeSemantics: true,
       onTap: onTap,
-      child: InkWell(
-        onTap: onTap,
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: c.surfaceAlt,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: IntrinsicWidth(
-              child: Column(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (!selected) AknHaptics.selection();
+          onTap();
+        },
+        child: PressScale(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(label, style: style),
-                      if (count != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          '$count',
-                          style: style.copyWith(fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 11),
-                  AnimatedContainer(
-                    duration: AknMotion.of(context, AknMotion.needle),
+                  AnimatedDefaultTextStyle(
+                    duration: duration,
                     curve: AknMotion.standard,
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: selected ? c.logo : Colors.transparent,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(2),
+                    style: t.button.copyWith(color: selected ? c.ink : c.dim),
+                    child: Text(label),
+                  ),
+                  if (n != null) ...[
+                    const SizedBox(width: 7),
+                    AnimatedContainer(
+                      duration: duration,
+                      curve: AknMotion.standard,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: yourMove ? c.brandSoft : c.surfaceAlt,
+                        borderRadius: AknRadius.pillAll,
+                      ),
+                      child: Text(
+                        '$n',
+                        style: t.captionStrong.copyWith(
+                          fontFeatures: AknNumerals.tabular,
+                          color: yourMove
+                              ? c.brandInk
+                              : (selected ? c.ink : c.dim),
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -374,7 +434,7 @@ class _OrdersList extends ConsumerWidget {
       );
     }
 
-    // Satırlar (geçmişte gün başlıklarıyla) + dip.
+    // Kartlar (geçmişte gün başlıklarıyla) + dip.
     final entries = <Object>[];
     String? lastDay;
     for (final row in s.items) {
@@ -383,11 +443,7 @@ class _OrdersList extends ConsumerWidget {
         if (day != null && day != lastDay) {
           entries.add(day);
           lastDay = day;
-        } else if (entries.isNotEmpty && entries.last is CustomerOrderRow) {
-          entries.add(const _Divider());
         }
-      } else if (entries.isNotEmpty) {
-        entries.add(const _Divider());
       }
       entries.add(row);
     }
@@ -397,79 +453,99 @@ class _OrdersList extends ConsumerWidget {
       OrderSegment.history => null,
     };
     final count = entries.length + 2;
-    return PullToRefresh(
-      onRefresh: ctrl.refresh,
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if ((n is ScrollUpdateNotification || n is OverscrollNotification) &&
-              n.metrics.extentAfter < 400 &&
-              s.hasMore &&
-              !s.loadingMore) {
-            Future.microtask(ctrl.loadMore);
-          }
-          return false;
-        },
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
-          itemCount: count,
-          itemBuilder: (context, i) {
-            if (i == 0) {
-              return LastUpdatedNote(
-                updatedAt: s.updatedAt,
-                fromCache: s.fromCache,
-              );
+    final t = context.aknText;
+    final c = context.akn;
+    // Yeni arama sonuçları da birbiri ardına gelir (kapsam sorguyla yenilenir); aşağıda kalan
+    // kartlar kaydırınca belirir.
+    return StaggerScope(
+      key: ValueKey(s.query),
+      child: PullToRefresh(
+        onRefresh: ctrl.refresh,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if ((n is ScrollUpdateNotification ||
+                    n is OverscrollNotification) &&
+                n.metrics.extentAfter < 400 &&
+                s.hasMore &&
+                !s.loadingMore) {
+              Future.microtask(ctrl.loadMore);
             }
-            if (i == count - 1) {
-              if (s.loadingMore) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: ChevronSpinner(size: 24)),
+            return false;
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              top: 4,
+              bottom: 32 + MediaQuery.paddingOf(context).bottom,
+            ),
+            itemCount: count,
+            itemBuilder: (context, i) {
+              if (i == 0) {
+                return LastUpdatedNote(
+                  updatedAt: s.updatedAt,
+                  fromCache: s.fromCache,
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
                 );
               }
-              if (s.hasMore) return const SizedBox(height: 48);
-              if (footer == null) return const SizedBox(height: 8);
-              return ContentWidth(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  child: Text(
-                    footer,
-                    style: context.aknText.bodySmall.copyWith(
-                      color: context.akn.dim,
-                    ),
-                  ),
-                ),
-              );
-            }
-            final e = entries[i - 1];
-            if (e is _Divider) {
-              return const ContentWidth(child: AknLedgerDivider());
-            }
-            if (e is String) {
-              return ContentWidth(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(20, i == 1 ? 8 : 20, 20, 2),
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      e,
-                      style: context.aknText.label.copyWith(
-                        color: context.akn.dim,
-                        fontWeight: FontWeight.w600,
+              if (i == count - 1) {
+                if (s.loadingMore) {
+                  return const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Center(child: ChevronSpinner(size: 24)),
+                  );
+                }
+                if (s.hasMore) return const SizedBox(height: 48);
+                if (footer == null) return const SizedBox(height: 8);
+                return ContentWidth(
+                  child: FadeUp(
+                    delay: AknMotion.staggerDelay(entries.length),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+                      child: Text(
+                        footer,
+                        textAlign: TextAlign.center,
+                        style: t.bodySmall.copyWith(color: c.dim),
                       ),
                     ),
                   ),
+                );
+              }
+              final e = entries[i - 1];
+              if (e is String) {
+                return ContentWidth(
+                  child: StaggerItem(
+                    index: i - 1,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(24, i == 1 ? 10 : 22, 20, 4),
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          e,
+                          style: t.label.copyWith(
+                            color: c.dim,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              final row = e as CustomerOrderRow;
+              return ContentWidth(
+                child: StaggerItem(
+                  index: i - 1,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+                    child: OrderRowCard(
+                      row: row,
+                      onTap: () => context.push(AppRoutes.order(row.id)),
+                    ),
+                  ),
                 ),
               );
-            }
-            final row = e as CustomerOrderRow;
-            return ContentWidth(
-              child: OrderRowCard(
-                row: row,
-                onTap: () => context.push(AppRoutes.order(row.id)),
-              ),
-            );
-          },
+            },
+          ),
         ),
       ),
     );
@@ -492,11 +568,10 @@ class _OrdersList extends ConsumerWidget {
         onRefresh: onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: [const SizedBox(height: 32), child],
+          children: [
+            const SizedBox(height: 32),
+            FadeUp(offset: 16, scale: 0.97, child: child),
+          ],
         ),
       );
-}
-
-class _Divider {
-  const _Divider();
 }

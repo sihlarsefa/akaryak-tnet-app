@@ -22,17 +22,19 @@ import 'widgets/approval_card.dart';
 /// SLA süzgeci ("Bende" sekmesinde, yüklenen satırlar üzerinde).
 enum _SlaFilter { all, dueSoon, overdue }
 
-/// Onaylarım (spec A.4 A5, tasarım v2 §7.13): kök başlık, Bende / Taleplerim / Karar verdiklerim / Tümü
-/// (İnceler) çipleri, gecikenler için kuyu, arama kuyusu, tür ve SLA çipleri; defter satırları
-/// (tür: karşı taraf, tutar, izleyiciye göre lamba ve son tarih). Satıra dokununca ayrıntı
-/// (`/approvals/{id}`) açılır.
+/// Onaylarım (spec A.4 A5, tasarım v3 "Akış" §7.13): kök başlık, Bende / Taleplerim / Karar
+/// verdiklerim / Tümü (İnceler) bölümlü denetimi (kayan başparmak), gecikenler için uyarı, arama
+/// kuyusu, tür ve SLA çipleri; onay kartları (tür simgesi, tür: karşı taraf, tutar, izleyiciye göre
+/// lamba ve geri sayım) sayfa kenarında yüzer ve sırayla yükselir (süzgeç değişince yeniden,
+/// kaydırdıkça yenileri). Karta dokununca ayrıntı (`/approvals/{id}`) açılır.
 class ApprovalsPage extends ConsumerStatefulWidget {
   const ApprovalsPage({super.key, this.initialScope});
 
   /// Derin bağlantı: `/approvals?scope=taleplerim`.
   final ApprovalScope? initialScope;
 
-  /// `scope` sorgu değerini sekmeye çevirir (`bende`, `taleplerim`, `kararlarim`, `tumu` ya da 0–3).
+  /// `scope` sorgu değerini sekmeye çevirir (`bende`, `taleplerim`, `kararlarim`, `tumu` ya da
+  /// 0–3).
   static ApprovalScope? parseScope(String? raw) {
     final v = raw == null ? null : TurkishText.searchKey(raw);
     if (v == null || v.isEmpty) return null;
@@ -150,8 +152,8 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
       title: ApprovalsCopy.title,
       refreshing: raw.refreshing,
       body: A5PagedListView<ApprovalRow>(
-        ledger: true,
-        padding: const EdgeInsets.fromLTRB(0, 4, 0, 24),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        itemSpacing: 12,
         state: state,
         staggerKey: (query, _sla),
         onRefresh: _refresh,
@@ -173,7 +175,7 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: AknBanner(
                 tone: AknTone.danger,
-                icon: Icons.timer_off_outlined,
+                icon: PhosphorIconsRegular.hourglassLow,
                 message: badge!.overdue == 1
                     ? '1 talebin karar süresi geçti.'
                     : '${badge.overdue} talebin karar süresi geçti.',
@@ -186,10 +188,14 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-            child: SearchField(
-              controller: _searchCtrl,
-              hint: ApprovalsCopy.searchHint,
-              onChanged: (q) => setState(() => _search = q.trim()),
+            // Arama alanının dokunma hedefi ekran okuyucuda adlandırılır.
+            child: Semantics(
+              label: ApprovalsCopy.searchHint,
+              child: SearchField(
+                controller: _searchCtrl,
+                hint: ApprovalsCopy.searchHint,
+                onChanged: (q) => setState(() => _search = q.trim()),
+              ),
             ),
           ),
           if (!customer)
@@ -244,8 +250,8 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
   }
 }
 
-/// Sekmeler: normal yazı boyutunda kayan başparmaklı bölümlü denetim; büyük yazıda (>%130) kesilmesin
-/// diye yatay kayan çipler.
+/// Sekmeler: normal yazı boyutunda kayan başparmaklı bölümlü denetim; büyük yazıda (>%130)
+/// kesilmesin diye yatay kayan çipler.
 class _ScopeTabs extends StatelessWidget {
   const _ScopeTabs({
     required this.scopes,
@@ -278,7 +284,8 @@ class _ScopeTabs extends StatelessWidget {
       onChanged: (s) => onChanged(s.first),
     );
     // Normal yazıda v2 bölümlü denetim (Beton ray, beyaz başparmak); büyük yazıda (≥ 1,3×) ya da
-    // etiketler eşit dilimlere sığmadığında (dar ekran, kalın yazı) kesilmesin diye yatay kayan çipler.
+    // etiketler eşit dilimlere sığmadığında (dar ekran, kalın yazı) kesilmesin diye yatay kayan
+    // çipler.
     final scaler = MediaQuery.textScalerOf(context);
     if (scaler.scale(10) >= 13) return chips;
     final t = context.aknText;
@@ -320,8 +327,9 @@ class _ScopeTabs extends StatelessWidget {
   }
 }
 
-/// Tür ve son tarih süzgeçleri tek kayan satırda (v2 çipleri): tür tek seçimli, ardından "Süresi
-/// dolanlar" / "Süresi geçenler" ("Bende" sekmesinde).
+/// Tür ve son tarih süzgeçleri tek kayan satırda (v3 çipleri): her çipte kartlardaki türün /
+/// sürenin simgesi (seçilince yerini yaylanarak beliren onaya bırakır); tür tek seçimli, ardından
+/// "Süresi dolanlar" / "Süresi geçenler" ("Bende" sekmesinde).
 class _TypeAndSlaChips extends StatelessWidget {
   const _TypeAndSlaChips({
     required this.type,
@@ -343,6 +351,7 @@ class _TypeAndSlaChips extends StatelessWidget {
       if (showSla) ...[
         AknChip(
           label: 'Süresi dolanlar',
+          icon: AknStatus.sla(ApprovalSlaState.dueSoon).icon,
           selected: sla == _SlaFilter.dueSoon,
           onTap: () => onSla(
             sla == _SlaFilter.dueSoon ? _SlaFilter.all : _SlaFilter.dueSoon,
@@ -350,6 +359,7 @@ class _TypeAndSlaChips extends StatelessWidget {
         ),
         AknChip(
           label: 'Süresi geçenler',
+          icon: AknStatus.sla(ApprovalSlaState.overdue).icon,
           selected: sla == _SlaFilter.overdue,
           onTap: () => onSla(
             sla == _SlaFilter.overdue ? _SlaFilter.all : _SlaFilter.overdue,
@@ -360,6 +370,7 @@ class _TypeAndSlaChips extends StatelessWidget {
         if (!t.isUnknown)
           AknChip(
             label: t.shortLabel,
+            icon: AknStatus.approvalType(t).icon,
             selected: type == t,
             onTap: () => onType(type == t ? null : t),
           ),

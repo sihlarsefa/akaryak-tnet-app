@@ -10,6 +10,7 @@ import '../../copy.dart';
 import '../../data/form_models.dart';
 import '../../data/home_models.dart';
 import '../../data/order_models.dart';
+import 'common.dart';
 import 'contact_actions.dart';
 import 'order_parts.dart';
 
@@ -123,7 +124,7 @@ class ActiveShipmentSection extends ConsumerWidget {
       final liters = s.deliveredLiters;
       children.add(
         FactLine(
-          icon: Icons.local_gas_station_outlined,
+          icon: PhosphorIconsRegular.gasPump,
           text: [
             if (liters != null) '${Fmt.liters(liters)} teslim edildi',
             if (s.deliveredAt != null) relativeMoment(s.deliveredAt),
@@ -144,7 +145,7 @@ class ActiveShipmentSection extends ConsumerWidget {
     } else if (s.status == ShipmentStatus.disputed) {
       children.add(
         FactLine(
-          icon: Icons.error_outline_rounded,
+          icon: PhosphorIconsRegular.warningCircle,
           tone: AknTone.danger,
           text: s.disputeNote == null
               ? 'İtirazınız bayiye iletildi.'
@@ -154,7 +155,7 @@ class ActiveShipmentSection extends ConsumerWidget {
     } else if (eta != null) {
       children.add(
         FactLine(
-          icon: Icons.event_outlined,
+          icon: PhosphorIconsRegular.calendarDot,
           text: '${pointName.isEmpty ? 'Teslimat' : pointName}, $eta teslim',
         ),
       );
@@ -164,23 +165,36 @@ class ActiveShipmentSection extends ConsumerWidget {
     final plate = s.vehiclePlate.trim();
     if (driver.isNotEmpty || plate.isNotEmpty) {
       children.addAll([
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         Row(
           children: [
-            Icon(Icons.person_outline_rounded, size: 20, color: c.dim),
-            const SizedBox(width: 10),
+            const A2IconTile(
+              icon: PhosphorIconsRegular.steeringWheel,
+              size: 36,
+            ),
+            const SizedBox(width: 12),
+            // Sürücü solda, plaka sağda; büyük yazıda yan yana sığmazlarsa plaka adın altına iner
+            // (sütundan genişse kendi içinde küçülür) — satır taşmaz.
             Expanded(
-              child: Text(
-                driver.isEmpty ? 'Sürücü' : driver,
-                style: t.bodyStrong.copyWith(color: c.ink),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  Text(
+                    driver.isEmpty ? 'Sürücü' : driver,
+                    style: t.bodyStrong.copyWith(color: c.ink),
+                  ),
+                  if (plate.isNotEmpty)
+                    Semantics(
+                      label: 'Plaka ${Fmt.plate(plate)}',
+                      excludeSemantics: true,
+                      child: PlateBadge(plate: plate),
+                    ),
+                ],
               ),
             ),
-            if (plate.isNotEmpty)
-              Semantics(
-                label: 'Plaka ${Fmt.plate(plate)}',
-                excludeSemantics: true,
-                child: PlateBadge(plate: plate),
-              ),
           ],
         ),
       ]);
@@ -200,7 +214,7 @@ class ActiveShipmentSection extends ConsumerWidget {
             if (hasMap)
               AknButton.secondary(
                 label: OrdersCopy.openMap,
-                icon: Icons.map_outlined,
+                icon: PhosphorIconsRegular.mapTrifold,
                 size: AknButtonSize.small,
                 semanticLabel: '${point!.name} noktasını haritada aç',
                 onPressed: () => openExternal(
@@ -260,13 +274,24 @@ class ShipmentRows extends StatelessWidget {
           ].join(', ');
           final when = s.deliveredAt ?? s.dispatchedAt ?? s.scheduledAt;
           return AknListTile(
+            leading: A2IconTile(
+              icon: delivered == null
+                  ? PhosphorIconsRegular.truck
+                  : PhosphorIconsRegular.gasPump,
+              tone: lamp.tone,
+            ),
+            padding: a2RowPadding,
+            titleStyle: a2RowTitle(context.aknText, context.akn),
             title: title,
             subtitle: sub,
             meta: when == null ? null : relativeDay(when),
             status: AknStatusLine(lamp: AknLamp.status(lamp)),
             semanticLabel:
                 '$title, sevkiyat ${s.displayCode}, ${lamp.label}. Ayrıntı için dokunun.',
-            onTap: () => context.push(AppRoutes.shipment(s.id)),
+            onTap: () {
+              AknHaptics.selection();
+              context.push(AppRoutes.shipment(s.id));
+            },
           );
         }(),
     ],

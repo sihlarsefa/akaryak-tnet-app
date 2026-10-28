@@ -7,9 +7,10 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
+import 'common.dart';
 
-/// Ortak sipariş parçaları (tasarım v2 "Turuncu Plaka"): kısa adlar, gün metinleri, bölüm başlığı,
-/// olgu satırı ve izleyiciye göre durum lambası.
+/// Ortak sipariş parçaları (tasarım v3 "Akış"): kısa adlar, gün metinleri, aşama simgesi, bölüm
+/// kartı, olgu satırı ve izleyiciye göre durum lambası.
 
 /// "Motorin, 8.000 L".
 String orderTitle(String? product, double liters) {
@@ -132,8 +133,29 @@ StatusLamp orderLampFor(
   );
 }
 
-/// Bölüm (§4.5): başlık 20/26 + içerik, kutu yok. İçerik 20 px kenar boşluğuyla gelir; ledger
-/// satırları için [bleed] (tam genişlik).
+/// Siparişin aşamasını anlatan simge (kart başındaki [A2IconTile]): teklif bekleniyor (kum saati),
+/// karar (teklif), plan (takvim), yolda (tır), teslim (kontrol listesi), tamam (mühür), sorun.
+IconData orderStageIcon(StatusLamp lamp) {
+  if (lamp.problem) return PhosphorIconsRegular.warningOctagon;
+  if (lamp.complete) return PhosphorIconsRegular.sealCheck;
+  return switch (lamp.stage) {
+    AknStage.talep ||
+    AknStage.onay ||
+    AknStage.teklif => PhosphorIconsRegular.hourglassMedium,
+    AknStage.karar => PhosphorIconsRegular.invoice,
+    AknStage.plan => PhosphorIconsRegular.calendarCheck,
+    AknStage.yolda => PhosphorIconsRegular.truck,
+    AknStage.teslim => PhosphorIconsRegular.listChecks,
+    null => PhosphorIconsRegular.gasPump,
+  };
+}
+
+/// Kart içindeki satırların dolgusu (kartın 18 px iç kenarıyla hizalı).
+const a2RowPadding = EdgeInsets.symmetric(horizontal: 18, vertical: 12);
+
+/// Bölüm (tasarım v3 §4): beyaz r20 kart ([A2Card]) içinde başlık (18/24 800, sayı hapı, sağda
+/// eylem) ve içerik. İçerik kartın 18 px iç kenarıyla gelir; satırlar için [bleed] (kart genişliği,
+/// satırlar kendi dolgusunu taşır, aralarında içeriden çizgi).
 class OrderSection extends StatelessWidget {
   const OrderSection({
     super.key,
@@ -155,26 +177,39 @@ class OrderSection extends StatelessWidget {
   final bool bleed;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SectionHeader(
-        title: title,
-        count: count,
-        caption: caption,
-        actionLabel: actionLabel,
-        onAction: onAction,
-      ),
-      if (bleed)
-        child
-      else
-        Padding(padding: AknSpace.pagePadding, child: child),
-    ],
+  Widget build(BuildContext context) => A2Card(
+    margin: const EdgeInsets.fromLTRB(AknSpace.page, 14, AknSpace.page, 0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SectionHeader(
+          title: title,
+          count: count,
+          caption: caption,
+          actionLabel: actionLabel,
+          onAction: onAction,
+          padding: EdgeInsets.fromLTRB(
+            18,
+            actionLabel == null ? 16 : 4,
+            actionLabel == null ? 18 : 8,
+            bleed ? 2 : 8,
+          ),
+        ),
+        if (bleed) ...[
+          child,
+          const SizedBox(height: 6),
+        ] else
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+            child: child,
+          ),
+      ],
+    ),
   );
 }
 
-/// Bir olgu cümlesi (§7.8 ödeme satırı): 20 px simge (tonun rengi) + 15/22 metin.
+/// Bir olgu cümlesi (§7.8 ödeme satırı): tonun yumuşak kuyusunda 32 px simge karosu + 15/22 metin.
 class FactLine extends StatelessWidget {
   const FactLine({
     super.key,
@@ -187,7 +222,7 @@ class FactLine extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  /// Simgenin rengi (ok yeşil, warn koyu sarı …); null ise soluk.
+  /// Simgenin rengi (ok yeşil, warn koyu sarı …); null ise sessiz.
   final AknTone? tone;
 
   /// Cümlenin sonuna kalın eklenen kısım.
@@ -197,29 +232,31 @@ class FactLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final color = tone == null ? c.dim : c.tone(tone!).fg;
+    final style = t.body.copyWith(color: c.ink);
+    // Karo ilk satırın ortasında durur (çok satırlı cümlede üstte kalır).
+    final line = MediaQuery.textScalerOf(context).scale(15) * 22 / 15;
     return MergeSemantics(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(icon, size: 20, color: color),
-          ),
-          const SizedBox(width: 10),
+          A2IconTile(icon: icon, tone: tone ?? AknTone.neutral, size: 32),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text.rich(
-              TextSpan(
-                text: text,
-                children: [
-                  if (strong != null)
-                    TextSpan(
-                      text: strong,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                ],
+            child: Padding(
+              padding: EdgeInsets.only(top: ((32 - line) / 2).clamp(0, 16)),
+              child: Text.rich(
+                TextSpan(
+                  text: text,
+                  children: [
+                    if (strong != null)
+                      TextSpan(
+                        text: strong,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                  ],
+                ),
+                style: style,
               ),
-              style: t.body.copyWith(color: c.ink),
             ),
           ),
         ],

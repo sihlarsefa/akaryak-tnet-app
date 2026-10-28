@@ -12,6 +12,7 @@ import 'package:akaryakitnet/core/ui/typography.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../support/fonts.dart';
 
@@ -115,7 +116,7 @@ class _Specimen extends StatelessWidget {
               children: [
                 OutlinedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.upload_file_outlined),
+                  icon: const Icon(PhosphorIconsRegular.fileArrowUp),
                   label: const Text('Belge yükle'),
                 ),
                 const SizedBox(width: 8),
@@ -123,7 +124,7 @@ class _Specimen extends StatelessWidget {
                 const Spacer(),
                 IconButton(
                   onPressed: () {},
-                  icon: const Icon(Icons.more_horiz_rounded),
+                  icon: const Icon(PhosphorIconsRegular.dotsThree),
                 ),
               ],
             ),
@@ -209,7 +210,7 @@ class _Specimen extends StatelessWidget {
               children: [
                 Badge.count(
                   count: 3,
-                  child: Icon(Icons.notifications_none_rounded, color: c.ink),
+                  child: Icon(PhosphorIconsRegular.bell, color: c.ink),
                 ),
                 const SizedBox(width: 24),
                 const SizedBox(
@@ -227,7 +228,7 @@ class _Specimen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: c.warn.fg, size: 20),
+                  Icon(PhosphorIconsFill.warning, color: c.warn.fg, size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -322,7 +323,7 @@ class _Specimen extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.request_quote_outlined),
+                const Icon(PhosphorIconsRegular.invoice),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('Demir Petrol teklifi', style: t.headline),

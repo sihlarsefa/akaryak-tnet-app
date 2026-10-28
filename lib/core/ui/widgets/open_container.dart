@@ -6,8 +6,10 @@ import '../theme.dart';
 import '../tokens.dart';
 
 /// Container transform for list → detail (order, shipment, approval cards;
-/// spec C.6): the tapped card grows into the detail page, which shrinks back
-/// into the card on close.
+/// spec C.6; design v3 §5): the tapped card grows into the detail page —
+/// its squircle corners easing out to the page's square edges, the white
+/// card colour flowing into the page colour while the contents fade
+/// through — and shrinks back into the card on close.
 ///
 /// The detail opens as an imperative route on the root navigator (above the
 /// bottom bar, like the router's detail pages); the URL does not change, so
@@ -22,14 +24,16 @@ import '../tokens.dart';
 /// ```
 ///
 /// The closed card should not draw its own border or shadow (the container
-/// does). Reduce motion: plain open, no transform.
+/// does: the v3 card shadow, plus a 1 px `line` in dark mode). The
+/// transform runs [AknMotion.slow] (400 ms) each way. Reduce motion: plain
+/// open, no transform.
 class AknOpenContainer<T extends Object?> extends StatelessWidget {
   const AknOpenContainer({
     super.key,
     required this.closedBuilder,
     required this.openBuilder,
     this.onClosed,
-    this.radius = AknRadius.lg,
+    this.radius = 20,
     this.closedColor,
     this.tappable = false,
   });
@@ -40,6 +44,8 @@ class AknOpenContainer<T extends Object?> extends StatelessWidget {
   /// `close` returns to the card (optionally with a value).
   final OpenContainerBuilder<T> openBuilder;
   final ClosedCallback<T?>? onClosed;
+
+  /// The closed card's corner radius (v3 cards: 20).
   final double radius;
   final Color? closedColor;
 
@@ -61,11 +67,11 @@ class AknOpenContainer<T extends Object?> extends StatelessWidget {
       closedElevation: 0,
       openElevation: 0,
       closedShadows: AknShadows.card(c),
-      closedShape: RoundedRectangleBorder(
+      closedShape: RoundedSuperellipseBorder(
         borderRadius: BorderRadius.circular(radius),
-        side: BorderSide(color: c.isDark ? c.line : c.lineSoft),
+        side: c.isDark ? BorderSide(color: c.line) : BorderSide.none,
       ),
-      openShape: const RoundedRectangleBorder(),
+      openShape: const RoundedSuperellipseBorder(),
       onClosed: onClosed,
       closedBuilder: closedBuilder,
       openBuilder: openBuilder,

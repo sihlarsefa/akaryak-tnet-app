@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
+import 'entrance.dart';
 
-/// Sıradaki durağın eylem rafı (tahta ekran 6; ekranın altına yapışık): iki 64 px düğme. Birincil
-/// olan tırı izler (§7.11): noktaya uzaktayken "Yol tarifi", 300 m içinde (ya da konum
-/// bilinmiyorsa) "Teslim et". Yerler sabittir — solda "Yol tarifi", sağda iş düğmesi ("Teslim et",
-/// planlıysa "Yola çık") — yalnızca vurgu yer değiştirir; parmak hep aynı yere gider.
+/// Sıradaki durağın eylem rafı (tasarım v3; ekranın altına yapışık buzlu rafta): iki 64 px düğme —
+/// birincil turuncu degrade ve sıcak parıltı, ikincil beyaz çerçeveli. Birincil olan tırı izler
+/// (§7.11): noktaya uzaktayken "Yol tarifi", 300 m içinde (ya da konum bilinmiyorsa) "Teslim et".
+/// Yerler sabittir — solda "Yol tarifi", sağda iş düğmesi ("Teslim et", planlıysa "Yola çık") —
+/// yalnızca vurgu yer değiştirir; parmak hep aynı yere gider. Raf ilk belirişte aşağıdan yükselir.
 /// Yazı büyüyüp iki düğme yan yana sığmazsa alt alta dizilir (iş düğmesi altta, başparmağa yakın).
 class DriverStopDock extends StatelessWidget {
   const DriverStopDock({
@@ -35,14 +37,14 @@ class DriverStopDock extends StatelessWidget {
     Widget navigate(bool expand) => actionIsPrimary
         ? AknButton.secondary(
             label: DriverCopy.actionNavigate,
-            icon: Icons.directions_outlined,
+            icon: PhosphorIconsRegular.navigationArrow,
             expand: expand,
             semanticLabel: navigateSemanticLabel,
             onPressed: onNavigate,
           )
         : AknButton(
             label: DriverCopy.actionNavigate,
-            icon: Icons.directions_outlined,
+            icon: PhosphorIconsRegular.navigationArrow,
             expand: expand,
             semanticLabel: navigateSemanticLabel,
             onPressed: onNavigate,
@@ -62,51 +64,56 @@ class DriverStopDock extends StatelessWidget {
             semanticLabel: actionSemanticLabel,
             onPressed: onAction,
           );
-    return LayoutBuilder(
-      builder: (context, box) {
-        const gap = 10.0;
-        final primaryW = (box.maxWidth - gap) * 23 / 43;
-        final secondaryW = box.maxWidth - gap - primaryW;
-        final navW = actionIsPrimary ? secondaryW : primaryW;
-        final actW = actionIsPrimary ? primaryW : secondaryW;
-        final side =
-            AknButton.fitsOneLine(
-              context,
-              DriverCopy.actionNavigate,
-              navW,
-              // Sığmazsa düğme önce kenar boşluğunu daraltır, sonra simgeyi bırakır.
-              icon: false,
-              bordered: actionIsPrimary,
-              size: AknButtonSize.large,
-            ) &&
-            AknButton.fitsOneLine(
-              context,
-              actionLabel,
-              actW,
-              // Sığmazsa düğme önce kenar boşluğunu daraltır, sonra simgeyi bırakır.
-              icon: false,
-              bordered: !actionIsPrimary,
-              size: AknButtonSize.large,
+    return DriverFadeUp(
+      offset: 16,
+      duration: AknMotion.stagger,
+      curve: AknMotion.emphasizedCurve,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          const gap = 10.0;
+          final primaryW = (box.maxWidth - gap) * 23 / 43;
+          final secondaryW = box.maxWidth - gap - primaryW;
+          final navW = actionIsPrimary ? secondaryW : primaryW;
+          final actW = actionIsPrimary ? primaryW : secondaryW;
+          final side =
+              AknButton.fitsOneLine(
+                context,
+                DriverCopy.actionNavigate,
+                navW,
+                // Sığmazsa düğme önce kenar boşluğunu daraltır, sonra simgeyi bırakır.
+                icon: false,
+                bordered: actionIsPrimary,
+                size: AknButtonSize.large,
+              ) &&
+              AknButton.fitsOneLine(
+                context,
+                actionLabel,
+                actW,
+                // Sığmazsa düğme önce kenar boşluğunu daraltır, sonra simgeyi bırakır.
+                icon: false,
+                bordered: !actionIsPrimary,
+                size: AknButtonSize.large,
+              );
+          if (!side) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                navigate(true),
+                const SizedBox(height: gap),
+                action(true),
+              ],
             );
-        if (!side) {
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          }
+          return Row(
             children: [
-              navigate(true),
-              const SizedBox(height: gap),
-              action(true),
+              Expanded(flex: actionIsPrimary ? 20 : 23, child: navigate(true)),
+              const SizedBox(width: gap),
+              Expanded(flex: actionIsPrimary ? 23 : 20, child: action(true)),
             ],
           );
-        }
-        return Row(
-          children: [
-            Expanded(flex: actionIsPrimary ? 20 : 23, child: navigate(true)),
-            const SizedBox(width: gap),
-            Expanded(flex: actionIsPrimary ? 23 : 20, child: action(true)),
-          ],
-        );
-      },
+        },
+      ),
     );
   }
 }

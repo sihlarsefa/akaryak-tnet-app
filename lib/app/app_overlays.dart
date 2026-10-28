@@ -10,8 +10,10 @@ import '../core/utils/external_activity.dart';
 
 /// Canlı olmayan derlemelerde köşe şeridi (spec D.7): sahte veride "DEMO", test sunucusunda "TEST".
 /// Sağ üst köşede çapraz şerit; Flutter'ın hata ayıklama şeridiyle aynı yerde durur, böylece yuvarlak
-/// ekran köşeli telefonlarda (iPhone köşe yarıçapı 39–62 pt) da görünür. Dokunmayı engellemez, ekran
-/// okuyucuya görünmez; canlı derlemede hiç çizilmez.
+/// ekran köşeli telefonlarda (iPhone köşe yarıçapı 39–62 pt) da görünür. Tasarım v3: bandın turuncusu
+/// (kalınlığı boyunca #E5530A → #C2410C → #A9380A, üstte ince ışık çizgisi) ve beyaz 9 w800 yazı; ilk
+/// açılışta köşeden süzülerek gelir. Dokunmayı engellemez, ekran okuyucuya görünmez; canlı derlemede
+/// hiç çizilmez.
 class EnvRibbon extends ConsumerWidget {
   const EnvRibbon({super.key, required this.child});
 
@@ -43,8 +45,21 @@ class EnvRibbon extends ConsumerWidget {
           height: EnvRibbonGeometry.box,
           child: IgnorePointer(
             child: ExcludeSemantics(
-              child: CustomPaint(
-                painter: _CornerRibbonPainter(label: label, style: style),
+              // İlk açılışta şerit köşeden içeri süzülür (bir kez).
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: AknMotion.of(context, AknMotion.emphasized),
+                curve: AknMotion.emphasizedCurve,
+                child: CustomPaint(
+                  painter: _CornerRibbonPainter(label: label, style: style),
+                ),
+                builder: (context, v, child) => Opacity(
+                  opacity: v.clamp(0.0, 1.0),
+                  child: Transform.translate(
+                    offset: Offset(18 * (1 - v), -18 * (1 - v)),
+                    child: child,
+                  ),
+                ),
               ),
             ),
           ),
@@ -84,12 +99,28 @@ class _CornerRibbonPainter extends CustomPainter {
     );
     canvas
       ..drawRect(
-        band.shift(const Offset(0, 1)),
+        band.shift(const Offset(0, 1.5)),
         Paint()
-          ..color = const Color(0x33000000)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+          ..color = const Color(0x40000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
       )
-      ..drawRect(band, Paint()..color = const Color(0xFFC94C0C));
+      // Tasarım v3: bandın turuncusu, ortası Pas (#C2410C) — beyaz yazı 5,18:1.
+      ..drawRect(
+        band,
+        Paint()
+          ..shader = const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFE5530A), Color(0xFFC2410C), Color(0xFFA9380A)],
+          ).createShader(band),
+      )
+      ..drawLine(
+        band.topLeft,
+        band.topRight,
+        Paint()
+          ..color = const Color(0x40FFFFFF)
+          ..strokeWidth = 1,
+      );
     final tp = TextPainter(
       text: TextSpan(text: label, style: style),
       textDirection: TextDirection.ltr,
@@ -105,8 +136,10 @@ class _CornerRibbonPainter extends CustomPainter {
 }
 
 /// Gizlilik örtüsü (spec D.7): biyometrik kilit açıkken uygulama etkin değilken (uygulama değiştirici,
-/// bildirim merkezi) içerik lacivert örtü + » işaretiyle gizlenir; ekran görüntüsünde müşteri ve tutar
-/// görünmez. Uygulamanın açtığı dış etkinlikte (kamera, paylaşım, tarayıcı) örtü gösterilmez.
+/// bildirim merkezi) içerik yerel açılış ekranının zemini (açık temada beyaz, koyu temada grafit
+/// #0E0F11; tasarım v3 — lacivert yok) + » işaretiyle gizlenir; ekran görüntüsünde müşteri ve tutar
+/// görünmez. Örtü anında gelir (görüntü yakalanmadan önce), uygulamaya dönünce yumuşakça kalkar.
+/// Uygulamanın açtığı dış etkinlikte (kamera, paylaşım, tarayıcı) örtü gösterilmez.
 class PrivacyCover extends ConsumerStatefulWidget {
   const PrivacyCover({super.key, required this.child});
 
@@ -148,20 +181,35 @@ class _PrivacyCoverState extends ConsumerState<PrivacyCover> {
   }
 
   @override
-  Widget build(BuildContext context) => Stack(
-    textDirection: TextDirection.ltr,
-    children: [
-      widget.child,
-      if (_covered)
-        const Positioned.fill(
-          child: ExcludeSemantics(
-            child: ColoredBox(
-              // Yerel açılış ekranıyla aynı lacivert (#1F2A37).
-              color: Color(0xFF1F2A37),
-              child: Center(child: LogoMark(size: 72)),
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Stack(
+      textDirection: TextDirection.ltr,
+      children: [
+        widget.child,
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: !_covered,
+            child: ExcludeSemantics(
+              // Gelişi anında (uygulama değiştirici görüntüsünden önce), gidişi 250 ms solarak.
+              child: AnimatedSwitcher(
+                duration: Duration.zero,
+                reverseDuration: AknMotion.of(context, AknMotion.base),
+                child: _covered
+                    ? ColoredBox(
+                        key: const ValueKey('cover'),
+                        // Yerel açılış ekranıyla aynı zemin.
+                        color: dark
+                            ? const Color(0xFF0E0F11)
+                            : const Color(0xFFFFFFFF),
+                        child: const Center(child: LogoMark(size: 72)),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('none')),
+              ),
             ),
           ),
         ),
-    ],
-  );
+      ],
+    );
+  }
 }

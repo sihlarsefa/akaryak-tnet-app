@@ -2,6 +2,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/models/enums.dart';
 
@@ -78,16 +79,16 @@ abstract final class PaymentsCopy {
   };
 
   static IconData methodIcon(String? code) => switch (code) {
-    'CEK' => Icons.money_rounded,
-    'SENET' => Icons.description_rounded,
-    'HAVALE' => Icons.account_balance_rounded,
-    'KART' => Icons.credit_card_rounded,
-    'NAKIT' => Icons.payments_rounded,
-    'DBS' => Icons.handshake_rounded,
-    'ACIK_HESAP' => Icons.receipt_long_rounded,
-    'TEMINAT' => Icons.verified_rounded,
-    'AVANS' => Icons.savings_rounded,
-    'UTTS' => Icons.local_gas_station_rounded,
-    _ => Icons.payments_outlined,
+    'CEK' => PhosphorIconsRegular.money,
+    'SENET' => PhosphorIconsRegular.fileText,
+    'HAVALE' => PhosphorIconsFill.bank,
+    'KART' => PhosphorIconsRegular.creditCard,
+    'NAKIT' => PhosphorIconsRegular.money,
+    'DBS' => PhosphorIconsRegular.handshake,
+    'ACIK_HESAP' => PhosphorIconsFill.receipt,
+    'TEMINAT' => PhosphorIconsFill.sealCheck,
+    'AVANS' => PhosphorIconsRegular.piggyBank,
+    'UTTS' => PhosphorIconsRegular.gasPump,
+    _ => PhosphorIconsRegular.money,
   };
 }

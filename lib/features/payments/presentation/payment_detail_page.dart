@@ -22,11 +22,13 @@ import 'payments_page.dart';
 import 'widgets/payment_cards.dart';
 import 'widgets/status_sheets.dart';
 
-/// Ödeme ayrıntısı (spec A.4 A5; tasarım v2 §7.14): itilen başlıkta sipariş no; gövde cari adı
-/// (`display`) ve yöntem satırı, durum satırı (lamba + vade ipucu), **plaka** (tutar, kural, Vade /
-/// Yöntem / Son gün), ödeme bilgileri, portföy kaydı, belgeler ve durum geçmişi. Alt rıhtım:
-/// "Tahsil edildi olarak işaretle" (birincil, izinliyse), "Durumu değiştir", "Belgeyi kontrol et"
-/// (StationPayments Düzenler + payment.status.update; yalnızca `allowedTransitions`).
+/// Ödeme ayrıntısı (spec A.4 A5; tasarım v3 "Akış"): itilen başlıkta sipariş no; gövde cari adı
+/// (`display`) ve yöntem satırı, durum satırı (çip + vade ipucu; durum değişince solup büyüyerek
+/// yenilenir), **kahraman kart** (tutar, Vade / Yöntem / Son gün; yükselerek gelir), sonra beyaz
+/// kartlarda ödeme bilgileri, portföy kaydı, siparişe geçiş, belgeler ve durum geçmişi — kartlar art
+/// arda yükselerek gelir. Alt rıhtım: "Tahsil edildi olarak işaretle" (birincil, izinliyse), "Durumu
+/// değiştir", "Belgeyi kontrol et" (StationPayments Düzenler + payment.status.update; yalnızca
+/// `allowedTransitions`).
 class PaymentDetailPage extends ConsumerWidget {
   const PaymentDetailPage({super.key, required this.orderId});
 
@@ -141,125 +143,169 @@ class PaymentDetailPage extends ConsumerWidget {
       ),
       body: PullToRefresh(
         onRefresh: refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
-          children: [
-            _Header(detail: d),
-            if (row.displayAmount != null)
-              _AmountPlate(detail: d)
-            else
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-                child: AknBanner(
-                  message: 'Tutar, bayi teklif verince belli olur.',
+        child: StaggerScope(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 32),
+            children: [
+              FadeUp(offset: 10, child: _Header(detail: d)),
+              if (row.displayAmount != null)
+                // Kahraman kart ilk açılışta yükselip büyüyerek gelir.
+                FadeUp(
+                  offset: 24,
+                  scale: 0.94,
+                  duration: AknMotion.heroRise,
+                  curve: AknMotion.emphasizedCurve,
+                  child: _AmountPlate(detail: d),
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: AknBanner(
+                    message: 'Tutar, bayi teklif verince belli olur.',
+                  ),
                 ),
-              ),
-            if (d.missingRequiredDocument)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: AknBanner(
-                  tone: AknTone.warn,
-                  message:
-                      '${d.documentKindLabel ?? d.uploadKind.label} henüz yüklenmedi. Bu yöntemde belge zorunlu; yüklenince ödeme kontrole düşer.',
-                  actionLabel: canChange && online ? 'Belge ekle' : null,
-                  onAction: canChange && online ? change : null,
+              if (d.missingRequiredDocument)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: AknBanner(
+                    tone: AknTone.warn,
+                    message:
+                        '${d.documentKindLabel ?? d.uploadKind.label} henüz yüklenmedi. Bu yöntemde belge zorunlu; yüklenince ödeme kontrole düşer.',
+                    actionLabel: canChange && online ? 'Belge ekle' : null,
+                    onAction: canChange && online ? change : null,
+                  ),
                 ),
-              ),
-            if (d.notice != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                child: AknBanner(message: d.notice!),
-              ),
-            if (facts.isNotEmpty)
-              LedgerSection(
-                title: 'Ödeme bilgileri',
-                child: FactList(facts: facts),
-              ),
-            if (d.instrument != null)
-              LedgerSection(
-                title: 'Portföy kaydı',
-                padded: false,
-                child: InstrumentRowCard(
-                  instrument: d.instrument!,
-                  showCustomer: false,
-                  onTap: () => openInstrument(d.instrument!),
+              if (d.notice != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: AknBanner(message: d.notice!),
                 ),
-              ),
-            if (canOpenOrder) ...[
-              const SizedBox(height: 16),
-              const AknLedgerDivider(),
-              AknListTile(
-                leadingIcon: Icons.receipt_long_outlined,
-                title: PaymentsCopy.openOrder,
-                subtitle: [row.orderNumber, ?row.orderStatusLabel].join(', '),
-                showChevron: true,
-                onTap: () => context.push(orderRoute),
-              ),
-              const AknLedgerDivider(),
-            ],
-            LedgerSection(
-              title: 'Belgeler',
-              count: d.documents.isEmpty ? null : d.documents.length,
-              subtitle: d.documentKindLabel == null
-                  ? null
-                  : 'Bu yöntemin belgesi ${lowerFirst(d.documentKindLabel!)}${d.documentRequired ? ', zorunlu' : ''}.',
-              child: d.documents.isEmpty
-                  ? Text(
-                      'Bu ödemeye henüz belge eklenmedi.',
-                      style: t.bodySmall.copyWith(color: c.dim),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var i = 0; i < d.documents.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 8),
-                          _DocumentTile(
-                            attachment: d.documents[i],
-                            onTap: () => openDocuments(i),
-                          ),
-                        ],
-                      ],
+              if (facts.isNotEmpty)
+                StaggerItem(
+                  index: 0,
+                  child: LedgerSection(
+                    title: 'Ödeme bilgileri',
+                    child: FactList(facts: facts),
+                  ),
+                ),
+              if (d.instrument != null)
+                StaggerItem(
+                  index: 1,
+                  child: LedgerSection(
+                    title: 'Portföy kaydı',
+                    padded: false,
+                    child: InstrumentRowCard(
+                      instrument: d.instrument!,
+                      showCustomer: false,
+                      onTap: () => openInstrument(d.instrument!),
                     ),
-            ),
-            if (d.history.isNotEmpty)
-              LedgerSection(
-                title: 'Durum geçmişi',
-                child: StepTimeline(
-                  steps: adaptSteps(context, [
-                    for (final h in d.history.reversed)
-                      TimelineStep(
-                        title: h.title,
+                  ),
+                ),
+              if (canOpenOrder)
+                StaggerItem(
+                  index: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: LedgerItem(
+                      index: 0,
+                      child: AknListTile(
+                        leading: ExcludeSemantics(
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: c.surfaceAlt,
+                              borderRadius: BorderRadius.circular(AknRadius.sm),
+                            ),
+                            child: Icon(
+                              PhosphorIconsRegular.receipt,
+                              size: 19,
+                              color: c.ink,
+                            ),
+                          ),
+                        ),
+                        title: PaymentsCopy.openOrder,
                         subtitle: [
-                          'Önceki durum: ${lowerFirst(h.fromTitle)}',
-                          ?h.changedByDisplay,
-                          ?h.note,
-                        ].join('\n'),
-                        time: shortStamp(h.changedAt),
-                        state: h.toStatus == PaymentStatus.bounced
-                            ? TimelineState.failed
-                            : TimelineState.done,
-                        icon: AknStatus.payment(h.toStatus).icon,
-                        content: h.attachmentPublicId == null
-                            ? null
-                            : Align(
-                                alignment: Alignment.centerLeft,
-                                child: AknButton.ghost(
-                                  label: 'Dayanak belgeyi aç',
-                                  icon: Icons.attach_file_rounded,
-                                  size: AknButtonSize.small,
-                                  onPressed: () => openAttachmentById(
-                                    context,
-                                    publicId: h.attachmentPublicId!,
-                                    known: d.documents,
-                                  ),
-                                ),
-                              ),
+                          row.orderNumber,
+                          ?row.orderStatusLabel,
+                        ].join(', '),
+                        showChevron: true,
+                        padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
+                        onTap: () => context.push(orderRoute),
                       ),
-                  ]),
+                    ),
+                  ),
+                ),
+              StaggerItem(
+                index: 3,
+                child: LedgerSection(
+                  title: 'Belgeler',
+                  count: d.documents.isEmpty ? null : d.documents.length,
+                  subtitle: d.documentKindLabel == null
+                      ? null
+                      : 'Bu yöntemin belgesi ${lowerFirst(d.documentKindLabel!)}${d.documentRequired ? ', zorunlu' : ''}.',
+                  child: d.documents.isEmpty
+                      ? Text(
+                          'Bu ödemeye henüz belge eklenmedi.',
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (var i = 0; i < d.documents.length; i++) ...[
+                              if (i > 0) const SizedBox(height: 8),
+                              _DocumentTile(
+                                attachment: d.documents[i],
+                                onTap: () => openDocuments(i),
+                              ),
+                            ],
+                          ],
+                        ),
                 ),
               ),
-          ],
+              if (d.history.isNotEmpty)
+                StaggerItem(
+                  index: 4,
+                  child: LedgerSection(
+                    title: 'Durum geçmişi',
+                    child: StepTimeline(
+                      steps: adaptSteps(context, [
+                        for (final h in d.history.reversed)
+                          TimelineStep(
+                            title: h.title,
+                            subtitle: [
+                              'Önceki durum: ${lowerFirst(h.fromTitle)}',
+                              ?h.changedByDisplay,
+                              ?h.note,
+                            ].join('\n'),
+                            time: shortStamp(h.changedAt),
+                            state: h.toStatus == PaymentStatus.bounced
+                                ? TimelineState.failed
+                                : TimelineState.done,
+                            icon: AknStatus.payment(h.toStatus).icon,
+                            content: h.attachmentPublicId == null
+                                ? null
+                                : Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: AknButton.ghost(
+                                      label: 'Dayanak belgeyi aç',
+                                      icon: PhosphorIconsRegular.paperclip,
+                                      size: AknButtonSize.small,
+                                      onPressed: () => openAttachmentById(
+                                        context,
+                                        publicId: h.attachmentPublicId!,
+                                        known: d.documents,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                      ]),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -340,7 +386,8 @@ class PaymentDetailPage extends ConsumerWidget {
   }
 }
 
-/// Gövdenin başı (§6.1 itilen sayfa, §7.8 düzeni): cari adı `display`, yöntem satırı, durum satırı.
+/// Gövdenin başı (tasarım v3): cari adı `display`, yöntem satırı, durum satırı (çip + vade ipucu;
+/// durum değişince solup büyüyerek yenilenir).
 class _Header extends StatelessWidget {
   const _Header({required this.detail});
 
@@ -378,14 +425,34 @@ class _Header extends StatelessWidget {
             Text(line, style: t.body.copyWith(color: c.dim)),
           ],
           const SizedBox(height: 16),
-          AknStatusLine(
-            lamp: AknLamp.style(status),
-            trailing: hint == null
-                ? null
-                : DueHint(
-                    text: dueHintText(hint),
-                    tone: dueTone(overdue: overdue, due: row.dueDate),
-                  ),
+          AnimatedSwitcher(
+            duration: AknMotion.of(context, AknMotion.base),
+            switchInCurve: AknMotion.standard,
+            switchOutCurve: AknMotion.exit,
+            layoutBuilder: (current, previous) => Stack(
+              alignment: AlignmentDirectional.topStart,
+              children: [...previous, ?current],
+            ),
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                alignment: AlignmentDirectional.centerStart.resolve(
+                  Directionality.of(context),
+                ),
+                scale: animation.drive(Tween<double>(begin: 0.92, end: 1)),
+                child: child,
+              ),
+            ),
+            child: AknStatusLine(
+              key: ValueKey((row.paymentStatus, hint)),
+              lamp: AknLamp.style(status),
+              trailing: hint == null
+                  ? null
+                  : DueHint(
+                      text: dueHintText(hint),
+                      tone: dueTone(overdue: overdue, due: row.dueDate),
+                    ),
+            ),
           ),
         ],
       ),
@@ -437,7 +504,7 @@ class _AmountPlate extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       semanticLabel: '$title ${Fmt.money(amount)}',
       head: PlateHead(
-        icon: Icons.account_balance_wallet_outlined,
+        icon: PhosphorIconsRegular.wallet,
         title: title,
         period: row.isEstimate ? 'teklif bekleniyor' : null,
       ),
@@ -500,9 +567,9 @@ class _Thumb extends ConsumerWidget {
           gaplessPlayback: true,
           cacheWidth: 120,
           errorBuilder: (_, _, _) =>
-              Icon(Icons.image_outlined, color: c.dim, size: 22),
+              Icon(PhosphorIconsRegular.image, color: c.dim, size: 22),
         ),
-        orElse: () => Icon(Icons.image_outlined, color: c.dim, size: 22),
+        orElse: () => Icon(PhosphorIconsRegular.image, color: c.dim, size: 22),
       ),
     );
   }

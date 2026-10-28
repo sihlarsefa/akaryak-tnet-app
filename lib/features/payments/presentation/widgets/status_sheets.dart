@@ -24,7 +24,8 @@ bool _destructiveInstrument(InstrumentStatus s) =>
     s == InstrumentStatus.returned ||
     s == InstrumentStatus.protested;
 
-/// Ödeme durumu sayfası (tasarım v2 §6.21): yalnızca sunucunun izin verdiği geçişler
+/// Ödeme durumu sayfası (tasarım v3 alt sayfası, seçenekler beyaz seçim kartları): yalnızca sunucunun
+/// izin verdiği geçişler
 /// (`allowedTransitions`), gerekçe zorunlu durumlarda not (`noteRequiredFor`, en az 3 karakter),
 /// dayanak belge ("Dekont ekle"). [initial] izinliyse seçili açılır ("Tahsil edildi olarak
 /// işaretle").
@@ -235,10 +236,15 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
             ],
           ),
         ),
-        if (problem != null) ...[
-          const SizedBox(height: 12),
-          _Problem(outcome: problem, onReload: _reload),
-        ],
+        _Appear(
+          child: problem == null
+              ? null
+              : Padding(
+                  key: ValueKey(problem),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: _Problem(outcome: problem, onReload: _reload),
+                ),
+        ),
         const SizedBox(height: 20),
         Text('Yeni durum', style: t.label),
         const SizedBox(height: 8),
@@ -301,7 +307,7 @@ class _PaymentStatusSheetState extends ConsumerState<PaymentStatusSheet> {
           alignment: Alignment.centerLeft,
           child: AknButton.secondary(
             label: addLabel,
-            icon: Icons.add_a_photo_outlined,
+            icon: PhosphorIconsRegular.cameraPlus,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_addDocument(d)),
           ),
@@ -476,10 +482,15 @@ class _InstrumentSheetState extends ConsumerState<InstrumentSheet> {
             if (i.note != null) FactRow(label: 'Not', value: i.note!),
           ],
         ),
-        if (problem != null) ...[
-          const SizedBox(height: 12),
-          _Problem(outcome: problem, onReload: null),
-        ],
+        _Appear(
+          child: problem == null
+              ? null
+              : Padding(
+                  key: ValueKey(problem),
+                  padding: const EdgeInsets.only(top: 12),
+                  child: _Problem(outcome: problem, onReload: null),
+                ),
+        ),
         if (actions.isNotEmpty) ...[
           const SizedBox(height: 20),
           Text('Durumu değiştir', style: t.title),
@@ -550,7 +561,8 @@ class _InstrumentSheetState extends ConsumerState<InstrumentSheet> {
   }
 }
 
-/// Sayfanın üstündeki kısa özet: kayıt adı, kimlik ve tutar, şu anki durum.
+/// Sayfanın üstündeki kısa özet (tasarım v3): Beton kuyuda kayıt adı, kimlik ve tutar (tablo
+/// rakamları), şu anki durum.
 class _SheetSummary extends StatelessWidget {
   const _SheetSummary({
     required this.title,
@@ -566,15 +578,30 @@ class _SheetSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: t.headline),
-        const SizedBox(height: 2),
-        Text(meta, style: t.bodySmall.copyWith(color: c.dim)),
-        const SizedBox(height: 10),
-        lamp,
-      ],
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: t.headline),
+            const SizedBox(height: 2),
+            Text(
+              meta,
+              style: t.bodySmall.copyWith(
+                color: c.dim,
+                fontFeatures: AknNumerals.tabular,
+              ),
+            ),
+            const SizedBox(height: 10),
+            lamp,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -600,7 +627,9 @@ class _ToneDot extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: hollow ? null : c.tone(tone).solid,
-              border: hollow ? Border.all(color: c.faint, width: 1.5) : null,
+              border: hollow
+                  ? Border.all(color: c.neutral.solid, width: 1.5)
+                  : null,
             ),
           ),
         ),
@@ -623,7 +652,7 @@ class _FieldError extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_rounded, size: 16, color: c.danger.fg),
+          Icon(PhosphorIconsFill.warningCircle, size: 16, color: c.danger.fg),
           const SizedBox(width: 6),
           Expanded(
             child: Text(text, style: t.label.copyWith(color: c.danger.fg)),
@@ -666,4 +695,37 @@ class _Problem extends StatelessWidget {
     ),
     ActionDone() => const SizedBox.shrink(),
   };
+}
+
+/// Sorun kuyusu gelince yükseklik süzülerek açılır, kuyu solup büyür (v3 §5); [child] null iken yer
+/// kalmaz. Hareket azaltmada doğrudan.
+class _Appear extends StatelessWidget {
+  const _Appear({required this.child});
+
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = child;
+    if (AknMotion.reduced(context)) return c ?? const SizedBox.shrink();
+    return AknAnimatedSize(
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: AknMotion.base,
+        switchInCurve: AknMotion.standard,
+        switchOutCurve: AknMotion.exit,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: animation.drive(Tween<double>(begin: 0.96, end: 1)),
+            child: child,
+          ),
+        ),
+        child:
+            c ?? const SizedBox(key: ValueKey('none'), width: double.infinity),
+      ),
+    );
+  }
 }

@@ -172,7 +172,9 @@ class _UserFormState extends ConsumerState<_UserForm> {
           const SizedBox(height: 8),
           AknButton(
             label: _isNew ? 'Ekle ve davet gönder' : 'Kaydet',
-            icon: _isNew ? Icons.send_rounded : Icons.check_rounded,
+            icon: _isNew
+                ? PhosphorIconsRegular.paperPlaneRight
+                : PhosphorIconsRegular.check,
             expand: true,
             showSuccess: false,
             onPressedAsync: _save,
@@ -208,7 +210,9 @@ Future<void> showUserActionsSheet(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknListTile(
-            leadingIcon: Icons.edit_rounded,
+            leading: const CmIconTile(icon: PhosphorIconsRegular.pencilSimple),
+            titleStyle: cmRowTitle(context),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Bilgileri ve rolü düzenle',
             onTap: () {
               Navigator.of(sheet).pop();
@@ -217,7 +221,11 @@ Future<void> showUserActionsSheet(
           ),
           if (user.isActive)
             AknListTile(
-              leadingIcon: Icons.mark_email_read_rounded,
+              leading: const CmIconTile(
+                icon: PhosphorIconsRegular.envelopeSimpleOpen,
+              ),
+              titleStyle: cmRowTitle(context),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               title: 'Bağlantıyı yeniden gönder',
               subtitle: user.invitationPending
                   ? 'Davet bağlantısı yeniden gönderilir.'
@@ -229,10 +237,14 @@ Future<void> showUserActionsSheet(
             ),
           if (!user.isSelf)
             AknListTile(
-              leadingIcon: user.isActive
-                  ? Icons.person_off_rounded
-                  : Icons.person_rounded,
-              leadingTone: user.isActive ? AknTone.danger : AknTone.ok,
+              leading: CmIconTile(
+                icon: user.isActive
+                    ? PhosphorIconsRegular.userMinus
+                    : PhosphorIconsFill.user,
+                tone: user.isActive ? AknTone.danger : AknTone.ok,
+              ),
+              titleStyle: cmRowTitle(context),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               title: user.isActive ? 'Pasifleştir' : 'Aktifleştir',
               subtitle: user.isActive
                   ? 'Kullanıcı giriş yapamaz; açık oturumları kapanır.'
@@ -363,7 +375,7 @@ class _ThresholdsFormState extends ConsumerState<_ThresholdsForm> {
         const SizedBox(height: 16),
         AknButton(
           label: 'Kaydet',
-          icon: Icons.check_rounded,
+          icon: PhosphorIconsRegular.check,
           expand: true,
           showSuccess: false,
           onPressedAsync: _save,

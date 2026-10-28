@@ -19,6 +19,7 @@ import '../copy.dart';
 import '../data/approval_models.dart';
 import '../shared/attachment_grid.dart';
 import '../shared/failure_view.dart';
+import '../shared/layout.dart';
 import '../shared/uploads.dart';
 import 'widgets/approval_card.dart';
 import 'widgets/approval_timelines.dart';
@@ -28,9 +29,12 @@ import 'widgets/decision_sheets.dart';
 import 'widgets/info_cards.dart';
 import 'widgets/summary_sections.dart';
 
-/// Onay ayrıntısı (spec A.4 A5): başlık, sunucu özeti, adımlar, olaylar, belgeler (açılış günlüğe
-/// yazılır), karar çubuğu (`modes`), "X adına", karar veremeyene `decisionHint`; ek bilgi yanıtı
-/// (`canProvideInfo`) ve "Bilgi alındı" (`canResumeInfo`). Cari görünümünde SLA ve kademe yoktur.
+/// Onay ayrıntısı (spec A.4 A5, tasarım v3 "Akış"): başlık (28/34 800, lamba hapı ve geri sayım),
+/// ekranın tek plakası (tutar sayaç gibi döner, okumalar yuvarlanır), sunucu özeti ve kalemler
+/// beyaz kartlarda, kendini çizen onay adımları, olay günlüğü, belgeler (açılış günlüğe yazılır);
+/// bölümler sırayla yükselir. Karar çubuğu (`modes`) alttaki buzlu rafta aşağıdan yükselir; "X
+/// adına", karar veremeyene `decisionHint`; ek bilgi yanıtı (`canProvideInfo`) ve "Bilgi alındı"
+/// (`canResumeInfo`). Cari görünümünde SLA ve kademe yoktur.
 class ApprovalDetailPage extends ConsumerStatefulWidget {
   const ApprovalDetailPage({
     super.key,
@@ -85,7 +89,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       noteLabel: 'Not (isteğe bağlı)',
       noteHint: 'Ör. Vergi levhası e-postayla geldi.',
       buttonLabel: 'İncelemeye al',
-      icon: Icons.check_rounded,
+      icon: PhosphorIconsRegular.check,
       run: (note) => _ctrl.provideInfo(note: note, resume: true),
       onReload: _ctrl.refresh,
     );
@@ -103,7 +107,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           'Bu ön kaydın VKN\'si sistemde başka bir bayide kayıtlı. Talep merkez onayına iletilir; bayi kademesinde karar verilmez.',
       noteLabel: 'Merkeze not (isteğe bağlı)',
       buttonLabel: 'Merkeze ilet',
-      icon: Icons.upload_rounded,
+      icon: PhosphorIconsRegular.uploadSimple,
       run: (note) => _ctrl.forwardToHq(leadId, note: note),
       onReload: _ctrl.refresh,
     );
@@ -141,7 +145,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         confirmLabel: 'Yine de yanıtla',
         cancelLabel: 'Vazgeç',
         tone: AknTone.warn,
-        icon: Icons.warning_amber_rounded,
+        icon: PhosphorIconsFill.warning,
       );
       if (!go || !mounted) return;
     }
@@ -193,6 +197,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         title: 'Ek bilgi yanıtı',
         body: ListView(
           children: [
+            // Başarı anı: çizilen onay, parçacık patlaması ve başarı titreşimi (ResultView).
             ResultView(
               title: 'Yanıtınız iletildi',
               message: s.doneMessage,
@@ -235,8 +240,8 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     final lead = leadId == null
         ? null
         : ref.watch(leadForwardInfoProvider(leadId)).valueOrNull;
-    // "Merkeze ilet": approve.finance.lead ile, talep finans onayı beklerken (Submitted / InReview).
-    // Sunucunun ön kayıt bilgisi okunabiliyorsa onun `canForwardToHq` kuralı geçerlidir.
+    // "Merkeze ilet": approve.finance.lead ile, talep finans onayı beklerken (Submitted /
+    // InReview). Sunucunun ön kayıt bilgisi okunabiliyorsa onun `canForwardToHq` kuralı geçerlidir.
     final canForward =
         leadId != null &&
         policy.isBayi &&
@@ -251,28 +256,31 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     final online = ref.watch(isOnlineProvider);
     Widget? actionBar;
     if (d.canProvideInfo && d.infoRequest != null) {
-      actionBar = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!online)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                'Çevrimdışısınız; yanıt için bağlantı gerekli.',
-                style: context.aknText.bodySmall,
-                textAlign: TextAlign.center,
+      actionBar = _BarColumn(
+        offline: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!online)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'Çevrimdışısınız; yanıt için bağlantı gerekli.',
+                  style: context.aknText.bodySmall,
+                  textAlign: TextAlign.center,
+                ),
               ),
+            AknButton(
+              label: 'Yanıtla',
+              icon: PhosphorIconsRegular.arrowBendUpLeft,
+              expand: true,
+              size: AknButtonSize.large,
+              loading: _replying,
+              onPressed: online && !_replying ? () => _sendReply(d) : null,
             ),
-          AknButton(
-            label: 'Yanıtla',
-            icon: Icons.reply_rounded,
-            expand: true,
-            size: AknButtonSize.large,
-            loading: _replying,
-            onPressed: online && !_replying ? () => _sendReply(d) : null,
-          ),
-        ],
+          ],
+        ),
       );
     } else if (d.canResumeInfo) {
       actionBar = _BarColumn(
@@ -283,7 +291,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
               Expanded(
                 child: AknButton.secondary(
                   label: d.modeLabel(ApprovalDecision.reject),
-                  icon: Icons.close_rounded,
+                  icon: PhosphorIconsRegular.x,
                   expand: true,
                   onPressed: online
                       ? () => _decide(ApprovalDecision.reject)
@@ -296,7 +304,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
               flex: 2,
               child: AknButton(
                 label: 'Bilgi alındı',
-                icon: Icons.check_rounded,
+                icon: PhosphorIconsRegular.check,
                 expand: true,
                 onPressed: online ? _resume : null,
               ),
@@ -315,7 +323,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         offline: !online,
         child: AknButton(
           label: 'Merkeze ilet',
-          icon: Icons.upload_rounded,
+          icon: PhosphorIconsRegular.uploadSimple,
           expand: true,
           onPressed: online ? () => _forward(leadId) : null,
         ),
@@ -354,7 +362,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.neutral,
-            icon: Icons.info_outline_rounded,
+            icon: PhosphorIconsRegular.info,
             message: d.decisionHint!,
           ),
         ),
@@ -363,7 +371,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.info,
-            icon: Icons.share_outlined,
+            icon: PhosphorIconsRegular.shareNetwork,
             message: '${d.onBehalfOfName} ${ApprovalsCopy.behalfNote}',
           ),
         ),
@@ -372,7 +380,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.info,
-            icon: Icons.upload_outlined,
+            icon: PhosphorIconsRegular.uploadSimple,
             message: 'Talep merkez onayına iletildi.',
           ),
         ),
@@ -436,12 +444,15 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       body: PullToRefresh(
         onRefresh: _ctrl.refresh,
         // Ayrıntı sınırlı uzunlukta: hepsi kurulur (başlıktaki durum ve süreç kaydırınca da ağaçta
-        // kalır, ekran okuyucu tüm sayfayı görür).
+        // kalır, ekran okuyucu tüm sayfayı görür). Bölümler sırayla yükselir; durumları korunur.
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
+          child: StaggerScope(
+            key: ValueKey(d.id),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: a5Staggered(children),
+            ),
           ),
         ),
       ),
@@ -450,7 +461,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
 }
 
 /// Alt çubuk içeriği: yüksekliği içeriğe göre (genişletilmiş düğme alt çubukta tüm yüksekliği
-/// kaplamasın), çevrimdışıyken açıklama satırıyla.
+/// kaplamasın), çevrimdışıyken açıklama satırıyla; ilk belirişte aşağıdan yükselir.
 class _BarColumn extends StatelessWidget {
   const _BarColumn({required this.child, required this.offline});
 
@@ -458,21 +469,26 @@ class _BarColumn extends StatelessWidget {
   final bool offline;
 
   @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      if (offline)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            ApprovalsCopy.offlineDecision,
-            style: context.aknText.bodySmall,
-            textAlign: TextAlign.center,
+  Widget build(BuildContext context) => A5FadeUp(
+    offset: 16,
+    duration: AknMotion.stagger,
+    curve: AknMotion.emphasizedCurve,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (offline)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              ApprovalsCopy.offlineDecision,
+              style: context.aknText.bodySmall,
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      child,
-    ],
+        child,
+      ],
+    ),
   );
 }
 
@@ -603,7 +619,8 @@ List<ApprovalReadout> plateReadoutsFor(ApprovalDetail d) {
 }
 
 /// Ekranın tek plakası (§7.13): söz konusu tutar (finans: sipariş tutarı ya da talep edilen limit;
-/// şirket onayı: tahmini tutar), risk bandı siyah çipte, okumalar. Tutar da litre de yoksa plaka yok.
+/// şirket onayı: tahmini tutar), risk bandı siyah çipte, okumalar. Tutar da litre de yoksa plaka
+/// yok.
 class _ApprovalPlate extends StatelessWidget {
   const _ApprovalPlate({required this.detail, required this.readouts});
 
@@ -771,11 +788,13 @@ class _DetailSkeleton extends StatelessWidget {
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
         children: const [
-          SkeletonBox(height: 34, width: 240, radius: 6),
+          SkeletonBox(height: 34, width: 240, radius: 10),
           SizedBox(height: 10),
-          SkeletonBox(height: 14, width: 180, radius: 6),
+          SkeletonBox(height: 14, width: 180, radius: 8),
+          SizedBox(height: 14),
+          SkeletonBox(height: 26, width: 160, radius: AknRadius.pill),
           SizedBox(height: 20),
-          SkeletonBox(height: 180, radius: 20),
+          SkeletonBox(height: 200, radius: AknRadius.plateRadius),
           SizedBox(height: 20),
           SkeletonCard(lines: 3, margin: EdgeInsets.zero),
           SizedBox(height: 16),

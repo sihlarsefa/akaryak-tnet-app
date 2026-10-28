@@ -9,7 +9,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../assistant/api.dart';
-import '../../field/api.dart' show TuprasStrip;
+import '../../field/api.dart' show TuprasStrip, tuprasPricesProvider;
 import '../../stats/api.dart'
     show ManagerStatsDeck, StatsScope, refreshManagerStats, statsScopeProvider;
 import '../application/bayi_grants.dart';
@@ -25,14 +25,16 @@ import 'home/role_plate.dart';
 import 'widgets/bayi_widgets.dart' show openDestination, openPortal;
 import 'widgets/paged_list_body.dart';
 
-/// Bayi ana sayfası (tasarım v2 §7.5 / §7.6; tahta ekran 3, koyu ekran 8).
+/// Bayi ana sayfası (tasarım v3 "Akış").
 ///
-/// `AknHomeHeader` (logo karesi, bayi adı, "Ad Soyad, rol", zil) → ekranın tek plakası: istatistik
-/// yetkisi varsa yönetici destesi (`ManagerStatsDeck`, üstteki kart plaka), yoksa rol plakası
-/// (sipariş masası, sevkiyat, finans) → rolün bölümleri: "Sipariş hattı" + acil satır, "Tüpraş
-/// fiyatları", "Tahsilat", "Onaylarım", "Sevkiyatlar", "Kurulum uyarıları"… Bölümler `GET home/bayi`
-/// yükünden gelir (yetkisiz bölüm gelmez, yüklenemeyen bölüm "Bu bölüm yüklenemedi" der); önbellekten
-/// çevrimdışı açılır. Sınıf adı ve kurucu imzası sabittir (ana sayfa seçici).
+/// `AknHomeHeader` (turuncu şerit: logo karesi, bayi adı, "Ad Soyad, rol", zil) → ekranın tek kahraman
+/// kartı şeridin üstüne biner: istatistik yetkisi varsa yönetici destesi (`ManagerStatsDeck`), yoksa
+/// rol kartı (sipariş masası, sevkiyat, finans; ilk açılışta yükselerek gelir) → rolün bölümleri, her
+/// biri beyaz bir kart: "Sipariş hattı" + acil satır, "Tüpraş fiyatları", "Tahsilat", "Onaylarım",
+/// "Sevkiyatlar", "Kurulum uyarıları"… Kartlar art arda yükselerek gelir, aşağıdakiler kaydırdıkça
+/// kayarak girer. Bölümler `GET home/bayi` yükünden gelir (yetkisiz bölüm gelmez, yüklenemeyen bölüm
+/// "Bu bölüm yüklenemedi" der); önbellekten çevrimdışı açılır. Sınıf adı ve kurucu imzası sabittir
+/// (ana sayfa seçici).
 class BayiHome extends ConsumerWidget {
   const BayiHome({super.key});
 
@@ -175,14 +177,17 @@ class _HomeList extends ConsumerWidget {
         case _Slot.pipeline:
           return _PipelineBlock(data: data, preset: preset, grants: grants);
         case _Slot.tip:
-          if (!tipVisible) return null;
           final tip = RoleTip.forPolicy(policy);
-          return _RoleTipWell(
-            tip: tip,
-            onOpen: tip.route == null
-                ? null
-                : () => openDestination(context, tip.route!),
-            onClose: () => ref.read(bayiRoleTipProvider.notifier).dismiss(),
+          // İpucu kapanınca yerinden süzülerek çekilir (liste zıplamaz).
+          return _Collapsible(
+            visible: tipVisible,
+            child: _RoleTipWell(
+              tip: tip,
+              onOpen: tip.route == null
+                  ? null
+                  : () => openDestination(context, tip.route!),
+              onClose: () => ref.read(bayiRoleTipProvider.notifier).dismiss(),
+            ),
           );
         case _Slot.tupras:
           return _TuprasBlock(data: data);
@@ -238,17 +243,19 @@ class _HomeList extends ConsumerWidget {
       if (w != null) sections.add(w);
     }
 
-    // Sahip kararı G: ekranın tek kartı (deste ya da rol kartı) turuncu şeridin üstüne biner; şerit
-    // kartın ilk 48 px'inin arkasında devam eder (AknBandOverlap, liste üst boşluğu yok).
+    // Sahip kararı G: ekranın tek kahraman kartı (deste ya da rol kartı) turuncu şeridin üstüne biner;
+    // şerit kartın ilk 48 px'inin arkasında devam eder (AknBandOverlap, liste üst boşluğu yok). Kart
+    // ilk açılışta yükselip büyüyerek gelir; bunu AknBandOverlap yapar (v3 §5 "heroRise").
     final Widget? plate = deck
         ? const AknBandOverlap(
             padding: EdgeInsets.zero,
             child: ManagerStatsDeck(
-              padding: EdgeInsets.symmetric(horizontal: 18),
+              padding: EdgeInsets.symmetric(horizontal: AknSpace.page),
             ),
           )
         : BayiRolePlate.supports(preset, data)
         ? AknBandOverlap(
+            padding: AknSpace.pagePadding,
             child: BayiRolePlate(
               data: data,
               preset: preset,
@@ -257,53 +264,120 @@ class _HomeList extends ConsumerWidget {
           )
         : null;
 
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 32),
-      children: [
-        ?plate,
-        if (plate == null) const SizedBox(height: 8),
-        HomeUpdatedLine(
-          updatedAt: state.updatedAt,
-          fromCache: state.fromCache,
-          error: state.error,
+    final team = grants.viewStaff || assistantRow
+        ? HomeSectionCard(
+            margin: const EdgeInsets.fromLTRB(
+              AknSpace.page,
+              20,
+              AknSpace.page,
+              0,
+            ),
+            bottom: 0,
+            child: AknLedger(
+              children: [
+                if (grants.viewStaff)
+                  AknListTile(
+                    leading: const HomeIconTile(
+                      icon: PhosphorIconsRegular.usersThree,
+                    ),
+                    title: 'Ekip',
+                    subtitle: 'Personel, roller ve şifre bağlantıları',
+                    showChevron: true,
+                    onTap: () => GoRouter.of(context).push(AppRoutes.bayiStaff),
+                  ),
+                if (assistantRow)
+                  AknListTile(
+                    leading: const HomeIconTile(
+                      icon: PhosphorIconsRegular.chatCircle,
+                      tone: AknTone.brand,
+                    ),
+                    title: 'Asistana sorun',
+                    subtitle:
+                        '"Bugün kaç teklif bekliyor?", "Koşullu onay ne demek?"',
+                    onTap: () => GoRouter.of(context).push(AppRoutes.assistant),
+                    trailing: AknIconButton(
+                      icon: PhosphorIconsRegular.x,
+                      semanticLabel: 'Asistan satırını kapat',
+                      size: 20,
+                      color: context.akn.dim,
+                      onPressed: () => ref
+                          .read(bayiAssistantCardProvider.notifier)
+                          .dismiss(),
+                    ),
+                  ),
+              ],
+            ),
+          )
+        : null;
+
+    // Bölümler art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
+    var index = 0;
+    Widget stagger(Widget child) => StaggerItem(index: index++, child: child);
+    return StaggerScope(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 32),
+        children: [
+          ?plate,
+          if (plate == null) const SizedBox(height: 8),
+          HomeUpdatedLine(
+            updatedAt: state.updatedAt,
+            fromCache: state.fromCache,
+            error: state.error,
+          ),
+          if (data.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 24),
+              child: FadeUp(
+                offset: 18,
+                scale: 0.96,
+                duration: AknMotion.slow,
+                child: EmptyState(
+                  title: BayiCopy.homeEmptyTitle,
+                  message: BayiCopy.homeEmptyMessage,
+                  illustration: AknIllustration.inbox,
+                ),
+              ),
+            ),
+          for (final s in sections) stagger(s),
+          if (team != null) stagger(team),
+        ],
+      ),
+    );
+  }
+}
+
+/// İçeriği görünürlüğe göre süzerek açıp kapatır (yükseklik + solma); kapanınca yer kalmaz.
+class _Collapsible extends StatelessWidget {
+  const _Collapsible({required this.visible, required this.child});
+
+  final bool visible;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (AknMotion.reduced(context)) {
+      return visible ? child : const SizedBox.shrink();
+    }
+    return AknAnimatedSize(
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: AknMotion.base,
+        switchInCurve: AknMotion.standard,
+        switchOutCurve: AknMotion.exit,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            child: child,
+          ),
         ),
-        if (data.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 24),
-            child: EmptyState(
-              title: BayiCopy.homeEmptyTitle,
-              message: BayiCopy.homeEmptyMessage,
-              illustration: AknIllustration.inbox,
-            ),
-          ),
-        ...sections,
-        if (grants.viewStaff || assistantRow) const SizedBox(height: 16),
-        if (grants.viewStaff)
-          AknListTile(
-            leadingIcon: Icons.groups_outlined,
-            title: 'Ekip',
-            subtitle: 'Personel, roller ve şifre bağlantıları',
-            showChevron: true,
-            onTap: () => GoRouter.of(context).push(AppRoutes.bayiStaff),
-          ),
-        if (grants.viewStaff && assistantRow) const AknLedgerDivider(),
-        if (assistantRow)
-          AknListTile(
-            leadingIcon: Icons.chat_bubble_outline_rounded,
-            title: 'Asistana sorun',
-            subtitle: '"Bugün kaç teklif bekliyor?", "Koşullu onay ne demek?"',
-            onTap: () => GoRouter.of(context).push(AppRoutes.assistant),
-            trailing: AknIconButton(
-              icon: Icons.close_rounded,
-              semanticLabel: 'Asistan satırını kapat',
-              size: 20,
-              color: context.akn.dim,
-              onPressed: () =>
-                  ref.read(bayiAssistantCardProvider.notifier).dismiss(),
-            ),
-          ),
-      ],
+        child: visible
+            ? KeyedSubtree(key: const ValueKey('on'), child: child)
+            : const SizedBox(key: ValueKey('off'), width: double.infinity),
+      ),
     );
   }
 }
@@ -346,22 +420,20 @@ class _PipelineBlock extends ConsumerWidget {
             GoRouter.of(context).push(AppRoutes.bayiOrder(urgent.orderId));
       }
     }
-    // G kart dili: hat beyaz bölüm kabında (18 köşe, ince çerçeve) ana sayfa zemininde durur.
+    // v3: hat beyaz bölüm kartında (22 köşe, kart gölgesi) ana sayfa zemininde süzülür; acil satır
+    // kartın dibinde tonun yumuşak kuyusunda.
     return HomeSectionCard(
+      bottom: urgent == null ? 8 : 14,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(
-            title: 'Sipariş hattı',
-            caption: caption,
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
-          ),
+          HomeCardHeader(title: 'Sipariş hattı', caption: caption),
           OrderPipeline(stops: stops),
           if (urgent != null)
             PipelineUrgentLine(
               row: urgent,
               onAction: act,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
             ),
         ],
       ),
@@ -370,7 +442,8 @@ class _PipelineBlock extends ConsumerWidget {
 }
 
 /// "Tüpraş fiyatları" şeridi: fiyat bağlamı için yükteki bir cari; bugünün fiyatı girilmediyse
-/// (kurulum kontrolü) uyarı kuyusu ve portal bağlantısı.
+/// (kurulum kontrolü) uyarı kuyusu ve portal bağlantısı. Şerit çizecek bir şey yokken (yetki yok,
+/// fiyat gelmedi) boş beyaz kart bırakılmaz; fiyatlar gelince kart süzülerek açılır.
 class _TuprasBlock extends ConsumerWidget {
   const _TuprasBlock({required this.data});
 
@@ -386,23 +459,31 @@ class _TuprasBlock extends ConsumerWidget {
         : data.sales?.topCustomers.firstOrNull?.customerId ??
               ships.firstOrNull?.customerId;
     final setup = data.setup;
+    final missing = setup?.tuprasMissingToday ?? false;
     final check = setup?.checks
         .where((c) => c.key == 'tupras-today' && c.portalPath != null)
         .firstOrNull;
-    return HomeSectionCard(
-      child: TuprasStrip(
-        customerHint: hint,
-        missingToday: setup?.tuprasMissingToday ?? false,
-        headerPadding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
-        onEnterPrice: check == null
-            ? null
-            : () => openPortal(context, ref, check.portalPath!),
+    // Şeridin kendi görünürlük kuralı (aynı sağlayıcı; ek istek yok).
+    final snap = ref.watch(tuprasPricesProvider(hint)).valueOrNull;
+    return _Collapsible(
+      visible: snap != null || missing,
+      child: HomeSectionCard(
+        child: TuprasStrip(
+          customerHint: hint,
+          missingToday: missing,
+          // Başlık, eylemli kart başlıklarıyla aynı hizada (48 px satırın ortası).
+          headerPadding: const EdgeInsets.fromLTRB(20, 21, 8, 0),
+          onEnterPrice: check == null
+              ? null
+              : () => openPortal(context, ref, check.portalPath!),
+        ),
       ),
     );
   }
 }
 
-/// İlk giriş rol ipucu: Beton kuyu, ampul simgesi, başlık + cümle, mürekkep bağlantı ve "Kapat".
+/// İlk giriş rol ipucu (tasarım v3): beyaz kart, turuncu yumuşak zeminde ampul karosu (hafifçe süzülür),
+/// başlık + cümle, mürekkep bağlantı ve "Kapat"; kapanınca yerinden süzülerek çekilir.
 class _RoleTipWell extends StatelessWidget {
   const _RoleTipWell({
     required this.tip,
@@ -418,49 +499,70 @@ class _RoleTipWell extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+    final bulb = Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: c.brandSoft,
+        borderRadius: BorderRadius.circular(AknRadius.sm),
+      ),
+      child: Icon(PhosphorIconsRegular.lightbulb, color: c.brandInk, size: 21),
+    );
+    return HomeSectionCard(
+      bottom: 0,
       child: Semantics(
         container: true,
-        child: Container(
-          decoration: BoxDecoration(
-            color: c.surfaceAlt,
-            borderRadius: AknRadius.card,
-          ),
-          padding: const EdgeInsetsDirectional.fromSTEB(14, 12, 2, 8),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 4, 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(
-                  Icons.lightbulb_outline_rounded,
-                  color: c.ink,
-                  size: 20,
+              // Ampul hafifçe süzülür (ortam hareketi).
+              ExcludeSemantics(
+                child: AknAmbient(
+                  period: AknMotion.float,
+                  reverse: true,
+                  builder: (context, v, child) => Transform.translate(
+                    offset: Offset(0, -2 + 4 * v),
+                    child: child,
+                  ),
+                  child: bulb,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tip.title, style: t.bodyStrong.copyWith(color: c.ink)),
-                    const SizedBox(height: 2),
-                    Text(
-                      tip.message,
-                      style: t.bodySmall.copyWith(color: c.ink),
-                    ),
-                    if (onOpen != null && tip.actionLabel != null) ...[
-                      const SizedBox(height: 4),
-                      AknInlineLink(label: tip.actionLabel!, onTap: onOpen!),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tip.title,
+                        style: t.bodyStrong.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: c.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        tip.message,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                      if (onOpen != null && tip.actionLabel != null) ...[
+                        const SizedBox(height: 4),
+                        AknInlineLink(label: tip.actionLabel!, onTap: onOpen!),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               IconButton(
                 tooltip: 'Kapat',
-                onPressed: onClose,
-                icon: Icon(Icons.close_rounded, color: c.dim, size: 20),
+                onPressed: () {
+                  AknHaptics.light();
+                  onClose();
+                },
+                icon: Icon(PhosphorIconsRegular.x, color: c.dim, size: 20),
               ),
             ],
           ),
@@ -470,32 +572,58 @@ class _RoleTipWell extends StatelessWidget {
   }
 }
 
-/// İlk yükleme iskeleti: plaka yerinde Beton kağıt (turuncu yok), sonra defter satırları.
+/// İlk yükleme iskeleti (tasarım v3): şeridin üstünde kahraman kart yerinde 26 köşeli blok, sonra
+/// bölüm kartları — beyaz kartların içinde nabız atan Beton bloklar.
 class _HomeSkeleton extends StatelessWidget {
   const _HomeSkeleton();
 
   @override
-  Widget build(BuildContext context) => Shimmer(
-    child: ListView(
+  Widget build(BuildContext context) {
+    Widget section(List<Widget> blocks) => Padding(
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 0),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: context.akn.surface,
+          borderRadius: AknRadius.section,
+          boxShadow: AknShadows.card(context.akn),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Shimmer(
+            semanticLabel: null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: blocks,
+            ),
+          ),
+        ),
+      ),
+    );
+    return ListView(
       physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      children: const [
-        SkeletonBox(height: 300, radius: 20),
-        SizedBox(height: 28),
-        SkeletonBox(width: 140, height: 20, radius: 6),
-        SizedBox(height: 16),
-        SkeletonBox(height: 72, radius: 12),
-        SizedBox(height: 28),
-        SkeletonBox(width: 160, height: 20, radius: 6),
-        SizedBox(height: 12),
-        SkeletonBox(width: 220, height: 16, radius: 6),
-        SizedBox(height: 8),
-        SkeletonBox(width: 150, height: 14, radius: 6),
-        SizedBox(height: 20),
-        SkeletonBox(width: 220, height: 16, radius: 6),
-        SizedBox(height: 8),
-        SkeletonBox(width: 150, height: 14, radius: 6),
+      padding: EdgeInsets.zero,
+      children: [
+        const AknBandOverlap(
+          padding: AknSpace.pagePadding,
+          child: Shimmer(child: SkeletonBox(height: 260, radius: 26)),
+        ),
+        section(const [
+          SkeletonBox(width: 140, height: 20, radius: 6),
+          SizedBox(height: 18),
+          SkeletonBox(height: 72, radius: 12),
+        ]),
+        section(const [
+          SkeletonBox(width: 160, height: 20, radius: 6),
+          SizedBox(height: 16),
+          SkeletonBox(width: 220, height: 16, radius: 6),
+          SizedBox(height: 8),
+          SkeletonBox(width: 150, height: 14, radius: 6),
+          SizedBox(height: 18),
+          SkeletonBox(width: 220, height: 16, radius: 6),
+          SizedBox(height: 8),
+          SkeletonBox(width: 150, height: 14, radius: 6),
+        ]),
       ],
-    ),
-  );
+    );
+  }
 }

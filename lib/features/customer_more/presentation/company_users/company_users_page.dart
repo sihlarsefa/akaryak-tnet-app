@@ -47,41 +47,50 @@ class CompanyUsersPage extends ConsumerWidget {
         children: [CmFailureView(failure: s.error!, onRetry: ctrl.load)],
       );
     } else {
+      // Kullanıcılar gruplanmış beyaz kartlarda (içeriden çizgilerle), bölümler sırayla yükselir.
+      Widget group(List<CompanyUser> users) => CmCard(
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        child: AknLedger(children: [for (final u in users) UserCard(user: u)]),
+      );
+      final blocks = <Widget>[
+        SectionHeader(
+          title: 'Kullanıcılar',
+          count: active.length,
+          padding: const EdgeInsets.fromLTRB(24, 8, 12, 8),
+        ),
+        if (s.users.length <= 1)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: AknBanner(tone: AknTone.info, message: CmCopy.usersAlone),
+          ),
+        if (active.isNotEmpty) group(active),
+        if (inactive.isNotEmpty) ...[
+          SectionHeader(
+            title: 'Pasif kullanıcılar',
+            count: inactive.length,
+            padding: const EdgeInsets.fromLTRB(24, 22, 12, 8),
+          ),
+          group(inactive),
+        ],
+        _ThresholdsCard(
+          thresholds: s.thresholds,
+          canEdit: policy.cmCompanyUserEdit && online,
+        ),
+        const _RolesLegend(),
+      ];
       body = PullToRefresh(
         onRefresh: ctrl.load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 0, bottom: 24),
-          children: [
-            SectionHeader(
-              title: 'Kullanıcılar',
-              count: active.length,
-              padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+        child: StaggerScope(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              bottom: 24 + MediaQuery.paddingOf(context).bottom,
             ),
-            if (s.users.length <= 1)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: AknBanner(
-                  tone: AknTone.info,
-                  message: CmCopy.usersAlone,
-                ),
-              ),
-            AknLedger(children: [for (final u in active) UserCard(user: u)]),
-            if (inactive.isNotEmpty) ...[
-              SectionHeader(
-                title: 'Pasif kullanıcılar',
-                count: inactive.length,
-              ),
-              AknLedger(
-                children: [for (final u in inactive) UserCard(user: u)],
-              ),
+            children: [
+              for (final (i, b) in blocks.indexed)
+                StaggerItem(index: i, child: b),
             ],
-            _ThresholdsCard(
-              thresholds: s.thresholds,
-              canEdit: policy.cmCompanyUserEdit && online,
-            ),
-            const _RolesLegend(),
-          ],
+          ),
         ),
       );
     }
@@ -93,7 +102,7 @@ class CompanyUsersPage extends ConsumerWidget {
           ? cmBar(
               AknButton(
                 label: 'Kullanıcı ekle',
-                icon: Icons.person_add_alt_outlined,
+                icon: PhosphorIconsRegular.userPlus,
                 expand: true,
                 onPressed: online ? () => showAddUserSheet(context) : null,
               ),
@@ -122,7 +131,7 @@ class _ThresholdsCard extends StatelessWidget {
           : 'Kapalı: Talep edenin siparişleri doğrudan bayiye gider.',
       trailing: canEdit
           ? AknIconButton(
-              icon: Icons.edit_outlined,
+              icon: PhosphorIconsRegular.pencilSimple,
               semanticLabel: 'Onay eşiklerini düzenle',
               onPressed: () => showThresholdsSheet(context, th),
             )
@@ -154,8 +163,8 @@ class _ThresholdsCard extends StatelessWidget {
   }
 }
 
-/// Kullanıcı satırı (tasarım v2 §6.8, ledger): baş harfli avatar, ad ("(siz)"), e-posta / telefon,
-/// sağda rol; davet / pasif lambası ve son giriş. Yönetici dokununca eylemler açılır.
+/// Kullanıcı satırı (tasarım v3 §4, grup kartının içinde): baş harfli avatar, ad ("(siz)"), e-posta /
+/// telefon, sağda rol; davet / pasif lambası ve son giriş. Yönetici dokununca eylemler açılır.
 class UserCard extends ConsumerWidget {
   const UserCard({super.key, required this.user});
 
@@ -186,6 +195,8 @@ class UserCard extends ConsumerWidget {
         opacity: u.isActive ? 1 : 0.55,
         child: AknAvatar(name: u.displayName),
       ),
+      padding: CmCard.rowPadding,
+      titleStyle: cmRowTitle(context),
       title: u.isSelf ? '${u.displayName} (siz)' : u.displayName,
       subtitle: contact.isEmpty ? null : contact,
       meta: role.label,
@@ -196,7 +207,12 @@ class UserCard extends ConsumerWidget {
             : Text(last, style: t.bodySmall.copyWith(color: c.dim)),
       ),
       showChevron: canManage,
-      onTap: canManage ? () => showUserActionsSheet(context, u) : null,
+      onTap: canManage
+          ? () {
+              AknHaptics.selection();
+              showUserActionsSheet(context, u);
+            }
+          : null,
       semanticLabel: [
         u.displayName,
         if (u.isSelf) 'siz',

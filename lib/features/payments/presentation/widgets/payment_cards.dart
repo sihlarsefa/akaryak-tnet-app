@@ -8,8 +8,8 @@ import '../../../../core/utils/turkish_text.dart';
 import '../../../approvals/api.dart' show isLargeText;
 import '../../data/payment_models.dart';
 
-/// Vade ipucunun tonu (tasarım v2 §2.4): geciken kırmızı, bugün ya da 3 gün içinde Pas ("acil sayı"),
-/// diğerleri sönük.
+/// Vade ipucunun tonu (tasarım v3): geciken kırmızı, bugün ya da 3 gün içinde Pas ("sıra sizde"
+/// turuncusu), diğerleri sönük.
 AknTone dueTone({required bool overdue, DateTime? due}) {
   if (overdue) return AknTone.danger;
   if (due == null) return AknTone.neutral;
@@ -65,8 +65,8 @@ class DueHint extends StatelessWidget {
       children: [
         Icon(
           tone == AknTone.danger
-              ? Icons.event_busy_rounded
-              : Icons.event_outlined,
+              ? PhosphorIconsRegular.calendarX
+              : PhosphorIconsRegular.calendarDot,
           size: size,
           color: color,
         ),
@@ -90,9 +90,10 @@ bool financeWorthShowing(OrderFinanceStatus s) =>
     s == OrderFinanceStatus.infoRequested ||
     s == OrderFinanceStatus.rejected;
 
-/// Ödeme satırı (tasarım v2 §6.8, §7.14): cari, sağda tutar; ikinci satırda sipariş no ve yöntem,
-/// sağda vade günü (tahminiyse "tahmini" ve vade ikinci satıra geçer); durum satırında lamba ve vade
-/// ipucu. Finans onayı bekleyen, bilgi istenen ya da reddedilen ödemede finans durumu ikinci satırda.
+/// Ödeme satırı (tasarım v3 liste kartının içi): cari, sağda tutar (tablo rakamları); ikinci satırda
+/// sipariş no ve yöntem, sağda vade günü (tahminiyse "tahmini" ve vade ikinci satıra geçer); durum
+/// satırında çip ve vade ipucu. Finans onayı bekleyen, bilgi istenen ya da reddedilen ödemede finans
+/// durumu ikinci satırda.
 class PaymentRowCard extends StatelessWidget {
   const PaymentRowCard({super.key, required this.row, required this.onTap});
 
@@ -131,6 +132,7 @@ class PaymentRowCard extends StatelessWidget {
       ?finance,
     ].join(', ');
     return AknListTile(
+      padding: kPaymentRowPadding,
       title: row.customerTitle,
       subtitle: second,
       amount: amount == null ? null : Fmt.money(amount),
@@ -152,8 +154,8 @@ class PaymentRowCard extends StatelessWidget {
   }
 }
 
-/// Çek / senet satırı: cari, sağda tutar; ikinci satırda tür ve seri no, banka ve şube (ya da borçlu),
-/// sağda vade günü; durum satırında lamba ve vade ipucu.
+/// Çek / senet satırı (tasarım v3 kartın içi): cari, sağda tutar; ikinci satırda tür ve seri no, banka
+/// ve şube (ya da borçlu), sağda vade günü; durum satırında çip ve vade ipucu.
 class InstrumentRowCard extends StatelessWidget {
   const InstrumentRowCard({
     super.key,
@@ -190,6 +192,7 @@ class InstrumentRowCard extends StatelessWidget {
       if (i.orderNumber != null) 'sipariş ${i.orderNumber}',
     ].join(', ');
     return AknListTile(
+      padding: kPaymentRowPadding,
       title: showCustomer ? i.customerTitle : kind,
       subtitle: second.isEmpty ? null : second,
       amount: Fmt.money(i.amount),
@@ -232,8 +235,13 @@ Widget plateReadouts(BuildContext context, List<PlateReadout> items) {
   );
 }
 
-/// Bir ledger satırını listede yerine koyar: ilk satırın üstünde değil, sonrakilerin üstünde 20 px
-/// içeriden başlayan ince çizgi.
+/// Kart içindeki ödeme / belge satırının iç boşluğu: 16 yan, 14 dikey.
+const EdgeInsets kPaymentRowPadding = EdgeInsets.fromLTRB(16, 14, 16, 14);
+
+/// Bir satırı listede yerine koyar (tasarım v3 liste kartı): sayfa zemininde süzülen beyaz kart (20
+/// köşe, yumuşak kart gölgesi; koyu temada 1 px ince çizgi), içerik köşelere kırpılır. Satır kendi
+/// basılı hâlini çizer (Beton dolgu ve 0,97 içeride); kart sabit kalır (çift ölçek yok). [index] eski
+/// çizgili düzenden kalır.
 class LedgerItem extends StatelessWidget {
   const LedgerItem({super.key, required this.index, required this.child});
 
@@ -241,17 +249,49 @@ class LedgerItem extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => index == 0
-      ? child
-      : Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [const AknLedgerDivider(), child],
-        );
+  Widget build(BuildContext context) => PaymentCardSurface(child: child);
 }
 
-/// Bölüm (tasarım v2 §4.5): başlık (20/26) ve içerik, kutu yok. [padded] içerik 20 px kenarla girer;
-/// ledger satırları kendi kenarlarını verir.
+/// Beyaz kart yüzeyi (tasarım v3): 20 köşe, kart gölgesi ([pressed] iken yalnızca temas gölgesi);
+/// koyu temada 1 px ince çizgi içeriğin üstünde; içerik köşelere kırpılır.
+class PaymentCardSurface extends StatelessWidget {
+  const PaymentCardSurface({
+    super.key,
+    required this.child,
+    this.pressed = false,
+  });
+
+  final Widget child;
+  final bool pressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final d = pressed ? AknMotion.press : AknMotion.pressOut;
+    return AnimatedContainer(
+      duration: AknMotion.of(context, d),
+      curve: AknMotion.standard,
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: AknRadius.card,
+        boxShadow: pressed ? AknShadows.pressed(c) : AknShadows.card(c),
+      ),
+      foregroundDecoration: c.isDark
+          ? BoxDecoration(
+              borderRadius: AknRadius.card,
+              border: Border.all(color: c.line),
+            )
+          : null,
+      // İçerik kartta olduğunu bilir (defter satırları düz, okumalar kuyu).
+      child: AknCardScope(
+        child: ClipRRect(borderRadius: AknRadius.card, child: child),
+      ),
+    );
+  }
+}
+
+/// Bölüm (tasarım v3): sayfa zemininde süzülen beyaz kart; içinde başlık (sayı, alt yazı) ve içerik.
+/// [padded] içerik 18 px kenarla girer; satırlar kendi kenarlarını verir.
 class LedgerSection extends StatelessWidget {
   const LedgerSection({
     super.key,
@@ -269,20 +309,36 @@ class LedgerSection extends StatelessWidget {
   final bool padded;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SectionHeader(title: title, subtitle: subtitle, count: count),
-      if (padded)
-        Padding(padding: AknSpace.pagePadding, child: child)
-      else
-        child,
-    ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+    child: PaymentCardSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 58),
+            child: SectionHeader(
+              title: title,
+              subtitle: subtitle,
+              count: count,
+              padding: const EdgeInsets.fromLTRB(18, 10, 8, 0),
+            ),
+          ),
+          if (padded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: child,
+            )
+          else
+            child,
+        ],
+      ),
+    ),
   );
 }
 
-/// Olgu listesi: etiket / değer satırları, aralarında ince çizgi (kutu yok).
+/// Olgu listesi: etiket / değer satırları, aralarında ince çizgi (tasarım v3: `lineSoft`).
 class FactList extends StatelessWidget {
   const FactList({super.key, required this.facts});
 
@@ -290,7 +346,7 @@ class FactList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final line = context.akn.line;
+    final line = context.akn.lineSoft;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,

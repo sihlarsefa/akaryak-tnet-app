@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -63,14 +66,14 @@ class AccuracyChip extends StatelessWidget {
     return StatusChip(
       label: text,
       tone: low ? AknTone.warn : AknTone.ok,
-      icon: low ? Icons.gps_not_fixed_rounded : Icons.gps_fixed_rounded,
+      icon: low ? PhosphorIconsRegular.gps : PhosphorIconsRegular.gpsFix,
       size: StatusChipSize.small,
     );
   }
 }
 
-/// Sunucudaki belgeler: normal yazıda küçük resim ızgarası, büyük yazıda satır listesi (ızgara hücresi
-/// sabit yükseklikte; 2× yazıda dosya adı sığmaz — spec C.7).
+/// Sunucudaki belgeler: normal yazıda küçük resim ızgarası (dar kartta iki, genişte üç sütun), büyük
+/// yazıda satır listesi (ızgara hücresi sabit yükseklikte; 2× yazıda dosya adı sığmaz — spec C.7).
 class FieldDocumentList extends StatelessWidget {
   const FieldDocumentList({
     super.key,
@@ -96,7 +99,14 @@ class FieldDocumentList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (attachments.isEmpty) return const SizedBox.shrink();
     if (!fieldLargeText(context)) {
-      return AttachmentGallery(attachments: attachments, onDelete: onDelete);
+      // Kartın içinde dar kalan ızgarada küçük resim etiketi sığsın: dar alanda iki sütun.
+      return LayoutBuilder(
+        builder: (context, cons) => AttachmentGallery(
+          attachments: attachments,
+          onDelete: onDelete,
+          crossAxisCount: cons.maxWidth >= 330 ? 3 : 2,
+        ),
+      );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -186,9 +196,10 @@ class FieldSectionSwitcher<T> extends StatelessWidget {
   );
 }
 
-/// Saha formu defter satırı (tasarım v2 §6.8): cari başlıkta, form no + litre + vade ikinci satırda,
-/// tutar sağda (son hareket altında), durum lambası ve onay kademesi / finans durumu alt satırda.
-/// Listede satırları [AknLedger] ya da [AknLedgerDivider] ile ayırın.
+/// Saha formu satırı (tasarım v3 §4 liste satırı): cari başlıkta, form no + litre + vade ikinci
+/// satırda, tutar sağda (tabular; son hareket altında), durum lambası ve onay kademesi / finans
+/// durumu alt satırda. Basınca satır yumuşak kuyuya döner ve hafifçe küçülür. Listede her satırı bir
+/// [FieldListCard] içine koyun (ya da satırları [AknLedger] ile kartta toplayın).
 class FieldFormTile extends StatelessWidget {
   const FieldFormTile({
     super.key,
@@ -249,8 +260,8 @@ class FieldFormTile extends StatelessWidget {
   }
 }
 
-/// Ön kayıt defter satırı: firma başlıkta, kayıt no + il + aylık litre ikinci satırda, son hareket
-/// sağda, durum lambası alt satırda ("VKN sistemde kayıtlı" bilgisiyle).
+/// Ön kayıt satırı (tasarım v3 §4): firma başlıkta, kayıt no + il + aylık litre ikinci satırda, son
+/// hareket sağda, durum lambası alt satırda ("VKN sistemde kayıtlı" bilgisiyle).
 class FieldLeadTile extends StatelessWidget {
   const FieldLeadTile({super.key, required this.row, this.showRep = false});
 
@@ -301,7 +312,8 @@ class FieldLeadTile extends StatelessWidget {
 }
 
 /// Gönderilmeyi bekleyen saha işlemi satırı ("Kaydedildi, bağlantı gelince gönderilecek"): soldaki
-/// simge ve lamba durumu söyler; altta "Düzelt", "Şimdi dene", "Vazgeç".
+/// tonlu simge kutusu (gönderilirken bulut simgesi hafifçe nefes alır) ve lamba durumu söyler; altta
+/// "Düzelt", "Şimdi dene", "Vazgeç".
 class FieldQueuedTile extends ConsumerWidget {
   const FieldQueuedTile({super.key, required this.item, this.onEdit});
 
@@ -318,22 +330,22 @@ class FieldQueuedTile extends ConsumerWidget {
     final (tone, icon, label) = switch (status) {
       OutboxStatus.needsAttention => (
         AknTone.danger,
-        Icons.error_outline_rounded,
+        PhosphorIconsRegular.warningCircle,
         FieldCopy.attentionChip,
       ),
       OutboxStatus.sending => (
         AknTone.info,
-        Icons.cloud_upload_outlined,
+        PhosphorIconsRegular.cloudArrowUp,
         FieldCopy.sendingChip,
       ),
       OutboxStatus.failed => (
         AknTone.warn,
-        Icons.schedule_rounded,
+        PhosphorIconsRegular.clock,
         item.nextAttemptAt == null
             ? 'Tekrar denenecek'
             : 'Tekrar denenecek, ${Fmt.time(item.nextAttemptAt)}',
       ),
-      _ => (AknTone.warn, Icons.schedule_rounded, FieldCopy.waitingChip),
+      _ => (AknTone.warn, PhosphorIconsRegular.clock, FieldCopy.waitingChip),
     };
     final subtitle = [
       ?item.customerTitle,
@@ -392,15 +404,19 @@ class FieldQueuedTile extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, size: 24, color: c.tone(tone).fg),
-                const SizedBox(width: 16),
+                _QueueGlyph(
+                  icon: icon,
+                  tone: tone,
+                  live: status == OutboxStatus.sending,
+                ),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         item.title,
-                        style: t.headline.copyWith(color: c.ink),
+                        style: t.bodyStrong.copyWith(color: c.ink),
                       ),
                       if (subtitle.isNotEmpty) ...[
                         const SizedBox(height: 2),
@@ -426,11 +442,40 @@ class FieldQueuedTile extends ConsumerWidget {
           ),
           if (actions.isNotEmpty)
             Padding(
-              padding: const EdgeInsetsDirectional.only(start: 32, top: 4),
+              padding: const EdgeInsetsDirectional.only(start: 54, top: 8),
               child: Wrap(spacing: 4, runSpacing: 4, children: actions),
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Bekleyen işlemin tonlu simge kutusu (40 px yumuşak kare); gönderilirken hafifçe nefes alır
+/// (ortam hareketi: testlerde ve hareket azaltmada durur).
+class _QueueGlyph extends StatelessWidget {
+  const _QueueGlyph({
+    required this.icon,
+    required this.tone,
+    required this.live,
+  });
+
+  final IconData icon;
+  final AknTone tone;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    final box = AknIconBox(icon: icon, tone: tone, size: 40, iconSize: 22);
+    if (!live) return box;
+    return AknAmbient(
+      period: AknMotion.breathe,
+      reverse: true,
+      builder: (context, t, child) => Transform.translate(
+        offset: Offset(0, -2 * t),
+        child: Opacity(opacity: 1 - 0.25 * t, child: child),
+      ),
+      child: box,
     );
   }
 }
@@ -498,7 +543,7 @@ class FieldListFooter extends StatelessWidget {
             ),
             AknButton.ghost(
               label: FieldCopy.retry,
-              icon: Icons.refresh_rounded,
+              icon: PhosphorIconsRegular.arrowClockwise,
               onPressed: onRetry,
             ),
           ],
@@ -534,7 +579,11 @@ class FieldCachedNote extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
       child: Row(
         children: [
-          Icon(Icons.history_rounded, size: 16, color: c.dim),
+          Icon(
+            PhosphorIconsRegular.clockCounterClockwise,
+            size: 16,
+            color: c.dim,
+          ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
@@ -548,7 +597,9 @@ class FieldCachedNote extends StatelessWidget {
   }
 }
 
-/// Alan altı hata metni (ikon + metin).
+/// Alan altı hata metni (uyarı simgesi + metin, tehlike tonunda). Belirince yüksekliği kayarak açılır
+/// ve kısa bir sarsıntıyla (3 hızlı ±6 px) dikkat çeker; ileti değişince yeniden sarsılır. Hareket
+/// azaltmada sabit.
 class FieldErrorText extends StatelessWidget {
   const FieldErrorText(this.message, {super.key});
 
@@ -557,7 +608,23 @@ class FieldErrorText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = message;
-    if (m == null || m.isEmpty) return const SizedBox.shrink();
+    final empty = m == null || m.isEmpty;
+    return AknAnimatedSize(
+      alignment: Alignment.topCenter,
+      child: empty
+          ? const SizedBox(width: double.infinity)
+          : _Shake(key: ValueKey(m), child: _ErrorLine(m)),
+    );
+  }
+}
+
+class _ErrorLine extends StatelessWidget {
+  const _ErrorLine(this.message);
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
     return Padding(
@@ -567,13 +634,45 @@ class FieldErrorText extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline_rounded, size: 16, color: c.danger.fg),
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Icon(
+                PhosphorIconsRegular.warningCircle,
+                size: 16,
+                color: c.danger.fg,
+              ),
+            ),
             const SizedBox(width: 6),
             Expanded(
-              child: Text(m, style: t.bodySmall.copyWith(color: c.danger.fg)),
+              child: Text(
+                message,
+                style: t.bodySmall.copyWith(color: c.danger.fg),
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// İlk görünüşte üç hızlı ±6 px sarsıntı (sönerek; sonlu). Hareket azaltmada sabit.
+class _Shake extends StatelessWidget {
+  const _Shake({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = AknMotion.of(context, const Duration(milliseconds: 420));
+    if (d == Duration.zero) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: d,
+      child: child,
+      builder: (context, v, child) => Transform.translate(
+        offset: Offset(6 * math.sin(v * math.pi * 6) * (1 - v), 0),
+        child: Opacity(opacity: (v * 4).clamp(0.0, 1.0), child: child),
       ),
     );
   }
@@ -649,7 +748,9 @@ class FieldListState extends StatelessWidget {
   }
 }
 
-/// Bilgi satırı grubu (kart içinde etiket / değer).
+/// Bilgi satırı grubu (kart içinde etiket / değer; tasarım v3 §4): etiket soluk solda, değer 15/22
+/// 500 mürekkep sağda (tabular); satırlar arasında kartın içinde `lineSoft` saç çizgisi (ilkinin
+/// üstünde, sonuncunun altında yok). Boş değerler atlanır.
 class FieldFacts extends StatelessWidget {
   const FieldFacts({super.key, required this.facts});
 
@@ -657,25 +758,38 @@ class FieldFacts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
     final visible = [
       for (final (label, value) in facts)
         if (value != null && value.trim().isNotEmpty) (label, value),
     ];
+    final style = context.aknText.body.copyWith(
+      color: c.ink,
+      fontWeight: FontWeight.w500,
+      fontFeatures: AknNumerals.tabular,
+    );
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (label, value) in visible)
+        for (var i = 0; i < visible.length; i++) ...[
+          if (i > 0) SizedBox(height: 1, child: ColoredBox(color: c.lineSoft)),
           FactRow(
-            label: label,
-            value: value,
-            valueStyle: context.aknText.body.copyWith(color: context.akn.ink),
+            label: visible[i].$1,
+            value: visible[i].$2,
+            valueStyle: style,
+            padding: const EdgeInsets.symmetric(vertical: 10),
           ),
+        ],
       ],
     );
   }
 }
 
-/// Bölüm (tasarım v2 §4.5): başlık (`title` 20/26, sağda isteğe bağlı öğe) ve altında içerik, 20 px
-/// kenar boşluğunda; kutu yok. [icon] ve [margin] API uyumu için durur (v2'de simge çizilmez).
+/// Gruplanmış bilgi kartı (tasarım v3 §4 "grouped fact cards"): sayfada yüzen beyaz kart — r20,
+/// yumuşak kart gölgesi (koyu temada 1 px çizgi), 20 px sayfa kenarı. Kartın başında 36 px yumuşak
+/// karede bölüm simgesi ([icon]; sakin kuyu, mürekkep), başlık (17/22 700) ve sağda isteğe bağlı
+/// öğe; altında içerik (18 px içeride). İçerik kartta olduğunu bilir (`AknCardScope`). [margin] API
+/// uyumu için durur (kart her zaman sayfa kenarına hizalanır).
 class FieldSectionCard extends StatelessWidget {
   const FieldSectionCard({
     super.key,
@@ -696,29 +810,189 @@ class FieldSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+    final head = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (icon != null) ...[
+          AknIconBox(icon: icon!, size: 36, iconSize: 19),
+          const SizedBox(width: 12),
+        ],
+        Expanded(
+          child: Semantics(
+            header: true,
+            child: Text(title, style: t.headline.copyWith(color: c.ink)),
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+      ],
+    );
+    return AknCard(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Semantics(
-                  header: true,
-                  child: Text(title, style: t.title.copyWith(color: c.ink)),
-                ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-            ],
-          ),
-          const SizedBox(height: 8),
-          child,
-        ],
+        children: [head, const SizedBox(height: 10), child],
       ),
     );
   }
+}
+
+/// Liste satırının kartı (tasarım v3 §4): sayfada yüzen beyaz kart (r20, kart gölgesi), sayfa
+/// kenarı 20, kartlar arası 12. Satır ([child], ör. [FieldFormTile]) kartın tamamını doldurur ve
+/// basınca kartın içinde yumuşak kuyuya döner.
+class FieldListCard extends StatelessWidget {
+  const FieldListCard({
+    super.key,
+    required this.child,
+    this.margin = const EdgeInsets.fromLTRB(20, 6, 20, 6),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry margin;
+
+  @override
+  Widget build(BuildContext context) =>
+      AknCard(padding: EdgeInsets.zero, margin: margin, child: child);
+}
+
+/// Girişte solarak, [offset] px yükselerek ve [scale]'den büyüyerek belirir ([delay] sonra, bir
+/// kez). `FadeUp` gibidir ama hareket bitince ağacın yapısı değişmez: içindeki sayaçlar, lambalar ve
+/// plaka baştan başlamaz. Hareket azaltmada hemen son hâli.
+class FieldRise extends StatefulWidget {
+  const FieldRise({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = AknMotion.slow,
+    this.offset = 12,
+    this.scale = 1,
+  });
+
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+  final double offset;
+  final double scale;
+
+  @override
+  State<FieldRise> createState() => _FieldRiseState();
+}
+
+class _FieldRiseState extends State<FieldRise>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+  );
+  late final CurvedAnimation _t = CurvedAnimation(
+    parent: _c,
+    curve: AknMotion.emphasizedCurve,
+  );
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+    } else if (widget.delay <= Duration.zero) {
+      _c.forward();
+    } else {
+      _timer = Timer(widget.delay, () {
+        if (mounted) _c.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _t.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _t,
+    child: widget.child,
+    builder: (context, child) {
+      final v = _t.value;
+      final s = widget.scale + (1 - widget.scale) * v;
+      // Yapı her karede aynı (Opacity → Transform): bitince çocuk yeniden kurulmaz.
+      return Opacity(
+        opacity: v.clamp(0.0, 1.0),
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.translationValues(0, widget.offset * (1 - v), 0)
+            ..multiply(Matrix4.diagonal3Values(s, s, 1)),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+/// Liste öğesinin sırayla girişi ([StaggerItem]: ilk açılışta sırayla, sonra kaydırdıkça görünür
+/// oldukça); öğe sabit bir anahtarın altında durur ki giriş bitince durumu (sayaçlar, lambalar,
+/// yazılan alanlar) korunsun.
+class FieldStaggerItem extends StatefulWidget {
+  const FieldStaggerItem({super.key, required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<FieldStaggerItem> createState() => _FieldStaggerItemState();
+}
+
+class _FieldStaggerItemState extends State<FieldStaggerItem> {
+  final GlobalKey _keep = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) => StaggerItem(
+    index: widget.index,
+    child: KeyedSubtree(key: _keep, child: widget.child),
+  );
+}
+
+/// Sırayla belirerek gelen kaydırılabilir liste (sihirbaz adımları, ayrıntı sayfaları): her çocuk bir
+/// [FieldStaggerItem]'dır (anahtarı olan çocuğun anahtarı öğeye taşınır ki liste yeniden dizilince
+/// eşleşme korunsun). [StaggerScope] ilk açılışta sırayı oynatır; sonradan eklenen ya da kaydırınca
+/// görünen öğeler hemen kayarak girer.
+class FieldStaggeredList extends StatelessWidget {
+  const FieldStaggeredList({
+    super.key,
+    required this.children,
+    this.padding,
+    this.controller,
+    this.physics,
+  });
+
+  final List<Widget> children;
+  final EdgeInsetsGeometry? padding;
+  final ScrollController? controller;
+  final ScrollPhysics? physics;
+
+  @override
+  Widget build(BuildContext context) => StaggerScope(
+    child: ListView(
+      controller: controller,
+      physics: physics,
+      padding: padding,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          FieldStaggerItem(
+            key: children[i].key == null ? null : ValueKey(children[i].key),
+            index: i,
+            child: children[i],
+          ),
+      ],
+    ),
+  );
 }
 
 /// Plakanın okumaları: normalde [PlateReadouts]; çok büyük yazıda (≥ 1,6×) etiket / değer satırları,

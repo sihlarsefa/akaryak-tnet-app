@@ -31,8 +31,8 @@ String? supportCodeOf(AppFailure f) {
   return code.isEmpty ? null : code;
 }
 
-/// Yükleme hatasının ekranı (spec C.5 liste tarifi): çevrimdışı, yetki yok, kayıt yok, sunucu hatası
-/// (destek koduyla) ya da sunucunun Türkçe mesajı. [onRetry] verilirse "Tekrar dene".
+/// Yükleme hatasının ekranı (spec C.5 liste tarifi): çevrimdışı, yetki yok, kayıt yok, sunucu
+/// hatası (destek koduyla) ya da sunucunun Türkçe mesajı. [onRetry] verilirse "Tekrar dene".
 class A5FailureView extends StatelessWidget {
   const A5FailureView({
     super.key,
@@ -109,7 +109,8 @@ class A5FailureView extends StatelessWidget {
   }
 }
 
-/// "Destek kodu: ABCD1234" — dokununca panoya kopyalanır (spec C.7).
+/// "Destek kodu: ABCD1234" — kuyu renginde hap (tablo rakamları), basınca küçülür; dokununca panoya
+/// kopyalanır (spec C.7).
 class SupportCode extends StatelessWidget {
   const SupportCode({super.key, required this.code});
 
@@ -123,25 +124,42 @@ class SupportCode extends StatelessWidget {
       button: true,
       label: 'Destek kodu $code, kopyalamak için dokunun',
       excludeSemantics: true,
-      child: InkWell(
-        borderRadius: AknRadius.pillAll,
-        onTap: () async {
-          await Clipboard.setData(ClipboardData(text: code));
-          if (context.mounted) {
-            AppToast.info('Destek kodu kopyalandı.', context: context);
-          }
-        },
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: AknSpace.minTap),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.copy_rounded, size: 16, color: c.dim),
-                const SizedBox(width: 6),
-                Text('Destek kodu: $code', style: t.caption),
-              ],
+      child: PressScale(
+        child: Material(
+          color: c.surfaceAlt,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () async {
+              AknHaptics.selection();
+              await Clipboard.setData(ClipboardData(text: code));
+              if (context.mounted) {
+                AppToast.info('Destek kodu kopyalandı.', context: context);
+              }
+            },
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(PhosphorIconsRegular.copy, size: 16, color: c.dim),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Destek kodu: $code',
+                      style: t.caption.copyWith(
+                        color: c.ink,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: AknNumerals.tabular,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),

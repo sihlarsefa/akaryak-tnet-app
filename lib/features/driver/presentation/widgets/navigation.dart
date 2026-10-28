@@ -9,6 +9,7 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/external_activity.dart';
 import '../../../../core/utils/log.dart';
 import '../../copy.dart';
+import 'entrance.dart';
 
 /// Arama ve yol tarifi bağlantıları (Google / Apple Haritalar). Koordinat yoksa adresle aranır.
 abstract final class DriverLinks {
@@ -148,43 +149,45 @@ class _NavigationChoices extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Seçenekler sayfa açılırken sırayla yükselir (v3 §5).
+    final tiles = <Widget>[
+      AknListTile(
+        leadingIcon: PhosphorIconsRegular.mapTrifold,
+        leadingTone: AknTone.info,
+        title: DriverCopy.appleMaps,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        onTap: () => _open(context, [
+          DriverLinks.appleDirections(lat: lat, lng: lng, address: address),
+        ]),
+      ),
+      AknListTile(
+        leadingIcon: PhosphorIconsRegular.navigationArrow,
+        leadingTone: AknTone.ok,
+        title: DriverCopy.googleMaps,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        onTap: () => _open(context, [
+          DriverLinks.googleApp(lat: lat, lng: lng, address: address),
+          DriverLinks.googleDirections(lat: lat, lng: lng, address: address),
+        ]),
+      ),
+      if (address != null && address!.trim().isNotEmpty)
+        AknListTile(
+          leadingIcon: PhosphorIconsRegular.copy,
+          title: DriverCopy.copyAddress,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          onTap: () async {
+            await Clipboard.setData(ClipboardData(text: address!.trim()));
+            if (context.mounted) {
+              AppToast.info(DriverCopy.addressCopied, context: context);
+              unawaited(Navigator.of(context).maybePop());
+            }
+          },
+        ),
+    ];
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AknListTile(
-          leadingIcon: Icons.map_rounded,
-          leadingTone: AknTone.info,
-          title: DriverCopy.appleMaps,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          onTap: () => _open(context, [
-            DriverLinks.appleDirections(lat: lat, lng: lng, address: address),
-          ]),
-        ),
-        AknListTile(
-          leadingIcon: Icons.navigation_rounded,
-          leadingTone: AknTone.ok,
-          title: DriverCopy.googleMaps,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          onTap: () => _open(context, [
-            DriverLinks.googleApp(lat: lat, lng: lng, address: address),
-            DriverLinks.googleDirections(lat: lat, lng: lng, address: address),
-          ]),
-        ),
-        if (address != null && address!.trim().isNotEmpty)
-          AknListTile(
-            leadingIcon: Icons.copy_rounded,
-            title: DriverCopy.copyAddress,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            onTap: () async {
-              await Clipboard.setData(ClipboardData(text: address!.trim()));
-              if (context.mounted) {
-                AppToast.info(DriverCopy.addressCopied, context: context);
-                unawaited(Navigator.of(context).maybePop());
-              }
-            },
-          ),
-      ],
+      children: driverStaggered(tiles),
     );
   }
 }

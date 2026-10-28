@@ -1,27 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
 import 'cards.dart' show OnHero;
 import 'triangle_glyph.dart';
 
 /// Which way a delta points.
 enum AknDeltaDirection { up, down, flat }
 
-/// The delta chip (design v2 §5.1, §6.19): a drawn ▲ / ▼ and the change
-/// ("%12,8", "4 puan", "0,44 ₺") in a 24 px chip with 6 px corners.
+/// The delta chip (design v3 §4): a rounded ▲ / ▼ and the change ("%12,8",
+/// "4 puan", "0,44 ₺", 13 w700, tabular) in a 24 px chip with 8 px corners.
+/// When it first appears its arrow slides in along its direction.
 ///
-/// * On the plate card (owner decision G): `deltaFill` (#FFF1E8) with the
-///   text and arrow in Pas (`brandInk` #C2410C, 4.68:1). The chip is
-///   neutral there — no good / bad colour; the sentence after it names the
-///   comparison.
-/// * On white: a Beton chip with ink text. The arrow takes the ok / danger
-///   colour only when [goodForViewer] is known (a falling unit price is good
-///   for a customer); otherwise it is ink.
+/// * On the plate card (owner decision G): `deltaFill` with the text and
+///   arrow in `brandInk`. The chip is neutral there — no good / bad colour;
+///   the sentence after it names the comparison.
+/// * On white: a soft tone well. When [goodForViewer] is known (a falling
+///   unit price is good for a customer) the chip takes the ok / danger well
+///   and ink (`ToneColors.bg` + `fg`); otherwise it is a `surfaceAlt` chip
+///   with ink text.
 ///
 /// [onPlate] defaults to "inside a plate" (`OnHero` or a palette whose
 /// surface is the plate colour, as on the deck's top card).
-class AknDeltaChip extends StatelessWidget {
+class AknDeltaChip extends StatefulWidget {
   const AknDeltaChip({
     super.key,
     required this.label,
@@ -33,7 +38,7 @@ class AknDeltaChip extends StatelessWidget {
 
   /// A chip for a signed change: the sign picks the arrow; [label] is the
   /// formatted absolute change. [positiveIsGood] (when known) colours the
-  /// arrow on white.
+  /// chip on white.
   factory AknDeltaChip.change(
     num change, {
     Key? key,
@@ -64,8 +69,8 @@ class AknDeltaChip extends StatelessWidget {
   /// Null or [AknDeltaDirection.flat] draws no arrow.
   final AknDeltaDirection? direction;
 
-  /// True: the change is good for the viewer (green arrow on white); false:
-  /// bad (red arrow); null: unknown (ink). Ignored on the plate.
+  /// True: the change is good for the viewer (an ok chip on white); false:
+  /// bad (a danger chip); null: unknown (neutral). Ignored on the plate.
   final bool? goodForViewer;
   final bool? onPlate;
   final String? semanticLabel;
@@ -77,33 +82,80 @@ class AknDeltaChip extends StatelessWidget {
   }
 
   @override
+  State<AknDeltaChip> createState() => _AknDeltaChipState();
+}
+
+class _AknDeltaChipState extends State<AknDeltaChip>
+    with SingleTickerProviderStateMixin {
+  // Created up front: a chip without an arrow must not create its ticker
+  // in dispose(), when the element is no longer active.
+  late final AnimationController _arrow;
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _arrow = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _arrow.value = 1;
+    } else {
+      _timer = Timer(const Duration(milliseconds: 280), () {
+        if (mounted) _arrow.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _arrow.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final plate = onPlate ?? isOnPlate(context);
-    final fill = plate ? c.deltaFill : c.surfaceAlt;
-    final ink = plate ? c.brandInk : c.ink;
-    final arrow = plate || goodForViewer == null
-        ? ink
-        : goodForViewer!
-        ? c.ok.fg
-        : c.danger.fg;
+    final plate = widget.onPlate ?? AknDeltaChip.isOnPlate(context);
+    final good = widget.goodForViewer;
+    final ToneColors? tone = plate || good == null
+        ? null
+        : good
+        ? c.ok
+        : c.danger;
+    final fill = plate ? c.deltaFill : tone?.bg ?? c.surfaceAlt;
+    final ink = plate ? c.brandInk : tone?.fg ?? c.ink;
     final style = t.bodySmall.copyWith(
-      fontSize: 14,
-      height: 24 / 14,
+      fontSize: 13,
+      height: 24 / 13,
       fontWeight: FontWeight.w700,
+      letterSpacing: 0,
       color: ink,
+      fontFeatures: AknNumerals.tabular,
     );
-    final dir = direction;
+    final dir = widget.direction;
     final hasArrow =
         dir == AknDeltaDirection.up || dir == AknDeltaDirection.down;
+    final down = dir == AknDeltaDirection.down;
+    final label = widget.label;
     final spoken = switch (dir) {
       AknDeltaDirection.up => '$label artış',
       AknDeltaDirection.down => '$label düşüş',
       _ => label,
     };
     return Semantics(
-      label: semanticLabel ?? spoken,
+      label: widget.semanticLabel ?? spoken,
       excludeSemantics: true,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -112,7 +164,22 @@ class AknDeltaChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasArrow) ...[
-              TriangleGlyph(down: dir == AknDeltaDirection.down, color: arrow),
+              AnimatedBuilder(
+                animation: _arrow,
+                child: TriangleGlyph.small(down: down, color: ink),
+                builder: (context, child) {
+                  final v = _arrow.value;
+                  final p = v >= 1 ? 1.0 : AknMotion.pop.transform(v);
+                  return Opacity(
+                    opacity: (v * 2).clamp(0.0, 1.0),
+                    child: Transform.translate(
+                      // The arrow arrives travelling its own way.
+                      offset: Offset(0, (down ? -5 : 5) * (1 - p)),
+                      child: child,
+                    ),
+                  );
+                },
+              ),
               const SizedBox(width: 5),
             ],
             Text(label, style: style, maxLines: 1, softWrap: false),

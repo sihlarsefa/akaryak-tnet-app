@@ -59,8 +59,10 @@ class PlanTarget {
   final double? tankCapacityLiters;
 }
 
-/// Sevkiyat planla (spec A.3 adım 5): litre ≤ kalan, plaka (PlateBadge önizlemeli), şoför seçimi
-/// (telefon, "uygulamada" rozeti), plan zamanı. Planlanırsa true döner.
+/// Sevkiyat planla (spec A.3 adım 5; tasarım v3): üstte Beton kuyuda sipariş özeti (ADR levhası, ürün,
+/// kalan litre), litre ≤ kalan, plaka (PlateBadge önizlemeli), şoför seçimi (telefon, "uygulamada"
+/// rozeti), plan günü ve saat çipleri; tank ve pencere uyarıları süzülerek açılır. Planlanırsa true
+/// döner.
 Future<bool> showPlanSheet(BuildContext context, PlanTarget target) async {
   final r = await showAppSheet<bool>(
     context: context,
@@ -257,10 +259,7 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
                 Validators.positiveNumber(v, max: _t.remainingLiters),
             onChanged: (_) => setState(() {}),
           ),
-          if (_tankWarning != null) ...[
-            const SizedBox(height: 8),
-            AknBanner(tone: AknTone.warn, message: _tankWarning!),
-          ],
+          _Warn(message: _tankWarning),
           const SizedBox(height: 12),
           PlateField(controller: _plate, label: 'Araç plakası'),
           if (suggestions != null && suggestions.plates.isNotEmpty) ...[
@@ -303,23 +302,18 @@ class _PlanSheetState extends ConsumerState<_PlanSheet> {
           ),
           const SizedBox(height: 14),
           _TimeChips(at: _at, onPick: _pickTime, onSet: _setTime),
-          if (_windowWarning != null) ...[
-            const SizedBox(height: 8),
-            AknBanner(tone: AknTone.warn, message: _windowWarning!),
-          ],
-          if (_checking) ...[
-            const SizedBox(height: 12),
-            const AknBanner(
-              tone: AknTone.info,
-              icon: Icons.hourglass_top_rounded,
-              message: 'Sevkiyat kontrol ediliyor…',
-            ),
-          ],
+          _Warn(message: _windowWarning),
+          _Warn(
+            message: _checking ? 'Sevkiyat kontrol ediliyor…' : null,
+            tone: AknTone.info,
+            icon: PhosphorIconsRegular.hourglassHigh,
+            top: 12,
+          ),
           if (!online) ...[
             const SizedBox(height: 12),
             const AknBanner(
               tone: AknTone.neutral,
-              icon: Icons.cloud_off_outlined,
+              icon: PhosphorIconsRegular.cloudSlash,
               message: 'Çevrimdışıyken sevkiyat planlanamaz.',
             ),
           ],
@@ -369,7 +363,7 @@ class _DriverField extends StatelessWidget {
                 context,
                 hint: 'Seçmek için dokunun',
                 errorText: error,
-                suffixIcon: const Icon(Icons.expand_more_rounded),
+                suffixIcon: const Icon(PhosphorIconsRegular.caretDown),
               ),
               child: ch == null
                   ? const SizedBox(height: 22)
@@ -408,7 +402,55 @@ class _DriverField extends StatelessWidget {
   }
 }
 
-/// Planlanacak siparişin özeti: ADR levhası, ürün ve kalan litre; nokta, teslim penceresi, tank.
+/// Uyarı kuyusu ([message] null iken yer kaplamaz); belirince yükseklik süzülerek açılır ve kuyu solup
+/// büyür (v3 §5). Hareket azaltmada doğrudan.
+class _Warn extends StatelessWidget {
+  const _Warn({
+    required this.message,
+    this.tone = AknTone.warn,
+    this.icon,
+    this.top = 8,
+  });
+
+  final String? message;
+  final AknTone tone;
+  final IconData? icon;
+  final double top;
+
+  @override
+  Widget build(BuildContext context) {
+    final m = message;
+    final Widget child = m == null
+        ? const SizedBox(key: ValueKey('none'), width: double.infinity)
+        : Padding(
+            key: ValueKey(m),
+            padding: EdgeInsets.only(top: top),
+            child: AknBanner(tone: tone, icon: icon, message: m),
+          );
+    if (AknMotion.reduced(context)) return child;
+    return AknAnimatedSize(
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: AknMotion.base,
+        switchInCurve: AknMotion.standard,
+        switchOutCurve: AknMotion.exit,
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: animation.drive(Tween<double>(begin: 0.96, end: 1)),
+            child: child,
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// Planlanacak siparişin özeti (tasarım v3): Beton kuyuda ADR levhası, ürün ve kalan litre (tablo
+/// rakamları); nokta, teslim penceresi, tank.
 class _PlanSummary extends StatelessWidget {
   const _PlanSummary({required this.target, this.windowLabel});
 
@@ -426,32 +468,47 @@ class _PlanSummary extends StatelessWidget {
       if (target.tankCapacityLiters != null)
         'tank ${Fmt.liters(target.tankCapacityLiters)}',
     ].join(', ');
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (adr != null) ...[adr, const SizedBox(width: 12)],
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                keepUnits(
-                  [
-                    ?target.productName,
-                    'kalan ${Fmt.liters(target.remainingLiters)}',
-                  ].join(', '),
-                ),
-                style: t.bodyStrong.copyWith(color: c.ink),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (adr != null) ...[adr, const SizedBox(width: 12)],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    keepUnits(
+                      [
+                        ?target.productName,
+                        'kalan ${Fmt.liters(target.remainingLiters)}',
+                      ].join(', '),
+                    ),
+                    style: t.bodyStrong.copyWith(
+                      color: c.ink,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: AknNumerals.tabular,
+                    ),
+                  ),
+                  if (meta.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      keepUnits(meta),
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    ),
+                  ],
+                ],
               ),
-              if (meta.isNotEmpty)
-                Text(
-                  keepUnits(meta),
-                  style: t.bodySmall.copyWith(color: c.dim),
-                ),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -493,7 +550,7 @@ class _TimeChips extends StatelessWidget {
               ),
             AknChip(
               label: preset ? 'Başka saat' : 'Saat ${Fmt.time(at)}',
-              icon: Icons.schedule_rounded,
+              icon: PhosphorIconsRegular.clock,
               semanticLabel: 'Plan saati ${Fmt.time(at)}, değiştir',
               selected: !preset,
               onTap: onPick,

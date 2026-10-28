@@ -1,7 +1,7 @@
-// Müşteri ana sayfası (tasarım v2 §7.4): başlık (şirket, kişi ve rol), tek plaka (yönetici destesi ya
-// da bu ayın plakası), karar bekleyen en acil teklif (geri sayım), "Yolda" (rota çizgisi), yüklenecek
-// belgeler, limitler, son şablonlar, ilk sipariş ipucu, çevrimdışı son kayıt ve erişilebilirlik
-// (360×640, %100 / %200 yazı, açık / koyu).
+// Müşteri ana sayfası (tasarım v3 "Akış"): turuncu bant başlığı (şirket, kişi ve rol), tek kahraman
+// kartı (yönetici destesi ya da bu ayın plakası), karar bekleyen en acil teklif (geri sayım), "Yolda"
+// (rota çizgisi), yüklenecek belgeler, limitler, son şablonlar, ilk sipariş ipucu, çevrimdışı son kayıt
+// ve erişilebilirlik (360×640, %100 / %200 yazı, açık / koyu).
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
@@ -262,7 +262,22 @@ void main() {
       await tester.tap(find.text('Yarım kalan siparişinize devam edin'));
       await pumpUntil(tester, find.text('Ürün ve litre'));
       await pumpReal(tester);
-      expect(find.text('5.000'), findsOneWidget);
+      // Taslağın litresi alana geri gelir. v3'te adımın altındaki "Toplam" KPI kutusu aynı litreyi
+      // bilerek yineler (tek satır); arama bu yüzden litre alanıyla sınırlı.
+      expect(
+        find.descendant(
+          of: find.byType(LitersField),
+          matching: find.text('5.000'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.widgetWithText(KpiTile, 'Toplam'),
+          matching: find.text('5.000'),
+        ),
+        findsOneWidget,
+      );
       await tearDownUi(tester);
     },
   );

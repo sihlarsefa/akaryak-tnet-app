@@ -33,6 +33,8 @@ Future<ProviderContainer> launchFakeApp(
   WidgetTester tester, {
   FakeWorld? world,
 }) async {
+  // Sürekli ortam hareketleri `pumpAndSettle`i bekletmesin (tasarım v3 §5).
+  AknMotion.ambient = false;
   final h = await TestHarness.create(
     prefs: const {'akn.onboardingDone': true},
     world: world,

@@ -23,9 +23,10 @@ bool requiredKindSatisfied(ApprovalDetail d, List<UploadItem> uploads) {
   return uploads.any((u) => u.phase == UploadPhase.done && u.kind == kind);
 }
 
-/// "Sizden ek bilgi istendi" (talep eden tarafı; cari görünümünde en üstte): istek notu, istenen belge
-/// türü (yükleme bu türle yapılır) ve durumu, yükleme satırları, yanıt alanı. "Yanıtla" alttaki
-/// eylem çubuğundadır.
+/// "Sizden ek bilgi istendi" (talep eden tarafı; cari görünümünde en üstte; tasarım v3): sıra sizde
+/// olduğu için kartın kenarı yumuşak turuncu, başta turuncu kuyuda soru simgesi; istek notu (kuyu),
+/// istenen belge türü (yükleme bu türle yapılır) ve durumu (eklenince simge yaylanarak değişir),
+/// yükleme satırları, yanıt alanı. "Yanıtla" alttaki eylem çubuğundadır.
 class InfoReplyCard extends ConsumerWidget {
   const InfoReplyCard({
     super.key,
@@ -65,21 +66,18 @@ class InfoReplyCard extends ConsumerWidget {
         ? 'Belge ekle'
         : '${kind.label} ekle';
     return AknCard(
+      borderColor: c.brandLine,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(
-                  Icons.contact_support_outlined,
-                  size: 20,
-                  color: c.brandInk,
-                ),
+              const AknIconBox(
+                icon: PhosphorIconsRegular.chatCircleDots,
+                tone: AknTone.brand,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
                 child: Semantics(
                   header: true,
@@ -97,7 +95,9 @@ class InfoReplyCard extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               decoration: BoxDecoration(
                 color: c.surfaceAlt,
-                borderRadius: AknRadius.card,
+                borderRadius: const BorderRadius.all(
+                  Radius.circular(AknRadius.md),
+                ),
               ),
               child: Text(info!.note!, style: t.body.copyWith(color: c.ink)),
             ),
@@ -119,12 +119,19 @@ class InfoReplyCard extends ConsumerWidget {
               excludeSemantics: true,
               child: Row(
                 children: [
-                  Icon(
-                    satisfied
-                        ? Icons.check_circle_rounded
-                        : Icons.warning_amber_rounded,
-                    size: 20,
-                    color: satisfied ? c.ok.fg : c.warn.fg,
+                  AnimatedSwitcher(
+                    duration: AknMotion.of(context, AknMotion.iconSwap),
+                    switchInCurve: AknMotion.pop,
+                    transitionBuilder: (child, a) =>
+                        ScaleTransition(scale: a, child: child),
+                    child: Icon(
+                      satisfied
+                          ? PhosphorIconsFill.checkCircle
+                          : PhosphorIconsFill.warning,
+                      key: ValueKey(satisfied),
+                      size: 20,
+                      color: satisfied ? c.ok.fg : c.warn.fg,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -148,7 +155,7 @@ class InfoReplyCard extends ConsumerWidget {
             alignment: Alignment.centerLeft,
             child: AknButton.secondary(
               label: uploadLabel,
-              icon: Icons.add_a_photo_outlined,
+              icon: PhosphorIconsRegular.cameraPlus,
               size: AknButtonSize.small,
               onPressed: () => unawaited(_add(context, ref)),
             ),
@@ -176,7 +183,8 @@ class InfoReplyCard extends ConsumerWidget {
   }
 }
 
-/// "Ek bilgi bekleniyor" (onaylayan tarafı): kim istedi, ne istendi; "Bilgi alındı" ya da ret.
+/// "Ek bilgi bekleniyor" (onaylayan tarafı; tasarım v3 beyaz kart, kum saati kuyusu): kim istedi,
+/// ne istendi; "Bilgi alındı" ya da ret.
 class InfoWaitingCard extends StatelessWidget {
   const InfoWaitingCard({super.key, required this.detail});
 
@@ -191,40 +199,40 @@ class InfoWaitingCard extends StatelessWidget {
       (e) => e.eventType == ApprovalEventType.infoRequested,
     );
     final kind = info?.displayKindLabel;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
-      ),
+    return AknCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(
-                  Icons.hourglass_top_rounded,
-                  size: 20,
-                  color: c.ink,
-                ),
-              ),
-              const SizedBox(width: 10),
+              const AknIconBox(icon: PhosphorIconsRegular.hourglassHigh),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   asked?.userName == null
                       ? 'Ek bilgi bekleniyor'
                       : 'Ek bilgi bekleniyor (${asked!.userName} istedi)',
-                  style: t.bodyStrong.copyWith(color: c.ink),
+                  style: t.bodyStrong.copyWith(
+                    color: c.ink,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
           if (info?.note != null) ...[
-            const SizedBox(height: 8),
-            Text(info!.note!, style: t.body.copyWith(color: c.ink)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                borderRadius: const BorderRadius.all(
+                  Radius.circular(AknRadius.md),
+                ),
+              ),
+              child: Text(info!.note!, style: t.body.copyWith(color: c.ink)),
+            ),
           ],
           if (kind != null) ...[
             const SizedBox(height: 8),
@@ -246,10 +254,10 @@ class InfoWaitingCard extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             'Bilgi ya da belge size başka yoldan ulaştıysa "Bilgi alındı" ile talebi incelemeye alın; yanıt gelmeyecekse gerekçe yazıp reddedin.',
-            style: t.bodySmall.copyWith(color: c.ink),
+            style: t.bodySmall.copyWith(color: c.dim),
           ),
         ],
       ),

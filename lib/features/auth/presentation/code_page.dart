@@ -75,7 +75,7 @@ class CodePage extends ConsumerWidget {
         appBar: false,
         showBell: false,
         body: GateView(
-          icon: Icons.sms_failed_outlined,
+          icon: PhosphorIconsRegular.chatSlash,
           tone: AknTone.warn,
           title: AuthCopy.missingChallenge,
           message: AuthCopy.missingChallengeBody,
@@ -89,8 +89,10 @@ class CodePage extends ConsumerWidget {
       );
     }
     final otp = a.purpose == CodePurpose.otpLogin;
-    // Beyaz sayfa (tasarım v2 §7.2): geri düğmesi, 40 px logo karosu, "Kodu girin", tek cümle, 6 kutu,
-    // "Kodu tekrar gönder", birincil "Doğrula". Amaç (2FA / telefonla giriş) ekran okuyucuya söylenir.
+    // Kimlik sayfası (tasarım v3): geri düğmesi, "pop" ile gelen 48 px logo karosu, `display` "Kodu girin",
+    // tek cümle, r14 kutular (odakta turuncu hale, hatada sallanır, doğru kodda yeşil "pop"), eş genişlikte
+    // geri sayımlı "Kodu tekrar gönder", birincil "Doğrula". Amaç (2FA / telefonla giriş) ekran okuyucuya
+    // söylenir.
     return AppScaffold(
       showBell: false,
       largeTitle: false,

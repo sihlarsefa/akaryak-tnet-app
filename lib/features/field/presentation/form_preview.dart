@@ -12,7 +12,8 @@ import '../copy.dart';
 import '../data/field_models.dart';
 import 'widgets/field_widgets.dart';
 
-/// Canlı önizleme paneli (spec A.3 F2): bant çipi, ipucu, uyarılar, toplamlar, limit göstergesi, finans
+/// Canlı önizleme paneli (spec A.3 F2; tasarım v3): onay bandı kuyusu (bant değişince çip yaylanarak
+/// yer değiştirir), ipucu, uyarılar, sayaç gibi sayan toplamlar, limit göstergesi, finans
 /// gerekçeleri. Maliyet / kâr yalnızca `showCosts` iken (sunucu zaten göndermez).
 class FieldPreviewPanel extends ConsumerWidget {
   const FieldPreviewPanel({
@@ -48,7 +49,7 @@ class FieldPreviewPanel extends ConsumerWidget {
       final e = s.previewError;
       return AknBanner(
         tone: e == null ? AknTone.info : AknTone.warn,
-        icon: e is OfflineFailure ? Icons.cloud_off_rounded : null,
+        icon: e is OfflineFailure ? PhosphorIconsRegular.cloudSlash : null,
         message: e == null
             ? FieldCopy.previewIdle
             : e is OfflineFailure
@@ -99,7 +100,7 @@ class FieldPreviewPanel extends ConsumerWidget {
           FactRow(
             label: 'Ödeme tarihi',
             value: '${Fmt.date(p.dueDate)}, ${Fmt.weekday(p.dueDate)}',
-            icon: Icons.event_rounded,
+            icon: PhosphorIconsRegular.calendarDot,
           ),
         ],
         if (p.limitMessage != null || limitRatio != null) ...[
@@ -129,7 +130,7 @@ class FieldPreviewPanel extends ConsumerWidget {
           const SizedBox(height: 12),
           AknBanner(
             tone: AknTone.info,
-            icon: Icons.account_balance_outlined,
+            icon: PhosphorIconsRegular.bank,
             title: 'Finans onayına düşer',
             message: p.financeReasons.isEmpty
                 ? 'Gönderilince finans onayı paralel yürür.'
@@ -202,7 +203,7 @@ class _BandBlockState extends State<_BandBlock> {
     return Container(
       decoration: BoxDecoration(
         color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
+        borderRadius: AknRadius.input,
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
@@ -224,8 +225,23 @@ class _BandBlockState extends State<_BandBlock> {
             ],
           ),
           const SizedBox(height: 6),
+          // Bant değişince eski çip solarken yenisi yaylanarak büyür.
           AnimatedSwitcher(
-            duration: AknMotion.of(context, AknMotion.base),
+            duration: AknMotion.of(context, AknMotion.slow),
+            switchInCurve: AknMotion.spring,
+            switchOutCurve: AknMotion.exit,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.8, end: 1).animate(animation),
+                alignment: Alignment.centerLeft,
+                child: child,
+              ),
+            ),
+            layoutBuilder: (current, previous) => Stack(
+              alignment: AlignmentDirectional.centerStart,
+              children: [...previous, ?current],
+            ),
             child: FieldBandChip(
               key: ValueKey(p.band.key + p.band.label),
               band: p.band,
@@ -243,7 +259,7 @@ class _BandBlockState extends State<_BandBlock> {
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Icon(
-                    Icons.warning_amber_rounded,
+                    PhosphorIconsFill.warning,
                     size: 16,
                     color: c.warn.fg,
                   ),
@@ -293,7 +309,7 @@ class _CostBlock extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: context.akn.surfaceAlt,
-        borderRadius: AknRadius.card,
+        borderRadius: AknRadius.input,
       ),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
@@ -301,11 +317,7 @@ class _CostBlock extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                size: 16,
-                color: context.akn.dim,
-              ),
+              Icon(PhosphorIconsRegular.lock, size: 16, color: context.akn.dim),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -347,7 +359,8 @@ class _CostBlock extends StatelessWidget {
   }
 }
 
-/// Alt çubuktaki önizleme şeridi: bant + tutar; dokununca ayrıntılar açılır.
+/// Alt çubuktaki önizleme şeridi: bant + tutar (tabular; değişince rakamlar sayaç gibi döner);
+/// dokununca ayrıntılar açılır. Basınca yumuşak kuyuya döner.
 class FieldPreviewStrip extends ConsumerWidget {
   const FieldPreviewStrip({super.key, required this.args});
 
@@ -378,7 +391,8 @@ class FieldPreviewStrip extends ConsumerWidget {
           'Önizleme: $status${amount == null ? '' : ', ${p == null ? 'tahmini ' : ''}${Fmt.money(amount)}'}. Ayrıntılar için dokunun.',
       excludeSemantics: true,
       child: InkWell(
-        borderRadius: AknRadius.card,
+        borderRadius: AknRadius.input,
+        highlightColor: c.surfaceAlt,
         onTap: () => showAppSheet<void>(
           context: context,
           title: 'Önizleme',
@@ -398,8 +412,8 @@ class FieldPreviewStrip extends ConsumerWidget {
                   else
                     Icon(
                       s.previewError is OfflineFailure
-                          ? Icons.cloud_off_rounded
-                          : Icons.insights_rounded,
+                          ? PhosphorIconsRegular.cloudSlash
+                          : PhosphorIconsFill.chartLineUp,
                       size: 18,
                       color: c.dim,
                     ),
@@ -412,13 +426,16 @@ class FieldPreviewStrip extends ConsumerWidget {
                 ];
                 final amountText = amount == null
                     ? null
-                    : Text(
-                        p == null
-                            ? '≈ ${Fmt.money(amount)}'
-                            : Fmt.money(amount),
-                        style: t.amount.copyWith(fontSize: 15),
+                    : RollingText(
+                        TextSpan(
+                          text: p == null
+                              ? '≈ ${Fmt.money(amount)}'
+                              : Fmt.money(amount),
+                          style: t.amount.copyWith(fontSize: 15, color: c.ink),
+                        ),
+                        animate: false,
                       );
-                final arrow = Icon(Icons.expand_less_rounded, color: c.dim);
+                final arrow = Icon(PhosphorIconsRegular.caretUp, color: c.dim);
                 if (fieldLargeText(context)) {
                   // Büyük yazı: bant bir satırda, tutar altında.
                   return Column(

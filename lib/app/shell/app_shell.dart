@@ -14,6 +14,10 @@ import 'shell_badges.dart';
 /// ortadaki eylem (Sipariş ver / Saha formu) tam ekran sihirbazı açar. Girişten sonra bir kez: bildirim
 /// izni ön sayfası (ilk girişte) ya da isteğe bağlı güncelleme önerisi (aynı oturumda ikisi birden
 /// gösterilmez).
+///
+/// Tasarım v3 "Akış": sekme içeriği yönlendiricinin `FadeThroughIndexedStack`'i ile geçer (yeni
+/// sekme 0,96 → 1 ölçekle belirir); alt menünün turuncu hapı seçilen sekmeye yaylanarak kayar.
+/// "Diğer" sayfası açıkken hap "Diğer"in üzerinde durur, sayfa kapanınca geri döner.
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     super.key,
@@ -29,6 +33,9 @@ class AppShell extends ConsumerStatefulWidget {
 }
 
 class _AppShellState extends ConsumerState<AppShell> {
+  /// "Diğer" sayfası açık: alt menüde hap "Diğer"in üzerinde.
+  bool _moreOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +52,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   void _onSelected(int index) {
     final layout = widget.layout;
     if (index >= layout.bar.length) {
-      showMoreSheet(context, layout.more);
+      setState(() => _moreOpen = true);
+      showMoreSheet(context, layout.more).whenComplete(() {
+        if (mounted) setState(() => _moreOpen = false);
+      });
       return;
     }
     final shell = widget.navigationShell;
@@ -70,7 +80,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       if (layout.hasMore)
         AknNavItem(
-          icon: Icons.menu_rounded,
+          icon: PhosphorIconsRegular.list,
           label: NavLayout.moreLabel,
           showDot: moreHasBadge,
           semanticLabel: moreHasBadge
@@ -83,7 +93,9 @@ class _AppShellState extends ConsumerState<AppShell> {
       extendBody: false,
       bottomNavigationBar: AnimatedBottomBar(
         items: items,
-        currentIndex: widget.navigationShell.currentIndex,
+        currentIndex: _moreOpen && layout.hasMore
+            ? layout.bar.length
+            : widget.navigationShell.currentIndex,
         onSelected: _onSelected,
         centerAction: center == null
             ? null

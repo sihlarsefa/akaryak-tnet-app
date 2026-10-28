@@ -157,7 +157,7 @@ final Finder _verticalScrollable = find
     .first;
 
 /// Henüz kurulmamış ya da kaydırınca kaldırılmış (tembel liste) öğeyi ana kaydırıcıda önce yukarı,
-/// sonra aşağı arayıp görünür yapar.
+/// sonra aşağı arayıp görünür yapar; kaydırma durulana kadar bekler ([_settleScroll]).
 Future<void> reveal(WidgetTester tester, Finder f, {Finder? scrollable}) async {
   for (final delta in const [-300.0, 300.0]) {
     if (f.evaluate().isNotEmpty) break;
@@ -174,6 +174,24 @@ Future<void> reveal(WidgetTester tester, Finder f, {Finder? scrollable}) async {
   }
   await tester.ensureVisible(f);
   await tester.pump(const Duration(milliseconds: 50));
+  await _settleScroll(tester, f);
+}
+
+/// Hedefin listesi kayarken (fırlatma) dokunuş yutulur; sürükleme listenin ucunu aştıysa Android
+/// kenar esnemesi içeriği ≈400 ms gerer (azaltılmış harekette de) ve hedefin merkezi ekran dışına
+/// düşebilir. Liste durup hedef dokunulabilir olana kadar (en çok ≈600 ms) bekler.
+Future<void> _settleScroll(WidgetTester tester, Finder f) async {
+  bool busy() {
+    final found = f.evaluate();
+    if (found.isEmpty) return false;
+    final scroll = found.first.findAncestorStateOfType<ScrollableState>();
+    if (scroll?.position.isScrollingNotifier.value ?? false) return true;
+    return f.hitTestable().evaluate().isEmpty;
+  }
+
+  for (var i = 0; i < 12 && busy(); i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 /// Liste içinde görünür olana kadar kaydırır ve dokunur. Üstteki bildirim (toast) dokunuşu yutmasın

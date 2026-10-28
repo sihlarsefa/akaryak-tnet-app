@@ -7,12 +7,14 @@ import 'path_trim.dart';
 
 /// The AkaryakıtNet mark: white » chevrons in the logo-orange rounded square
 /// (r = 22.5 % of the size; `assets/brand/akaryakitnet-symbol.svg`, drawn as
-/// vectors). Never changed (§13). On the orange header band it flips to the
-/// inverse tile: a white square with orange chevrons.
+/// vectors). The logo never changes (design v3 keeps it as it is). On the
+/// orange header band it flips to the inverse tile: a white square with
+/// orange chevrons.
 ///
 /// [progress] draws the chevrons in along their strokes (0 = none, 1 = full);
 /// the second chevron trails the first. With [animate] the mark draws itself
-/// in once (500 ms) when first shown; reduce motion shows it complete.
+/// in once (500 ms, emphasized) when first shown; reduce motion shows it
+/// complete.
 class LogoMark extends StatefulWidget {
   const LogoMark({
     super.key,
@@ -195,13 +197,14 @@ class LogoMarkPainter extends CustomPainter {
       old.trackOpacity != trackOpacity;
 }
 
-/// "Akaryakıt**Net**" wordmark (design v2 §6.29), Mona Sans 700.
+/// "Akaryakıt**Net**" wordmark (design v3), Plus Jakarta Sans 800 with tight
+/// tracking (−2.5 % of the size).
 ///
 /// * On white: "Akaryakıt" in ink, "Net" in the logo orange.
-/// * On dark surfaces ([onDark] or the dark theme): "Akaryakıt" #F1F2F4,
-///   "Net" logo orange.
+/// * On dark surfaces ([onDark] or the dark theme): "Akaryakıt" in the dark
+///   ink #F2F3F5, "Net" logo orange.
 /// * On the orange header band (e.g. the login band): all white; "Net"
-///   white — the inverse of ink + orange (large text, 3.28:1 ≥ 3).
+///   white — the inverse of ink + orange (large text, ≥ 3:1).
 class AknWordmark extends StatelessWidget {
   const AknWordmark({
     super.key,
@@ -229,8 +232,9 @@ class AknWordmark extends StatelessWidget {
       fontFamily: AknFonts.sans,
       fontSize: fontSize,
       height: 1.18,
-      fontWeight: FontWeight.w700,
-      letterSpacing: -0.02 * fontSize,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.025 * fontSize,
+      locale: AknFonts.locale,
       leadingDistribution: TextLeadingDistribution.even,
       color: ink,
     );
@@ -255,9 +259,9 @@ class AknWordmark extends StatelessWidget {
   }
 }
 
-/// Mark + wordmark lock-up (login band, about screen). On the plate it is the
-/// inverse tile with the black + white wordmark; [onDark] keeps working for
-/// dark surfaces.
+/// Mark + wordmark lock-up (login band, splash, about screen). On the orange
+/// band it is the inverse tile with the all-white wordmark; [onDark] keeps
+/// working for dark surfaces.
 class AknLogo extends StatelessWidget {
   const AknLogo({
     super.key,

@@ -64,7 +64,19 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.my_location_outlined, size: 32, color: c.ink),
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: FadeUp(
+                offset: 8,
+                scale: 0.8,
+                curve: AknMotion.pop,
+                child: CmIconTile(
+                  icon: PhosphorIconsRegular.gpsFix,
+                  tone: AknTone.brand,
+                  size: 52,
+                ),
+              ),
+            ),
             const SizedBox(height: 14),
             Text(
               CmCopy.locationPrimerTitle,
@@ -172,7 +184,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.place_outlined, color: c.ink),
+                  Icon(PhosphorIconsRegular.mapPin, color: c.ink),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -185,8 +197,8 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
                       label: '±${Fmt.number(acc, maxFraction: 0)} m',
                       tone: imprecise ? AknTone.warn : AknTone.ok,
                       icon: imprecise
-                          ? Icons.gps_not_fixed_rounded
-                          : Icons.gps_fixed_rounded,
+                          ? PhosphorIconsRegular.gps
+                          : PhosphorIconsRegular.gpsFix,
                       size: StatusChipSize.small,
                     ),
                 ],
@@ -216,7 +228,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
           const SizedBox(height: 8),
           AknBanner(
             tone: AknTone.info,
-            icon: Icons.location_disabled_rounded,
+            icon: PhosphorIconsRegular.gpsSlash,
             title: _blocked == LocationAccess.serviceOff
                 ? 'Konum servisleri kapalı'
                 : 'Konum izni verilmedi',
@@ -239,15 +251,15 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
             AknButton.secondary(
               label: _busy ? 'Konum alınıyor…' : CmCopy.useMyLocation,
               icon: _busy
-                  ? Icons.hourglass_top_rounded
-                  : Icons.my_location_rounded,
+                  ? PhosphorIconsRegular.hourglassHigh
+                  : PhosphorIconsRegular.gpsFix,
               size: AknButtonSize.small,
               onPressed: widget.enabled && !_busy ? _useMyLocation : null,
             ),
             if (v != null)
               AknButton.ghost(
                 label: CmCopy.openInMaps,
-                icon: Icons.map_rounded,
+                icon: PhosphorIconsRegular.mapTrifold,
                 size: AknButtonSize.small,
                 onPressed: () =>
                     openInMaps(v.latitude, v.longitude, label: widget.label),
@@ -255,7 +267,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
             if (v != null && widget.enabled)
               AknButton.ghost(
                 label: 'Konumu kaldır',
-                icon: Icons.location_off_rounded,
+                icon: PhosphorIconsRegular.gpsSlash,
                 size: AknButtonSize.small,
                 onPressed: () => widget.onChanged(null),
               ),

@@ -1,38 +1,49 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../driver_mode.dart';
 import '../motion.dart';
 import '../painters/chevron_spinner.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
 
-/// Button looks (design v2 §6.5):
-/// * primary — the orange gradient `brandFillStart` → `brandFill` (#F7742F →
-///   #E8590C) with a WHITE 17 px w700 label (owner decision G); one per
-///   screen region;
-/// * secondary / outline — white (`surface`) with a 1.5 px `lineStrong`
-///   border and an ink label;
-/// * ghost — no fill, an underlined ink label (tertiary: "Vazgeç", "Atla");
-/// * danger — white with the border and a red label (the page-level
+/// Button looks (design v3 §4 Buttons), all superellipses (r16; small r12,
+/// driver r18):
+/// * primary — the orange gradient `brandFillStart` → `brandFill` (#FF7B35 →
+///   #E5530A) with a WHITE 16 px w700 label and a warm orange glow under it
+///   (owner decision G); one per screen region;
+/// * secondary / outline — white (`surface`) with a 1.5 px `lineStrong` 60 %
+///   border and an ink label (dark: a `surfaceAlt` fill, no border);
+/// * ghost — no fill, an ink label; pressed `surfaceAlt` (tertiary: "Vazgeç",
+///   "Atla");
+/// * danger — the secondary look with a red label (the page-level
 ///   "Reddet"; a sheet's destructive confirm is `DestructiveButton`).
 enum AknButtonVariant { primary, secondary, ghost, danger, outline }
 
-/// Heights: small 40 (r10, 15 px label), medium 48, large 52 (the default);
+/// Heights: small 40 (r12, 15 px label), medium 48, large 52 (the default);
 /// every size keeps a 48 dp touch target. Driver mode makes every button 64
-/// (r14, 18/22 label).
+/// (r18, 18/22 label).
 enum AknButtonSize { small, medium, large }
 
-/// The AkaryakıtNet button (radius 12, `button` 16/20 600 label).
+/// The AkaryakıtNet button (design v3 §4 Buttons, §5 Press): a superellipse
+/// with the `button` 16/20 w700 label.
 ///
-/// * Press: pressed fill and scale 0.98 (90 ms in, 120 ms out) with a light
-///   haptic; a primary also drops its content 1 px.
-/// * [loading] shows a spinner in the label colour and keeps the width;
-///   [success] a check. With [onPressedAsync] the button manages both by
-///   itself (spinner while the future runs, then a short check when
+/// * Press: the button scales to 0.97 the moment a finger lands (100 ms in,
+///   a 260 ms spring back — the `PressScale` press) with a light haptic on
+///   the tap; the fill deepens and the primary's glow settles onto the page
+///   while it is held. A press that turns into a scroll lets go at once.
+/// * [loading] cross-fades the label (it also shrinks a little) into a
+///   spinner in the label colour; the width never changes. [success] pops a
+///   check in. With [onPressedAsync] the button manages both by itself
+///   (spinner while the future runs, then a short check when
 ///   [showSuccess]).
-/// * Disabled (both callbacks null): Beton fill, faint label, no border.
+/// * Disabled (both callbacks null): `surfaceAlt` fill, faint label, no
+///   border, no glow — the change animates.
 /// * On the plate card (inside `AknPlate` / `OnHero`) every variant keeps
 ///   its normal look (the card is white).
 /// * Keyboard / switch focus: the 3 px brand ring 2 px outside.
@@ -153,8 +164,8 @@ class AknButton extends StatefulWidget {
   final String? semanticLabel;
   final String loadingLabel;
 
-  /// Icon + gap beside the label.
-  static const double _iconSpace = 30;
+  /// Gap between an icon and the label.
+  static const double _iconGap = 8;
 
   /// Rounding tolerance when deciding whether a label fits.
   static const double _fitSlack = 1;
@@ -164,6 +175,15 @@ class AknButton extends StatefulWidget {
       size == AknButtonSize.small ? 14 : 18;
   static double _tightPadding(AknButtonSize size) =>
       size == AknButtonSize.small ? 6 : 8;
+
+  /// Icon size: 20 (small 18; driver mode 24).
+  static double _iconSizeOf(BuildContext context, AknButtonSize size) =>
+      context.driverMode?.buttonIconSize ??
+      (size == AknButtonSize.small ? 18.0 : 20.0);
+
+  /// Icon + gap beside the label.
+  static double _iconSpaceOf(BuildContext context, AknButtonSize size) =>
+      _iconSizeOf(context, size) + _iconGap;
 
   /// Whether [label] fits on one line with the full padding (and [icon] when
   /// true) in a button [width] wide. Measured with the button's own text style
@@ -177,22 +197,17 @@ class AknButton extends StatefulWidget {
     bool bordered = false,
     AknButtonSize size = AknButtonSize.medium,
   }) {
-    // A borderless button may be the primary: measure with its larger
-    // 17 px w700 label so a parent never picks a layout that is too tight.
-    final w = _labelWidth(
-      context,
-      label,
-      labelStyle(context, size, primary: !bordered),
-    );
+    final w = _labelWidth(context, label, labelStyle(context, size));
     return w +
-            (icon ? _iconSpace : 0) +
+            (icon ? _iconSpaceOf(context, size) : 0) +
             2 * _padding(size) +
             (bordered ? 3 : 0) <=
         width - _fitSlack;
   }
 
   /// The label style as rendered (inherited style, bold-text setting): the
-  /// `button` style (16/20 600; driver mode 18/22), 15 px when small.
+  /// `button` style 16/20 w700 (driver mode 18/22), 15 px when small. Every
+  /// variant shares it; [primary] is kept for API stability.
   static TextStyle labelStyle(
     BuildContext context,
     AknButtonSize size, {
@@ -200,23 +215,14 @@ class AknButton extends StatefulWidget {
   }) {
     final button = context.aknText.button;
     final driver = context.isDriverMode;
-    var base = size == AknButtonSize.small && !driver
+    final base = size == AknButtonSize.small && !driver
         ? button.copyWith(fontSize: 15, height: 20 / 15)
         : button;
-    if (primary) {
-      // Owner decision G: the primary label is 17 px w700 (driver mode and
-      // small buttons keep their sizes, bold).
-      base = size == AknButtonSize.small || driver
-          ? base.copyWith(fontWeight: FontWeight.w700)
-          : base.copyWith(
-              fontSize: 17,
-              height: 22 / 17,
-              fontWeight: FontWeight.w700,
-            );
-    }
-    var style = DefaultTextStyle.of(context).style.merge(base);
+    var style = DefaultTextStyle.of(
+      context,
+    ).style.merge(base.copyWith(fontWeight: FontWeight.w700));
     if (MediaQuery.boldTextOf(context)) {
-      style = style.merge(const TextStyle(fontWeight: FontWeight.bold));
+      style = style.merge(const TextStyle(fontWeight: FontWeight.w800));
     }
     return style;
   }
@@ -282,11 +288,21 @@ enum _LabelFit {
   bool get tightPadding => index >= tight.index;
 }
 
+/// One state of a button's surface: its fill (always a gradient, so every
+/// change lerps smoothly), label colour, border and glow.
+typedef _Look = ({
+  LinearGradient fill,
+  Color fg,
+  BorderSide side,
+  List<BoxShadow> glow,
+});
+
 class _AknButtonState extends State<AknButton> {
   bool _pressed = false;
   bool _busy = false;
   bool _done = false;
   bool _focused = false;
+  Offset? _downAt;
   Timer? _doneTimer;
 
   bool get _loading => widget.loading || _busy;
@@ -307,7 +323,9 @@ class _AknButtonState extends State<AknButton> {
 
   double _radius(AknDriverMode? driver) {
     if (driver != null) return driver.buttonRadius;
-    return widget.size == AknButtonSize.small ? AknRadius.sm : AknRadius.md;
+    return widget.size == AknButtonSize.small
+        ? AknRadius.sm
+        : AknRadius.button.topLeft.x;
   }
 
   @override
@@ -358,51 +376,43 @@ class _AknButtonState extends State<AknButton> {
   }
 
   void _setPressed(bool v) {
-    if (_pressed == v) return;
+    if (_pressed == v || !mounted) return;
     setState(() => _pressed = v);
+  }
+
+  /// A press that travels past the touch slop is a scroll: let go.
+  void _moved(PointerMoveEvent e) {
+    final from = _downAt;
+    if (from != null && (e.position - from).distance > kTouchSlop) {
+      _downAt = null;
+      _setPressed(false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final driver = context.driverMode;
+    final reduced = AknMotion.reduced(context);
     final enabled = _enabled;
     final busyLook = _loading || _success;
     final pressed = _pressed && enabled;
-    final (bg, fg, border) = _colors(c, enabled || busyLook, pressed);
-    final primary = widget.variant == AknButtonVariant.primary;
-    final gradient = primary && (enabled || busyLook)
-        ? (pressed ? c.buttonGradientPressed : c.buttonGradient)
-        : null;
+    final look = _look(c, enabled || busyLook, pressed);
     final height = _height(driver);
-    final radius = BorderRadius.circular(_radius(driver));
-    TextStyle styled(TextStyle base) => base.copyWith(
-      color: fg,
-      decoration: widget.variant == AknButtonVariant.ghost
-          ? TextDecoration.underline
-          : null,
-      decorationColor: fg,
-      decorationThickness: 1.5,
-    );
-    final fullStyle = styled(
-      AknButton.labelStyle(context, widget.size, primary: primary),
-    );
-    final compactStyle = primary ? styled(_compactLabel(context)) : fullStyle;
-    _compactPrimary = false;
-    final iconSize =
-        driver?.buttonIconSize ??
-        (widget.size == AknButtonSize.small ? 20.0 : 22.0);
-    final drop = pressed && widget.variant == AknButtonVariant.primary;
+    final radius = BorderRadius.all(Radius.circular(_radius(driver)));
+    final style = AknButton.labelStyle(context, widget.size);
+    final iconSize = AknButton._iconSizeOf(context, widget.size);
+    final pressDuration = pressed ? AknMotion.press : AknMotion.pressOut;
 
-    Widget label(_LabelFit fit) {
-      final labelStyle = _compactPrimary ? compactStyle : fullStyle;
+    Widget label(_LabelFit fit, Color fg) {
+      final labelStyle = style.copyWith(color: fg);
       return Row(
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (fit.showsIcons && widget.icon != null) ...[
             Icon(widget.icon, size: iconSize, color: fg),
-            const SizedBox(width: 8),
+            const SizedBox(width: AknButton._iconGap),
           ],
           Flexible(
             child: switch (fit) {
@@ -428,49 +438,75 @@ class _AknButtonState extends State<AknButton> {
             },
           ),
           if (fit.showsIcons && widget.trailingIcon != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AknButton._iconGap),
             Icon(widget.trailingIcon, size: iconSize, color: fg),
           ],
         ],
       );
     }
 
-    // The label keeps its place while loading (the width never changes);
-    // the spinner / check sits over it.
+    // The label keeps its place while loading (the width never changes): it
+    // fades and shrinks away while the spinner / check pops in over it.
     Widget content(_LabelFit fit) => Stack(
       alignment: Alignment.center,
       children: [
         AnimatedOpacity(
           opacity: busyLook ? 0 : 1,
           duration: AknMotion.of(context, AknMotion.fast),
-          // A pressed primary drops its content 1 px.
-          child: Transform.translate(
-            offset: Offset(0, drop ? 1 : 0),
-            child: label(fit),
+          curve: AknMotion.standard,
+          child: AnimatedScale(
+            scale: busyLook && !reduced ? 0.86 : 1,
+            duration: AknMotion.of(context, AknMotion.base),
+            curve: AknMotion.emphasizedCurve,
+            child: TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: look.fg),
+              duration: AknMotion.of(context, AknMotion.fast),
+              builder: (context, fg, _) => label(fit, fg ?? look.fg),
+            ),
           ),
         ),
-        if (_loading)
-          ChevronSpinner(
-            key: const ValueKey('loading'),
-            size: height * 0.38,
-            color: fg,
-            semanticLabel: null,
-          )
-        else if (_success)
-          Icon(
-            Icons.check_rounded,
-            key: const ValueKey('success'),
-            color: fg,
-            size: height * 0.46,
+        Positioned.fill(
+          child: OverflowBox(
+            maxWidth: double.infinity,
+            maxHeight: double.infinity,
+            child: AnimatedSwitcher(
+              duration: AknMotion.of(context, AknMotion.base),
+              reverseDuration: AknMotion.of(context, AknMotion.fast),
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a.drive(CurveTween(curve: Curves.easeOut)),
+                child: ScaleTransition(
+                  scale: a.drive(
+                    Tween<double>(
+                      begin: 0.4,
+                      end: 1,
+                    ).chain(CurveTween(curve: AknMotion.pop)),
+                  ),
+                  child: child,
+                ),
+              ),
+              child: _loading
+                  ? ChevronSpinner(
+                      key: const ValueKey('loading'),
+                      size: height * 0.38,
+                      color: look.fg,
+                      semanticLabel: null,
+                    )
+                  : _success
+                  ? Icon(
+                      PhosphorIconsRegular.check,
+                      key: const ValueKey('success'),
+                      color: look.fg,
+                      size: height * 0.48,
+                    )
+                  : const SizedBox.shrink(key: ValueKey('idle')),
+            ),
           ),
+        ),
       ],
     );
 
     Widget surface(double? width, _LabelFit fit) => AnimatedContainer(
-      duration: AknMotion.of(
-        context,
-        pressed ? AknMotion.press : AknMotion.pressOut,
-      ),
+      duration: AknMotion.of(context, pressDuration),
       curve: AknMotion.standard,
       width: width,
       constraints: BoxConstraints(minHeight: height, minWidth: height),
@@ -480,28 +516,24 @@ class _AknButtonState extends State<AknButton> {
             : AknButton._padding(widget.size),
         vertical: 6,
       ),
-      decoration: BoxDecoration(
-        color: gradient == null ? bg : null,
-        gradient: gradient,
-        borderRadius: radius,
-        border: border == null
-            ? null
-            : Border.all(
-                color: border,
-                width: 1.5,
-                strokeAlign: BorderSide.strokeAlignInside,
-              ),
+      decoration: ShapeDecoration(
+        gradient: look.fill,
+        shadows: look.glow,
+        shape: RoundedSuperellipseBorder(borderRadius: radius, side: look.side),
       ),
       foregroundDecoration: _focused
-          ? BoxDecoration(
-              borderRadius: radius,
-              border: Border.fromBorderSide(AknTheme.focusRing(c)),
+          ? ShapeDecoration(
+              shape: RoundedSuperellipseBorder(
+                borderRadius: radius,
+                side: AknTheme.focusRing(c),
+              ),
             )
           : null,
       // Shrink-wraps unless the width is forced ([AknButton.expand]).
       child: Center(widthFactor: 1, heightFactor: 1, child: content(fit)),
     );
 
+    final bordered = look.side.width > 0;
     final Widget visual = widget.expand
         ? LayoutBuilder(
             builder: (context, constraints) => Align(
@@ -509,7 +541,7 @@ class _AknButtonState extends State<AknButton> {
               child: surface(
                 constraints.hasBoundedWidth ? constraints.maxWidth : null,
                 constraints.hasBoundedWidth
-                    ? _fit(context, constraints.maxWidth, border != null)
+                    ? _fit(context, constraints.maxWidth, bordered)
                     : _LabelFit.natural,
               ),
             ),
@@ -542,24 +574,33 @@ class _AknButtonState extends State<AknButton> {
             },
           ),
         },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: enabled ? (_) => _setPressed(true) : null,
-          onTapUp: enabled ? (_) => _setPressed(false) : null,
-          onTapCancel: enabled ? () => _setPressed(false) : null,
-          onTap: enabled ? () => unawaited(_tap()) : null,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: minTap, minWidth: minTap),
-            child: Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: AnimatedScale(
-                scale: pressed && !context.reduceMotion
-                    ? AknMotion.pressScale
-                    : 1,
-                duration: pressed ? AknMotion.press : AknMotion.pressOut,
-                curve: AknMotion.standard,
-                child: visual,
+        // The press lands with the finger (raw pointer events, like
+        // `PressScale`); the tap itself still goes through the arena.
+        child: Listener(
+          onPointerDown: enabled
+              ? (e) {
+                  _downAt = e.position;
+                  _setPressed(true);
+                }
+              : null,
+          onPointerMove: _moved,
+          onPointerUp: (_) => _setPressed(false),
+          onPointerCancel: (_) => _setPressed(false),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: enabled ? () => unawaited(_tap()) : null,
+            onTapCancel: () => _setPressed(false),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: minTap, minWidth: minTap),
+              child: Center(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: AnimatedScale(
+                  scale: pressed && !reduced ? AknMotion.pressScale : 1,
+                  duration: pressDuration,
+                  curve: pressed ? AknMotion.standard : AknMotion.spring,
+                  child: visual,
+                ),
               ),
             ),
           ),
@@ -574,46 +615,7 @@ class _AknButtonState extends State<AknButton> {
 
   /// Picks the label layout for a button [maxWidth] wide (see [_LabelFit]).
   _LabelFit _fit(BuildContext context, double maxWidth, bool bordered) {
-    _compactPrimary = false;
-    final primary = widget.variant == AknButtonVariant.primary;
-    final fit = _fitWith(
-      context,
-      maxWidth,
-      bordered,
-      AknButton.labelStyle(context, widget.size, primary: primary),
-    );
-    if (!primary || fit.index < _LabelFit.twoLines.index) return fit;
-    // The 17 px w700 primary label would wrap or shrink here (half-width
-    // buttons): the regular 16 px label (still bold, so it stays WCAG
-    // "large" on the orange) keeps it whole on one line.
-    final regular = _fitWith(
-      context,
-      maxWidth,
-      bordered,
-      _compactLabel(context),
-    );
-    if (regular.index < _LabelFit.twoLines.index) {
-      _compactPrimary = true;
-      return regular;
-    }
-    return fit;
-  }
-
-  /// True when [_fit] chose the regular label for a tight primary.
-  bool _compactPrimary = false;
-
-  /// The tight primary's label: the regular size, bold.
-  TextStyle _compactLabel(BuildContext context) => AknButton.labelStyle(
-    context,
-    widget.size,
-  ).copyWith(fontWeight: FontWeight.w700);
-
-  _LabelFit _fitWith(
-    BuildContext context,
-    double maxWidth,
-    bool bordered,
-    TextStyle style,
-  ) {
+    final style = AknButton.labelStyle(context, widget.size);
     final scaler = MediaQuery.textScalerOf(context);
     var m = _measured;
     if (m == null ||
@@ -638,9 +640,10 @@ class _AknButtonState extends State<AknButton> {
     }
     final border = bordered ? 3.0 : 0.0;
     final room = maxWidth - AknButton._fitSlack - border;
+    final space = AknButton._iconSpaceOf(context, widget.size);
     final icons =
-        (widget.icon != null ? AknButton._iconSpace : 0) +
-        (widget.trailingIcon != null ? AknButton._iconSpace : 0);
+        (widget.icon != null ? space : 0) +
+        (widget.trailingIcon != null ? space : 0);
     final pad = AknButton._padding(widget.size);
     final tight = AknButton._tightPadding(widget.size);
     if (m.one + icons + 2 * pad <= room) return _LabelFit.full;
@@ -654,41 +657,97 @@ class _AknButtonState extends State<AknButton> {
     return _LabelFit.scaled;
   }
 
-  (Color, Color, Color?) _colors(AknColors c, bool enabled, bool pressed) {
-    if (!enabled) {
-      return switch (widget.variant) {
-        AknButtonVariant.ghost => (Colors.transparent, c.faint, null),
-        _ => (c.surfaceAlt, c.faint, null),
-      };
+  /// The surface for [variant] in palette [c]: [live] (enabled, or busy
+  /// with the enabled look) and [pressed].
+  _Look _look(AknColors c, bool live, bool pressed) {
+    final g = c.buttonGradient;
+    LinearGradient flat(Color color) =>
+        LinearGradient(begin: g.begin, end: g.end, colors: [color, color]);
+    final variant = widget.variant;
+    final bordered =
+        !c.isDark &&
+        (variant == AknButtonVariant.secondary ||
+            variant == AknButtonVariant.outline ||
+            variant == AknButtonVariant.danger);
+    // A constant border width keeps the label still when the state changes.
+    final rim = bordered ? 1.5 : 0.0;
+    BorderSide side(Color color) =>
+        rim == 0 ? BorderSide.none : BorderSide(color: color, width: rim);
+    final clear = c.surfaceAlt.withValues(alpha: 0);
+    if (!live) {
+      return (
+        fill: flat(variant == AknButtonVariant.ghost ? clear : c.surfaceAlt),
+        fg: c.faint,
+        side: side(AknTheme.secondaryBorder(c).withValues(alpha: 0)),
+        glow: const <BoxShadow>[],
+      );
     }
-    return switch (widget.variant) {
+    return switch (variant) {
       AknButtonVariant.primary => (
-        pressed ? c.brandFillPressed : c.brandFill,
-        c.onBrandFill,
-        null,
+        fill: _brandGradient(c, pressed),
+        fg: c.onBrandFill,
+        side: BorderSide.none,
+        glow: _glow(c, pressed),
       ),
+      AknButtonVariant.secondary ||
+      AknButtonVariant.outline ||
       AknButtonVariant.danger => (
-        pressed ? c.surfaceAlt : c.surface,
-        c.danger.fg,
-        c.lineStrong,
-      ),
-      AknButtonVariant.secondary || AknButtonVariant.outline => (
-        pressed ? c.surfaceAlt : c.surface,
-        c.ink,
-        c.lineStrong,
+        fill: flat(
+          c.isDark
+              ? (pressed
+                    ? Color.alphaBlend(
+                        c.ink.withValues(alpha: 0.08),
+                        c.surfaceAlt,
+                      )
+                    : c.surfaceAlt)
+              : (pressed ? c.surfaceAlt : c.surface),
+        ),
+        fg: variant == AknButtonVariant.danger ? c.danger.fg : c.ink,
+        side: side(AknTheme.secondaryBorder(c)),
+        glow: const <BoxShadow>[],
       ),
       AknButtonVariant.ghost => (
-        pressed ? c.surfaceAlt : Colors.transparent,
-        c.ink,
-        null,
+        fill: flat(pressed ? c.surfaceAlt : clear),
+        fg: c.ink,
+        side: BorderSide.none,
+        glow: const <BoxShadow>[],
       ),
     };
   }
+
+  /// The primary fill. A subtree that re-themes `brandFill` alone (a red
+  /// destructive confirm) does not inherit the orange start: it paints its
+  /// fill flat instead.
+  static LinearGradient _brandGradient(AknColors c, bool pressed) {
+    final g = pressed ? c.buttonGradientPressed : c.buttonGradient;
+    if (_sameHue(c.brandFillStart, c.brandFill)) return g;
+    final fill = pressed ? c.brandFillPressed : c.brandFill;
+    return LinearGradient(begin: g.begin, end: g.end, colors: [fill, fill]);
+  }
+
+  static bool _sameHue(Color a, Color b) {
+    final d = (HSVColor.fromColor(a).hue - HSVColor.fromColor(b).hue).abs();
+    return math.min(d, 360 - d) <= 10;
+  }
+
+  /// The warm glow under the primary ([AknShadows.button]) in the colour of
+  /// the fill; it settles closer and dimmer while pressed.
+  static List<BoxShadow> _glow(AknColors c, bool pressed) => [
+    for (final s in AknShadows.button(c))
+      BoxShadow(
+        color: c.brandFill.withValues(alpha: s.color.a * (pressed ? 0.6 : 1)),
+        offset: pressed ? s.offset * 0.4 : s.offset,
+        blurRadius: pressed ? s.blurRadius * 0.55 : s.blurRadius,
+        spreadRadius: s.spreadRadius,
+      ),
+  ];
 }
 
-/// Round icon button (§6.5): icon 24 in ink, a 48 dp target (64 in driver
-/// mode), a `surfaceAlt` circle when pressed, a required screen-reader label
-/// and an optional count badge.
+/// Round icon button (§4, §5 Press): icon 24 in ink, a 48 dp target (64 in
+/// driver mode), a required screen-reader label and an optional count
+/// badge. Pressing it scales the icon down (0.9, spring back) over a soft
+/// `surfaceAlt` circle that fades in, with a light haptic. [tonal] keeps a
+/// 40 px `surfaceAlt` circle behind the icon (white 20 % glass on the band).
 class AknIconButton extends StatelessWidget {
   const AknIconButton({
     super.key,
@@ -702,12 +761,15 @@ class AknIconButton extends StatelessWidget {
     this.showDot = false,
     this.tooltip = true,
     this.badgeSemantics,
+    this.tonal = false,
   });
 
   final IconData icon;
   final String semanticLabel;
   final VoidCallback? onPressed;
   final Color? color;
+
+  /// A fill behind the icon (overrides [tonal]'s circle colour).
   final Color? background;
   final double size;
   final int badgeCount;
@@ -718,36 +780,28 @@ class AknIconButton extends StatelessWidget {
   /// (default "N yeni").
   final String Function(int count)? badgeSemantics;
 
+  /// A soft circle behind the icon (40 px; 56 in driver mode).
+  final bool tonal;
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final minTap = context.minTap;
-    final Widget glyph = Icon(icon, size: size, color: color ?? c.ink);
+    final active = onPressed != null;
+    final Widget glyph = Icon(
+      icon,
+      size: size,
+      color: active
+          ? (color ?? c.ink)
+          : (color?.withValues(alpha: 0.5) ?? c.faint),
+    );
     final Widget withBadge = badgeCount > 0 || showDot
         ? _BadgeOverlay(count: badgeCount, dot: showDot, child: glyph)
         : glyph;
-    final button = IconButton(
-      onPressed: onPressed == null
-          ? null
-          : () {
-              AknHaptics.selection();
-              onPressed!();
-            },
-      icon: withBadge,
-      style:
-          IconButton.styleFrom(
-            backgroundColor: background,
-            minimumSize: Size(minTap, minTap),
-            highlightColor: c.surfaceAlt,
-          ).copyWith(
-            overlayColor: WidgetStateProperty.resolveWith(
-              (s) => s.contains(WidgetState.pressed)
-                  ? c.surfaceAlt
-                  : s.contains(WidgetState.focused)
-                  ? c.brand.withValues(alpha: 0.24)
-                  : Colors.transparent,
-            ),
-          ),
+    final button = _IconPress(
+      onPressed: onPressed,
+      background: background ?? (tonal ? c.surfaceAlt : null),
+      circle: tonal ? context.minTap - 8 : context.minTap,
+      child: withBadge,
     );
     final label = badgeCount > 0
         ? '$semanticLabel, ${badgeSemantics?.call(badgeCount) ?? '$badgeCount yeni'}'
@@ -768,8 +822,111 @@ class AknIconButton extends StatelessWidget {
   }
 }
 
+/// The press of [AknIconButton]: a [circle] px disc ([background], or none
+/// at rest) that deepens while pressed, the content scaling to 0.9 and
+/// springing back; keyboard focus shows the brand ring. The touch target is
+/// the full minimum tap size.
+class _IconPress extends StatefulWidget {
+  const _IconPress({
+    required this.onPressed,
+    required this.background,
+    required this.circle,
+    required this.child,
+  });
+
+  final VoidCallback? onPressed;
+  final Color? background;
+  final double circle;
+  final Widget child;
+
+  @override
+  State<_IconPress> createState() => _IconPressState();
+}
+
+class _IconPressState extends State<_IconPress> {
+  bool _down = false;
+  bool _focused = false;
+
+  void _set(bool v) {
+    if (_down == v || !mounted) return;
+    setState(() => _down = v);
+  }
+
+  void _activate() {
+    final cb = widget.onPressed;
+    if (cb == null) return;
+    AknHaptics.light();
+    cb();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final active = widget.onPressed != null;
+    final down = _down && active;
+    final reduced = AknMotion.reduced(context);
+    final rest = widget.background;
+    final fill = down
+        ? (rest == null
+              ? c.surfaceAlt
+              : Color.alphaBlend(c.ink.withValues(alpha: 0.08), rest))
+        : (rest ?? c.surfaceAlt.withValues(alpha: 0));
+    final duration = down ? AknMotion.press : AknMotion.pressOut;
+    final minTap = context.minTap;
+    return FocusableActionDetector(
+      enabled: active,
+      mouseCursor: active ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onShowFocusHighlight: (v) => setState(() => _focused = v),
+      actions: <Type, Action<Intent>>{
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            _activate();
+            return null;
+          },
+        ),
+      },
+      child: Listener(
+        onPointerDown: active ? (_) => _set(true) : null,
+        onPointerUp: (_) => _set(false),
+        onPointerCancel: (_) => _set(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: active ? _activate : null,
+          onTapCancel: () => _set(false),
+          child: SizedBox(
+            width: math.max(minTap, widget.circle),
+            height: math.max(minTap, widget.circle),
+            child: Center(
+              child: AnimatedContainer(
+                duration: AknMotion.of(context, duration),
+                curve: AknMotion.standard,
+                width: widget.circle,
+                height: widget.circle,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: fill,
+                  shape: BoxShape.circle,
+                  border: _focused
+                      ? Border.fromBorderSide(AknTheme.focusRing(c))
+                      : null,
+                ),
+                child: AnimatedScale(
+                  scale: down && !reduced ? 0.9 : 1,
+                  duration: duration,
+                  curve: down ? AknMotion.standard : AknMotion.spring,
+                  child: widget.child,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Count badge / dot over an icon (shared with the bottom bar and bell):
-/// the count sits at top −2, right −12 of the icon box (§6.3).
+/// the count sits at top −4, right −12 of the icon box (§4).
 class _BadgeOverlay extends StatelessWidget {
   const _BadgeOverlay({
     required this.count,
@@ -797,10 +954,15 @@ class _BadgeOverlay extends StatelessWidget {
   }
 }
 
-/// The count badge (§6.3): an Asfalt pill (dark: #F1F2F4 with #16191D
-/// digits), min 18 × 18, 11/18 700, with a 2 px ring in the colour behind it
-/// ([ringColor]: the bar or page). Red is reserved for danger. Without a
-/// count, [dot] shows an 8 px logo-orange dot. It pops in when it appears.
+/// The count badge (v3 §4): a deep-orange pill (`brandFillPressed`, #CC4708;
+/// white figures 4.70:1, AA) with white 10 w800 tabular figures, min 18 × 18
+/// inside a 2 px ring in the colour behind it
+/// ([ringColor], default `surface`); on the orange band it flips to a white
+/// pill with deep-orange figures. Without a count, [dot] shows an 8 px dot.
+///
+/// Motion: it pops in (and out) on a spring, bumps when the count changes
+/// (the new figures roll up), and breathes gently — a soft glow and a 6 %
+/// swell — while it shows (ambient; still in tests and under reduce motion).
 class AknCountBadge extends StatelessWidget {
   const AknCountBadge({
     super.key,
@@ -816,40 +978,44 @@ class AknCountBadge extends StatelessWidget {
   final bool dot;
   final int max;
 
-  /// Badge fill (default `ink`; white on the header band).
+  /// Badge fill (default deep orange `brandFillPressed`; white on the header
+  /// band).
   final Color? color;
 
-  /// The 2 px cut-out ring (default the page colour; the band on it).
+  /// The 2 px cut-out ring (default `surface`; the band on it).
   final Color? ringColor;
 
-  /// The digits (default the page colour: white, orange on the band).
+  /// The figures (default white; deep orange on the band).
   final Color? textColor;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final band = c.isBandPalette;
     final visible = count > 0 || dot;
-    final fill = color ?? c.ink;
-    final digits = textColor ?? c.bg;
-    final ring = ringColor ?? c.bg;
+    final fill = color ?? (band ? c.onHero : c.brandFillPressed);
+    final digits = textColor ?? (band ? c.brandFillPressed : c.onBrandFill);
+    final ring = ringColor ?? c.surface;
+    final text = count > max ? '$max+' : '$count';
     final Widget body = count > 0
         ? Container(
             constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
-            padding: const EdgeInsets.symmetric(horizontal: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: fill,
               borderRadius: AknRadius.pillAll,
               border: Border.all(color: ring, width: 2),
             ),
-            child: Text(
-              count > max ? '$max+' : '$count',
-              textScaler: TextScaler.noScaling,
+            child: _BadgeFigures(
+              text: text,
               style: context.aknText.label.copyWith(
                 color: digits,
-                fontSize: 11,
-                height: 14 / 11,
-                fontWeight: FontWeight.w700,
+                fontSize: 10,
+                height: 12 / 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+                fontFeatures: AknNumerals.tabular,
               ),
             ),
           )
@@ -857,18 +1023,143 @@ class AknCountBadge extends StatelessWidget {
             width: 12,
             height: 12,
             decoration: BoxDecoration(
-              color: c.logo,
+              color: fill,
               shape: BoxShape.circle,
               border: Border.all(color: ring, width: 2),
             ),
           );
     return ExcludeSemantics(
-      child: AnimatedScale(
-        scale: visible ? 1 : 0,
-        duration: AknMotion.of(context, AknMotion.base),
-        curve: visible ? AknMotion.emphasizedCurve : AknMotion.exit,
+      child: _BadgeMotion(
+        visible: visible,
+        count: count,
+        glow: fill,
         child: visible ? body : const SizedBox(width: 12, height: 12),
       ),
+    );
+  }
+}
+
+/// The badge figures: a new count rolls up from below while the old one
+/// leaves upwards; the pill's width follows smoothly.
+class _BadgeFigures extends StatelessWidget {
+  const _BadgeFigures({required this.text, required this.style});
+
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return AknAnimatedSize(
+      duration: AknMotion.fast,
+      child: ClipRect(
+        child: AnimatedSwitcher(
+          duration: AknMotion.of(context, AknMotion.base),
+          transitionBuilder: (child, a) {
+            final incoming = child.key == ValueKey(text);
+            final slide = Tween<Offset>(
+              begin: Offset(0, incoming ? 0.8 : -0.8),
+              end: Offset.zero,
+            ).chain(CurveTween(curve: AknMotion.emphasizedCurve));
+            return FadeTransition(
+              opacity: a,
+              child: SlideTransition(position: a.drive(slide), child: child),
+            );
+          },
+          child: Text(
+            text,
+            key: ValueKey(text),
+            textScaler: TextScaler.noScaling,
+            style: style,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// [AknCountBadge]'s motion: pop in / out ([visible]), a bump when [count]
+/// changes and an ambient breath ([glow] halo + 6 % swell) while visible.
+class _BadgeMotion extends StatefulWidget {
+  const _BadgeMotion({
+    required this.visible,
+    required this.count,
+    required this.glow,
+    required this.child,
+  });
+
+  final bool visible;
+  final int count;
+  final Color glow;
+  final Widget child;
+
+  @override
+  State<_BadgeMotion> createState() => _BadgeMotionState();
+}
+
+class _BadgeMotionState extends State<_BadgeMotion>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bump = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+
+  @override
+  void didUpdateWidget(_BadgeMotion old) {
+    super.didUpdateWidget(old);
+    if (old.count != widget.count &&
+        old.count > 0 &&
+        widget.count > 0 &&
+        !AknMotion.reduced(context)) {
+      _bump.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _bump.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = widget.visible;
+    Widget badge = AnimatedBuilder(
+      animation: _bump,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _bump.value;
+        // Up 22 % and back, with a little settle.
+        final s = t == 0 || t == 1
+            ? 1.0
+            : 1 + 0.22 * math.sin(math.pi * Curves.easeOut.transform(t));
+        return Transform.scale(scale: s, child: child);
+      },
+    );
+    if (visible) {
+      badge = AknAmbient(
+        period: AknMotion.breathe,
+        reverse: true,
+        child: badge,
+        builder: (context, t, child) => DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: AknRadius.pillAll,
+            boxShadow: [
+              BoxShadow(
+                color: widget.glow.withValues(alpha: 0.4 * t),
+                blurRadius: 8 * t,
+                spreadRadius: 0.5 * t,
+              ),
+            ],
+          ),
+          child: Transform.scale(scale: 1 + 0.06 * t, child: child),
+        ),
+      );
+    }
+    return AnimatedScale(
+      scale: visible ? 1 : 0,
+      duration: AknMotion.of(context, AknMotion.base),
+      curve: visible ? AknMotion.pop : AknMotion.exit,
+      child: badge,
     );
   }
 }

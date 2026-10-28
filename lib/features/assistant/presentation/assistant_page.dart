@@ -92,27 +92,26 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
       automaticallyImplyLeading: false,
       leading: canPop
           ? AknIconButton(
-              icon: Icons.close_rounded,
+              icon: PhosphorIconsRegular.x,
               semanticLabel: AssistantCopy.close,
               onPressed: () => _close(context),
             )
           : null,
       actions: [
         AknIconButton(
-          icon: Icons.support_agent_outlined,
+          icon: PhosphorIconsRegular.headset,
           semanticLabel: AssistantCopy.support,
           onPressed: () => unawaited(showSupportSheet(context)),
         ),
         if (gate is GateReady && hasMessages)
           AknIconButton(
-            icon: Icons.add_comment_outlined,
+            icon: PhosphorIconsRegular.notePencil,
             semanticLabel: AssistantCopy.newChat,
             onPressed: () => ref.read(assistantChatProvider.notifier).clear(),
           ),
       ],
-      body: AnimatedSwitcher(
-        duration: AknMotion.of(context, AknMotion.base),
-        switchInCurve: AknMotion.standard,
+      // Kapı durumları arasında solarak geçiş (v3: gelen içerik %96'dan büyür).
+      body: FadeThroughSwitcher(
         child: KeyedSubtree(key: ValueKey(gate.runtimeType), child: body),
       ),
     );

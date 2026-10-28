@@ -7,10 +7,10 @@ import '../../application/link_opener.dart';
 import '../../application/server_gate_controller.dart';
 import '../../copy.dart';
 
-/// Giriş ekranının alt bilgisi (tasarım v2 §7.2): solda "Gizlilik  KVKK  Koşullar" (13/18 dim,
+/// Kimlik sayfalarının alt bilgisi (tasarım v3): solda "Gizlilik  KVKK  Koşullar" (13/18 500 soluk,
 /// aralıklı, nokta yok; `app/config.legal`, uygulama içi tarayıcıda), sağda "Sürüm 1.0.0". Adresi
-/// olmayan bağlantı gizlenir. Sahte kipte sürümün yanında küçük bir "Demo" bağlantısı ([demo]) sayfanın
-/// başındaki demo hesaplarına götürür.
+/// olmayan bağlantı gizlenir; her bağlantı 48 dp hedeflidir ve basınca hafifçe içe çöker. Sahte kipte
+/// sürümün yanında küçük bir "Demo" bağlantısı ([demo]) sayfanın başındaki demo hesaplarına götürür.
 class LegalFooter extends ConsumerWidget {
   const LegalFooter({super.key, this.demo});
 
@@ -136,18 +136,22 @@ class _LegalLink extends StatelessWidget {
       label: spoken,
       excludeSemantics: true,
       onTap: onTap,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: AknRadius.chip,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            minHeight: AknSpace.minTap,
-            minWidth: AknSpace.minTap,
-          ),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            widthFactor: 1,
-            child: Text(label, style: style),
+      child: PressScale(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AknRadius.chip,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: context.akn.surfaceAlt,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: AknSpace.minTap,
+              minWidth: AknSpace.minTap,
+            ),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              widthFactor: 1,
+              child: Text(label, style: style),
+            ),
           ),
         ),
       ),

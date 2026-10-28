@@ -103,19 +103,35 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
                 illustration: AknIllustration.search,
               );
             }
-            return Column(
-              children: [
-                for (var i = 0; i < rows.length; i++) ...[
-                  if (i > 0)
-                    Divider(height: 1, thickness: 1, color: context.akn.line),
-                  DriverPickerRow(
-                    driver: rows[i],
-                    selected:
-                        widget.selected?.account?.userId == rows[i].userId,
-                    onTap: () => _pick(DriverChoice.account(rows[i])),
-                  ),
+            // Şoförler art arda süzülerek gelir.
+            return StaggerScope(
+              child: Column(
+                children: [
+                  for (var i = 0; i < rows.length; i++)
+                    StaggerItem(
+                      index: i,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (i > 0)
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              indent: 64,
+                              color: context.akn.lineSoft,
+                            ),
+                          DriverPickerRow(
+                            driver: rows[i],
+                            selected:
+                                widget.selected?.account?.userId ==
+                                rows[i].userId,
+                            onTap: () => _pick(DriverChoice.account(rows[i])),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
-              ],
+              ),
             );
           },
         ),
@@ -166,8 +182,9 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
   }
 }
 
-/// Şoför satırı (tasarım v2 §7.15): baş harf, ad, telefon; açık sevkiyat yükü küçük bir yük çubuğu
-/// olarak; rol ("Şoför" / "Personel") ve "uygulamada" lambası; seçili satırda mürekkep onay işareti.
+/// Şoför satırı (tasarım v3): baş harf yuvarlağı, ad, telefon; açık sevkiyat yükü küçük bir yük
+/// çubuğu olarak (dilimler sırayla dolar); rol ("Şoför" / "Personel") ve "uygulamada" çipi; seçili
+/// satır turuncu yumuşak zeminde, Pas onay işaretiyle. Basınca Beton zemin ve hafif küçülme.
 class DriverPickerRow extends StatelessWidget {
   const DriverPickerRow({
     super.key,
@@ -202,65 +219,82 @@ class DriverPickerRow extends StatelessWidget {
       label: semantic,
       excludeSemantics: true,
       onTap: onTap,
-      child: InkWell(
-        onTap: onTap,
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: c.surfaceAlt,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AknAvatar(name: d.displayName, size: 40),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          d.displayName,
-                          style: t.headline.copyWith(color: c.ink),
-                        ),
-                        Text(
-                          d.isDriverRole ? 'Şoför' : 'Personel',
-                          style: t.label.copyWith(color: c.dim),
-                        ),
-                      ],
-                    ),
-                    if (d.phone != null)
-                      Text(
-                        Fmt.phone(d.phone),
-                        style: t.bodySmall.copyWith(color: c.dim),
+      child: PressScale(
+        child: InkWell(
+          onTap: () {
+            AknHaptics.selection();
+            onTap();
+          },
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: c.surfaceAlt,
+          borderRadius: BorderRadius.circular(AknRadius.md),
+          child: AnimatedContainer(
+            duration: AknMotion.of(context, AknMotion.base),
+            curve: AknMotion.standard,
+            decoration: BoxDecoration(
+              color: selected ? c.brandSoft : c.brandSoft.withValues(alpha: 0),
+              borderRadius: BorderRadius.circular(AknRadius.md),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AknAvatar(name: d.displayName, size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            d.displayName,
+                            style: t.headline.copyWith(color: c.ink),
+                          ),
+                          Text(
+                            d.isDriverRole ? 'Şoför' : 'Personel',
+                            style: t.label.copyWith(color: c.dim),
+                          ),
+                        ],
                       ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 4,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _LoadBar(count: d.activeShipments),
-                        Text(load, style: t.label.copyWith(color: c.ink)),
-                        if (d.hasActiveDevice) const InAppBadge(),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (selected)
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 8),
-                  child: Icon(
-                    Icons.check_circle_rounded,
-                    size: 22,
-                    color: c.ink,
+                      if (d.phone != null)
+                        Text(
+                          Fmt.phone(d.phone),
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _LoadBar(count: d.activeShipments),
+                          Text(load, style: t.label.copyWith(color: c.ink)),
+                          if (d.hasActiveDevice) const InAppBadge(),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-            ],
+                if (selected)
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 8),
+                    child: FadeUp(
+                      offset: 0,
+                      scale: 0.4,
+                      curve: AknMotion.pop,
+                      child: Icon(
+                        PhosphorIconsFill.checkCircle,
+                        size: 24,
+                        color: c.brandInk,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -284,12 +318,21 @@ class _LoadBar extends StatelessWidget {
         children: [
           for (var i = 0; i < slots; i++) ...[
             if (i > 0) const SizedBox(width: 3),
-            Container(
-              width: 14,
-              height: 6,
-              decoration: BoxDecoration(
-                color: i < count ? c.ink : c.chartTrack,
-                borderRadius: BorderRadius.circular(2),
+            // Dolu dilimler sırayla belirir.
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: i < count ? 1 : 0),
+              duration: AknMotion.of(
+                context,
+                Duration(milliseconds: 260 + 90 * i),
+              ),
+              curve: AknMotion.standard,
+              builder: (context, v, _) => Container(
+                width: 14,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Color.lerp(c.chartTrack, c.ink, v),
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
             ),
           ],

@@ -14,8 +14,10 @@ import '../../application/desk_controller.dart';
 import '../../data/bayi_repository.dart';
 import '../widgets/bayi_widgets.dart';
 
-/// Tekil teklif (sipariş ayrıntısı, `orders/{id}/quote`). Sunucu limit aşımında siparişi finans onayına
-/// gönderebilir: gönderimden sonra sipariş yeniden okunur ve sonuç buna göre bildirilir.
+/// Tekil teklif (sipariş ayrıntısı, `orders/{id}/quote`; tasarım v3): üstte Beton kuyuda sipariş özeti,
+/// birim fiyat ve teslim günü, altında canlı tahmini tutar (yazdıkça sayarak değişir, tablo rakamları).
+/// Sunucu limit aşımında siparişi finans onayına gönderebilir: gönderimden sonra sipariş yeniden okunur
+/// ve sonuç buna göre bildirilir (başarıda dokunsal geri bildirim).
 Future<bool> showQuoteSheet(
   BuildContext context,
   OrderDetail order, {
@@ -95,6 +97,7 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
           context: context,
         );
       } else {
+        AknHaptics.success();
         AppToast.success(
           'Teklif gönderildi. Müşterinin kararı bekleniyor.',
           context: context,
@@ -124,21 +127,53 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            keepUnits(
-              [
-                o.productName,
-                Fmt.liters(o.quantityLiters),
-                o.deliveryPointName,
-              ].join(', '),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.surfaceAlt,
+              borderRadius: BorderRadius.circular(16),
             ),
-            style: t.body.copyWith(color: c.ink),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: c.brandSoft,
+                      borderRadius: BorderRadius.circular(AknRadius.sm),
+                    ),
+                    child: Icon(
+                      PhosphorIconsRegular.gasPump,
+                      size: 19,
+                      color: c.brandInk,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      keepUnits(
+                        [
+                          o.productName,
+                          Fmt.liters(o.quantityLiters),
+                          o.deliveryPointName,
+                        ].join(', '),
+                      ),
+                      style: t.body.copyWith(
+                        color: c.ink,
+                        fontFeatures: AknNumerals.tabular,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           if (latest?.revisionNote != null) ...[
             const SizedBox(height: 12),
             AknBanner(
               tone: AknTone.info,
-              icon: Icons.chat_bubble_outline_rounded,
+              icon: PhosphorIconsRegular.chatCircle,
               title:
                   'Revize notu, önceki teklif ${Fmt.unitPrice(latest!.unitPriceTry)}',
               message: latest.revisionNote!,
@@ -168,11 +203,12 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
             onChanged: (d) => setState(() => _date = d),
           ),
           const SizedBox(height: 16),
-          // Canlı toplam: tahmini tutar sağa hizalı, sayaç sesiyle (plaka değil; sayfada tek plaka var).
+          // Canlı toplam: tahmini tutar sağa hizalı, yazdıkça sayarak değişir (plaka değil; sayfada tek
+          // plaka var).
           Container(
             padding: const EdgeInsets.only(top: 12),
             decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: c.line)),
+              border: Border(top: BorderSide(color: c.lineSoft)),
             ),
             child: Semantics(
               liveRegion: true,
@@ -192,12 +228,16 @@ class _QuoteSheetState extends ConsumerState<_QuoteSheet> {
                   final figure = FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: AlignmentDirectional.centerEnd,
-                    child: Text(
-                      total == null ? Fmt.dash : Fmt.money(total),
-                      style: t.amountLarge.copyWith(
-                        color: total == null ? c.dim : c.ink,
-                      ),
-                    ),
+                    child: total == null
+                        ? Text(
+                            Fmt.dash,
+                            style: t.amountLarge.copyWith(color: c.dim),
+                          )
+                        : AnimatedNumber(
+                            value: total,
+                            format: Fmt.money,
+                            style: t.amountLarge.copyWith(color: c.ink),
+                          ),
                   );
                   if (MediaQuery.textScalerOf(context).scale(10) > 13) {
                     return Column(

@@ -204,18 +204,14 @@ void main() {
       });
     }
 
-    test(
-      'bağlantı rengi değerleri (tasarım v2 §2.2: mürekkep + alt çizgi)',
-      () {
-        expect(AknColors.light.link, const Color(0xFF1E2227));
-        expect(AknColors.dark.link, const Color(0xFFF1F2F4));
-        expect(AknColors.light.link, AknColors.light.ink);
-        expect(
-          AknColors.light.lerp(AknColors.dark, 1).link,
-          AknColors.dark.link,
-        );
-      },
-    );
+    test('bağlantı rengi değerleri (tasarım v3 §2: mürekkep + alt çizgi)', () {
+      // Grafit mürekkep: asla mavi ya da turuncu değil.
+      expect(AknColors.light.link, const Color(0xFF15171A));
+      expect(AknColors.dark.link, const Color(0xFFF2F3F5));
+      expect(AknColors.light.link, AknColors.light.ink);
+      expect(AknColors.dark.link, AknColors.dark.ink);
+      expect(AknColors.light.lerp(AknColors.dark, 1).link, AknColors.dark.link);
+    });
   });
 
   group('Çekirdek bileşen düzeltmeleri', () {
@@ -255,8 +251,10 @@ void main() {
                   .first,
             )
             .style;
-        // v2 §6.11: unselected labels are dim (5.44:1 on Beton), selected ink.
+        // v3 §4 Segmented: unselected labels are dim w600 (5.22:1 on the
+        // `surfaceAlt` track), the selected one ink w700.
         expect(style.color, AknColors.light.dim);
+        expect(style.fontWeight, FontWeight.w600);
         expect(
           contrast(AknColors.light.dim, AknColors.light.surfaceAlt),
           greaterThanOrEqualTo(4.5),
@@ -434,8 +432,16 @@ void main() {
     ) async {
       Widget row() => const KpiRow(
         children: [
-          KpiTile(label: 'Planlanacak', value: 3, icon: Icons.event_note),
-          KpiTile(label: 'Şoför hesabı yok', value: 0, icon: Icons.person),
+          KpiTile(
+            label: 'Planlanacak',
+            value: 3,
+            icon: PhosphorIconsRegular.calendarDots,
+          ),
+          KpiTile(
+            label: 'Şoför hesabı yok',
+            value: 0,
+            icon: PhosphorIconsRegular.user,
+          ),
         ],
       );
       await pumpUi(

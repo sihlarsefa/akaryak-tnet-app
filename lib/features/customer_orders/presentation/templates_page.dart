@@ -20,8 +20,9 @@ import 'widgets/common.dart';
 /// Şablonlarım rotası (spec C.4 derin bağlantı).
 const templatesRoute = '/templates';
 
-/// Şablonlarım (spec A.4; tasarım v2 §7.7): ledger satırları (ad, satırlar, son kullanım),
-/// "Kullan" (`/orders/new?fromTemplate=`) ve sil.
+/// Şablonlarım (spec A.4; tasarım v3 §4): kırık beyaz sayfada yüzen beyaz kartlar (ad, satırlar,
+/// son kullanım), "Kullan" (`/orders/new?fromTemplate=`) ve sil; kartlar birbiri ardına yükselerek
+/// gelir, aşağıda kalanlar kaydırınca belirir.
 class TemplatesPage extends ConsumerWidget {
   const TemplatesPage({super.key});
 
@@ -74,25 +75,37 @@ class TemplatesPage extends ConsumerWidget {
                   ),
                 ],
               )
-            : ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(0, 4, 0, 32),
-                itemCount: items.length + 1,
-                separatorBuilder: (context, i) => i == 0
-                    ? const SizedBox.shrink()
-                    : const ContentWidth(child: AknLedgerDivider()),
-                itemBuilder: (context, i) {
-                  if (i == 0) {
-                    return LastUpdatedNote(
-                      updatedAt: s.updatedAt,
-                      fromCache: s.fromCache,
+            : StaggerScope(
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(
+                    0,
+                    4,
+                    0,
+                    32 + MediaQuery.paddingOf(context).bottom,
+                  ),
+                  itemCount: items.length + 1,
+                  itemBuilder: (context, i) {
+                    if (i == 0) {
+                      return LastUpdatedNote(
+                        updatedAt: s.updatedAt,
+                        fromCache: s.fromCache,
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+                      );
+                    }
+                    final tpl = items[i - 1];
+                    return ContentWidth(
+                      child: StaggerItem(
+                        key: ValueKey(tpl.id),
+                        index: i - 1,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+                          child: _TemplateRow(item: tpl, canUse: canUse),
+                        ),
+                      ),
                     );
-                  }
-                  final tpl = items[i - 1];
-                  return ContentWidth(
-                    child: _TemplateRow(item: tpl, canUse: canUse),
-                  );
-                },
+                  },
+                ),
               ),
       );
     }
@@ -120,7 +133,7 @@ class _TemplateRow extends ConsumerWidget {
           '“${item.name}” şablonu silinecek. Verilmiş siparişler etkilenmez.',
       confirmLabel: 'Sil',
       destructive: true,
-      icon: Icons.delete_outline_rounded,
+      icon: PhosphorIconsRegular.trash,
     );
     if (!ok || !context.mounted) return;
     try {
@@ -139,34 +152,54 @@ class _TemplateRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.akn;
+    final t = context.aknText;
     final used = item.lastUsedAt == null
         ? 'Henüz kullanılmadı'
         : 'Son kullanım ${TurkishText.lower(Fmt.relative(item.lastUsedAt))}';
-    return AknListTile(
-      title: item.name,
-      subtitle: '${item.subtitle}\n$used',
-      subtitleMaxLines: 3,
-      trailing: !canUse
-          ? null
-          : Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AknButton.secondary(
-                  label: 'Kullan',
-                  size: AknButtonSize.small,
-                  semanticLabel: '${item.name} şablonuyla sipariş ver',
-                  onPressed: () => context.push(
-                    '${AppRoutes.orderNew}?fromTemplate=${item.id}',
+    return A2Card(
+      child: AknListTile(
+        leading: const A2IconTile(
+          icon: PhosphorIconsRegular.bookmarkSimple,
+          tone: AknTone.brand,
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+        titleStyle: a2RowTitle(t, c),
+        title: item.name,
+        subtitle: '${item.subtitle}\n$used',
+        subtitleMaxLines: 3,
+        // Eylemler kartın alt şeridinde: "Kullan" solda, sil sağda.
+        footer: !canUse
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Divider(height: 1, thickness: 1, color: c.lineSoft),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: AknButton.secondary(
+                          label: 'Kullan',
+                          size: AknButtonSize.small,
+                          semanticLabel: '${item.name} şablonuyla sipariş ver',
+                          onPressed: () => context.push(
+                            '${AppRoutes.orderNew}?fromTemplate=${item.id}',
+                          ),
+                        ),
+                      ),
+                      AknIconButton(
+                        icon: PhosphorIconsRegular.trash,
+                        semanticLabel: '${item.name} şablonunu sil',
+                        color: c.dim,
+                        onPressed: () => _delete(context, ref),
+                      ),
+                    ],
                   ),
-                ),
-                AknIconButton(
-                  icon: Icons.delete_outline_rounded,
-                  semanticLabel: '${item.name} şablonunu sil',
-                  color: c.dim,
-                  onPressed: () => _delete(context, ref),
-                ),
-              ],
-            ),
+                ],
+              ),
+      ),
     );
   }
 }

@@ -6,10 +6,10 @@ import '../ui/ui.dart';
 import '../utils/tr_time.dart';
 import '../utils/turkish_text.dart';
 
-/// Ana sayfa yer tutucusu (aşama 0; tasarım v2 §7.6): plaka yok — ana sayfa başlığı (logo karosu,
-/// çalıştığı yer, ad ve roller), `display` karşılama ve bu ana sayfada neler olacağı (defter satırları).
-/// Özellik ajanları kendi ana sayfalarıyla değiştirir (`CustomerHome`, `BayiHome`, `FieldHome`,
-/// `DriverHome`).
+/// Ana sayfa yer tutucusu (aşama 0; tasarım v3): plaka yok — turuncu ana sayfa bandı (Türkiye saatine göre
+/// karşılama, çalıştığı yer, ad ve roller) ve bu ana sayfada neler olacağı: sayfada yüzen beyaz bir bölüm
+/// kartında satırlar. İçerik basamaklı gelir (`StaggerScope` + `StaggerItem`). Özellik ajanları kendi ana
+/// sayfalarıyla değiştirir (`CustomerHome`, `BayiHome`, `FieldHome`, `DriverHome`).
 class HomePlaceholder extends ConsumerWidget {
   const HomePlaceholder({
     super.key,
@@ -34,7 +34,6 @@ class HomePlaceholder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final access = ref.watch(sessionControllerProvider).access;
-    final t = context.aknText;
     final c = context.akn;
     final name = access?.displayName ?? '';
     final firstName = name.split(' ').first;
@@ -47,42 +46,50 @@ class HomePlaceholder extends ConsumerWidget {
       ...roles.map(TurkishText.lower),
     ].join(', ');
     return AppScaffold(
+      // Karşılama bantta (Türkiye saatiyle); gövde doğrudan içerikle başlar.
       homeHeader: AknHomeHeader(
         company: access?.organizationTitle ?? 'AkaryakıtNet',
         person: person,
+        greeting: '${greeting()}${firstName.isEmpty ? '' : ', $firstName'}',
       ),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AknSpace.page,
-              16,
-              AknSpace.page,
-              0,
+      body: StaggerScope(
+        child: ListView(
+          padding: const EdgeInsets.only(top: 8, bottom: 32),
+          children: staggered([
+            const SectionHeader(
+              title: 'Yakında burada',
+              subtitle: 'Bu ana sayfa hazırlanıyor.',
             ),
-            child: Semantics(
-              header: true,
-              child: Text(
-                '${greeting()}${firstName.isEmpty ? '' : ', $firstName'}',
-                style: t.display.copyWith(color: c.ink),
-                textScaler: MediaQuery.textScalerOf(
-                  context,
-                ).clamp(maxScaleFactor: 1.6),
+            if (upcoming.isNotEmpty)
+              Padding(
+                padding: AknSpace.pagePadding,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: AknRadius.section,
+                    border: c.isDark ? Border.all(color: c.line) : null,
+                    boxShadow: AknShadows.card(c),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: AknRadius.section,
+                    // Satırlar kartta olduğunu bilir: simge kutuları gri kuyu olur.
+                    child: AknCardScope(
+                      child: AknLedger(
+                        children: [
+                          for (final (icon, title, text) in upcoming)
+                            AknListTile(
+                              title: title,
+                              subtitle: text,
+                              leadingIcon: icon,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SectionHeader(
-            title: 'Yakında burada',
-            subtitle: 'Bu ana sayfa hazırlanıyor.',
-          ),
-          AknLedger(
-            children: [
-              for (final (icon, title, text) in upcoming)
-                AknListTile(title: title, subtitle: text, leadingIcon: icon),
-            ],
-          ),
-        ],
+          ]),
+        ),
       ),
     );
   }

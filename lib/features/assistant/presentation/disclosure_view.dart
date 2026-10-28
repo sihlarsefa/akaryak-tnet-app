@@ -11,8 +11,9 @@ import '../copy.dart';
 import '../data/assistant_models.dart';
 import 'widgets/assistant_avatar.dart';
 
-/// Tam ekran aydınlatma metni (spec A.6): ne gönderilir, kime (OpenAI, ABD), neden, ne kadar saklanır,
-/// "Kart, şifre, kod paylaşmayın". "Kabul ediyorum" → `POST assistant/consent`; "Vazgeç" kapatır.
+/// Tam ekran aydınlatma metni (spec A.6; tasarım v3): süzülen logo karosu, `display` başlık, olgular
+/// beyaz kartta turuncu onay simgeleriyle, bölümler, "Kart, şifre, kod paylaşmayın" uyarısı; bölümler
+/// sırayla belirir. "Kabul ediyorum" → `POST assistant/consent`; "Vazgeç" kapatır.
 class DisclosureView extends ConsumerWidget {
   const DisclosureView({
     super.key,
@@ -48,60 +49,91 @@ class DisclosureView extends ConsumerWidget {
               24,
             ),
             children: [
-              const Align(
+              Align(
                 alignment: AlignmentDirectional.centerStart,
-                child: AssistantAvatar(size: 40),
+                child: AknAmbient(
+                  period: AknMotion.float,
+                  reverse: true,
+                  builder: (context, t, child) => Transform.translate(
+                    offset: Offset(0, -4 * t),
+                    child: child,
+                  ),
+                  child: const AssistantAvatar(size: 48),
+                ),
               ),
               const SizedBox(height: 20),
-              Semantics(
-                header: true,
-                child: Text(
-                  d.title,
-                  style: t.display.copyWith(color: c.ink),
-                  textScaler: MediaQuery.textScalerOf(
-                    context,
-                  ).clamp(maxScaleFactor: 1.6),
+              FadeUp(
+                offset: 14,
+                duration: const Duration(milliseconds: 360),
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    d.title,
+                    style: t.display.copyWith(color: c.ink),
+                    textScaler: MediaQuery.textScalerOf(
+                      context,
+                    ).clamp(maxScaleFactor: 1.6),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                AssistantCopy.disclosureLead,
-                style: t.body.copyWith(color: c.dim),
-              ),
-              const SizedBox(height: 16),
-              // Olgular: virgülle değil, ayrı satırlarda (lamba yok, nötr bilgi).
-              AknCard(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
+              FadeUp(
+                offset: 14,
+                delay: const Duration(milliseconds: 40),
+                duration: const Duration(milliseconds: 360),
+                child: Text(
+                  AssistantCopy.disclosureLead,
+                  style: t.body.copyWith(color: c.dim),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < facts.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 6),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Icon(
-                              Icons.check_rounded,
-                              size: 18,
-                              color: c.dim,
+              ),
+              const SizedBox(height: 18),
+              // Olgular: virgülle değil, ayrı satırlarda; her biri turuncu onay dairesiyle.
+              FadeUp(
+                offset: 14,
+                delay: const Duration(milliseconds: 80),
+                duration: const Duration(milliseconds: 360),
+                child: AknCard(
+                  radius: 20,
+                  padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < facts.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ExcludeSemantics(
+                              child: Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: c.brandSoft,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  PhosphorIconsBold.check,
+                                  size: 13,
+                                  color: c.brandInk,
+                                ),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              facts[i],
-                              style: t.bodySmall.copyWith(color: c.ink),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                facts[i],
+                                style: t.bodySmall.copyWith(
+                                  color: c.ink,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               if (gate.notice != null) ...[
@@ -113,7 +145,7 @@ class DisclosureView extends ConsumerWidget {
               const SizedBox(height: 4),
               const AknBanner(
                 tone: AknTone.warn,
-                icon: Icons.privacy_tip_outlined,
+                icon: PhosphorIconsRegular.shieldWarning,
                 title: AssistantCopy.doNotShare,
                 message: AssistantCopy.doNotShareBody,
               ),

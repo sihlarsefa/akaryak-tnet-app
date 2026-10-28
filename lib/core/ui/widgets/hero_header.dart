@@ -1,18 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../motion.dart';
 import '../theme.dart';
 
-/// Deprecated header block (design v2 §6.28): the orange header strip is
-/// gone. It now renders a **plain white header** on the page colour — a
-/// `display` title (30/36 600, a screen-reader header), an optional
-/// `bodySmall` subtitle, optional [leading] / [trailing] widgets, the
-/// [chips] (off the plate an `AknHeroChip` renders as a lamp) and an
-/// optional [child] — aligned on the 20 px edge.
+/// Deprecated header block: the orange header strip is gone. It renders a
+/// **plain header** on the page colour — a `display` title (28/34 800, a
+/// screen-reader header), an optional `bodySmall` subtitle, optional
+/// [leading] / [trailing] widgets, the [chips] (off the plate an
+/// `AknHeroChip` renders as a lamp) and an optional [child] — aligned on
+/// the 20 px edge. The title row, the chips and the child fade up into
+/// place one after another when it first appears (design v3 §5).
 ///
-/// Homes use `AknHomeHeader` (logo tile, company, person, bell); object
-/// pages start their body with a `display` title. Keep this widget only for
-/// old call sites.
+/// Homes use `AknHomeHeader` (the luminous orange band); object pages start
+/// their body with a `display` title. Keep this widget only for old call
+/// sites.
 ///
 /// ```dart
 /// AknHeroHeader(
@@ -25,7 +29,7 @@ import '../theme.dart';
 /// [watermark] is ignored (no chevron watermarks anywhere). With [topInset]
 /// the header also runs under the status bar (screens without an app bar):
 /// it adds the status-bar height on top and sets the page's status icons
-/// (dark on white, light in dark mode).
+/// (dark on light, light in dark mode).
 class AknHeroHeader extends StatelessWidget {
   const AknHeroHeader({
     super.key,
@@ -41,7 +45,7 @@ class AknHeroHeader extends StatelessWidget {
     this.topInset = false,
   });
 
-  /// Page title ("Profil"): `display` 30/36 600, a screen-reader header.
+  /// Page title ("Profil"): `display` 28/34 800, a screen-reader header.
   final String? title;
 
   /// Replaces [title].
@@ -63,7 +67,7 @@ class AknHeroHeader extends StatelessWidget {
   final Widget? child;
   final EdgeInsetsGeometry padding;
 
-  /// Ignored in v2 (no watermark).
+  /// Ignored (no watermark).
   final bool watermark;
 
   /// Run under the status bar (no app bar above).
@@ -91,6 +95,7 @@ class AknHeroHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           );
     final hasText = head != null || sub != null;
+    const step = Duration(milliseconds: 70);
     Widget block = ColoredBox(
       color: c.bg,
       child: Padding(
@@ -100,34 +105,43 @@ class AknHeroHeader extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (hasText || leading != null || trailing != null)
-              Row(
-                children: [
-                  if (leading != null) ...[leading!, const SizedBox(width: 12)],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ?head,
-                        if (head != null && sub != null)
-                          const SizedBox(height: 4),
-                        ?sub,
-                      ],
+              _Rise(
+                offset: 10,
+                child: Row(
+                  children: [
+                    if (leading != null) ...[
+                      leading!,
+                      const SizedBox(width: 12),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ?head,
+                          if (head != null && sub != null)
+                            const SizedBox(height: 4),
+                          ?sub,
+                        ],
+                      ),
                     ),
-                  ),
-                  if (trailing != null) ...[
-                    const SizedBox(width: 12),
-                    trailing!,
+                    if (trailing != null) ...[
+                      const SizedBox(width: 12),
+                      trailing!,
+                    ],
                   ],
-                ],
+                ),
               ),
             if (chips.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Wrap(spacing: 16, runSpacing: 8, children: chips),
+              _Rise(
+                delay: step,
+                child: Wrap(spacing: 16, runSpacing: 8, children: chips),
+              ),
             ],
             if (child != null) ...[
               SizedBox(height: hasText || chips.isNotEmpty ? 16 : 0),
-              child!,
+              _Rise(delay: step * 2, child: child!),
             ],
           ],
         ),
@@ -141,4 +155,73 @@ class AknHeroHeader extends StatelessWidget {
     }
     return block;
   }
+}
+
+/// Fades its child up into place once ([offset] px, 360 ms, emphasized)
+/// after [delay]; the wrappers stay in the tree afterwards, so the child is
+/// never remounted. Static under reduce motion.
+class _Rise extends StatefulWidget {
+  const _Rise({
+    required this.child,
+    this.delay = Duration.zero,
+    this.offset = 8,
+  });
+
+  final Widget child;
+  final Duration delay;
+  final double offset;
+
+  @override
+  State<_Rise> createState() => _RiseState();
+}
+
+class _RiseState extends State<_Rise> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 360),
+  );
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+    } else if (widget.delay <= Duration.zero) {
+      _c.forward();
+    } else {
+      _timer = Timer(widget.delay, () {
+        if (mounted) _c.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    child: widget.child,
+    builder: (context, child) {
+      final v = _c.value >= 1
+          ? 1.0
+          : AknMotion.emphasizedCurve.transform(_c.value);
+      return Opacity(
+        opacity: v,
+        alwaysIncludeSemantics: true,
+        child: Transform.translate(
+          offset: Offset(0, widget.offset * (1 - v)),
+          child: child,
+        ),
+      );
+    },
+  );
 }

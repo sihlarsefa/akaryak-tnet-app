@@ -126,7 +126,7 @@ void main() {
     await pumpA8(tester, '/weather-host', harness: h, extraRoutes: [_host()]);
     expect(find.text('Hava durumu şu an alınamıyor'), findsOneWidget);
     h.weather.failing = false;
-    await tester.tap(find.byIcon(Icons.refresh_rounded));
+    await tester.tap(find.byIcon(PhosphorIconsRegular.arrowClockwise));
     await pumpFor(tester, const Duration(milliseconds: 600));
     expect(find.text('Yarın sabah yoğun yağış'), findsOneWidget);
     await finish(tester);

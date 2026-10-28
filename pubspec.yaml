@@ -74,6 +74,9 @@ dependencies:
   intl: ^0.20.2
   uuid: ^4.5.1
   collection: ^1.19.0
+  # Simgeler: Phosphor (MIT); çizgi simgeler Regular, seçili sekme ve dolu durum işaretleri Fill
+  # (tasarım v3 §6). Yayın derlemesinde kullanılmayan simgeler ağaçtan atılır.
+  phosphor_flutter: ^2.1.0
 
 dev_dependencies:
   flutter_test:
@@ -92,28 +95,22 @@ flutter:
     - assets/brand/
     # PDF belgelerinde Türkçe karakterler için gömülü Roboto (Apache 2.0, bkz. assets/fonts/NOTICE.txt)
     - assets/fonts/
-    # Mona Sans lisansı (SIL OFL 1.1); main() içinde LicenseRegistry'ye eklenir.
-    - assets/fonts/mona/OFL.txt
-  # Arayüz yazı tipi: Mona Sans v2.0.27 (GitHub × Degarism, SIL OFL 1.1), değiştirilmemiş upstream statik
-  # TTF'ler (tasarım v2 §3.1). Kelimeler MonaSans, rakamlar MonaSansCondensed. PDF'ler Roboto'da kalır.
+    # Plus Jakarta Sans lisansı (SIL OFL 1.1); main() içinde LicenseRegistry'ye eklenir.
+    - assets/fonts/jakarta/OFL.txt
+  # Arayüz yazı tipi: Plus Jakarta Sans 2.7.1 (Tokotype, SIL OFL 1.1), değiştirilmemiş upstream statik
+  # TTF'ler (tasarım v3 §1). Tek aile; rakamlar sabit genişlikli (tnum). PDF'ler Roboto'da kalır.
   fonts:
-    - family: MonaSans
+    - family: PlusJakartaSans
       fonts:
-        - asset: assets/fonts/mona/MonaSans-Regular.ttf
+        - asset: assets/fonts/jakarta/PlusJakartaSans-Regular.ttf
           weight: 400
-        - asset: assets/fonts/mona/MonaSans-Medium.ttf
+        - asset: assets/fonts/jakarta/PlusJakartaSans-Medium.ttf
           weight: 500
-        - asset: assets/fonts/mona/MonaSans-SemiBold.ttf
+        - asset: assets/fonts/jakarta/PlusJakartaSans-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/mona/MonaSans-Bold.ttf
+        - asset: assets/fonts/jakarta/PlusJakartaSans-Bold.ttf
           weight: 700
-    - family: MonaSansCondensed
-      fonts:
-        - asset: assets/fonts/mona/MonaSansCondensed-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/mona/MonaSansCondensed-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/mona/MonaSansCondensed-ExtraBold.ttf
+        - asset: assets/fonts/jakarta/PlusJakartaSans-ExtraBold.ttf
           weight: 800
 
 # Uygulama simgesi: `bash $W/akn-flutter.sh icons`
@@ -130,19 +127,19 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/app-icon-foreground.png"
   adaptive_icon_monochrome: "assets/icon/app-icon-foreground.png"
 
-# Yerel açılış ekranı (beyaz + turuncu » işareti; koyu temada #16191D gece asfaltı; hiçbir zaman mor değil):
+# Yerel açılış ekranı (beyaz + turuncu » işareti; koyu temada #0E0F11 gece grafiti; hiçbir zaman mor değil):
 # `bash $W/akn-flutter.sh splash`
 flutter_native_splash:
   color: "#FFFFFF"
   image: "assets/brand/akn-mark-512.png"
-  color_dark: "#16191D"
+  color_dark: "#0E0F11"
   image_dark: "assets/brand/akn-mark-512.png"
   ios_content_mode: center
   android_12:
     color: "#FFFFFF"
     image: "assets/icon/app-icon-foreground.png"
     icon_background_color: "#FF5001"
-    color_dark: "#16191D"
+    color_dark: "#0E0F11"
     image_dark: "assets/icon/app-icon-foreground.png"
     icon_background_color_dark: "#FF5001"
   web: false

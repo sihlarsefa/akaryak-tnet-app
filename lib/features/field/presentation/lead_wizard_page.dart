@@ -15,8 +15,10 @@ import 'lead_wizard_steps.dart';
 import 'widgets/field_inputs.dart';
 
 /// Ön kayıt sihirbazı (spec A.3 L1): Firma → Filo / depo → İhtiyaç → Ödeme talebi → Ziyaret →
-/// Yetkililer → İlk teslimat noktası → KVKK → Belgeler. Kayıt çevrimdışı güvenlidir; finansa gönderim
-/// KVKK açık rızası ve vergi levhası ister.
+/// Yetkililer → İlk teslimat noktası → KVKK → Belgeler. Tasarım v3: adım şeridi kayarak ilerler,
+/// adımlar yatay ortak eksende geçer ve alanlar sırayla belirir; alt çubukta "Geri" yana açılarak gelir,
+/// birincil düğme "İleri" ↔ "Finansa gönder" yaylanarak değişir. Kayıt çevrimdışı güvenlidir; finansa
+/// gönderim KVKK açık rızası ve vergi levhası ister.
 class FieldLeadWizardPage extends ConsumerStatefulWidget {
   const FieldLeadWizardPage({super.key, required this.args});
 
@@ -71,7 +73,7 @@ class _FieldLeadWizardPageState extends ConsumerState<FieldLeadWizardPage> {
         showBell: false,
         automaticallyImplyLeading: false,
         leading: AknIconButton(
-          icon: Icons.close_rounded,
+          icon: PhosphorIconsRegular.x,
           semanticLabel: 'Kapat',
           onPressed: () => Navigator.of(context).pop(),
         ),
@@ -92,7 +94,7 @@ class _FieldLeadWizardPageState extends ConsumerState<FieldLeadWizardPage> {
         showBell: false,
         automaticallyImplyLeading: false,
         leading: AknIconButton(
-          icon: Icons.close_rounded,
+          icon: PhosphorIconsRegular.x,
           semanticLabel: 'Sihirbazı kapat',
           onPressed: _close,
         ),
@@ -175,80 +177,81 @@ class _LeadBottomBar extends ConsumerWidget {
     final last = s.step == LeadWizardStep.documents;
     final t = context.aknText;
     final missing = last ? s.missingNow : const <String>[];
+    final left = last
+        ? AknButton.secondary(
+            label: 'Taslak kaydet',
+            expand: true,
+            loading: s.busy && s.busyLabel == 'Kaydediliyor',
+            onPressed: s.busy || !s.draft.canSaveDraft ? null : ctrl.saveDraft,
+          )
+        : s.step.index > 0
+        ? AknButton.secondary(
+            label: 'Geri',
+            expand: true,
+            onPressed: s.busy ? null : ctrl.back,
+          )
+        : null;
+    final primary = last
+        ? AknButton(
+            label: 'Finansa gönder',
+            icon: PhosphorIconsRegular.paperPlaneRight,
+            expand: true,
+            loading: s.busy && s.busyLabel != 'Kaydediliyor',
+            onPressed: s.busy || !online ? null : ctrl.submit,
+          )
+        : AknButton(
+            label: 'İleri',
+            trailingIcon: PhosphorIconsRegular.arrowRight,
+            expand: true,
+            onPressed: s.busy ? null : () => ctrl.next(),
+          );
+    final String? state = last && missing.isNotEmpty
+        ? 'Göndermek için eksik: ${missing.join(', ')}'
+        : last && !online
+        ? 'Çevrimdışısınız: kaydedebilirsiniz; finansa göndermek için bağlantı gerekir.'
+        : null;
+    final notes = <Widget>[
+      if (s.busy && s.busyLabel != null)
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            s.busyLabel!,
+            style: t.caption,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      if (state != null)
+        Text(state, style: t.caption, textAlign: TextAlign.center),
+    ];
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (s.busy && s.busyLabel != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                s.busyLabel!,
-                style: t.caption,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        if (last && missing.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Göndermek için eksik: ${missing.join(', ')}',
-              style: t.caption,
-              textAlign: TextAlign.center,
-            ),
-          )
-        else if (last && !online)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Çevrimdışısınız: kaydedebilirsiniz; finansa göndermek için bağlantı gerekir.',
-              style: t.caption,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        Row(
-          children: [
-            if (s.step.index > 0 && !last)
-              Expanded(
-                child: AknButton.secondary(
-                  label: 'Geri',
-                  expand: true,
-                  onPressed: s.busy ? null : ctrl.back,
-                ),
-              ),
-            if (last)
-              Expanded(
-                child: AknButton.secondary(
-                  label: 'Taslak kaydet',
-                  expand: true,
-                  loading: s.busy && s.busyLabel == 'Kaydediliyor',
-                  onPressed: s.busy || !s.draft.canSaveDraft
-                      ? null
-                      : ctrl.saveDraft,
-                ),
-              ),
-            if (s.step.index > 0 || last) const SizedBox(width: 12),
-            Expanded(
-              child: last
-                  ? AknButton(
-                      label: 'Finansa gönder',
-                      icon: Icons.send_rounded,
-                      expand: true,
-                      loading: s.busy && s.busyLabel != 'Kaydediliyor',
-                      onPressed: s.busy || !online ? null : ctrl.submit,
-                    )
-                  : AknButton(
-                      label: 'İleri',
-                      trailingIcon: Icons.arrow_forward_rounded,
-                      expand: true,
-                      onPressed: s.busy ? null : () => ctrl.next(),
+        AknAnimatedSize(
+          alignment: Alignment.bottomCenter,
+          child: notes.isEmpty
+              ? const SizedBox(width: double.infinity)
+              // Büyük yazıda uzun "eksik" listesi alt çubuğu ekranın üstüne taşırmasın: en çok
+              // ekranın beşte biri, gerisi kaydırılarak okunur.
+              : ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.sizeOf(context).height * 0.2,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final n in notes)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: n,
+                          ),
+                      ],
                     ),
-            ),
-          ],
+                  ),
+                ),
         ),
+        FieldWizardButtons(stepKey: last, left: left, primary: primary),
       ],
     );
   }
@@ -319,7 +322,7 @@ class _LeadQueuedView extends ConsumerWidget {
         title: 'Ön kayıt gönderilemedi',
         message: op.lastError ?? 'Sunucu ön kaydı kabul etmedi.',
         tone: AknTone.danger,
-        icon: Icons.error_outline_rounded,
+        icon: PhosphorIconsRegular.warningCircle,
         primaryLabel: 'Düzelt',
         onPrimary: () =>
             context.pushReplacement('${AppRoutes.fieldLeadNew}?op=$opId'),
@@ -333,7 +336,7 @@ class _LeadQueuedView extends ConsumerWidget {
           ? '${FieldCopy.queuedLeadMessage} Finansa göndermek için bağlantı gelince ön kaydı açın.'
           : FieldCopy.queuedLeadMessage,
       tone: AknTone.warn,
-      icon: Icons.schedule_rounded,
+      icon: PhosphorIconsRegular.clock,
       primaryLabel: 'Tamam',
       onPrimary: close,
     );

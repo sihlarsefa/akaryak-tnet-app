@@ -14,7 +14,9 @@ import '../data/field_outbox.dart';
 import '../data/field_repository.dart';
 import 'widgets/field_widgets.dart';
 
-/// Form listesi görünümü (temsilci: Formlarım; ekip: Formlar / Onayda / Reddedilen).
+/// Form listesi görünümü (temsilci: Formlarım; ekip: Formlar / Onayda / Reddedilen). Tasarım v3:
+/// arama ve süzgeç çipleri, ardından sayfada yüzen satır kartları — ilk açılışta (ve süzgeç
+/// değişince) sırayla, sonra kaydırdıkça görünür oldukça kayarak belirir.
 @immutable
 class FieldFormsConfig {
   /// Temsilcinin kendi formları (durum süzgeci, gönderilmeyi bekleyen taslaklar).
@@ -178,13 +180,14 @@ class _FieldFormsViewState extends ConsumerState<FieldFormsView> {
       if (cfg.repFilter)
         _RepChips(value: _rep, onChanged: (v) => setState(() => _rep = v)),
       if (state.cachedAt != null) FieldCachedNote(at: state.cachedAt!),
-      for (final q in queued) ...[
-        FieldQueuedTile(
-          item: q,
-          onEdit: () => context.push('${AppRoutes.fieldFormNew}?op=${q.op.id}'),
+      for (final q in queued)
+        FieldListCard(
+          child: FieldQueuedTile(
+            item: q,
+            onEdit: () =>
+                context.push('${AppRoutes.fieldFormNew}?op=${q.op.id}'),
+          ),
         ),
-        const AknLedgerDivider(),
-      ],
     ];
 
     Widget list;
@@ -236,12 +239,11 @@ class _FieldFormsViewState extends ConsumerState<FieldFormsView> {
                 shown: items.length,
               );
             }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (index > 0) const AknLedgerDivider(),
-                FieldFormTile(row: items[index], showRep: cfg.showRep),
-              ],
+            return FieldStaggerItem(
+              index: index,
+              child: FieldListCard(
+                child: FieldFormTile(row: items[index], showRep: cfg.showRep),
+              ),
             );
           },
         ),
@@ -285,7 +287,7 @@ class _RepChips extends ConsumerWidget {
           FilterOption(
             value: r.id,
             label: r.isInactive ? '${r.name} (pasif)' : r.name,
-            icon: Icons.person_outline_rounded,
+            icon: PhosphorIconsRegular.user,
           ),
       ],
       selected: {?value},

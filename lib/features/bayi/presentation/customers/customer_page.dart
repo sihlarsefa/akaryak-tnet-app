@@ -16,11 +16,12 @@ import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 import 'customer_sheets.dart';
 
-/// Cari 360-lite kartı (spec A.4 / B.7 `CustomerSummaryDto`, tasarım v2 §5.2): düz beyaz başlık (ünvan,
-/// kod / VKN / yer, finans lambası), **tek plaka "Kullanılabilir limit"** (kalan, kullanım ölçeri,
-/// Limit / Kullanılan / Kullanım), bekleyen limit talebi, finans kartı, tahsilat özeti, açık / son
-/// siparişler, saha formları, teslimat noktaları (pencere, tank, yetkili, erişim notu, harita),
-/// yetkililer, görüşme notları; eylemler yetkiye ve sunucu bayraklarına göre. Saha temsilcisi portföy
+/// Cari 360-lite kartı (spec A.4 / B.7 `CustomerSummaryDto`, tasarım v3 "Akış"): sayfa başlığı (baş
+/// harf yuvarlağı, ünvan, kod / VKN / yer, finans çipi), **tek kahraman kart "Kullanılabilir limit"**
+/// (kalan, kullanım ölçeri, Limit / Kullanılan / Kullanım; yükselerek gelir), bekleyen limit talebi,
+/// sonra beyaz kartlarda finans kartı, tahsilat özeti, açık / son siparişler, saha formları, teslimat
+/// noktaları (pencere, tank, yetkili, erişim notu, harita), yetkililer, görüşme notları — kartlar art
+/// arda yükselerek gelir. Eylemler yetkiye ve sunucu bayraklarına göre. Saha temsilcisi portföy
 /// görünümünde not ve limit talebi görmez.
 class BayiCustomerPage extends ConsumerWidget {
   const BayiCustomerPage({super.key, required this.customerId});
@@ -43,18 +44,17 @@ class BayiCustomerPage extends ConsumerWidget {
       actions: [
         if (phone != null)
           AknIconButton(
-            icon: Icons.call_outlined,
+            icon: PhosphorIconsRegular.phone,
             semanticLabel: 'Cariyi ara',
             onPressed: () => callPhone(context, phone),
           ),
       ],
       actionBar: !quote && !form
           ? null
-          : Row(
-              children: [
-                if (quote)
-                  Expanded(
-                    child: AknButton(
+          : _ActionPair(
+              primary: !quote
+                  ? null
+                  : AknButton(
                       label: 'Teklif ver',
                       expand: true,
                       onPressed: () => g.viewDesk
@@ -64,11 +64,9 @@ class BayiCustomerPage extends ConsumerWidget {
                             )
                           : openDestination(context, AppRoutes.bayiOrders),
                     ),
-                  ),
-                if (quote && form) const SizedBox(width: 12),
-                if (form)
-                  Expanded(
-                    child: AknButton.secondary(
+              secondary: !form
+                  ? null
+                  : AknButton.secondary(
                       label: 'Saha formu',
                       expand: true,
                       onPressed: () => GoRouter.of(context).push(
@@ -76,8 +74,6 @@ class BayiCustomerPage extends ConsumerWidget {
                         '&customerTitle=${Uri.encodeQueryComponent(s.title)}',
                       ),
                     ),
-                  ),
-              ],
             ),
       body: LoadableBody<CustomerSummary>(
         state: state,
@@ -87,6 +83,36 @@ class BayiCustomerPage extends ConsumerWidget {
           child: _Body(summary: data),
         ),
       ),
+    );
+  }
+}
+
+/// Alt eylem çubuğundaki iki düğme (tasarım v3): yan yana eşit genişlikte; büyük yazıda alt alta tam
+/// genişlik (iki satıra kırılan etiket düğmeleri farklı yükseklikte bırakmasın).
+class _ActionPair extends StatelessWidget {
+  const _ActionPair({this.primary, this.secondary});
+
+  final Widget? primary;
+  final Widget? secondary;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = primary;
+    final b = secondary;
+    if (a == null || b == null) return a ?? b ?? const SizedBox.shrink();
+    if (isLargeText(context)) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [a, const SizedBox(height: 10), b],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: a),
+        const SizedBox(width: 12),
+        Expanded(child: b),
+      ],
     );
   }
 }
@@ -102,110 +128,160 @@ class _Body extends ConsumerWidget {
     final g = ref.watch(bayiGrantsProvider);
     final t = context.aknText;
     final k = context.akn;
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        _Header(summary: s),
-        if (!s.finance.canOrder)
-          PageWell(
-            top: 12,
-            tone: AknTone.warn,
-            icon: Icons.block_rounded,
-            title: 'Sipariş verilemiyor',
-            message: s.finance.blockReason ?? s.finance.label,
-          ),
-        if (s.limit != null) _LimitPlate(summary: s),
-        if (s.financeCard != null) _FinanceCard(card: s.financeCard!),
-        if (s.collections != null) _CollectionsCard(c: s.collections!),
-        if (s.openOrders.isNotEmpty) ...[
-          SectionHeader(title: 'Açık siparişler', count: s.openOrders.length),
-          AknLedger(
-            children: [
-              for (final o in s.openOrders)
-                _OrderLine(order: o, canOpen: g.viewOrders),
-            ],
-          ),
-        ],
-        if (s.lastOrders.isNotEmpty) ...[
-          const SectionHeader(title: 'Son siparişler'),
-          AknLedger(
-            children: [
-              for (final o in s.lastOrders)
-                _OrderLine(order: o, canOpen: g.viewOrders),
-            ],
-          ),
-        ],
-        if (s.openForms.isNotEmpty) ...[
-          SectionHeader(title: 'Saha formları', count: s.openForms.length),
-          AknLedger(
-            children: [
-              for (final f in s.openForms)
-                AknListTile(
-                  title: f.formNumber,
-                  amount: f.totalAmount == null
-                      ? null
-                      : Fmt.money(f.totalAmount),
-                  amountMeta: Fmt.liters(f.totalLiters),
-                  status: AknLamp.style(
-                    f.status.statusStyle.withLabel(f.statusLabel),
-                  ),
-                  onTap: g.viewFieldForms
-                      ? () =>
-                            GoRouter.of(context).push(AppRoutes.fieldForm(f.id))
-                      : null,
-                ),
-            ],
-          ),
-        ],
-        if (s.deliveryPoints.isNotEmpty) ...[
-          SectionHeader(
-            title: 'Teslimat noktaları',
-            count: s.deliveryPoints.length,
-          ),
-          AknLedger(
-            children: [for (final p in s.deliveryPoints) _PointRow(point: p)],
-          ),
-        ],
-        if (s.contacts.isNotEmpty) ...[
-          const SectionHeader(title: 'Yetkililer'),
-          AknLedger(
-            children: [
-              for (final c in s.contacts)
-                AknListTile(
-                  leading: AknAvatar(name: c.name, size: 36),
-                  title: c.name,
-                  subtitle: [
-                    ?c.role,
-                    if (c.phone != null) Fmt.phone(c.phone),
-                    ?c.email,
-                  ].join(', '),
-                  trailing: c.phone == null
-                      ? null
-                      : AknIconButton(
-                          icon: Icons.call_outlined,
-                          semanticLabel: '${c.name} ara',
-                          onPressed: () => callPhone(context, c.phone!),
-                        ),
-                ),
-            ],
-          ),
-        ],
-        if (s.actions.canViewNotes) _NotesSection(summary: s),
-        if (s.isPortfolioView)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Text(
-              'Portföy görünümü: görüşme notları ve limit talepleri bayi yöneticinizde.',
-              style: t.bodySmall.copyWith(color: k.dim),
+    // Kartlar art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
+    var n = 0;
+    Widget stagger(Widget child) => StaggerItem(index: n++, child: child);
+    const rowPad = EdgeInsets.fromLTRB(18, 12, 18, 12);
+    return StaggerScope(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 28),
+        children: [
+          FadeUp(offset: 10, child: _Header(summary: s)),
+          if (!s.finance.canOrder)
+            PageWell(
+              top: 14,
+              tone: AknTone.warn,
+              icon: PhosphorIconsRegular.prohibit,
+              title: 'Sipariş verilemiyor',
+              message: s.finance.blockReason ?? s.finance.label,
             ),
-          ),
-      ],
+          if (s.limit != null) _LimitPlate(summary: s),
+          if (s.financeCard != null)
+            stagger(_FinanceCard(card: s.financeCard!)),
+          if (s.collections != null)
+            stagger(_CollectionsCard(c: s.collections!)),
+          if (s.openOrders.isNotEmpty)
+            stagger(
+              GroupCard(
+                title: 'Açık siparişler',
+                count: s.openOrders.length,
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknLedger(
+                  children: [
+                    for (final o in s.openOrders)
+                      _OrderLine(order: o, canOpen: g.viewOrders),
+                  ],
+                ),
+              ),
+            ),
+          if (s.lastOrders.isNotEmpty)
+            stagger(
+              GroupCard(
+                title: 'Son siparişler',
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknLedger(
+                  children: [
+                    for (final o in s.lastOrders)
+                      _OrderLine(order: o, canOpen: g.viewOrders),
+                  ],
+                ),
+              ),
+            ),
+          if (s.openForms.isNotEmpty)
+            stagger(
+              GroupCard(
+                title: 'Saha formları',
+                count: s.openForms.length,
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknLedger(
+                  children: [
+                    for (final f in s.openForms)
+                      AknListTile(
+                        padding: rowPad,
+                        title: f.formNumber,
+                        amount: f.totalAmount == null
+                            ? null
+                            : Fmt.money(f.totalAmount),
+                        amountMeta: Fmt.liters(f.totalLiters),
+                        status: AknLamp.style(
+                          f.status.statusStyle.withLabel(f.statusLabel),
+                        ),
+                        onTap: g.viewFieldForms
+                            ? () => GoRouter.of(
+                                context,
+                              ).push(AppRoutes.fieldForm(f.id))
+                            : null,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (s.deliveryPoints.isNotEmpty)
+            stagger(
+              GroupCard(
+                title: 'Teslimat noktaları',
+                count: s.deliveryPoints.length,
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknLedger(
+                  children: [
+                    for (final p in s.deliveryPoints) _PointRow(point: p),
+                  ],
+                ),
+              ),
+            ),
+          if (s.contacts.isNotEmpty)
+            stagger(
+              GroupCard(
+                title: 'Yetkililer',
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknLedger(
+                  children: [
+                    for (final c in s.contacts)
+                      AknListTile(
+                        padding: rowPad,
+                        leading: AknAvatar(name: c.name, size: 40),
+                        title: c.name,
+                        subtitle: [
+                          ?c.role,
+                          if (c.phone != null) Fmt.phone(c.phone),
+                          ?c.email,
+                        ].join(', '),
+                        trailing: c.phone == null
+                            ? null
+                            : AknIconButton(
+                                icon: PhosphorIconsRegular.phone,
+                                semanticLabel: '${c.name} ara',
+                                onPressed: () => callPhone(context, c.phone!),
+                              ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (s.actions.canViewNotes) stagger(_NotesSection(summary: s)),
+          if (s.isPortfolioView)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(
+                      PhosphorIconsRegular.briefcase,
+                      size: 16,
+                      color: k.dim,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Portföy görünümü: görüşme notları ve limit talepleri bayi yöneticinizde.',
+                      style: t.bodySmall.copyWith(color: k.dim),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
 
-/// Düz beyaz başlık (§5.2): ünvan (`display`), kod / VKN / yer, finans lambası, pasif ve portföy.
+/// Sayfa başlığı (tasarım v3): baş harf yuvarlağı (52 px), ünvan (`display`), kod / VKN / yer; altında
+/// finans çipi, pasif ve portföy.
 class _Header extends StatelessWidget {
   const _Header({required this.summary});
 
@@ -226,18 +302,38 @@ class _Header extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          MediaQuery.withClampedTextScaling(
-            maxScaleFactor: 1.5,
-            child: Semantics(
-              header: true,
-              child: Text(s.title, style: t.display.copyWith(color: c.ink)),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: AknAvatar(name: s.title, size: 52),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.5,
+                      child: Semantics(
+                        header: true,
+                        child: Text(
+                          s.title,
+                          style: t.display.copyWith(color: c.ink),
+                        ),
+                      ),
+                    ),
+                    if (meta.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(meta, style: t.bodySmall.copyWith(color: c.dim)),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          if (meta.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(meta, style: t.bodySmall.copyWith(color: c.dim)),
-          ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 16,
             runSpacing: 6,
@@ -288,64 +384,71 @@ class _LimitPlate extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: RowNote(
-              icon: Icons.speed_rounded,
+              icon: PhosphorIconsFill.gauge,
               text:
                   'Bu caride limit yok (limitsiz). Kullanılan ${amountText(l.used)}.',
             ),
           )
         else
-          AknPlate(
-            margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            semanticLabel:
-                'Kullanılabilir limit ${amountText(remaining)}, kullanım ${Fmt.percent(l.usagePct)}',
-            head: PlateHead(
-              icon: Icons.speed_rounded,
-              title: 'Kullanılabilir limit',
-              period: l.periodLabel ?? l.period,
-            ),
-            figure: PlateFigure(
-              value: num0(remaining),
-              unit: unit,
-              semanticLabel: 'Kullanılabilir limit ${amountText(remaining)}',
-            ),
-            delta: over
-                ? Row(
-                    children: [
-                      const PlateBang(),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Limit aşıldı',
-                          style: t.bodyStrong.copyWith(color: k.ink),
+          // Kahraman kart ilk açılışta yükselip büyüyerek gelir.
+          FadeUp(
+            offset: 24,
+            scale: 0.94,
+            duration: AknMotion.heroRise,
+            curve: AknMotion.emphasizedCurve,
+            child: AknPlate(
+              margin: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              semanticLabel:
+                  'Kullanılabilir limit ${amountText(remaining)}, kullanım ${Fmt.percent(l.usagePct)}',
+              head: PlateHead(
+                icon: PhosphorIconsFill.gauge,
+                title: 'Kullanılabilir limit',
+                period: l.periodLabel ?? l.period,
+              ),
+              figure: PlateFigure(
+                value: num0(remaining),
+                unit: unit,
+                semanticLabel: 'Kullanılabilir limit ${amountText(remaining)}',
+              ),
+              delta: over
+                  ? Row(
+                      children: [
+                        const PlateBang(),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Limit aşıldı',
+                            style: t.bodyStrong.copyWith(color: k.ink),
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                : null,
-            chart: PlateMeter(
-              value: usage.clamp(0.0, 1.0),
-              threshold: 0.8,
-              semanticLabel: 'Limit kullanımı',
-              semanticValue: Fmt.percent(l.usagePct),
-            ),
-            below: PlateClamp(
-              child: PlateReadouts(
-                items: [
-                  PlateReadout(
-                    label: 'Limit',
-                    value: num0(l.amount),
-                    unit: unit,
-                  ),
-                  PlateReadout(
-                    label: 'Kullanılan',
-                    value: num0(l.used),
-                    unit: unit,
-                  ),
-                  PlateReadout(
-                    label: 'Kullanım',
-                    value: Fmt.percent(l.usagePct),
-                  ),
-                ],
+                      ],
+                    )
+                  : null,
+              chart: PlateMeter(
+                value: usage.clamp(0.0, 1.0),
+                threshold: 0.8,
+                semanticLabel: 'Limit kullanımı',
+                semanticValue: Fmt.percent(l.usagePct),
+              ),
+              below: PlateClamp(
+                child: PlateReadouts(
+                  items: [
+                    PlateReadout(
+                      label: 'Limit',
+                      value: num0(l.amount),
+                      unit: unit,
+                    ),
+                    PlateReadout(
+                      label: 'Kullanılan',
+                      value: num0(l.used),
+                      unit: unit,
+                    ),
+                    PlateReadout(
+                      label: 'Kullanım',
+                      value: Fmt.percent(l.usagePct),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -353,7 +456,7 @@ class _LimitPlate extends ConsumerWidget {
           PageWell(
             top: 12,
             tone: AknTone.info,
-            icon: Icons.hourglass_top_rounded,
+            icon: PhosphorIconsRegular.hourglassHigh,
             title: 'Bekleyen limit talebi, merkez onayında',
             message: [
               if (pending.period != null) pending.period!,
@@ -372,6 +475,7 @@ class _LimitPlate extends ConsumerWidget {
               alignment: AlignmentDirectional.centerStart,
               child: AknButton.secondary(
                 label: 'Limit talebi',
+                icon: PhosphorIconsRegular.trendUp,
                 size: AknButtonSize.small,
                 onPressed: () => showLimitRequestSheet(context, s),
               ),
@@ -382,24 +486,22 @@ class _LimitPlate extends ConsumerWidget {
   }
 }
 
-/// Bölüm içi olgular: 20 px kenarda etiket / değer satırları, aralarında ince çizgi.
+/// Kart içi olgular: etiket / değer satırları, aralarında ince çizgi (`lineSoft`).
 class _Facts extends StatelessWidget {
   const _Facts({required this.children});
 
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: context.akn.line),
-          children[i],
-        ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0)
+          Divider(height: 1, thickness: 1, color: context.akn.lineSoft),
+        children[i],
       ],
-    ),
+    ],
   );
 }
 
@@ -411,56 +513,51 @@ class _FinanceCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = card;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BayiSectionHeader(
-          title: 'Finans kartı',
-          actionLabel: 'Kartı aç',
-          onAction: () => GoRouter.of(
-            context,
-          ).push(AppRoutes.financeCustomer(c.stationCustomerId)),
-        ),
-        _Facts(
-          children: [
-            if (c.status != null)
-              FactRow(
-                label: 'Durum',
-                value: c.statusLabel ?? c.status!.label,
-                tone: c.status!.statusStyle.tone,
-              ),
+    return GroupCard(
+      title: 'Finans kartı',
+      actionLabel: 'Kartı aç',
+      onAction: () => GoRouter.of(
+        context,
+      ).push(AppRoutes.financeCustomer(c.stationCustomerId)),
+      child: _Facts(
+        children: [
+          if (c.status != null)
             FactRow(
-              label: 'Risk sınıfı',
-              value: c.riskClassLabel ?? c.riskClass.label,
-              tone: c.riskClass.isHighRisk ? AknTone.warn : null,
+              label: 'Durum',
+              value: c.statusLabel ?? c.status!.label,
+              tone: c.status!.statusStyle.tone,
             ),
-            if (c.nextReviewDate != null)
-              FactRow(
-                label: 'Sonraki gözden geçirme',
-                value: Fmt.date(c.nextReviewDate),
-              ),
-            if (c.hasBouncedCheque)
-              const FactRow(
-                label: 'Karşılıksız çek',
-                value: 'Var',
-                tone: AknTone.danger,
-              ),
-            if (c.hasProtestedNote)
-              const FactRow(
-                label: 'Protestolu senet',
-                value: 'Var',
-                tone: AknTone.danger,
-              ),
-            if (!c.hasProfile)
-              FactRow(
-                label: 'Kart',
-                value: c.isGrandfathered
-                    ? 'Eski bağlantı (kartsız onaylı)'
-                    : 'Kart oluşturulmadı',
-              ),
-          ],
-        ),
-      ],
+          FactRow(
+            label: 'Risk sınıfı',
+            value: c.riskClassLabel ?? c.riskClass.label,
+            tone: c.riskClass.isHighRisk ? AknTone.warn : null,
+          ),
+          if (c.nextReviewDate != null)
+            FactRow(
+              label: 'Sonraki gözden geçirme',
+              value: Fmt.date(c.nextReviewDate),
+            ),
+          if (c.hasBouncedCheque)
+            const FactRow(
+              label: 'Karşılıksız çek',
+              value: 'Var',
+              tone: AknTone.danger,
+            ),
+          if (c.hasProtestedNote)
+            const FactRow(
+              label: 'Protestolu senet',
+              value: 'Var',
+              tone: AknTone.danger,
+            ),
+          if (!c.hasProfile)
+            FactRow(
+              label: 'Kart',
+              value: c.isGrandfathered
+                  ? 'Eski bağlantı (kartsız onaylı)'
+                  : 'Kart oluşturulmadı',
+            ),
+        ],
+      ),
     );
   }
 }
@@ -472,38 +569,34 @@ class _CollectionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BayiSectionHeader(
-          title: 'Tahsilat',
-          actionLabel: 'Tümü',
-          onAction: () => openDestination(context, AppRoutes.payments),
-        ),
-        _Facts(
-          children: [
+    return GroupCard(
+      title: 'Tahsilat',
+      actionLabel: 'Tümü',
+      onAction: () => openDestination(context, AppRoutes.payments),
+      child: _Facts(
+        children: [
+          FactRow(
+            label: 'Vadesi geçen',
+            value: c.overdueCount == 0
+                ? 'Yok'
+                : '${c.overdueCount} ödeme, ${Fmt.money(c.overdueAmount)}',
+            tone: c.overdueCount > 0 ? AknTone.danger : AknTone.ok,
+          ),
+          FactRow(
+            label: 'Açık çek / senet',
+            value: c.openInstruments == 0
+                ? 'Yok'
+                : '${c.openInstruments} adet'
+                      '${c.nextInstrumentDue == null ? '' : ', ilk vade ${Fmt.date(c.nextInstrumentDue)}'}',
+          ),
+          if (c.advanceBalance != null)
             FactRow(
-              label: 'Vadesi geçen',
-              value: c.overdueCount == 0
-                  ? 'Yok'
-                  : '${c.overdueCount} ödeme, ${Fmt.money(c.overdueAmount)}',
-              tone: c.overdueCount > 0 ? AknTone.danger : AknTone.ok,
+              label: 'Avans bakiyesi',
+              value: Fmt.money(c.advanceBalance),
+              valueStyle: const TextStyle(fontFeatures: AknNumerals.tabular),
             ),
-            FactRow(
-              label: 'Açık çek / senet',
-              value: c.openInstruments == 0
-                  ? 'Yok'
-                  : '${c.openInstruments} adet'
-                        '${c.nextInstrumentDue == null ? '' : ', ilk vade ${Fmt.date(c.nextInstrumentDue)}'}',
-            ),
-            if (c.advanceBalance != null)
-              FactRow(
-                label: 'Avans bakiyesi',
-                value: Fmt.money(c.advanceBalance),
-              ),
-          ],
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -520,6 +613,7 @@ class _OrderLine extends ConsumerWidget {
     final o = order;
     final viewer = ref.watch(bayiGrantsProvider).viewer;
     return AknListTile(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
       title: keepUnits(
         [?o.productName, Fmt.liters(o.quantityLiters)].join(', '),
       ),
@@ -560,7 +654,7 @@ class _PointRow extends StatelessWidget {
         'tank ${Fmt.liters(p.tankCapacityLiters)}',
     ].join(', ');
     return Padding(
-      padding: AknSpace.row,
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -569,19 +663,19 @@ class _PointRow extends StatelessWidget {
             Text(address, style: t.bodySmall.copyWith(color: c.dim)),
           if (facts.isNotEmpty) ...[
             const SizedBox(height: 6),
-            RowNote(icon: Icons.schedule_rounded, text: keepUnits(facts)),
+            RowNote(icon: PhosphorIconsRegular.clock, text: keepUnits(facts)),
           ],
           if (p.accessNotes != null) ...[
             const SizedBox(height: 4),
             RowNote(
-              icon: Icons.door_front_door_outlined,
+              icon: PhosphorIconsRegular.door,
               text: 'Erişim: ${p.accessNotes}',
             ),
           ],
           if (p.contactName != null) ...[
             const SizedBox(height: 4),
             RowNote(
-              icon: Icons.person_outline_rounded,
+              icon: PhosphorIconsRegular.user,
               text:
                   'Sorumlu: ${p.contactName}${p.contactPhone == null ? '' : ', ${Fmt.phone(p.contactPhone)}'}',
             ),
@@ -649,58 +743,65 @@ class _NotesSection extends ConsumerWidget {
     final k = context.akn;
     final g = ref.watch(bayiGrantsProvider);
     final canAdd = s.actions.canAddNote && g.addCustomerNote;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BayiSectionHeader(
-          title: 'Görüşme notları',
-          actionLabel: canAdd ? 'Not ekle' : null,
-          onAction: canAdd
-              ? () => showAddNoteSheet(context, s.customerId)
-              : null,
-        ),
-        if (s.notes.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Henüz not yok.',
-              style: t.bodySmall.copyWith(color: k.dim),
-            ),
-          )
-        else
-          AknLedger(
-            children: [
-              for (final n in s.notes)
-                Padding(
-                  padding: const EdgeInsetsDirectional.fromSTEB(20, 10, 8, 10),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(n.body, style: t.body.copyWith(color: k.ink)),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${n.createdByDisplay}, ${TurkishText.lower(Fmt.relative(n.createdAt))}',
-                              style: t.caption.copyWith(color: k.dim),
-                            ),
-                          ],
-                        ),
+    return GroupCard(
+      title: 'Görüşme notları',
+      actionLabel: canAdd ? 'Not ekle' : null,
+      onAction: canAdd ? () => showAddNoteSheet(context, s.customerId) : null,
+      padding: EdgeInsets.only(bottom: s.notes.isEmpty ? 14 : 4),
+      child: s.notes.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                'Henüz not yok.',
+                style: t.bodySmall.copyWith(color: k.dim),
+              ),
+            )
+          : AknLedger(
+              children: [
+                for (final n in s.notes)
+                  // Yeni not kayarak girer.
+                  StaggerItem(
+                    key: ValueKey(n.id),
+                    index: 0,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.fromSTEB(
+                        18,
+                        10,
+                        8,
+                        10,
                       ),
-                      if (n.canDelete && canAdd)
-                        AknIconButton(
-                          icon: Icons.delete_outline_rounded,
-                          semanticLabel: 'Notu sil',
-                          onPressed: () => unawaited(_delete(context, ref, n)),
-                        ),
-                    ],
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  n.body,
+                                  style: t.body.copyWith(color: k.ink),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${n.createdByDisplay}, ${TurkishText.lower(Fmt.relative(n.createdAt))}',
+                                  style: t.caption.copyWith(color: k.dim),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (n.canDelete && canAdd)
+                            AknIconButton(
+                              icon: PhosphorIconsRegular.trash,
+                              semanticLabel: 'Notu sil',
+                              onPressed: () =>
+                                  unawaited(_delete(context, ref, n)),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-            ],
-          ),
-      ],
+              ],
+            ),
     );
   }
 }

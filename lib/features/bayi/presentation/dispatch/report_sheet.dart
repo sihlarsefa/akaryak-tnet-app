@@ -13,8 +13,9 @@ import '../../application/bayi_actions.dart';
 import '../../data/dispatch_models.dart';
 import '../widgets/bayi_widgets.dart';
 
-/// Teslim bildir / Teslimatı düzelt (personel; uygulaması olmayan şoför için). Litre ≤ planlanan,
-/// irsaliye no zorunlu. Bildirilirse true.
+/// Teslim bildir / Teslimatı düzelt (personel; uygulaması olmayan şoför için; tasarım v3). Üstte
+/// planlanan litre Beton kuyuda; litre ≤ planlanan, irsaliye no zorunlu. Bildirilince başarı dokunsal
+/// geri bildirimi. Bildirilirse true.
 Future<bool> showReportSheet(BuildContext context, ShipmentDetail d) async {
   final fix = d.status == ShipmentStatus.disputed;
   final r = await showAppSheet<bool>(
@@ -68,6 +69,7 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
             deliveryDocumentNo: _doc.text.trim().asciiUpper,
           );
       if (!mounted) return;
+      AknHaptics.success();
       AppToast.success(
         d.status == ShipmentStatus.disputed
             ? 'Düzeltilen teslimat cari onayına gönderildi.'
@@ -100,6 +102,8 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
             ),
             const SizedBox(height: 12),
           ],
+          _Planned(liters: d.plannedLiters, product: d.productName),
+          const SizedBox(height: 14),
           LitersField(
             label: 'Teslim edilen litre',
             controller: _liters,
@@ -122,9 +126,27 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
             onSubmitted: (_) => unawaited(_submit()),
           ),
           const SizedBox(height: 8),
-          Text(
-            'Cari teslimatı uygulamadan onaylar ya da itiraz eder.',
-            style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(
+                  PhosphorIconsRegular.info,
+                  size: 16,
+                  color: context.akn.dim,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Cari teslimatı uygulamadan onaylar ya da itiraz eder.',
+                  style: context.aknText.bodySmall.copyWith(
+                    color: context.akn.dim,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
           AknButton(
@@ -136,6 +158,43 @@ class _ReportSheetState extends ConsumerState<_ReportSheet> {
             onPressed: online ? () => unawaited(_submit()) : null,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Planlanan litre: Beton kuyuda ADR levhası, "Planlanan" ve litre (tablo rakamları).
+class _Planned extends StatelessWidget {
+  const _Planned({required this.liters, this.product});
+
+  final double liters;
+  final String? product;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final adr = AdrPlate.forProduct(product, height: 26);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            if (adr != null) ...[adr, const SizedBox(width: 12)],
+            Expanded(
+              child: Text(
+                product == null ? 'Planlanan' : 'Planlanan $product',
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(Fmt.liters(liters), style: t.amount.copyWith(color: c.ink)),
+          ],
+        ),
       ),
     );
   }

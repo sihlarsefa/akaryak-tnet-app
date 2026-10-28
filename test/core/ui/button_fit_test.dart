@@ -151,7 +151,7 @@ void main() {
             1,
             AknButton.secondary(
               label: 'Yol tarifi',
-              icon: Icons.directions_rounded,
+              icon: PhosphorIconsRegular.navigationArrow,
               expand: true,
               onPressed: () {},
             ),
@@ -160,7 +160,7 @@ void main() {
             1,
             AknButton(
               label: 'Teslim et',
-              icon: Icons.task_alt_rounded,
+              icon: PhosphorIconsFill.checkCircle,
               expand: true,
               onPressed: () {},
             ),
@@ -176,7 +176,7 @@ void main() {
             1,
             AknButton(
               label: 'Yol tarifi',
-              icon: Icons.directions_rounded,
+              icon: PhosphorIconsRegular.navigationArrow,
               expand: true,
               onPressed: () {},
             ),
@@ -185,7 +185,7 @@ void main() {
             1,
             AknButton.secondary(
               label: 'Haritada aç',
-              icon: Icons.map_outlined,
+              icon: PhosphorIconsRegular.mapTrifold,
               expand: true,
               onPressed: () {},
             ),
@@ -201,7 +201,7 @@ void main() {
             1,
             AknButton.secondary(
               label: 'Siparişi aç',
-              icon: Icons.receipt_long_rounded,
+              icon: PhosphorIconsFill.receipt,
               expand: true,
               onPressed: () {},
             ),
@@ -210,7 +210,7 @@ void main() {
             2,
             AknButton(
               label: 'Durumu değiştir',
-              icon: Icons.published_with_changes_rounded,
+              icon: PhosphorIconsRegular.arrowsClockwise,
               expand: true,
               onPressed: () {},
             ),
@@ -226,7 +226,7 @@ void main() {
             1,
             AknButton.secondary(
               label: 'Reddet',
-              icon: Icons.close_rounded,
+              icon: PhosphorIconsRegular.x,
               expand: true,
               onPressed: () {},
             ),
@@ -235,7 +235,7 @@ void main() {
             2,
             AknButton(
               label: 'Bilgi alındı',
-              icon: Icons.check_rounded,
+              icon: PhosphorIconsRegular.check,
               expand: true,
               onPressed: () {},
             ),
@@ -251,7 +251,7 @@ void main() {
             1,
             AknButton.secondary(
               label: 'Düzenle',
-              icon: Icons.edit_outlined,
+              icon: PhosphorIconsRegular.pencilSimple,
               expand: true,
               onPressed: () {},
             ),
@@ -260,7 +260,7 @@ void main() {
             1,
             AknButton(
               label: 'Onaya gönder',
-              icon: Icons.send_rounded,
+              icon: PhosphorIconsRegular.paperPlaneRight,
               expand: true,
               onPressed: () {},
             ),
@@ -303,7 +303,7 @@ void main() {
             1,
             AknButton(
               label: 'Devam',
-              trailingIcon: Icons.arrow_forward_rounded,
+              trailingIcon: PhosphorIconsRegular.arrowRight,
               expand: true,
               onPressed: () {},
             ),
@@ -311,7 +311,7 @@ void main() {
         ]),
       );
       expectWhole(tester, 'Devam');
-      expect(find.byIcon(Icons.arrow_forward_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.arrowRight), findsOneWidget);
     }, skip: skip != null);
   });
 

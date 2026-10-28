@@ -16,9 +16,9 @@ import '../../data/customer_models.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 
-/// Cariler (spec A.4, tasarım v2 §7.7): kök başlık, arama kuyusu, defter satırları (limit kullanımı
-/// sağda, finans durumu lambası, açık sipariş sayısı); saha satış temsilcisi yalnızca portföyünü görür.
-/// Satıra dokununca cari kartı (360-lite).
+/// Cariler (spec A.4, tasarım v3 "Akış"): kök başlık, arama kuyusu, cari kartları (limit kullanımı
+/// sağda, finans durumu çipi, açık sipariş sayısı, limite yaklaşanda dolarak gelen kullanım çubuğu);
+/// saha satış temsilcisi yalnızca portföyünü görür. Karta dokununca cari kartı (360-lite).
 class BayiCustomersPage extends ConsumerWidget {
   const BayiCustomersPage({super.key});
 
@@ -36,7 +36,7 @@ class BayiCustomersPage extends ConsumerWidget {
         list: s.list,
         header: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 2),
             child: SearchField(
               hint: 'Ünvan, vergi no, kod ya da şehir',
               onChanged: c.setQuery,
@@ -46,6 +46,8 @@ class BayiCustomersPage extends ConsumerWidget {
         onRefresh: () => c.reload(silent: true),
         onLoadMore: () => unawaited(c.loadMore()),
         filtered: s.query.isNotEmpty,
+        // Satır kendi basılı hâlini çizer (içeride küçülür); kart sabit kalır.
+        pressableCards: false,
         onClearFilters: () => c.setQuery(''),
         empty: EmptyState(
           title: BayiCopy.customersEmptyTitle,
@@ -67,8 +69,10 @@ class BayiCustomersPage extends ConsumerWidget {
   }
 }
 
-/// Cari satırı (defter satırı): ünvan, kod ve yer; sağda limit kullanımı ("%62", "limit"); durum
-/// satırında finans kartı lambası ve açık sipariş sayısı; son sipariş zamanı; arama düğmesi.
+/// Cari kartı (tasarım v3 liste kartı; kartı [PagedListBody] çizer): ünvan, kod ve yer; sağda limit
+/// kullanımı ("%62", "limit kullanımı", tablo rakamları); durum satırında finans kartı çipi ve açık
+/// sipariş sayısı; limite yaklaşan ya da aşan caride dolarak gelen kullanım çubuğu; son sipariş zamanı;
+/// arama düğmesi.
 class CustomerRowCard extends StatelessWidget {
   const CustomerRowCard({super.key, required this.row});
 
@@ -85,7 +89,9 @@ class CustomerRowCard extends StatelessWidget {
     final last = r.lastOrderAt == null
         ? null
         : 'son sipariş ${TurkishText.lower(Fmt.relative(r.lastOrderAt))}';
+    final near = tone == AknTone.warn || tone == AknTone.danger;
     return AknListTile(
+      padding: kCardRowPadding,
       title: r.title,
       subtitle: [?r.code, ?r.place, ?last].join(', '),
       amount: pct == null ? null : Fmt.percent(pct),
@@ -110,14 +116,35 @@ class CustomerRowCard extends StatelessWidget {
                       '${r.openOrders} açık sipariş',
                       style: t.bodySmall.copyWith(
                         color: k.ink,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: AknNumerals.tabular,
                       ),
                     )
                   : null,
             ),
-      footer: status != null && (tone == AknTone.warn || tone == AknTone.danger)
+      footer: near && pct != null
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExcludeSemantics(
+                  child: BayiUsageBar(value: pct / 100, tone: tone, height: 6),
+                ),
+                if (status != null) ...[
+                  const SizedBox(height: 8),
+                  RowNote(
+                    icon: PhosphorIconsFill.gauge,
+                    tone: tone,
+                    text: tone == AknTone.danger
+                        ? 'Limit aşıldı, yeni sipariş finans onayına gider.'
+                        : 'Limite yakın, limitin ${Fmt.percent(pct)} kadarı kullanıldı.',
+                  ),
+                ],
+              ],
+            )
+          : status != null && near
           ? RowNote(
-              icon: Icons.speed_rounded,
+              icon: PhosphorIconsFill.gauge,
               tone: tone,
               text: tone == AknTone.danger
                   ? 'Limit aşıldı, yeni sipariş finans onayına gider.'
@@ -127,7 +154,7 @@ class CustomerRowCard extends StatelessWidget {
       trailing: r.phone == null
           ? null
           : AknIconButton(
-              icon: Icons.call_outlined,
+              icon: PhosphorIconsRegular.phone,
               semanticLabel: '${r.title} ara',
               onPressed: () => callPhone(context, r.phone!),
             ),

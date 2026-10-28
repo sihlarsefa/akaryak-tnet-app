@@ -116,11 +116,20 @@ class _CameraPrimer extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const SizedBox(height: 4),
-        Align(
+        const Align(
           alignment: AlignmentDirectional.centerStart,
-          child: Icon(Icons.photo_camera_outlined, size: 28, color: c.ink),
+          child: FadeUp(
+            offset: 8,
+            scale: 0.8,
+            curve: AknMotion.pop,
+            child: A2IconTile(
+              icon: PhosphorIconsRegular.camera,
+              tone: AknTone.brand,
+              size: 52,
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         Semantics(
           header: true,
           child: Text(
@@ -333,7 +342,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
         padding: const EdgeInsets.only(bottom: 8),
         child: AknBanner(
           tone: AknTone.info,
-          icon: Icons.info_outline_rounded,
+          icon: PhosphorIconsRegular.info,
           message:
               target.message ??
               'Bu belgeyi yükleme yetkiniz yok; şirket yöneticinize başvurun.',
@@ -346,7 +355,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.embedded) ...[
-          Text('${target.label} yükleyin', style: t.headline),
+          Text('${target.label} yükleyin', style: a2SectionTitle(t, c)),
           const SizedBox(height: 4),
         ],
         Text(
@@ -370,7 +379,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
                     fit: BoxFit.cover,
                     cacheWidth: 160,
                     errorBuilder: (_, _, _) =>
-                        Icon(Icons.image_outlined, color: c.dim),
+                        Icon(PhosphorIconsRegular.image, color: c.dim),
                   ),
             state: switch (_phase) {
               _UploadPhase.uploading => AttachmentTileState.uploading,
@@ -392,7 +401,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
         if (_phase == _UploadPhase.done) ...[
           AknBanner(
             tone: AknTone.ok,
-            icon: Icons.check_circle_rounded,
+            icon: PhosphorIconsFill.checkCircle,
             message: _instrument
                 ? '${target.label} yüklendi. ${OrdersCopy.instrumentHint}.'
                 : '${target.label} yüklendi.',
@@ -402,7 +411,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
             _phase == _UploadPhase.failed) ...[
           AknButton(
             label: _phase == _UploadPhase.failed ? 'Tekrar yükle' : 'Yükle',
-            icon: Icons.cloud_upload_outlined,
+            icon: PhosphorIconsRegular.cloudArrowUp,
             expand: true,
             loading: _phase == _UploadPhase.uploading,
             loadingLabel: 'Yükleniyor %${(_progress * 100).round()}',
@@ -421,13 +430,13 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
             children: [
               AknButton(
                 label: 'Fotoğraf çek',
-                icon: Icons.photo_camera_outlined,
+                icon: PhosphorIconsRegular.camera,
                 expand: true,
                 onPressed: () => _pick(CaptureSource.camera),
               ),
               AknButton.secondary(
                 label: 'Galeriden seç',
-                icon: Icons.photo_library_outlined,
+                icon: PhosphorIconsRegular.images,
                 expand: true,
                 onPressed: () => _pick(CaptureSource.gallery),
               ),
@@ -439,7 +448,7 @@ class _PaymentDocumentPanelState extends ConsumerState<PaymentDocumentPanel> {
               alignment: Alignment.centerLeft,
               child: AknButton.ghost(
                 label: 'Dosya (PDF) seç',
-                icon: Icons.picture_as_pdf_outlined,
+                icon: PhosphorIconsRegular.filePdf,
                 size: AknButtonSize.small,
                 onPressed: () => _pick(CaptureSource.file),
               ),

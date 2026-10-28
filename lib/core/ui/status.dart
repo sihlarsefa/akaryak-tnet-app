@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../models/enums.dart';
 import '../utils/turkish_text.dart';
 import 'tokens.dart';
 
 /// Tone, icon and Turkish label of one status value. Status is never shown by
-/// colour alone: it renders as a lamp (dot + label, design v2 §6.12); the
+/// colour alone: it renders as a tinted pill — the tone's soft well, a dot
+/// with a halo and the label (`StatusChip` / `AknLamp`, design v3 §4); the
 /// icon stays in the data for semantics.
 @immutable
 class StatusStyle {
@@ -20,7 +22,8 @@ class StatusStyle {
   final IconData icon;
   final String label;
 
-  /// Terminal successes (Tamamlandı, Dönüştürüldü): the lamp label is 600.
+  /// Terminal successes (Tamamlandı, Dönüştürüldü): the pill shows a check
+  /// disc instead of the dot.
   final bool solid;
 
   /// Prefers the server's `*Label` when it sends one.
@@ -59,11 +62,12 @@ class StatusStyle {
 
 /// Maps every server enum (`core/models/enums.dart`) to a [StatusStyle].
 ///
-/// Lamp tones (design v2 §2.4): `brand` = "your move" (orange dot, Pas
-/// label) — only the viewer-aware [lampFor] can know that, so the generic
-/// table below never uses it; `info` = in progress, someone else's move (ink
-/// lamp); `ok` green; `warn` ochre (a warning: due soon, needs a higher
-/// approval); `danger` red; `neutral` = closed (hollow ring, dim label).
+/// Pill tones (design v3 §2, §4): `brand` = "your move" (soft orange well,
+/// breathing orange dot, Pas label) — only the viewer-aware [lampFor] can
+/// know that, so the generic table below never uses it; `info` = in
+/// progress, someone else's move (ink dot on the grey well); `ok` green;
+/// `warn` ochre (a warning: due soon, needs a higher approval); `danger`
+/// red; `neutral` = closed (hollow ring, dim label).
 ///
 /// | | ok | warn | danger | info (in progress) | neutral (closed) |
 /// |---|---|---|---|---|---|
@@ -77,7 +81,7 @@ class StatusStyle {
 /// | Company request | Approved | | Rejected | Pending | Cancelled |
 /// | Barem band | auto | manager, senior, exception, unknown | out of range | | none |
 abstract final class AknStatus {
-  static const _unknownIcon = Icons.help_outline_rounded;
+  static const _unknownIcon = PhosphorIconsRegular.question;
 
   static StatusStyle _s(
     AknTone tone,
@@ -87,24 +91,28 @@ abstract final class AknStatus {
   }) => StatusStyle(tone: tone, icon: icon, label: e.label, solid: solid);
 
   static StatusStyle order(OrderStatus s) => switch (s) {
-    OrderStatus.created => _s(AknTone.info, Icons.receipt_long_rounded, s),
-    OrderStatus.awaitingQuote => _s(
-      AknTone.info,
-      Icons.request_quote_rounded,
-      s,
-    ),
+    OrderStatus.created => _s(AknTone.info, PhosphorIconsFill.receipt, s),
+    OrderStatus.awaitingQuote => _s(AknTone.info, PhosphorIconsFill.invoice, s),
     OrderStatus.awaitingApproval => _s(
       AknTone.info,
-      Icons.hourglass_top_rounded,
+      PhosphorIconsRegular.hourglassHigh,
       s,
     ),
-    OrderStatus.approved => _s(AknTone.ok, Icons.check_circle_rounded, s),
-    OrderStatus.rejected => _s(AknTone.danger, Icons.cancel_rounded, s),
-    OrderStatus.revisionRequested => _s(AknTone.info, Icons.edit_rounded, s),
-    OrderStatus.expired => _s(AknTone.neutral, Icons.timer_off_rounded, s),
+    OrderStatus.approved => _s(AknTone.ok, PhosphorIconsFill.checkCircle, s),
+    OrderStatus.rejected => _s(AknTone.danger, PhosphorIconsFill.xCircle, s),
+    OrderStatus.revisionRequested => _s(
+      AknTone.info,
+      PhosphorIconsRegular.pencilSimple,
+      s,
+    ),
+    OrderStatus.expired => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.hourglassLow,
+      s,
+    ),
     OrderStatus.completed => _s(
       AknTone.ok,
-      Icons.task_alt_rounded,
+      PhosphorIconsFill.checkCircle,
       s,
       solid: true,
     ),
@@ -112,197 +120,265 @@ abstract final class AknStatus {
   };
 
   static StatusStyle shipment(ShipmentStatus s) => switch (s) {
-    ShipmentStatus.planned => _s(AknTone.info, Icons.event_rounded, s),
-    ShipmentStatus.inTransit => _s(
+    ShipmentStatus.planned => _s(
       AknTone.info,
-      Icons.local_shipping_rounded,
+      PhosphorIconsRegular.calendarDot,
       s,
     ),
-    ShipmentStatus.reported => _s(AknTone.info, Icons.fact_check_rounded, s),
-    ShipmentStatus.accepted => _s(AknTone.ok, Icons.verified_rounded, s),
-    ShipmentStatus.disputed => _s(AknTone.danger, Icons.report_rounded, s),
-    ShipmentStatus.cancelled => _s(AknTone.neutral, Icons.block_rounded, s),
+    ShipmentStatus.inTransit => _s(AknTone.info, PhosphorIconsFill.truck, s),
+    ShipmentStatus.reported => _s(
+      AknTone.info,
+      PhosphorIconsFill.listChecks,
+      s,
+    ),
+    ShipmentStatus.accepted => _s(AknTone.ok, PhosphorIconsFill.sealCheck, s),
+    ShipmentStatus.disputed => _s(
+      AknTone.danger,
+      PhosphorIconsFill.warningOctagon,
+      s,
+    ),
+    ShipmentStatus.cancelled => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.prohibit,
+      s,
+    ),
     ShipmentStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle approval(ApprovalStatus s) => switch (s) {
-    ApprovalStatus.pending => _s(AknTone.info, Icons.hourglass_top_rounded, s),
-    ApprovalStatus.approved => _s(AknTone.ok, Icons.check_circle_rounded, s),
-    ApprovalStatus.rejected => _s(AknTone.danger, Icons.cancel_rounded, s),
-    ApprovalStatus.cancelled => _s(AknTone.neutral, Icons.block_rounded, s),
+    ApprovalStatus.pending => _s(
+      AknTone.info,
+      PhosphorIconsRegular.hourglassHigh,
+      s,
+    ),
+    ApprovalStatus.approved => _s(AknTone.ok, PhosphorIconsFill.checkCircle, s),
+    ApprovalStatus.rejected => _s(AknTone.danger, PhosphorIconsFill.xCircle, s),
+    ApprovalStatus.cancelled => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.prohibit,
+      s,
+    ),
     ApprovalStatus.infoRequested => _s(
       AknTone.info,
-      Icons.contact_support_rounded,
+      PhosphorIconsFill.chatCircleDots,
       s,
     ),
     ApprovalStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle sla(ApprovalSlaState s) => switch (s) {
-    ApprovalSlaState.none => _s(AknTone.neutral, Icons.schedule_rounded, s),
-    ApprovalSlaState.onTime => _s(AknTone.neutral, Icons.schedule_rounded, s),
-    ApprovalSlaState.dueSoon => _s(AknTone.warn, Icons.alarm_rounded, s),
-    ApprovalSlaState.overdue => _s(AknTone.danger, Icons.alarm_off_rounded, s),
+    ApprovalSlaState.none => _s(AknTone.neutral, PhosphorIconsRegular.clock, s),
+    ApprovalSlaState.onTime => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.clock,
+      s,
+    ),
+    ApprovalSlaState.dueSoon => _s(AknTone.warn, PhosphorIconsRegular.alarm, s),
+    ApprovalSlaState.overdue => _s(
+      AknTone.danger,
+      PhosphorIconsRegular.alarm,
+      s,
+    ),
     ApprovalSlaState.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle decision(ApprovalDecision d) => switch (d) {
-    ApprovalDecision.approve => _s(AknTone.ok, Icons.check_circle_rounded, d),
+    ApprovalDecision.approve => _s(
+      AknTone.ok,
+      PhosphorIconsFill.checkCircle,
+      d,
+    ),
     ApprovalDecision.conditionalApprove => _s(
       AknTone.ok,
-      Icons.rule_rounded,
+      PhosphorIconsRegular.listChecks,
       d,
     ),
     ApprovalDecision.requestInfo => _s(
       AknTone.info,
-      Icons.contact_support_rounded,
+      PhosphorIconsFill.chatCircleDots,
       d,
     ),
-    ApprovalDecision.reject => _s(AknTone.danger, Icons.cancel_rounded, d),
+    ApprovalDecision.reject => _s(AknTone.danger, PhosphorIconsFill.xCircle, d),
     ApprovalDecision.unknown => _s(AknTone.neutral, _unknownIcon, d),
   };
 
   /// Approval types are categories, not states: neutral tone, distinct icon.
   static StatusStyle approvalType(ApprovalType t) {
     final icon = switch (t) {
-      ApprovalType.fieldOrderProfit => Icons.trending_up_rounded,
-      ApprovalType.limitChange => Icons.speed_rounded,
-      ApprovalType.companyOrderRequest => Icons.fact_check_rounded,
-      ApprovalType.orderFinance => Icons.account_balance_rounded,
-      ApprovalType.fieldFormFinance => Icons.assignment_rounded,
-      ApprovalType.customerOnboarding => Icons.person_add_alt_1_rounded,
-      ApprovalType.leadFinance => Icons.how_to_reg_rounded,
-      ApprovalType.unknown => Icons.task_alt_rounded,
+      ApprovalType.fieldOrderProfit => PhosphorIconsRegular.trendUp,
+      ApprovalType.limitChange => PhosphorIconsFill.gauge,
+      ApprovalType.companyOrderRequest => PhosphorIconsFill.listChecks,
+      ApprovalType.orderFinance => PhosphorIconsFill.bank,
+      ApprovalType.fieldFormFinance => PhosphorIconsRegular.clipboardText,
+      ApprovalType.customerOnboarding => PhosphorIconsRegular.userPlus,
+      ApprovalType.leadFinance => PhosphorIconsRegular.userCheck,
+      ApprovalType.unknown => PhosphorIconsFill.checkCircle,
     };
     return StatusStyle(tone: AknTone.neutral, icon: icon, label: t.shortLabel);
   }
 
   static StatusStyle payment(PaymentStatus s) => switch (s) {
-    PaymentStatus.none => _s(AknTone.neutral, Icons.remove_circle_outline, s),
-    PaymentStatus.pending => _s(AknTone.info, Icons.schedule_rounded, s),
-    PaymentStatus.documentUploaded => _s(
-      AknTone.info,
-      Icons.upload_file_rounded,
+    PaymentStatus.none => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.minusCircle,
       s,
     ),
-    PaymentStatus.collected => _s(AknTone.ok, Icons.paid_rounded, s),
-    PaymentStatus.bounced => _s(AknTone.danger, Icons.money_off_rounded, s),
-    PaymentStatus.refunded => _s(AknTone.neutral, Icons.undo_rounded, s),
-    PaymentStatus.cancelled => _s(AknTone.neutral, Icons.block_rounded, s),
+    PaymentStatus.pending => _s(AknTone.info, PhosphorIconsRegular.clock, s),
+    PaymentStatus.documentUploaded => _s(
+      AknTone.info,
+      PhosphorIconsRegular.fileArrowUp,
+      s,
+    ),
+    PaymentStatus.collected => _s(
+      AknTone.ok,
+      PhosphorIconsRegular.handCoins,
+      s,
+    ),
+    PaymentStatus.bounced => _s(
+      AknTone.danger,
+      PhosphorIconsRegular.receiptX,
+      s,
+    ),
+    PaymentStatus.refunded => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.arrowUUpLeft,
+      s,
+    ),
+    PaymentStatus.cancelled => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.prohibit,
+      s,
+    ),
     PaymentStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle finance(OrderFinanceStatus s) => switch (s) {
     OrderFinanceStatus.notRequired => _s(
       AknTone.neutral,
-      Icons.remove_circle_outline,
+      PhosphorIconsRegular.minusCircle,
       s,
     ),
-    OrderFinanceStatus.pending => _s(
-      AknTone.info,
-      Icons.account_balance_rounded,
-      s,
-    ),
+    OrderFinanceStatus.pending => _s(AknTone.info, PhosphorIconsFill.bank, s),
     OrderFinanceStatus.approved => _s(
       AknTone.ok,
-      Icons.verified_user_rounded,
+      PhosphorIconsFill.shieldCheck,
       s,
     ),
     OrderFinanceStatus.conditionallyApproved => _s(
       AknTone.ok,
-      Icons.rule_rounded,
+      PhosphorIconsRegular.listChecks,
       s,
     ),
     OrderFinanceStatus.infoRequested => _s(
       AknTone.info,
-      Icons.contact_support_rounded,
+      PhosphorIconsFill.chatCircleDots,
       s,
     ),
-    OrderFinanceStatus.rejected => _s(AknTone.danger, Icons.gpp_bad_rounded, s),
+    OrderFinanceStatus.rejected => _s(
+      AknTone.danger,
+      PhosphorIconsFill.shieldSlash,
+      s,
+    ),
     OrderFinanceStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle financeProfile(FinanceProfileStatus s) => switch (s) {
     FinanceProfileStatus.pending => _s(
       AknTone.info,
-      Icons.hourglass_top_rounded,
+      PhosphorIconsRegular.hourglassHigh,
       s,
     ),
     FinanceProfileStatus.approved => _s(
       AknTone.ok,
-      Icons.verified_user_rounded,
+      PhosphorIconsFill.shieldCheck,
       s,
     ),
-    FinanceProfileStatus.conditional => _s(AknTone.ok, Icons.rule_rounded, s),
+    FinanceProfileStatus.conditional => _s(
+      AknTone.ok,
+      PhosphorIconsRegular.listChecks,
+      s,
+    ),
     FinanceProfileStatus.infoRequested => _s(
       AknTone.info,
-      Icons.contact_support_rounded,
+      PhosphorIconsFill.chatCircleDots,
       s,
     ),
     FinanceProfileStatus.rejected => _s(
       AknTone.danger,
-      Icons.gpp_bad_rounded,
+      PhosphorIconsFill.shieldSlash,
       s,
     ),
     FinanceProfileStatus.suspended => _s(
       AknTone.danger,
-      Icons.pause_circle_rounded,
+      PhosphorIconsFill.pauseCircle,
       s,
     ),
     FinanceProfileStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle lead(LeadStatus s) => switch (s) {
-    LeadStatus.draft => _s(AknTone.neutral, Icons.edit_note_rounded, s),
-    LeadStatus.submitted => _s(AknTone.info, Icons.send_rounded, s),
-    LeadStatus.inReview => _s(AknTone.info, Icons.manage_search_rounded, s),
-    LeadStatus.infoRequested => _s(
+    LeadStatus.draft => _s(AknTone.neutral, PhosphorIconsRegular.notePencil, s),
+    LeadStatus.submitted => _s(
       AknTone.info,
-      Icons.contact_support_rounded,
+      PhosphorIconsRegular.paperPlaneRight,
       s,
     ),
-    LeadStatus.approved => _s(AknTone.ok, Icons.check_circle_rounded, s),
+    LeadStatus.inReview => _s(
+      AknTone.info,
+      PhosphorIconsRegular.listMagnifyingGlass,
+      s,
+    ),
+    LeadStatus.infoRequested => _s(
+      AknTone.info,
+      PhosphorIconsFill.chatCircleDots,
+      s,
+    ),
+    LeadStatus.approved => _s(AknTone.ok, PhosphorIconsFill.checkCircle, s),
     LeadStatus.converted => _s(
       AknTone.ok,
-      Icons.how_to_reg_rounded,
+      PhosphorIconsRegular.userCheck,
       s,
       solid: true,
     ),
-    LeadStatus.rejected => _s(AknTone.danger, Icons.cancel_rounded, s),
-    LeadStatus.cancelled => _s(AknTone.neutral, Icons.block_rounded, s),
+    LeadStatus.rejected => _s(AknTone.danger, PhosphorIconsFill.xCircle, s),
+    LeadStatus.cancelled => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.prohibit,
+      s,
+    ),
     LeadStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle fieldForm(FieldOrderFormStatus s) => switch (s) {
     FieldOrderFormStatus.draft => _s(
       AknTone.neutral,
-      Icons.edit_note_rounded,
+      PhosphorIconsRegular.notePencil,
       s,
     ),
     FieldOrderFormStatus.pendingApproval => _s(
       AknTone.info,
-      Icons.hourglass_top_rounded,
+      PhosphorIconsRegular.hourglassHigh,
       s,
     ),
     FieldOrderFormStatus.approved => _s(
       AknTone.ok,
-      Icons.check_circle_rounded,
+      PhosphorIconsFill.checkCircle,
       s,
     ),
     FieldOrderFormStatus.rejected => _s(
       AknTone.danger,
-      Icons.cancel_rounded,
+      PhosphorIconsFill.xCircle,
       s,
     ),
     FieldOrderFormStatus.converted => _s(
       AknTone.ok,
-      Icons.receipt_long_rounded,
+      PhosphorIconsFill.receipt,
       s,
       solid: true,
     ),
     FieldOrderFormStatus.cancelled => _s(
       AknTone.neutral,
-      Icons.block_rounded,
+      PhosphorIconsRegular.prohibit,
       s,
     ),
     FieldOrderFormStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
@@ -311,36 +387,48 @@ abstract final class AknStatus {
   static StatusStyle instrument(InstrumentStatus s) => switch (s) {
     InstrumentStatus.received => _s(
       AknTone.info,
-      Icons.move_to_inbox_rounded,
+      PhosphorIconsRegular.trayArrowDown,
       s,
     ),
     InstrumentStatus.inPortfolio => _s(
       AknTone.neutral,
-      Icons.folder_rounded,
+      PhosphorIconsFill.folder,
       s,
     ),
-    InstrumentStatus.deposited => _s(
-      AknTone.info,
-      Icons.account_balance_rounded,
+    InstrumentStatus.deposited => _s(AknTone.info, PhosphorIconsFill.bank, s),
+    InstrumentStatus.collected => _s(
+      AknTone.ok,
+      PhosphorIconsRegular.handCoins,
       s,
     ),
-    InstrumentStatus.collected => _s(AknTone.ok, Icons.paid_rounded, s),
-    InstrumentStatus.bounced => _s(AknTone.danger, Icons.money_off_rounded, s),
-    InstrumentStatus.returned => _s(AknTone.neutral, Icons.undo_rounded, s),
-    InstrumentStatus.protested => _s(AknTone.danger, Icons.gavel_rounded, s),
+    InstrumentStatus.bounced => _s(
+      AknTone.danger,
+      PhosphorIconsRegular.receiptX,
+      s,
+    ),
+    InstrumentStatus.returned => _s(
+      AknTone.neutral,
+      PhosphorIconsRegular.arrowUUpLeft,
+      s,
+    ),
+    InstrumentStatus.protested => _s(
+      AknTone.danger,
+      PhosphorIconsRegular.gavel,
+      s,
+    ),
     InstrumentStatus.unknown => _s(AknTone.neutral, _unknownIcon, s),
   };
 
   static StatusStyle instrumentKind(InstrumentKind k) => switch (k) {
-    InstrumentKind.cheque => _s(AknTone.neutral, Icons.money_rounded, k),
+    InstrumentKind.cheque => _s(AknTone.neutral, PhosphorIconsRegular.money, k),
     InstrumentKind.promissoryNote => _s(
       AknTone.neutral,
-      Icons.description_rounded,
+      PhosphorIconsRegular.fileText,
       k,
     ),
     InstrumentKind.letterOfGuarantee => _s(
       AknTone.neutral,
-      Icons.verified_rounded,
+      PhosphorIconsFill.sealCheck,
       k,
     ),
     InstrumentKind.unknown => _s(AknTone.neutral, _unknownIcon, k),
@@ -350,22 +438,22 @@ abstract final class AknStatus {
       switch (s) {
         CustomerOrderRequestStatus.pending => _s(
           AknTone.info,
-          Icons.hourglass_top_rounded,
+          PhosphorIconsRegular.hourglassHigh,
           s,
         ),
         CustomerOrderRequestStatus.approved => _s(
           AknTone.ok,
-          Icons.check_circle_rounded,
+          PhosphorIconsFill.checkCircle,
           s,
         ),
         CustomerOrderRequestStatus.rejected => _s(
           AknTone.danger,
-          Icons.cancel_rounded,
+          PhosphorIconsFill.xCircle,
           s,
         ),
         CustomerOrderRequestStatus.cancelled => _s(
           AknTone.neutral,
-          Icons.undo_rounded,
+          PhosphorIconsRegular.arrowUUpLeft,
           s,
         ),
         CustomerOrderRequestStatus.unknown => _s(
@@ -378,68 +466,68 @@ abstract final class AknStatus {
   static StatusStyle customerRole(CustomerUserRole r) => switch (r) {
     CustomerUserRole.requester => _s(
       AknTone.neutral,
-      Icons.person_outline_rounded,
+      PhosphorIconsRegular.user,
       r,
     ),
     CustomerUserRole.approver => _s(
       AknTone.neutral,
-      Icons.how_to_reg_rounded,
+      PhosphorIconsRegular.userCheck,
       r,
     ),
     CustomerUserRole.admin => _s(
       AknTone.neutral,
-      Icons.admin_panel_settings_rounded,
+      PhosphorIconsRegular.userCircleGear,
       r,
     ),
     CustomerUserRole.unknown => _s(AknTone.neutral, _unknownIcon, r),
   };
 
   static StatusStyle risk(RiskClass r) => switch (r) {
-    RiskClass.none => _s(AknTone.neutral, Icons.shield_outlined, r),
-    RiskClass.a => _s(AknTone.ok, Icons.shield_rounded, r),
-    RiskClass.b => _s(AknTone.info, Icons.shield_rounded, r),
-    RiskClass.c => _s(AknTone.warn, Icons.shield_rounded, r),
-    RiskClass.d => _s(AknTone.danger, Icons.gpp_maybe_rounded, r),
+    RiskClass.none => _s(AknTone.neutral, PhosphorIconsRegular.shield, r),
+    RiskClass.a => _s(AknTone.ok, PhosphorIconsFill.shield, r),
+    RiskClass.b => _s(AknTone.info, PhosphorIconsFill.shield, r),
+    RiskClass.c => _s(AknTone.warn, PhosphorIconsFill.shield, r),
+    RiskClass.d => _s(AknTone.danger, PhosphorIconsFill.shieldWarning, r),
     RiskClass.unknown => _s(AknTone.neutral, _unknownIcon, r),
   };
 
   static StatusStyle attachmentKind(AttachmentKind k) {
     final icon = switch (k) {
-      AttachmentKind.chequeImage => Icons.money_rounded,
-      AttachmentKind.promissoryNoteImage => Icons.description_rounded,
-      AttachmentKind.transferReceipt => Icons.receipt_long_rounded,
-      AttachmentKind.posSlip => Icons.point_of_sale_rounded,
-      AttachmentKind.letterOfGuarantee => Icons.verified_rounded,
-      AttachmentKind.dbsContract => Icons.handshake_rounded,
-      AttachmentKind.taxPlate => Icons.badge_rounded,
-      AttachmentKind.signatureCircular => Icons.draw_rounded,
-      AttachmentKind.tradeRegistryGazette => Icons.newspaper_rounded,
-      AttachmentKind.activityCertificate => Icons.workspace_premium_rounded,
-      AttachmentKind.visitPhoto => Icons.photo_camera_rounded,
-      AttachmentKind.riskReportPdf => Icons.picture_as_pdf_rounded,
-      AttachmentKind.financeNote => Icons.sticky_note_2_rounded,
-      AttachmentKind.deliveryPhoto => Icons.photo_camera_back_rounded,
-      AttachmentKind.deliverySignature => Icons.gesture_rounded,
-      AttachmentKind.disputePhoto => Icons.report_gmailerrorred_rounded,
-      AttachmentKind.other => Icons.attach_file_rounded,
-      AttachmentKind.unknown => Icons.insert_drive_file_rounded,
+      AttachmentKind.chequeImage => PhosphorIconsRegular.money,
+      AttachmentKind.promissoryNoteImage => PhosphorIconsRegular.fileText,
+      AttachmentKind.transferReceipt => PhosphorIconsFill.receipt,
+      AttachmentKind.posSlip => PhosphorIconsRegular.cashRegister,
+      AttachmentKind.letterOfGuarantee => PhosphorIconsFill.sealCheck,
+      AttachmentKind.dbsContract => PhosphorIconsRegular.handshake,
+      AttachmentKind.taxPlate => PhosphorIconsFill.identificationBadge,
+      AttachmentKind.signatureCircular => PhosphorIconsRegular.signature,
+      AttachmentKind.tradeRegistryGazette => PhosphorIconsRegular.newspaper,
+      AttachmentKind.activityCertificate => PhosphorIconsRegular.certificate,
+      AttachmentKind.visitPhoto => PhosphorIconsRegular.camera,
+      AttachmentKind.riskReportPdf => PhosphorIconsRegular.filePdf,
+      AttachmentKind.financeNote => PhosphorIconsRegular.note,
+      AttachmentKind.deliveryPhoto => PhosphorIconsRegular.image,
+      AttachmentKind.deliverySignature => PhosphorIconsRegular.signature,
+      AttachmentKind.disputePhoto => PhosphorIconsRegular.warningOctagon,
+      AttachmentKind.other => PhosphorIconsRegular.paperclip,
+      AttachmentKind.unknown => PhosphorIconsRegular.file,
     };
     return StatusStyle(tone: AknTone.neutral, icon: icon, label: k.label);
   }
 
   static StatusStyle ownerType(AttachmentOwnerType t) {
     final icon = switch (t) {
-      AttachmentOwnerType.order => Icons.receipt_long_rounded,
-      AttachmentOwnerType.paymentInstrument => Icons.money_rounded,
-      AttachmentOwnerType.stationCustomer => Icons.link_rounded,
-      AttachmentOwnerType.customer => Icons.apartment_rounded,
-      AttachmentOwnerType.customerLead => Icons.storefront_rounded,
-      AttachmentOwnerType.riskReport => Icons.assessment_rounded,
-      AttachmentOwnerType.approvalRequest => Icons.task_alt_rounded,
-      AttachmentOwnerType.customerCollateral => Icons.shield_rounded,
-      AttachmentOwnerType.fieldOrderForm => Icons.assignment_rounded,
-      AttachmentOwnerType.shipment => Icons.local_shipping_rounded,
-      AttachmentOwnerType.unknown => Icons.insert_drive_file_rounded,
+      AttachmentOwnerType.order => PhosphorIconsFill.receipt,
+      AttachmentOwnerType.paymentInstrument => PhosphorIconsRegular.money,
+      AttachmentOwnerType.stationCustomer => PhosphorIconsRegular.link,
+      AttachmentOwnerType.customer => PhosphorIconsRegular.buildings,
+      AttachmentOwnerType.customerLead => PhosphorIconsRegular.storefront,
+      AttachmentOwnerType.riskReport => PhosphorIconsRegular.presentationChart,
+      AttachmentOwnerType.approvalRequest => PhosphorIconsFill.checkCircle,
+      AttachmentOwnerType.customerCollateral => PhosphorIconsFill.shield,
+      AttachmentOwnerType.fieldOrderForm => PhosphorIconsRegular.clipboardText,
+      AttachmentOwnerType.shipment => PhosphorIconsFill.truck,
+      AttachmentOwnerType.unknown => PhosphorIconsRegular.file,
     };
     return StatusStyle(tone: AknTone.neutral, icon: icon, label: t.label);
   }
@@ -450,25 +538,24 @@ abstract final class AknStatus {
   static StatusStyle band(String? key, {String? label}) {
     final k = (key ?? '').trim().asciiLower;
     final (tone, icon, fallback) = switch (k) {
-      'auto' || 'ok' => (AknTone.ok, Icons.bolt_rounded, 'Otomatik onay'),
-      'manager' || 'mid' => (
-        AknTone.warn,
-        Icons.supervisor_account_rounded,
-        'Yönetici onayı',
-      ),
+      'auto' ||
+      'ok' => (AknTone.ok, PhosphorIconsFill.lightning, 'Otomatik onay'),
+      'manager' ||
+      'mid' => (AknTone.warn, PhosphorIconsFill.users, 'Yönetici onayı'),
       'unknown' => (
         AknTone.warn,
-        Icons.help_outline_rounded,
+        PhosphorIconsRegular.question,
         'Kârlılık belirsiz',
       ),
       'senior' ||
-      'low' => (AknTone.warn, Icons.workspace_premium_rounded, 'Üst onay'),
-      'exception' => (AknTone.warn, Icons.star_rounded, 'İstisna onayı'),
-      'reject' ||
-      'out' ||
-      'outofrange' ||
-      'out_of_range' => (AknTone.danger, Icons.block_rounded, 'Barem dışı'),
-      _ => (AknTone.neutral, Icons.remove_rounded, 'Bant yok'),
+      'low' => (AknTone.warn, PhosphorIconsRegular.certificate, 'Üst onay'),
+      'exception' => (AknTone.warn, PhosphorIconsFill.star, 'İstisna onayı'),
+      'reject' || 'out' || 'outofrange' || 'out_of_range' => (
+        AknTone.danger,
+        PhosphorIconsRegular.prohibit,
+        'Barem dışı',
+      ),
+      _ => (AknTone.neutral, PhosphorIconsRegular.minus, 'Bant yok'),
     };
     final l = label?.trim();
     return StatusStyle(
@@ -499,12 +586,12 @@ abstract final class AknStatus {
 
   /// Default icon of a tone (banners, toasts, facts).
   static IconData toneIcon(AknTone tone) => switch (tone) {
-    AknTone.ok => Icons.check_circle_rounded,
-    AknTone.warn => Icons.warning_amber_rounded,
-    AknTone.danger => Icons.error_rounded,
-    AknTone.info => Icons.info_rounded,
-    AknTone.brand => Icons.bolt_rounded,
-    AknTone.neutral => Icons.circle_outlined,
+    AknTone.ok => PhosphorIconsFill.checkCircle,
+    AknTone.warn => PhosphorIconsFill.warning,
+    AknTone.danger => PhosphorIconsFill.warningCircle,
+    AknTone.info => PhosphorIconsFill.info,
+    AknTone.brand => PhosphorIconsFill.lightning,
+    AknTone.neutral => PhosphorIconsRegular.circle,
   };
 
   /// A style for any server-described status (`{label, tone}`).
@@ -872,8 +959,8 @@ extension AttachmentOwnerTypeStyleX on AttachmentOwnerType {
 /// Which side of the market a [StatusViewer] sits on.
 enum StatusSide { customer, bayi }
 
-/// Who is looking at a status, and what they may do (design v2 §10.3): the
-/// lamp says "your move" (orange) only to the person who can act.
+/// Who is looking at a status, and what they may do (§10.3): the pill says
+/// "your move" (orange) only to the person who can act.
 @immutable
 class StatusViewer {
   /// A customer user. [canDecide]: company admin / approver (decides quotes,
@@ -965,7 +1052,7 @@ class StatusLamp {
   final AknTone tone;
   final String label;
 
-  /// Kept for semantics (lamps draw no icon).
+  /// Kept for semantics (the pill draws a dot).
   final IconData icon;
 
   /// The current StageStrip stop, when the status belongs to the order
@@ -982,7 +1069,7 @@ class StatusLamp {
   /// Terminal success: label 600.
   final bool solid;
 
-  /// Orange lamp: the viewer's move.
+  /// Orange pill: the viewer's move.
   bool get yourMove => tone == AknTone.brand;
 
   /// The generic style (for `StatusChip.style`).

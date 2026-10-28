@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
@@ -47,7 +48,7 @@ class DrivingAlert {
         time: h.time,
         what: 'buzlanma riski',
         advice: 'Yavaş sürün; ani fren ve direksiyon hareketlerinden kaçının.',
-        icon: Icons.ac_unit_rounded,
+        icon: PhosphorIconsRegular.snowflake,
         level: DrivingAlertLevel.danger,
       );
     }
@@ -56,7 +57,7 @@ class DrivingAlert {
         time: h.time,
         what: 'kar yağışı',
         advice: 'Kış lastiği ve zincir bulundurun; takip mesafesini artırın.',
-        icon: Icons.ac_unit_rounded,
+        icon: PhosphorIconsRegular.snowflake,
         level: DrivingAlertLevel.danger,
       );
     }
@@ -65,7 +66,7 @@ class DrivingAlert {
         time: h.time,
         what: 'gök gürültülü sağanak',
         advice: 'Mümkünse yola çıkmayı erteleyin; ağaç altına park etmeyin.',
-        icon: Icons.thunderstorm_rounded,
+        icon: PhosphorIconsRegular.cloudLightning,
         level: DrivingAlertLevel.danger,
       );
     }
@@ -74,7 +75,7 @@ class DrivingAlert {
         time: h.time,
         what: 'yoğun yağış',
         advice: 'Hızınızı düşürün; takip mesafesini iki katına çıkarın.',
-        icon: Icons.water_drop_rounded,
+        icon: PhosphorIconsRegular.cloudRain,
         level: DrivingAlertLevel.caution,
       );
     }
@@ -83,7 +84,7 @@ class DrivingAlert {
         time: h.time,
         what: 'sis',
         advice: 'Kısa far ve sis farını yakın; uzun far kullanmayın.',
-        icon: Icons.foggy,
+        icon: PhosphorIconsRegular.cloudFog,
         level: DrivingAlertLevel.caution,
       );
     }
@@ -92,7 +93,7 @@ class DrivingAlert {
         time: h.time,
         what: 'kuvvetli rüzgâr (${Fmt.integer(h.windGusts.round())} km/s)',
         advice: 'Direksiyonu sıkı tutun; köprü ve viyadüklerde dikkatli olun.',
-        icon: Icons.air_rounded,
+        icon: PhosphorIconsRegular.wind,
         level: DrivingAlertLevel.caution,
       );
     }

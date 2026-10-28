@@ -9,6 +9,9 @@ import '../destinations.dart';
 /// Hedef rozetleri (spec A.2): Onaylarım (karar bekleyen), Bildirimler (okunmamış); müşteride Finans
 /// bilgisi (yanıt bekleyen bilgi talebi) ve Talep eden kullanıcıda Talepler (onay bekleyen şirket içi
 /// talepler; "Diğer" noktası bu rozetle yanar).
+///
+/// Tasarım v3: alt menüde ve "Diğer" sayfasında rozet koyu turuncu bir haptır (beyaz rakamlar
+/// ≥ 4,5:1); sayı değişince zıplar, görünürken yavaşça nefes alır (`AknAmbient`).
 final destinationBadgesProvider = Provider<Map<DestinationId, int>>((ref) {
   final u = ref.watch(unreadCountProvider);
   final policy = ref.watch(accessPolicyProvider);

@@ -44,7 +44,7 @@ Future<FieldLocationOutcome> captureFieldLocation(
   BuildContext context,
   WidgetRef ref, {
   required String reason,
-  IconData icon = Icons.my_location_rounded,
+  IconData icon = PhosphorIconsRegular.gpsFix,
 }) async {
   final svc = ref.read(fieldLocationServiceProvider);
   var access = await svc.status();
@@ -90,11 +90,12 @@ Future<FieldLocationOutcome> captureFieldLocation(
   }
 }
 
-/// Konum izni ön sayfası. Dönüş: "Devam".
+/// Konum izni ön sayfası (tasarım v3): turuncu simge kutusunun çevresinde yavaşça genişleyip sönen
+/// konum halkası (ortam hareketi), başlık, tek cümlelik neden, "Devam" / "Şimdi değil". Dönüş: "Devam".
 Future<bool> showLocationPrimer(
   BuildContext context, {
   required String reason,
-  IconData icon = Icons.my_location_rounded,
+  IconData icon = PhosphorIconsRegular.gpsFix,
 }) async {
   final ok = await showAppSheet<bool>(
     context: context,
@@ -107,9 +108,7 @@ Future<bool> showLocationPrimer(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 8),
-          Center(
-            child: AknIconBox(icon: icon, tone: AknTone.brand, size: 56),
-          ),
+          Center(child: _LocationBeacon(icon: icon)),
           const SizedBox(height: 16),
           Semantics(
             header: true,
@@ -171,7 +170,7 @@ class FieldLocationNotice extends ConsumerWidget {
       case LocationCaptured(:final fix) when fix.approximate:
         banner = AknBanner(
           tone: AknTone.warn,
-          icon: Icons.location_searching_rounded,
+          icon: PhosphorIconsRegular.gps,
           title: FieldCopy.preciseOffTitle,
           message: FieldCopy.preciseOffMessage,
           actionLabel: 'Ayarları aç',
@@ -183,7 +182,7 @@ class FieldLocationNotice extends ConsumerWidget {
           children: [
             AknBanner(
               tone: AknTone.warn,
-              icon: Icons.location_disabled_rounded,
+              icon: PhosphorIconsRegular.gpsSlash,
               title: FieldCopy.locationDeniedTitle,
               message: FieldCopy.locationDeniedMessage,
               actionLabel: 'Ayarları aç',
@@ -202,7 +201,7 @@ class FieldLocationNotice extends ConsumerWidget {
       case LocationServiceOff():
         banner = AknBanner(
           tone: AknTone.warn,
-          icon: Icons.location_off_rounded,
+          icon: PhosphorIconsRegular.gpsSlash,
           title: FieldCopy.locationServiceOffTitle,
           message: FieldCopy.locationServiceOffMessage,
           actionLabel: 'Konum ayarlarını aç',
@@ -222,5 +221,48 @@ class FieldLocationNotice extends ConsumerWidget {
     }
     if (banner == null) return const SizedBox.shrink();
     return Padding(padding: margin, child: banner);
+  }
+}
+
+/// Ön sayfanın simgesi: 56 px turuncu tonlu kutu ve arkasında radar gibi genişleyip sönen yumuşak
+/// halka (yalnızca ortam hareketi açıkken; testlerde ve hareket azaltmada durgun).
+class _LocationBeacon extends StatelessWidget {
+  const _LocationBeacon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final box = AknIconBox(icon: icon, tone: AknTone.brand, size: 56);
+    return SizedBox(
+      width: 96,
+      height: 96,
+      child: AknAmbient(
+        period: const Duration(milliseconds: 2200),
+        restValue: 1,
+        curve: Curves.easeOut,
+        child: box,
+        builder: (context, t, child) => Stack(
+          alignment: Alignment.center,
+          children: [
+            if (t < 1)
+              Opacity(
+                opacity: (1 - t) * 0.6,
+                child: Container(
+                  width: 56 + 40 * t,
+                  height: 56 + 40 * t,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: c.brandLine, width: 2),
+                    color: c.brandSoft.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+            child!,
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../tokens.dart';
 
-/// Brand loader: a row of » chevrons lit one after another, like the mark
-/// moving forward. Used by pull-to-refresh, buttons and full-screen waits.
+/// Brand loader (design v3 §5): a row of orange » chevrons that light up
+/// one after another and step forward as they light — the mark moving on.
+/// Used by pull-to-refresh, buttons and full-screen waits.
 ///
-/// Under reduce motion the chevrons stay still at full strength.
+/// The loop runs only while ambient motion may ([AknMotion.ambientOf]); in
+/// tests and under reduce motion the chevrons stay still at full strength.
 class ChevronSpinner extends StatefulWidget {
   const ChevronSpinner({
     super.key,
@@ -32,15 +34,15 @@ class _ChevronSpinnerState extends State<ChevronSpinner>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1100),
+    duration: const Duration(milliseconds: 1000),
   );
-  bool _reduced = false;
+  bool _running = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _reduced = AknMotion.reduced(context);
-    if (_reduced) {
+    _running = AknMotion.ambientOf(context);
+    if (!_running) {
       _c.stop();
     } else if (!_c.isAnimating) {
       _c.repeat();
@@ -58,7 +60,7 @@ class _ChevronSpinnerState extends State<ChevronSpinner>
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
     final color = widget.color ?? c.brandBright;
     final size = ChevronRowPainter.sizeFor(widget.size, widget.count);
-    final Widget painted = _reduced
+    final Widget painted = !_running
         ? CustomPaint(
             size: size,
             painter: ChevronRowPainter(
@@ -67,14 +69,16 @@ class _ChevronSpinnerState extends State<ChevronSpinner>
               phase: null,
             ),
           )
-        : AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) => CustomPaint(
-              size: size,
-              painter: ChevronRowPainter(
-                color: color,
-                count: widget.count,
-                phase: _c.value,
+        : RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (context, _) => CustomPaint(
+                size: size,
+                painter: ChevronRowPainter(
+                  color: color,
+                  count: widget.count,
+                  phase: _c.value,
+                ),
               ),
             ),
           );
@@ -84,9 +88,10 @@ class _ChevronSpinnerState extends State<ChevronSpinner>
   }
 }
 
-/// Paints [count] chevrons (») in a row.
+/// Paints [count] chevrons (») in a row, with rounded caps and joins.
 ///
-/// * [phase] (0..1, looping) lights the chevrons in sequence; null = static.
+/// * [phase] (0..1, looping) lights the chevrons in sequence — a lit
+///   chevron is at full strength and steps forward a little; null = static.
 /// * [progress] (0..1) draws them in from the left (pull-to-refresh drag).
 class ChevronRowPainter extends CustomPainter {
   ChevronRowPainter({
@@ -108,6 +113,13 @@ class ChevronRowPainter extends CustomPainter {
   static Size sizeFor(double height, int count) =>
       Size(height * (_w + _step * (count - 1)) + height * 0.2, height);
 
+  /// How lit the chevron at [index] is at [phase]: a soft bump that travels
+  /// left → right over 55 % of the cycle.
+  double _lit(int index) {
+    final d = (phase! - index / count) % 1.0;
+    return d < 0.55 ? math.sin(math.pi * d / 0.55) : 0;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final h = size.height;
@@ -120,16 +132,11 @@ class ChevronRowPainter extends CustomPainter {
       final share = 1 / count;
       final drawn = ((progress - i * share) / share).clamp(0.0, 1.0);
       if (drawn <= 0) continue;
-      double alpha;
-      if (phase == null) {
-        alpha = 1;
-      } else {
-        // A soft pulse travels left → right.
-        final d = (phase! - i / count) % 1.0;
-        alpha = 0.28 + 0.72 * math.pow(math.cos(d * math.pi), 2).toDouble();
-        if (d > 0.5) alpha = 0.28;
-      }
-      final x0 = h * 0.1 + stroke / 2 + i * h * _step;
+      final lit = phase == null ? 1.0 : _lit(i);
+      final alpha = phase == null ? 1.0 : 0.3 + 0.7 * lit;
+      // A lit chevron steps forward (at most 6 % of the height).
+      final nudge = phase == null ? 0.0 : h * 0.06 * lit;
+      final x0 = h * 0.1 + stroke / 2 + i * h * _step + nudge;
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = stroke

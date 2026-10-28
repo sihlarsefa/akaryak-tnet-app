@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 import '../../data/driver_models.dart';
+import 'entrance.dart';
 
 /// "İmza alınamıyor" neden sayfası (spec A.4 A7): Alıcı yok / tanka teslim, İmzadan imtina, Diğer
 /// (+ açıklama, Diğer'de zorunlu). Seçim kaydedilince [SignatureWaiver] döner.
@@ -61,18 +62,21 @@ class _WaiverFormState extends State<WaiverForm> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final r in SignatureWaiverReason.values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _ReasonTile(
-              reason: r,
-              selected: _reason == r,
-              onTap: () => setState(() {
-                _reason = r;
-                _error = null;
-              }),
+        // Nedenler sayfa açılırken sırayla yükselir (v3 §5).
+        ...driverStaggered([
+          for (final r in SignatureWaiverReason.values)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ReasonTile(
+                reason: r,
+                selected: _reason == r,
+                onTap: () => setState(() {
+                  _reason = r;
+                  _error = null;
+                }),
+              ),
             ),
-          ),
+        ]),
         const SizedBox(height: 4),
         AknTextField(
           controller: _note,
@@ -89,20 +93,44 @@ class _WaiverFormState extends State<WaiverForm> {
             if (_error != null) setState(() => _error = null);
           },
         ),
-        if (_error != null) ...[
-          const SizedBox(height: 8),
-          Semantics(
-            liveRegion: true,
-            child: Text(
-              _error!,
-              style: t.bodySmall.copyWith(color: c.danger.fg),
-            ),
-          ),
-        ],
+        AknAnimatedSize(
+          alignment: Alignment.topCenter,
+          child: _error == null
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            PhosphorIconsRegular.warningCircle,
+                            size: 18,
+                            color: c.danger.fg,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: t.bodySmall.copyWith(
+                              color: c.danger.fg,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
         const SizedBox(height: 16),
         AknButton(
           label: DriverCopy.waiverConfirm,
-          icon: Icons.check_rounded,
+          icon: PhosphorIconsRegular.check,
           expand: true,
           onPressed: _save,
         ),
@@ -122,16 +150,20 @@ class _ReasonTile extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  static const BorderRadius _radius = BorderRadius.all(Radius.circular(18));
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
     final icon = switch (reason) {
-      SignatureWaiverReason.noRecipient => Icons.local_gas_station_outlined,
-      SignatureWaiverReason.refused => Icons.do_not_touch_outlined,
-      SignatureWaiverReason.other => Icons.more_horiz_rounded,
+      SignatureWaiverReason.noRecipient => PhosphorIconsRegular.gasPump,
+      SignatureWaiverReason.refused => PhosphorIconsRegular.handPalm,
+      SignatureWaiverReason.other => PhosphorIconsRegular.dotsThree,
     };
-    // Seçim kartı (§6.25): beyaz, 1 px çizgi, r12; seçilince 2 px mürekkep çerçeve ve sağ üstte onay.
+    final duration = AknMotion.of(context, AknMotion.base);
+    // Seçim kartı (tasarım v3 §4): beyaz, 1 px çizgi, r18; seçilince 2 px turuncu çerçeve, yumuşak
+    // turuncu simge kuyusu ve sağda yaylanarak beliren onay.
     return Semantics(
       button: true,
       inMutuallyExclusiveGroup: true,
@@ -139,70 +171,99 @@ class _ReasonTile extends StatelessWidget {
       label: '${reason.label}, ${reason.description}',
       onTap: onTap,
       excludeSemantics: true,
-      child: AnimatedContainer(
-        duration: AknMotion.of(context, AknMotion.fast),
-        decoration: BoxDecoration(
-          color: c.isDark ? c.surfaceRaised : c.surface,
-          borderRadius: AknRadius.card,
-          border: Border.all(
-            color: selected ? c.ink : c.line,
-            width: selected ? 2 : 1,
+      child: PressScale(
+        child: AnimatedContainer(
+          duration: duration,
+          curve: AknMotion.standard,
+          decoration: BoxDecoration(
+            color: c.isDark ? c.surfaceRaised : c.surface,
+            borderRadius: _radius,
+            border: Border.all(
+              color: selected ? c.brand : c.line,
+              width: selected ? 2 : 1,
+            ),
           ),
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: AknRadius.card,
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: c.surfaceAlt,
-            onTap: () {
-              AknHaptics.selection();
-              onTap();
-            },
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: context.minTap),
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  selected ? 13 : 14,
-                  selected ? 13 : 14,
-                  selected ? 13 : 14,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(icon, size: 24, color: c.dim),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            reason.label,
-                            style: t.bodyStrong.copyWith(color: c.ink),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: _radius,
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: c.ink.withValues(alpha: 0.04),
+              onTap: () {
+                AknHaptics.selection();
+                onTap();
+              },
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: context.minTap),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    selected ? 13 : 14,
+                    selected ? 13 : 14,
+                    selected ? 13 : 14,
+                    selected ? 13 : 14,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AnimatedContainer(
+                        duration: duration,
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: selected ? c.brandSoft : c.surfaceAlt,
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(AknRadius.sm),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            reason.description,
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
-                        ],
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 22,
+                          color: selected ? c.brandInk : c.ink,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: selected
-                          ? Icon(
-                              Icons.check_circle_rounded,
-                              size: 22,
-                              color: c.ink,
-                            )
-                          : null,
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              reason.label,
+                              style: t.bodyStrong.copyWith(
+                                color: c.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              reason.description,
+                              style: t.bodySmall.copyWith(color: c.dim),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: AnimatedSwitcher(
+                          duration: AknMotion.of(context, AknMotion.slow),
+                          switchInCurve: AknMotion.pop,
+                          switchOutCurve: AknMotion.exit,
+                          transitionBuilder: (child, a) =>
+                              ScaleTransition(scale: a, child: child),
+                          child: selected
+                              ? Icon(
+                                  PhosphorIconsFill.checkCircle,
+                                  key: const ValueKey('on'),
+                                  size: 24,
+                                  color: c.brand,
+                                )
+                              : const SizedBox.shrink(key: ValueKey('off')),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

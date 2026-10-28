@@ -22,14 +22,14 @@ AknTone outcomeTone(DeskOutcome o) => switch (o) {
 };
 
 IconData outcomeIcon(DeskOutcome o) => switch (o) {
-  DeskOutcome.quoted => Icons.check_circle_rounded,
-  DeskOutcome.routedToFinance => Icons.account_balance_rounded,
-  DeskOutcome.conflict => Icons.sync_problem_rounded,
-  DeskOutcome.invalid => Icons.error_outline_rounded,
-  DeskOutcome.error => Icons.error_rounded,
+  DeskOutcome.quoted => PhosphorIconsFill.checkCircle,
+  DeskOutcome.routedToFinance => PhosphorIconsFill.bank,
+  DeskOutcome.conflict => PhosphorIconsRegular.cloudWarning,
+  DeskOutcome.invalid => PhosphorIconsRegular.warningCircle,
+  DeskOutcome.error => PhosphorIconsFill.warningCircle,
 };
 
-/// Teklif masası satırı (tasarım v2 §7.7) — bir defter satırı, kart değil:
+/// Teklif masası kartının içeriği (tasarım v3 liste kartı; kartı [PagedListBody] çizer):
 ///
 /// ```
 /// [□] Körfez Nakliyat ve Ticaret                    421.000 ₺
@@ -39,10 +39,10 @@ IconData outcomeIcon(DeskOutcome o) => switch (o) {
 ///     [ Birim fiyat  42,10 ₺/L ] [ Teslim 22 Eki Perşembe ]
 /// ```
 ///
-/// Seçim kutusu solda (24, işaretliyken mürekkep); sağ sütunda önerilen ya da yazılan fiyatla tahmini
-/// tutar. Durum satırı izleyiciye göre lamba ("Teklif verin" turuncu) ve geri sayım (yalnızca süre
-/// dolumu açıkken; 30 dakikanın altında kırmızı). Masada rota çizgisi yok (yoğunluk). Satırlar arası
-/// ince çizgiyi liste çizer.
+/// Seçim kutusu solda (24, işaretliyken mürekkep; seçilen kart turuncu yumuşak zemine geçer); sağ
+/// sütunda önerilen ya da yazılan fiyatla tahmini tutar (tablo rakamları). Durum satırı izleyiciye göre
+/// çip ("Teklif verin" turuncu) ve geri sayım (yalnızca süre dolumu açıkken; 30 dakikanın altında
+/// kırmızı). Gönderim sonucu ve satır hatası süzülerek belirir. Masada rota çizgisi yok (yoğunluk).
 class DeskRowCard extends ConsumerStatefulWidget {
   const DeskRowCard({
     super.key,
@@ -182,7 +182,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
         if (chip != null) ...[
           const SizedBox(height: 6),
           RowNote(
-            icon: Icons.payments_outlined,
+            icon: PhosphorIconsRegular.money,
             text: [
               chip.line,
               if (chip.statusLabel != null)
@@ -199,7 +199,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
         if (r.recentPrices.isNotEmpty) ...[
           const SizedBox(height: 4),
           RowNote(
-            icon: Icons.history_rounded,
+            icon: PhosphorIconsRegular.clockCounterClockwise,
             text:
                 'Son alımlar: ${r.recentPrices.map((p) => '${Fmt.unitPrice(p.unitPriceTry)} (${Fmt.dayMonth(p.orderDate)})').join(', ')}',
           ),
@@ -208,7 +208,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
           const SizedBox(height: 10),
           AknBanner(
             tone: AknTone.info,
-            icon: Icons.chat_bubble_outline_rounded,
+            icon: PhosphorIconsRegular.chatCircle,
             title: r.latestUnitPriceTry == null
                 ? 'Carinin revize notu'
                 : 'Revize notu, önceki teklif ${Fmt.unitPrice(r.latestUnitPriceTry)}',
@@ -224,50 +224,70 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
             onPickDate: () => _pickDate(date),
           ),
         ],
-        if (widget.error != null) ...[
-          const SizedBox(height: 8),
-          Semantics(
-            liveRegion: true,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(
-                    Icons.error_rounded,
-                    size: 16,
-                    color: c.danger.fg,
+        // Satır hatası ve gönderim sonucu süzülerek belirir (yükseklik kayar, içerik solup büyür).
+        _Reveal(
+          child: widget.error == null
+              ? null
+              : Padding(
+                  key: ValueKey('error:${widget.error}'),
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            PhosphorIconsFill.warningCircle,
+                            size: 16,
+                            color: c.danger.fg,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            widget.error!,
+                            style: t.label.copyWith(color: c.danger.fg),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    widget.error!,
-                    style: t.label.copyWith(color: c.danger.fg),
+        ),
+        _Reveal(
+          child: outcome == null
+              ? null
+              : Padding(
+                  key: ValueKey('outcome:${outcome.outcome}:${outcome.label}'),
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      StatusChip(
+                        label: outcome.label,
+                        tone: outcomeTone(outcome.outcome),
+                        icon: outcomeIcon(outcome.outcome),
+                      ),
+                      if (outcome.message.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            start: 16,
+                            top: 2,
+                          ),
+                          child: Text(
+                            outcome.message,
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        ],
-        if (outcome != null) ...[
-          const SizedBox(height: 8),
-          StatusChip(
-            label: outcome.label,
-            tone: outcomeTone(outcome.outcome),
-            icon: outcomeIcon(outcome.outcome),
-          ),
-          if (outcome.message.isNotEmpty)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: 16, top: 2),
-              child: Text(
-                outcome.message,
-                style: t.bodySmall.copyWith(color: c.dim),
-              ),
-            ),
-        ],
+        ),
         if (widget.editable && suggestion != null || grants.viewOrders) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -294,18 +314,21 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
       ],
     );
 
-    return Padding(
+    // Seçilen kart turuncu yumuşak zemine geçer (v3: seçili şey turuncu).
+    return AnimatedContainer(
+      duration: AknMotion.of(context, AknMotion.base),
+      curve: AknMotion.standard,
+      color: widget.selected ? c.brandSoft : c.brandSoft.withValues(alpha: 0),
       padding: EdgeInsetsDirectional.fromSTEB(
-        widget.editable ? 8 : AknSpace.page,
-        12,
-        AknSpace.page,
-        grants.viewOrders || widget.editable ? 2 : 12,
+        widget.editable ? 4 : 16,
+        14,
+        16,
+        grants.viewOrders || widget.editable ? 4 : 14,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.editable) ...[
-            // 48 dp dokunma hedefi; kutu 20 px kenara oturur.
             // 48 × 48 hedef; kutu başlığın ilk satırıyla aynı hizada kalsın diye 4 px yukarıda.
             Transform.translate(
               offset: const Offset(0, -4),
@@ -316,7 +339,10 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
                   label: 'Seç: ${r.orderNumber}, ${r.customerTitle}',
                   child: Checkbox(
                     value: widget.selected,
-                    onChanged: (_) => _desk.toggle(r.orderId),
+                    onChanged: (_) {
+                      AknHaptics.selection();
+                      _desk.toggle(r.orderId);
+                    },
                   ),
                 ),
               ),
@@ -338,6 +364,48 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
       _ => 0,
     };
     return rank(b) > rank(a) ? b : a;
+  }
+}
+
+/// Kart içi durum değişimi (tasarım v3 §5): içerik gelince yükseklik süzülerek açılır, içerik solup
+/// büyüyerek belirir; giderken tersine. [child] null iken yer kalmaz. Hareket azaltmada doğrudan.
+class _Reveal extends StatelessWidget {
+  const _Reveal({required this.child});
+
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = child;
+    if (AknMotion.reduced(context)) return c ?? const SizedBox.shrink();
+    return AknAnimatedSize(
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      alignment: AlignmentDirectional.topStart,
+      child: AnimatedSwitcher(
+        duration: AknMotion.base,
+        switchInCurve: Curves.linear,
+        switchOutCurve: AknMotion.exit,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: AlignmentDirectional.topStart,
+          children: [...previous, ?current],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation.drive(CurveTween(curve: const Interval(0, 0.7))),
+          child: ScaleTransition(
+            alignment: AlignmentDirectional.centerStart.resolve(
+              Directionality.of(context),
+            ),
+            scale: animation
+                .drive(CurveTween(curve: AknMotion.pop))
+                .drive(Tween<double>(begin: 0.92, end: 1)),
+            child: child,
+          ),
+        ),
+        child:
+            c ?? const SizedBox(key: ValueKey('none'), width: double.infinity),
+      ),
+    );
   }
 }
 
@@ -384,8 +452,8 @@ class _Inputs extends StatelessWidget {
   }
 }
 
-/// Teslim günü alanı ("22 Eki Perşembe"): etiket üstte, v2 alan kutusu, takvim simgesi; dokununca
-/// tarih seçici açılır.
+/// Teslim günü alanı ("22 Eki Perşembe", tasarım v3): etiket üstte, beyaz alan kutusu (14 köşe, 1,5 px
+/// çizgi), takvim simgesi; dokununca tarih seçici açılır.
 class _DateButton extends StatelessWidget {
   const _DateButton({required this.date, required this.onTap});
 
@@ -397,6 +465,10 @@ class _DateButton extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     final label = dayMonthLong(date);
+    // Satır yüksekliği yazı ölçeğiyle büyür (2,0× yazıda gün adı kesilmez); en az 28.
+    final line = (MediaQuery.textScalerOf(context).scale(16) * 22 / 16)
+        .clamp(28.0, double.infinity)
+        .toDouble();
     return Semantics(
       button: true,
       label: 'Teslim günü: ${Fmt.longDate(date)}, değiştir',
@@ -414,11 +486,14 @@ class _DateButton extends StatelessWidget {
             child: InputDecorator(
               decoration: AknTextField.decoration(
                 context,
-                lineHeight: 28,
-                suffixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
+                lineHeight: line,
+                suffixIcon: const Icon(
+                  PhosphorIconsRegular.calendarBlank,
+                  size: 20,
+                ),
               ),
               child: SizedBox(
-                height: 28,
+                height: line,
                 child: Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: Text(

@@ -104,7 +104,7 @@ class StationContactButtons extends ConsumerWidget {
         if (call != null)
           AknButton.secondary(
             label: OrdersCopy.callStation,
-            icon: Icons.call_outlined,
+            icon: PhosphorIconsRegular.phone,
             size: size,
             semanticLabel: '${s!.title} bayisini ara',
             onPressed: () => openExternal(
@@ -117,7 +117,7 @@ class StationContactButtons extends ConsumerWidget {
         if (wa != null)
           AknButton.secondary(
             label: OrdersCopy.whatsapp,
-            icon: Icons.chat_bubble_outline_rounded,
+            icon: PhosphorIconsRegular.chatCircle,
             size: size,
             semanticLabel: '${s!.title} bayisine WhatsApp ile yaz',
             onPressed: () => openExternal(

@@ -24,12 +24,14 @@ import 'shipment_sheet.dart';
 
 enum _Segment { board, list }
 
-/// Sevkiyat (spec A.4 / A.3 adım 5–7, tasarım v2 §7.15): pano (planlanacak siparişler kovalarda, açık
-/// sevkiyatlar günlere göre, şoför hesabı uyarısı) ve "Sevkiyatlar" listesi (durum çipleri, itirazlı,
-/// bugünkü yüklemeler, tarih, arama). Satırlar defter satırıdır: cari ve nokta, sağda litre (sayaç
-/// sesi) ve küçük ADR levhası, ikinci satırda saat / pencere, şoför ve TR plakası; yoldakilerde rota
-/// çizgisi. Ayrıntı sayfasından Yola çıkar / Teslim bildir / Şoför değiştir / İptal. Depo personeli
-/// listeyi "Bugünkü yüklemeler" ile açar; planlama yetkisi olmayan "Planla" görmez.
+/// Sevkiyat (spec A.4 / A.3 adım 5–7, tasarım v3 "Akış"): pano (planlanacak siparişler kovalarda,
+/// açık sevkiyatlar günlere göre, şoför hesabı uyarısı) ve "Sevkiyatlar" listesi (durum çipleri,
+/// itirazlı, bugünkü yüklemeler, tarih, arama); iki görünüm arasında solarak geçilir. Her sipariş ve
+/// sevkiyat beyaz bir kart: cari ve nokta, sağda litre (tablo rakamları) ve küçük ADR levhası, ikinci
+/// satırda saat / pencere, şoför ve TR plakası; yoldakilerde tır rota çizgisinde ilerler; planlanan
+/// litre çubuğu dolarak gelir. Kartlar art arda yükselerek gelir. Ayrıntı sayfasından Yola çıkar /
+/// Teslim bildir / Şoför değiştir / İptal. Depo personeli listeyi "Bugünkü yüklemeler" ile açar;
+/// planlama yetkisi olmayan "Planla" görmez.
 class DispatchPage extends ConsumerStatefulWidget {
   const DispatchPage({super.key});
 
@@ -90,7 +92,7 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
 
 // ------------------------------------------------------------------ Ortak satır
 
-/// Sevkiyat defter satırının sağ sütunu: küçük ADR levhası ve litre (`number` 24/28 Condensed, birim
+/// Sevkiyat kartının sağ sütunu: küçük ADR levhası ve litre (`number` 24/30, tablo rakamları; birim
 /// `readoutUnit`).
 class _Liters extends StatelessWidget {
   const _Liters({required this.liters, this.product});
@@ -133,8 +135,9 @@ class _Liters extends StatelessWidget {
   }
 }
 
-/// Sevkiyat ekranının defter satırı: başlık + ikinci satır solda, [right] sağda (dar ekranda ya da
-/// büyük yazıda başlığın altına iner), altında durum satırı, isteğe bağlı rota çizgisi ve eylem.
+/// Sevkiyat ekranının kart içeriği: başlık + ikinci satır solda, [right] sağda (dar ekranda ya da
+/// büyük yazıda başlığın altına iner), altında durum satırı, isteğe bağlı rota çizgisi ve eylem;
+/// saat başlığın önünde Beton küçük hapta. Basınca Beton dolgu (kart da küçülür).
 class _DispatchRow extends StatelessWidget {
   const _DispatchRow({
     required this.title,
@@ -170,11 +173,34 @@ class _DispatchRow extends StatelessWidget {
     final titleText = Text.rich(
       TextSpan(
         children: [
-          if (time != null)
-            TextSpan(
-              text: '$time  ',
-              style: titleStyle.copyWith(fontWeight: FontWeight.w700),
+          if (time != null) ...[
+            WidgetSpan(
+              alignment: PlaceholderAlignment.middle,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(end: 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surfaceAlt,
+                    borderRadius: AknRadius.tag,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 1,
+                    ),
+                    child: Text(
+                      time,
+                      style: t.label.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: c.ink,
+                        fontFeatures: AknNumerals.tabular,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
+          ],
           TextSpan(text: title),
         ],
       ),
@@ -216,7 +242,7 @@ class _DispatchRow extends StatelessWidget {
       },
     );
     Widget row = Padding(
-      padding: AknSpace.row,
+      padding: kCardRowPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -321,100 +347,114 @@ class _BoardList extends ConsumerWidget {
     final k = context.akn;
     final days = _groupByDay(b.shipments);
     String liters(double v) => Fmt.liters(v);
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        UpdatedCaption(updatedAt: state.updatedAt, error: state.error),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-          // Büyük yazıda okumalar iki sütunda kalsın (en çok 1,5×): pano ilk ekranda görünür.
-          child: PlateClamp(
-            child: KpiRow(
-              children: [
-                KpiTile(
-                  label: 'Planlanacak',
-                  value: b.orderTotal,
-                  caption: liters(b.orderTotalLiters),
-                ),
-                KpiTile(
-                  label: 'Planlı',
-                  value: b.plannedCount,
-                  caption: liters(b.plannedLiters),
-                ),
-                KpiTile(
-                  label: 'Yolda',
-                  value: b.inTransitCount,
-                  caption: liters(b.inTransitLiters),
-                ),
-                KpiTile(label: 'Sürücüsüz', value: b.unassignedCount),
-              ],
+    // Kartlar art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
+    var n = 0;
+    Widget card(Widget row) => StaggerItem(
+      index: n++,
+      child: BayiCard(margin: PagedListBody.cardMargin, child: row),
+    );
+    return StaggerScope(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          UpdatedCaption(updatedAt: state.updatedAt, error: state.error),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            // Okumalar ikişerli iki satırda (dört kart yan yana sıkışmasın); büyük yazıda en çok 1,5×.
+            child: PlateClamp(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  KpiRow(
+                    children: [
+                      KpiTile(
+                        label: 'Planlanacak',
+                        value: b.orderTotal,
+                        caption: liters(b.orderTotalLiters),
+                      ),
+                      KpiTile(
+                        label: 'Planlı',
+                        value: b.plannedCount,
+                        caption: liters(b.plannedLiters),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  KpiRow(
+                    children: [
+                      KpiTile(
+                        label: 'Yolda',
+                        value: b.inTransitCount,
+                        caption: liters(b.inTransitLiters),
+                      ),
+                      KpiTile(label: 'Sürücüsüz', value: b.unassignedCount),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        if (b.unassignedCount > 0)
-          PageWell(
-            top: 16,
-            tone: AknTone.warn,
-            icon: Icons.person_search_outlined,
-            message:
-                '${b.unassignedCount} planlı sevkiyatta uygulama şoförü yok; bu teslimatlar şoförün Teslimatlarım listesinde görünmez. Ayrıntıdan "Şoför değiştir" ile atayın.',
-          ),
-        if (!g.planShipment)
-          PageWell(
-            top: 16,
-            tone: AknTone.neutral,
-            icon: Icons.visibility_outlined,
-            message: g.dispatchOrReport
-                ? 'Planlama yetkiniz yok; yola çıkarma ve teslim bildirme sevkiyat ayrıntısından yapılır.'
-                : 'Sevkiyatları görüntüleyebilirsiniz; değişiklik yetkiniz yok.',
-          ),
-        SectionHeader(title: 'Planlanacak siparişler', count: b.orderTotal),
-        if (b.orders.isEmpty)
-          const EmptyState(
-            compact: true,
-            title: BayiCopy.boardEmptyTitle,
-            message: BayiCopy.boardEmptyMessage,
-            illustration: AknIllustration.delivery,
-          ),
-        for (final bucket in BoardBucket.values)
-          if (b.ordersIn(bucket).isNotEmpty) ...[
-            _BucketHeader(bucket: bucket, summary: b.summaryOf(bucket)),
-            AknLedger(
-              children: [
-                for (final o in b.ordersIn(bucket))
+          if (b.unassignedCount > 0)
+            PageWell(
+              top: 16,
+              tone: AknTone.warn,
+              icon: PhosphorIconsRegular.userFocus,
+              message:
+                  '${b.unassignedCount} planlı sevkiyatta uygulama şoförü yok; bu teslimatlar şoförün Teslimatlarım listesinde görünmez. Ayrıntıdan "Şoför değiştir" ile atayın.',
+            ),
+          if (!g.planShipment)
+            PageWell(
+              top: 16,
+              tone: AknTone.neutral,
+              icon: PhosphorIconsRegular.eye,
+              message: g.dispatchOrReport
+                  ? 'Planlama yetkiniz yok; yola çıkarma ve teslim bildirme sevkiyat ayrıntısından yapılır.'
+                  : 'Sevkiyatları görüntüleyebilirsiniz; değişiklik yetkiniz yok.',
+            ),
+          SectionHeader(title: 'Planlanacak siparişler', count: b.orderTotal),
+          if (b.orders.isEmpty)
+            const EmptyState(
+              compact: true,
+              title: BayiCopy.boardEmptyTitle,
+              message: BayiCopy.boardEmptyMessage,
+              illustration: AknIllustration.delivery,
+            ),
+          for (final bucket in BoardBucket.values)
+            if (b.ordersIn(bucket).isNotEmpty) ...[
+              _BucketHeader(bucket: bucket, summary: b.summaryOf(bucket)),
+              for (final o in b.ordersIn(bucket))
+                card(
                   BoardOrderRow(
                     order: o,
                     canPlan: g.planShipment,
                     canOpen: g.viewOrders,
                   ),
-              ],
+                ),
+            ],
+          SectionHeader(title: 'Açık sevkiyatlar', count: b.shipments.length),
+          if (b.shipments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Planlı ya da yolda sevkiyat yok.',
+                style: t.bodySmall.copyWith(color: k.dim),
+              ),
             ),
+          for (final (title, rows) in days) ...[
+            DayHeader(
+              title,
+              trailing:
+                  '${rows.length} sevkiyat, ${liters(rows.fold<double>(0, (a, s) => a + s.plannedLiters))}',
+            ),
+            for (final s in rows) card(BoardShipmentLine(shipment: s)),
           ],
-        SectionHeader(title: 'Açık sevkiyatlar', count: b.shipments.length),
-        if (b.shipments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Text(
-              'Planlı ya da yolda sevkiyat yok.',
-              style: t.bodySmall.copyWith(color: k.dim),
+          if (b.shipmentsTruncated || b.earlierShipmentsTruncated)
+            const ListFooterNote(
+              'Liste sınırına ulaşıldı; tümü için "Sevkiyatlar" sekmesini kullanın.',
             ),
-          ),
-        for (final (title, rows) in days) ...[
-          DayHeader(
-            title,
-            trailing:
-                '${rows.length} sevkiyat, ${liters(rows.fold<double>(0, (a, s) => a + s.plannedLiters))}',
-          ),
-          AknLedger(
-            children: [for (final s in rows) BoardShipmentLine(shipment: s)],
-          ),
         ],
-        if (b.shipmentsTruncated || b.earlierShipmentsTruncated)
-          const ListFooterNote(
-            'Liste sınırına ulaşıldı; tümü için "Sevkiyatlar" sekmesini kullanın.',
-          ),
-      ],
+      ),
     );
   }
 
@@ -476,7 +516,7 @@ class BoardOrderRow extends ConsumerWidget {
         ? const StatusLamp(
             tone: AknTone.danger,
             label: 'Teslim günü geçti',
-            icon: Icons.history_rounded,
+            icon: PhosphorIconsRegular.clockCounterClockwise,
           )
         : AknStatus.lampFor(OrderStatus.approved, viewer);
     final notes = [
@@ -500,15 +540,18 @@ class BoardOrderRow extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (notes.isNotEmpty)
-            RowNote(icon: Icons.schedule_rounded, text: keepUnits(notes)),
+            RowNote(icon: PhosphorIconsRegular.clock, text: keepUnits(notes)),
           if (planned > 0) ...[
             if (notes.isNotEmpty) const SizedBox(height: 6),
+            // Planlanan pay bir ilerlemedir: turuncu dolgu, mürekkep değer (v3); uyarı / tehlike
+            // eşiği yok.
             BayiUsageBar(
               value: o.quantityLiters <= 0 ? 0 : planned / o.quantityLiters,
               label: 'Planlı',
               valueLabel:
                   '${Fmt.liters(planned)} / ${Fmt.liters(o.quantityLiters)}',
-              tone: AknTone.info,
+              warnAt: double.infinity,
+              dangerAt: double.infinity,
               height: 6,
             ),
           ],
@@ -719,6 +762,14 @@ class _ListViewState extends ConsumerState<_ListView> {
     return PagedListBody<ShipmentListItem>(
       list: s.list,
       header: header,
+      // Süzgeç değişince kartlar yeniden art arda gelir (aramada değil).
+      staggerKey: (
+        f.todayLoadings,
+        f.hasDispute,
+        Object.hashAllUnordered(f.statuses),
+        f.scheduledFrom,
+        f.scheduledTo,
+      ),
       onRefresh: () => c.reload(silent: true),
       onLoadMore: () => unawaited(c.loadMore()),
       filtered: f.isFiltered && !f.todayLoadings,
@@ -771,8 +822,8 @@ class _ListViewState extends ConsumerState<_ListView> {
   }
 }
 
-/// Sevkiyat listesi satırı (defter satırı): cari, sevkiyat ve sipariş numarası, ürün; litre + ADR;
-/// plan zamanı, nokta; TR plakası ve şoför; durum lambası; itiraz notu.
+/// Sevkiyat listesi kartı (tasarım v3; kartı [PagedListBody] çizer): cari, sevkiyat ve sipariş
+/// numarası, ürün; litre + ADR; plan zamanı, nokta; TR plakası ve şoför; durum çipi; itiraz notu.
 class ShipmentListCard extends ConsumerWidget {
   const ShipmentListCard({super.key, required this.item});
 

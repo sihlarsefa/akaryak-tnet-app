@@ -32,13 +32,16 @@ import 'widgets/stats_atoms.dart';
 /// Aylık grafiğin ölçüsü.
 enum _Metric { amount, liters, orders }
 
-/// İstatistikler (`/stats`, tasarım v2 §7.12, board ekranı 7): itilmiş çubuk "İstatistikler" + paylaş
-/// (PDF), dönem seçici (Bu ay, Geçen ay, Son 3 ay, Bu yıl), "1–21 Ekim, güncellendi 10:41", **tek
-/// plaka** (bayide Satış, müşteride Harcama: rakam, fark, kural, okumalar; çubuk yok), "Aylık gelişim"
-/// (Tutar / Litre / Sipariş, 12 aylık sütunlar, ay sonu tahmini, "Tablo olarak göster"), "Ürün
-/// dağılımı" sıralı çubukları, huni, sevkiyat, tahsilat, en çok alan cariler, saha ekibi, limit riski;
-/// müşteride birim fiyat çizgisi, bayiler, noktalar, sipariş durumu, limitler ve "Detaylı harcama
-/// raporu". Aşağı çekip yenileme, dönem başına önbellek (çevrimdışı "Son güncelleme"), hata ekranı.
+/// İstatistikler (`/stats`, tasarım v3 "Akış"): itilmiş çubuk "İstatistikler" + paylaş (PDF), dönem
+/// seçici (Bu ay, Geçen ay, Son 3 ay, Bu yıl; kayan yaylı başparmak), "1–21 Ekim, güncellendi 10:41",
+/// **tek plaka** (bayide Satış, müşteride Harcama: beyaz, sıcak tonlu hero kartı — rakam döner, fark
+/// çipi, kural, sayaç gibi yerine oturan okumalar), ardından sayfada yüzen beyaz bölüm kartları (r22):
+/// "Aylık gelişim" (Tutar / Litre / Sipariş, yaylanarak yükselen sütunlar, ay sonu tahmini, "Tablo
+/// olarak göster"), "Ürün dağılımı" (büyüyen sıralı çubuklar), huni, sevkiyat, tahsilat, en çok alan
+/// cariler, saha ekibi, limit riski; müşteride kendini çizen birim fiyat çizgisi, bayiler, noktalar,
+/// sipariş durumu, limitler ve "Detaylı harcama raporu". Plaka yükselerek gelir, bölümler sırayla
+/// (kaydırınca da görünür oldukça) belirir; dönem değişince içerik solarak geçer. Aşağı çekip
+/// yenileme, dönem başına önbellek (çevrimdışı "Son güncelleme"), hata ekranı.
 class StatsPage extends ConsumerStatefulWidget {
   const StatsPage({super.key, this.initialPeriod = StatsPeriod.month});
 
@@ -111,7 +114,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           onMetric: (m) => setState(() => _metric = m),
           table: _table,
           onTable: () => setState(() => _table = !_table),
-        ),
+        ).children(context, ref),
       );
     } else {
       final s = ref.watch(customerStatsProvider(_period));
@@ -125,7 +128,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           onMetric: (m) => setState(() => _metric = m),
           table: _table,
           onTable: () => setState(() => _table = !_table),
-        ),
+        ).children(context, ref),
       );
     }
     final shareable = data;
@@ -137,7 +140,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       actions: [
         if (scope != StatsScope.none)
           AknIconButton(
-            icon: Icons.ios_share_rounded,
+            icon: PhosphorIconsRegular.export,
             semanticLabel: StatsCopy.share,
             onPressed: shareable == null || _sharing
                 ? null
@@ -177,7 +180,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 
   (String, Widget) _bodyFor<T>(
     Loadable<T> s,
-    Widget Function(T data) sections,
+    List<Widget> Function(T data) sections,
   ) {
     final d = s.data;
     if (d == null) {
@@ -191,26 +194,39 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       return ('loading', const _PageSkeleton());
     }
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final children = sections(d);
+    // Bölümler ilk açılışta sırayla belirir (StaggerItem); plaka kendi yükselişiyle gelir. Bölümler
+    // tek bir sütundadır: kaydırırken üstteki bölüm görünmez olsa bile sayfa bir bütün kalır.
     return (
       'data',
       PullToRefresh(
         onRefresh: _refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.only(bottom: 32 + bottom),
-          children: [
-            _Caption(
-              period: d is BayiStats ? d.period : (d as CustomerStats).period,
-              updatedAt:
-                  s.updatedAt ??
-                  (d is BayiStats
-                      ? d.generatedAt
-                      : (d as CustomerStats).generatedAt),
-              fromCache: s.fromCache,
-              error: s.error,
-            ),
-            StaggerScope(child: sections(d)),
-          ],
+        child: StaggerScope(
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(bottom: 32 + bottom),
+            children: [
+              _Caption(
+                period: d is BayiStats ? d.period : (d as CustomerStats).period,
+                updatedAt:
+                    s.updatedAt ??
+                    (d is BayiStats
+                        ? d.generatedAt
+                        : (d as CustomerStats).generatedAt),
+                fromCache: s.fromCache,
+                error: s.error,
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < children.length; i++)
+                    children[i] is _HeadlinePlate
+                        ? children[i]
+                        : StatsStaggerItem(index: i, child: children[i]),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -229,7 +245,9 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 
 // ============================================================== bayi
 
-class _BayiSections extends ConsumerWidget {
+/// Bayi bölümleri: plaka, aylık gelişim, ürün dağılımı, huni, sevkiyat, tahsilat, cariler, ekip ve
+/// risk (listenin çocukları olarak; [children]).
+class _BayiSections {
   const _BayiSections({
     required this.data,
     required this.own,
@@ -246,8 +264,7 @@ class _BayiSections extends ConsumerWidget {
   final bool table;
   final VoidCallback onTable;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  List<Widget> children(BuildContext context, WidgetRef ref) {
     final d = data;
     final sales = d.sales;
     final nav = _Nav(ref);
@@ -259,7 +276,7 @@ class _BayiSections extends ConsumerWidget {
     final children = <Widget>[
       if (sales != null)
         _HeadlinePlate(
-          icon: Icons.bar_chart_rounded,
+          icon: PhosphorIconsRegular.chartBar,
           title: own ? StatsCopy.cardSalesOwn : StatsCopy.kpiSales,
           period: d.period,
           summary: sales,
@@ -331,10 +348,7 @@ class _BayiSections extends ConsumerWidget {
         const _EmptyPeriod(customer: false),
       _Footer(failed: d.failedSections, generatedAt: d.generatedAt),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: staggered(children),
-    );
+    return children;
   }
 }
 
@@ -349,7 +363,9 @@ PlateReadout _priceReadout(double? price) => PlateReadout(
 
 // ============================================================== müşteri
 
-class _CustomerSections extends ConsumerWidget {
+/// Müşteri bölümleri: plaka, aylık gelişim, ürünler, birim fiyat, bayiler, noktalar, sipariş durumu,
+/// limitler ve detaylı harcama raporu (listenin çocukları olarak; [children]).
+class _CustomerSections {
   const _CustomerSections({
     required this.data,
     required this.metric,
@@ -364,8 +380,7 @@ class _CustomerSections extends ConsumerWidget {
   final bool table;
   final VoidCallback onTable;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  List<Widget> children(BuildContext context, WidgetRef ref) {
     final d = data;
     final spend = d.spending;
     final nav = _Nav(ref);
@@ -380,7 +395,7 @@ class _CustomerSections extends ConsumerWidget {
     final children = <Widget>[
       if (spend != null)
         _HeadlinePlate(
-          icon: Icons.payments_outlined,
+          icon: PhosphorIconsRegular.money,
           title: StatsCopy.kpiSpending,
           period: d.period,
           summary: spend,
@@ -470,10 +485,11 @@ class _CustomerSections extends ConsumerWidget {
           ],
         ),
       if (nav.can(AppRoutes.spending))
-        Padding(
-          padding: const EdgeInsets.only(top: 16),
+        StatsCard(
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: AknListTile(
-            leadingIcon: Icons.summarize_outlined,
+            leadingIcon: PhosphorIconsRegular.fileText,
+            leadingTone: AknTone.brand,
             title: StatsCopy.spendingReport,
             subtitle: StatsCopy.spendingReportHint,
             showChevron: true,
@@ -484,10 +500,7 @@ class _CustomerSections extends ConsumerWidget {
         const _EmptyPeriod(customer: true),
       _Footer(failed: d.failedSections, generatedAt: d.generatedAt),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: staggered(children),
-    );
+    return children;
   }
 }
 
@@ -614,8 +627,8 @@ class _Caption extends StatelessWidget {
                   children: [
                     Icon(
                       offline
-                          ? Icons.history_rounded
-                          : Icons.sync_problem_rounded,
+                          ? PhosphorIconsRegular.clockCounterClockwise
+                          : PhosphorIconsRegular.cloudWarning,
                       size: 16,
                       color: c.dim,
                     ),
@@ -643,8 +656,9 @@ class _Caption extends StatelessWidget {
   }
 }
 
-/// Sayfanın tek plakası: dönemin başlık ölçüsü (bayide Satış, müşteride Harcama), fark, kural ve
-/// okumalar; çubuk yok (tam grafik aşağıda).
+/// Sayfanın tek plakası (tasarım v3 §4 hero kartı): dönemin başlık ölçüsü (bayide Satış, müşteride
+/// Harcama), fark çipi, kural ve okumalar; çubuk yok (tam grafik aşağıda). Sayfa açılınca yükselerek
+/// ve hafifçe büyüyerek gelir; rakam döner, okumalar sayaç gibi yerine oturur.
 class _HeadlinePlate extends StatelessWidget {
   const _HeadlinePlate({
     required this.icon,
@@ -664,33 +678,38 @@ class _HeadlinePlate extends StatelessWidget {
   Widget build(BuildContext context) {
     final pct = StatsFmt.change(summary.amount, summary.prevAmount);
     final compare = period.key.compareShort;
-    return AknPlate(
-      margin: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-      head: PlateHead(
-        icon: icon,
-        title: title,
-        period: period.from == null
-            ? period.title
-            : StatsFmt.rangeShort(period.from, period.to),
+    return StatsRise(
+      offset: 24,
+      scale: 0.94,
+      duration: AknMotion.heroRise,
+      child: AknPlate(
+        margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        head: PlateHead(
+          icon: icon,
+          title: title,
+          period: period.from == null
+              ? period.title
+              : StatsFmt.rangeShort(period.from, period.to),
+        ),
+        figure: PlateFigure(
+          value: StatsFmt.count(summary.amount),
+          unit: '₺',
+          semanticLabel: StatsFmt.moneyWholeSpoken(summary.amount),
+        ),
+        delta: pct == null
+            ? null
+            : PlateDelta(
+                change: StatsFmt.deltaPercent(pct),
+                direction: pct.abs() < StatsFmt.flatThreshold
+                    ? AknDeltaDirection.flat
+                    : pct > 0
+                    ? AknDeltaDirection.up
+                    : AknDeltaDirection.down,
+                sentence: compare,
+                semanticLabel: '${StatsFmt.deltaSpoken(pct)}, $compare',
+              ),
+        below: PlateReadouts(items: readouts),
       ),
-      figure: PlateFigure(
-        value: StatsFmt.count(summary.amount),
-        unit: '₺',
-        semanticLabel: StatsFmt.moneyWholeSpoken(summary.amount),
-      ),
-      delta: pct == null
-          ? null
-          : PlateDelta(
-              change: StatsFmt.deltaPercent(pct),
-              direction: pct.abs() < StatsFmt.flatThreshold
-                  ? AknDeltaDirection.flat
-                  : pct > 0
-                  ? AknDeltaDirection.up
-                  : AknDeltaDirection.down,
-              sentence: compare,
-              semanticLabel: '${StatsFmt.deltaSpoken(pct)}, $compare',
-            ),
-      below: PlateReadouts(items: readouts),
     );
   }
 }
@@ -704,8 +723,9 @@ double? _monthProjection(List<StatsMonth> months, double value) {
   return plateMonthEndProjection(value, DateTime(now.year, now.month, now.day));
 }
 
-/// Aylık gelişim: ölçü seçici, sütunlar (bu ay turuncu, tahmin kesikli), lejant ve "Tablo olarak
-/// göster".
+/// Aylık gelişim (kart): ölçü seçici (kayan başparmak), yaylanarak yükselen sütunlar (bu ay turuncu
+/// degrade, tahmin kesikli), lejant ve "Tablo olarak göster" — grafik ile tablo arasında solarak ve
+/// yüksekliği kayarak geçer.
 class _MonthlySection extends StatelessWidget {
   const _MonthlySection({
     required this.months,
@@ -787,31 +807,48 @@ class _MonthlySection extends StatelessWidget {
         const SizedBox(height: 18),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: table
-              ? _MonthTable(months: months, value: value, format: full)
-              : StatsBarChart(
-                  key: ValueKey('monthly-${metric.name}-${months.length}'),
-                  bars: [
-                    for (final x in months)
-                      ChartBar(
-                        label: x.shortLabel,
-                        longLabel: x.longLabel,
-                        value: value(x),
-                      ),
-                  ],
-                  valueLabel: short,
-                  extremeLabel: bare,
-                  projection: proj,
-                  projectionLabel: bare,
-                  bubbleLabel: (b) => '${b.longLabel}: ${full(b.value)}',
-                  spoken: (b) => [
-                    '${b.longLabel} $noun ${spoken(b.value)}',
-                    if (b.longLabel == last.longLabel && proj != null)
-                      StatsCopy.projectionLegend(spoken(proj)),
-                  ].join(', '),
-                  emptyHint: StatsCopy.emptyPeriod,
-                  maxBarWidth: months.length > 6 ? 12 : 16,
-                ),
+          child: AknAnimatedSize(
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: AknMotion.of(context, AknMotion.base),
+              switchInCurve: AknMotion.emphasizedCurve,
+              switchOutCurve: AknMotion.exit,
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.topCenter,
+                children: [...previous, ?current],
+              ),
+              child: table
+                  ? _MonthTable(
+                      key: const ValueKey('table'),
+                      months: months,
+                      value: value,
+                      format: full,
+                    )
+                  : StatsBarChart(
+                      key: ValueKey('monthly-${metric.name}-${months.length}'),
+                      bars: [
+                        for (final x in months)
+                          ChartBar(
+                            label: x.shortLabel,
+                            longLabel: x.longLabel,
+                            value: value(x),
+                          ),
+                      ],
+                      valueLabel: short,
+                      extremeLabel: bare,
+                      projection: proj,
+                      projectionLabel: bare,
+                      bubbleLabel: (b) => '${b.longLabel}: ${full(b.value)}',
+                      spoken: (b) => [
+                        '${b.longLabel} $noun ${spoken(b.value)}',
+                        if (b.longLabel == last.longLabel && proj != null)
+                          StatsCopy.projectionLegend(spoken(proj)),
+                      ].join(', '),
+                      emptyHint: StatsCopy.emptyPeriod,
+                      maxBarWidth: months.length > 6 ? 12 : 16,
+                    ),
+            ),
+          ),
         ),
         const SizedBox(height: 6),
         Padding(
@@ -856,6 +893,7 @@ class _MonthlySection extends StatelessWidget {
 /// Grafiğin tablo hâli: ay | değer (sağa hizalı).
 class _MonthTable extends StatelessWidget {
   const _MonthTable({
+    super.key,
     required this.months,
     required this.value,
     required this.format,
@@ -1466,7 +1504,7 @@ class _Footer extends StatelessWidget {
           if (failed.isNotEmpty) ...[
             const AknBanner(
               tone: AknTone.warn,
-              icon: Icons.sync_problem_rounded,
+              icon: PhosphorIconsRegular.cloudWarning,
               message: StatsCopy.partialFailure,
             ),
             const SizedBox(height: 12),
@@ -1485,7 +1523,7 @@ class _Footer extends StatelessWidget {
   }
 }
 
-/// Yükleme hatası (tasarım v2 §10.2 metinleri).
+/// Yükleme hatası (yüzen çizimli boş / hata durumu; tasarım v3 §4 metinleri).
 class _StatsFailure extends StatelessWidget {
   const _StatsFailure({required this.failure, required this.onRetry});
 
@@ -1519,13 +1557,24 @@ class _StatsFailure extends StatelessWidget {
   }
 }
 
-/// İlk yükleme: Beton blokları sayfanın düzenini taklit eder (plaka yeri, bölüm başlıkları, sütunlar).
+/// İlk yükleme: parıltılı iskelet sayfanın düzenini taklit eder (plaka kartı, bölüm kartları,
+/// sütunlar); veri gelince içerik solarak geçer.
 class _PageSkeleton extends StatelessWidget {
   const _PageSkeleton();
 
   @override
   Widget build(BuildContext context) {
     const heights = [0.5, 0.56, 0.52, 0.62, 0.7, 0.66, 0.64, 0.68, 0.8, 0.74];
+    final c = context.akn;
+    Widget card(Widget child) => DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: AknRadius.section,
+        border: c.isDark ? Border.all(color: c.line) : null,
+        boxShadow: AknShadows.card(c),
+      ),
+      child: Padding(padding: const EdgeInsets.all(20), child: child),
+    );
     return Shimmer(
       semanticLabel: StatsCopy.deckLoading,
       child: ListView(
@@ -1534,29 +1583,74 @@ class _PageSkeleton extends StatelessWidget {
         children: [
           const SkeletonLine(widthFactor: 0.5, height: 12),
           const SizedBox(height: 14),
-          const SkeletonBox(height: 196, radius: 20),
-          const SizedBox(height: 30),
-          const SkeletonLine(widthFactor: 0.4, height: 18),
+          DecoratedBox(
+            decoration: c.plateDecoration(raised: false),
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(20, 18, 20, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SkeletonBox(width: 40, height: 40, radius: 12),
+                      SizedBox(width: 12),
+                      SkeletonBox(width: 110, height: 14, radius: 7),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  SkeletonBox(width: 220, height: 44, radius: 12),
+                  SizedBox(height: 12),
+                  SkeletonBox(width: 150, height: 22, radius: 8),
+                  SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(child: SkeletonBox(height: 40, radius: 10)),
+                      SizedBox(width: 10),
+                      Expanded(child: SkeletonBox(height: 40, radius: 10)),
+                      SizedBox(width: 10),
+                      Expanded(child: SkeletonBox(height: 40, radius: 10)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
-          const SkeletonBox(height: 36, radius: 12),
-          const SizedBox(height: 22),
-          SizedBox(
-            height: 112,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          card(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final h in heights)
-                  SkeletonBox(width: 14, height: 112 * h, radius: 4),
+                const SkeletonLine(widthFactor: 0.4, height: 18),
+                const SizedBox(height: 16),
+                const SkeletonBox(height: 36, radius: 18),
+                const SizedBox(height: 22),
+                SizedBox(
+                  height: 112,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      for (final h in heights)
+                        SkeletonBox(width: 12, height: 112 * h, radius: 6),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 30),
-          const SkeletonLine(widthFactor: 0.45, height: 18),
           const SizedBox(height: 16),
-          const SkeletonLine(widthFactor: 0.9, height: 12),
-          const SizedBox(height: 8),
-          const SkeletonBox(height: 8, radius: 4),
+          card(
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SkeletonLine(widthFactor: 0.45, height: 18),
+                SizedBox(height: 16),
+                SkeletonLine(widthFactor: 0.9, height: 12),
+                SizedBox(height: 8),
+                SkeletonBox(height: 10, radius: 5),
+              ],
+            ),
+          ),
         ],
       ),
     );

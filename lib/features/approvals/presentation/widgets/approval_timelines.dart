@@ -8,7 +8,9 @@ import '../../copy.dart';
 import '../../data/approval_models.dart';
 import '../../shared/layout.dart';
 
-/// Onay adımları (bayi / merkez görünümü): kademe, durum, "X adına Y", not, son tarih.
+/// Onay adımları (bayi / merkez görünümü; tasarım v3 §4–5): beyaz kartta zaman çizelgesi — kademe,
+/// durum, "X adına Y", not, son tarih. Çizelge ilk görünüşte yukarıdan aşağı kendini çizer; sıra
+/// izleyicideyse güncel düğüm turuncudur ve nefes alır.
 class ApprovalStepsTimeline extends StatelessWidget {
   const ApprovalStepsTimeline({super.key, required this.detail});
 
@@ -20,8 +22,8 @@ class ApprovalStepsTimeline extends StatelessWidget {
     final multi = detail.steps.length > 1;
     final yourMove =
         detail.row.canDecide && detail.row.status == ApprovalStatus.pending;
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
+    return AknCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: StepTimeline(
         yourMove: yourMove,
         steps: adaptSteps(context, [
@@ -43,9 +45,19 @@ class ApprovalStepsTimeline extends StatelessWidget {
               },
               content: s.note == null
                   ? null
-                  : Text(
-                      '“${s.note}”',
-                      style: t.bodySmall.copyWith(color: context.akn.ink),
+                  : Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      decoration: BoxDecoration(
+                        color: context.akn.surfaceAlt,
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(AknRadius.md),
+                        ),
+                      ),
+                      child: Text(
+                        '“${s.note}”',
+                        style: t.bodySmall.copyWith(color: context.akn.ink),
+                      ),
                     ),
             ),
         ]),
@@ -54,8 +66,9 @@ class ApprovalStepsTimeline extends StatelessWidget {
   }
 }
 
-/// Cari görünümünün sade süreci (web `CustomerTimeline` portu): talep, ek bilgi istek / yanıtları
-/// (yalnızca cariye yöneltilen türlerde), son durum. Kademe, onaylayan adı ve SLA yoktur.
+/// Cari görünümünün sade süreci (web `CustomerTimeline` portu; v3: beyaz kartta kendini çizen
+/// çizelge): talep, ek bilgi istek / yanıtları (yalnızca cariye yöneltilen türlerde), son durum.
+/// Kademe, onaylayan adı ve SLA yoktur.
 class CustomerProcessTimeline extends StatelessWidget {
   const CustomerProcessTimeline({super.key, required this.detail});
 
@@ -63,8 +76,8 @@ class CustomerProcessTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
+    return AknCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: StepTimeline(steps: adaptSteps(context, customerSteps(detail))),
     );
   }
@@ -76,7 +89,7 @@ class CustomerProcessTimeline extends StatelessWidget {
         subtitle: d.row.requestedByName,
         time: shortStamp(d.row.createdAt),
         state: TimelineState.done,
-        icon: Icons.add_rounded,
+        icon: PhosphorIconsRegular.plus,
       ),
     ];
     if (d.isCustomerAddressed) {
@@ -94,7 +107,7 @@ class CustomerProcessTimeline extends StatelessWidget {
               title: 'Ek bilgi istendi',
               time: shortStamp(e.occurredAt),
               state: TimelineState.done,
-              icon: Icons.contact_support_rounded,
+              icon: PhosphorIconsFill.chatCircleDots,
             ),
           );
         } else {
@@ -105,7 +118,7 @@ class CustomerProcessTimeline extends StatelessWidget {
               subtitle: mine ? e.userName : null,
               time: shortStamp(e.occurredAt),
               state: TimelineState.done,
-              icon: Icons.reply_rounded,
+              icon: PhosphorIconsRegular.arrowBendUpLeft,
             ),
           );
         }
@@ -120,7 +133,7 @@ class CustomerProcessTimeline extends StatelessWidget {
             title: 'Bayi değerlendirmesi',
             subtitle: ApprovalsCopy.customerStatus(d),
             state: TimelineState.current,
-            icon: Icons.hourglass_top_rounded,
+            icon: PhosphorIconsRegular.hourglassHigh,
           ),
         );
       case ApprovalStatus.infoRequested:
@@ -128,7 +141,7 @@ class CustomerProcessTimeline extends StatelessWidget {
           TimelineStep(
             title: ApprovalsCopy.customerStatus(d),
             state: TimelineState.current,
-            icon: Icons.contact_support_rounded,
+            icon: PhosphorIconsFill.chatCircleDots,
           ),
         );
       case ApprovalStatus.approved:
@@ -141,7 +154,7 @@ class CustomerProcessTimeline extends StatelessWidget {
                 : null,
             time: shortStamp(finishedAt),
             state: TimelineState.done,
-            icon: Icons.check_rounded,
+            icon: PhosphorIconsRegular.check,
           ),
         );
       case ApprovalStatus.rejected:
@@ -151,7 +164,7 @@ class CustomerProcessTimeline extends StatelessWidget {
             subtitle: d.decisionNote,
             time: shortStamp(finishedAt),
             state: TimelineState.failed,
-            icon: Icons.close_rounded,
+            icon: PhosphorIconsRegular.x,
           ),
         );
       default:
@@ -160,7 +173,7 @@ class CustomerProcessTimeline extends StatelessWidget {
             title: 'Talep kapatıldı',
             time: shortStamp(finishedAt),
             state: TimelineState.upcoming,
-            icon: Icons.block_rounded,
+            icon: PhosphorIconsRegular.prohibit,
           ),
         );
     }
@@ -168,7 +181,8 @@ class CustomerProcessTimeline extends StatelessWidget {
   }
 }
 
-/// Olay günlüğü (bayi / merkez görünümü): son olaylar, "Tüm olaylar" ile genişler.
+/// Olay günlüğü (bayi / merkez görünümü; tasarım v3): beyaz kartta son olaylar — her olayın simgesi
+/// yumuşak dairede, satırlar arasında içeriden ince çizgi; "Tüm olaylar" ile yumuşakça genişler.
 class ApprovalEventsLog extends StatefulWidget {
   const ApprovalEventsLog({super.key, required this.detail, this.onOpenFile});
 
@@ -185,22 +199,22 @@ class _ApprovalEventsLogState extends State<ApprovalEventsLog> {
   bool _all = false;
 
   static IconData _icon(ApprovalEventType t) => switch (t) {
-    ApprovalEventType.created => Icons.add_circle_outline_rounded,
-    ApprovalEventType.viewed => Icons.visibility_outlined,
-    ApprovalEventType.attachmentViewed => Icons.attach_file_rounded,
+    ApprovalEventType.created => PhosphorIconsRegular.plusCircle,
+    ApprovalEventType.viewed => PhosphorIconsRegular.eye,
+    ApprovalEventType.attachmentViewed => PhosphorIconsRegular.paperclip,
     ApprovalEventType.approved ||
-    ApprovalEventType.preApproved => Icons.check_circle_outline_rounded,
-    ApprovalEventType.conditionallyApproved => Icons.rule_rounded,
-    ApprovalEventType.rejected => Icons.cancel_outlined,
-    ApprovalEventType.infoRequested => Icons.contact_support_outlined,
-    ApprovalEventType.infoProvided => Icons.reply_rounded,
-    ApprovalEventType.reminded => Icons.notifications_active_outlined,
-    ApprovalEventType.escalated => Icons.trending_up_rounded,
-    ApprovalEventType.delegated => Icons.share_rounded,
-    ApprovalEventType.cancelled => Icons.block_rounded,
-    ApprovalEventType.reopened => Icons.restart_alt_rounded,
-    ApprovalEventType.levelsUpdated => Icons.layers_rounded,
-    ApprovalEventType.unknown => Icons.circle_outlined,
+    ApprovalEventType.preApproved => PhosphorIconsRegular.checkCircle,
+    ApprovalEventType.conditionallyApproved => PhosphorIconsRegular.listChecks,
+    ApprovalEventType.rejected => PhosphorIconsRegular.xCircle,
+    ApprovalEventType.infoRequested => PhosphorIconsRegular.chatCircleDots,
+    ApprovalEventType.infoProvided => PhosphorIconsRegular.arrowBendUpLeft,
+    ApprovalEventType.reminded => PhosphorIconsRegular.bellRinging,
+    ApprovalEventType.escalated => PhosphorIconsRegular.trendUp,
+    ApprovalEventType.delegated => PhosphorIconsRegular.shareNetwork,
+    ApprovalEventType.cancelled => PhosphorIconsRegular.prohibit,
+    ApprovalEventType.reopened => PhosphorIconsRegular.arrowCounterClockwise,
+    ApprovalEventType.levelsUpdated => PhosphorIconsRegular.stack,
+    ApprovalEventType.unknown => PhosphorIconsRegular.circle,
   };
 
   @override
@@ -209,28 +223,47 @@ class _ApprovalEventsLogState extends State<ApprovalEventsLog> {
     final t = context.aknText;
     final events = widget.detail.events.reversed.toList();
     final shown = _all ? events : events.take(4).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < shown.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
-          _EventRow(
-            event: shown[i],
-            icon: _icon(shown[i].eventType),
-            onOpenFile: widget.onOpenFile,
-          ),
-        ],
-        if (events.length > 4)
-          Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: AknInlineLink(
-              label: _all ? 'Daha az göster' : 'Tüm olaylar (${events.length})',
-              onTap: () => setState(() => _all = !_all),
-            ),
-          ),
-        if (events.isEmpty)
-          Text('Henüz olay yok.', style: t.bodySmall.copyWith(color: c.dim)),
-      ],
+    return AknCard(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: AknAnimatedSize(
+        alignment: Alignment.topCenter,
+        duration: AknMotion.slow,
+        curve: AknMotion.emphasizedCurve,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < shown.length; i++) ...[
+              if (i > 0) const AknLedgerDivider(indent: 0),
+              _EventRow(
+                event: shown[i],
+                icon: _icon(shown[i].eventType),
+                onOpenFile: widget.onOpenFile,
+              ),
+            ],
+            if (events.length > 4)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: AknInlineLink(
+                    label: _all
+                        ? 'Daha az göster'
+                        : 'Tüm olaylar (${events.length})',
+                    onTap: () => setState(() => _all = !_all),
+                  ),
+                ),
+              ),
+            if (events.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Henüz olay yok.',
+                  style: t.bodySmall.copyWith(color: c.dim),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -255,18 +288,27 @@ class _EventRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, size: 18, color: c.dim),
+          SizedBox.square(
+            dimension: 32,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: c.surfaceAlt,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 16, color: c.ink),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  e.displayLabel,
-                  style: t.bodyStrong.copyWith(color: c.ink),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    e.displayLabel,
+                    style: t.bodyStrong.copyWith(color: c.ink),
+                  ),
                 ),
                 if (large) Text(when, style: t.caption.copyWith(color: c.dim)),
                 if (e.actorText != null)
@@ -283,7 +325,11 @@ class _EventRow extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.attach_file_rounded, size: 14, color: c.dim),
+                      Icon(
+                        PhosphorIconsRegular.paperclip,
+                        size: 14,
+                        color: c.dim,
+                      ),
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(e.attachmentFileName!, style: t.caption),
@@ -296,7 +342,16 @@ class _EventRow extends StatelessWidget {
           ),
           if (!large) ...[
             const SizedBox(width: 12),
-            Text(when, style: t.caption.copyWith(color: c.dim)),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                when,
+                style: t.caption.copyWith(
+                  color: c.dim,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -313,7 +368,14 @@ class _EventRow extends StatelessWidget {
         button: true,
         label: label,
         excludeSemantics: true,
-        child: InkWell(onTap: () => onOpenFile!(file), child: row),
+        child: InkWell(
+          onTap: () {
+            AknHaptics.selection();
+            onOpenFile!(file);
+          },
+          borderRadius: const BorderRadius.all(Radius.circular(AknRadius.md)),
+          child: row,
+        ),
       );
     }
     return Semantics(label: label, excludeSemantics: true, child: row);

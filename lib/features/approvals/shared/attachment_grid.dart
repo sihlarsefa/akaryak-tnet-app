@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/media/attachment_gallery.dart';
 import '../../../core/models/attachment.dart';
 import '../../../core/models/enums.dart';
+import 'layout.dart';
 
 /// Belge ızgarası (onay ve tahsilat ayrıntısı). Küçük resimler görüntüleme kaydı yazmadan yüklenir;
 /// dokununca tam ekran görüntüleyici [approvalId] ile açılır — onay talebinde açılan belge sunucuda
@@ -53,12 +54,16 @@ class A5AttachmentGrid extends StatelessWidget {
             crossAxisSpacing: 8,
           ),
           itemCount: attachments.length,
-          itemBuilder: (context, i) => AttachmentThumb(
-            attachment: attachments[i],
-            onTap: () => _open(context, i),
-            onDelete: onDelete != null && attachments[i].canDelete
-                ? () => onDelete!(attachments[i])
-                : null,
+          // Küçük resimler sırayla yükselir (durumları korunur; v3 §5).
+          itemBuilder: (context, i) => A5StaggerItem(
+            index: i,
+            child: AttachmentThumb(
+              attachment: attachments[i],
+              onTap: () => _open(context, i),
+              onDelete: onDelete != null && attachments[i].canDelete
+                  ? () => onDelete!(attachments[i])
+                  : null,
+            ),
           ),
         );
       },

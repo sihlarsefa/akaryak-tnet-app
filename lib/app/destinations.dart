@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../core/auth/access_policy.dart';
 import '../core/auth/permissions.dart';
@@ -89,8 +90,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.home,
     label: 'Ana sayfa',
-    icon: Icons.home_outlined,
-    selectedIcon: Icons.home_rounded,
+    icon: PhosphorIconsRegular.house,
+    selectedIcon: PhosphorIconsFill.house,
     path: AppRoutes.home,
     priority: 0,
     visible: (p, f) => !p.isDriverOnly,
@@ -99,8 +100,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.deliveries,
     label: 'Teslimatlarım',
     barLabel: 'Teslimat',
-    icon: Icons.local_shipping_outlined,
-    selectedIcon: Icons.local_shipping_rounded,
+    icon: PhosphorIconsRegular.truck,
+    selectedIcon: PhosphorIconsFill.truck,
     path: AppRoutes.driver,
     priority: 1,
     visible: (p, f) => p.canSeeDeliveries,
@@ -109,8 +110,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.myOrders,
     label: 'Siparişlerim',
     barLabel: 'Siparişler',
-    icon: Icons.receipt_long_outlined,
-    selectedIcon: Icons.receipt_long_rounded,
+    icon: PhosphorIconsRegular.receipt,
+    selectedIcon: PhosphorIconsFill.receipt,
     path: AppRoutes.orders,
     priority: 2,
     visible: (p, f) =>
@@ -120,8 +121,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.myShipments,
     label: 'Teslimatlar',
     barLabel: 'Teslimat',
-    icon: Icons.local_shipping_outlined,
-    selectedIcon: Icons.local_shipping_rounded,
+    icon: PhosphorIconsRegular.truck,
+    selectedIcon: PhosphorIconsFill.truck,
     path: AppRoutes.shipments,
     priority: 3,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerShipments),
@@ -130,8 +131,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.approvals,
     label: 'Onaylarım',
     barLabel: 'Onaylar',
-    icon: Icons.task_alt_outlined,
-    selectedIcon: Icons.task_alt_rounded,
+    icon: PhosphorIconsRegular.checkCircle,
+    selectedIcon: PhosphorIconsFill.checkCircle,
     path: AppRoutes.approvals,
     priority: 4,
     visible: (p, f) =>
@@ -142,8 +143,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.quoteDesk,
     label: 'Teklif masası',
     barLabel: 'Teklifler',
-    icon: Icons.request_quote_outlined,
-    selectedIcon: Icons.request_quote_rounded,
+    icon: PhosphorIconsRegular.invoice,
+    selectedIcon: PhosphorIconsFill.invoice,
     path: AppRoutes.quoteDesk,
     priority: 5,
     visible: (p, f) => p.isBayi && p.can(Pg.stationQuoteDesk),
@@ -151,8 +152,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.bayiOrders,
     label: 'Siparişler',
-    icon: Icons.receipt_long_outlined,
-    selectedIcon: Icons.receipt_long_rounded,
+    icon: PhosphorIconsRegular.receipt,
+    selectedIcon: PhosphorIconsFill.receipt,
     path: AppRoutes.bayiOrders,
     priority: 6,
     visible: (p, f) => p.isBayi && p.can(Pg.stationOrders),
@@ -160,8 +161,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.dispatch,
     label: 'Sevkiyat',
-    icon: Icons.local_shipping_outlined,
-    selectedIcon: Icons.local_shipping_rounded,
+    icon: PhosphorIconsRegular.truck,
+    selectedIcon: PhosphorIconsFill.truck,
     path: AppRoutes.dispatch,
     priority: 7,
     visible: (p, f) => p.isBayi && p.can(Pg.stationShipmentBoard),
@@ -169,8 +170,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.payments,
     label: 'Tahsilat',
-    icon: Icons.account_balance_wallet_outlined,
-    selectedIcon: Icons.account_balance_wallet_rounded,
+    icon: PhosphorIconsRegular.wallet,
+    selectedIcon: PhosphorIconsFill.wallet,
     path: AppRoutes.payments,
     priority: 8,
     visible: (p, f) => p.isBayi && p.can(Pg.stationPayments),
@@ -178,8 +179,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.finance,
     label: 'Finans',
-    icon: Icons.account_balance_outlined,
-    selectedIcon: Icons.account_balance_rounded,
+    icon: PhosphorIconsRegular.bank,
+    selectedIcon: PhosphorIconsFill.bank,
     path: AppRoutes.finance,
     priority: 9,
     visible: (p, f) => p.isBayi && p.can(Pg.stationFinance),
@@ -187,8 +188,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.customers,
     label: 'Cariler',
-    icon: Icons.groups_outlined,
-    selectedIcon: Icons.groups_rounded,
+    icon: PhosphorIconsRegular.usersThree,
+    selectedIcon: PhosphorIconsFill.usersThree,
     path: AppRoutes.customers,
     priority: 10,
     visible: (p, f) =>
@@ -197,8 +198,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.field,
     label: 'Saha',
-    icon: Icons.badge_outlined,
-    selectedIcon: Icons.badge_rounded,
+    icon: PhosphorIconsRegular.identificationBadge,
+    selectedIcon: PhosphorIconsFill.identificationBadge,
     path: AppRoutes.field,
     priority: 11,
     visible: (p, f) =>
@@ -207,8 +208,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.companyRequests,
     label: 'Talepler',
-    icon: Icons.fact_check_outlined,
-    selectedIcon: Icons.fact_check_rounded,
+    icon: PhosphorIconsRegular.listChecks,
+    selectedIcon: PhosphorIconsFill.listChecks,
     path: AppRoutes.companyRequests,
     priority: 12,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerOrderRequests),
@@ -216,8 +217,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.staff,
     label: 'Ekip',
-    icon: Icons.supervisor_account_outlined,
-    selectedIcon: Icons.supervisor_account_rounded,
+    icon: PhosphorIconsRegular.users,
+    selectedIcon: PhosphorIconsFill.users,
     path: AppRoutes.bayiStaff,
     priority: 13,
     visible: (p, f) => p.isBayi && !p.isFieldSales && p.can(Pg.stationStaff),
@@ -225,8 +226,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.documents,
     label: 'Belgeler',
-    icon: Icons.folder_outlined,
-    selectedIcon: Icons.folder_rounded,
+    icon: PhosphorIconsRegular.folder,
+    selectedIcon: PhosphorIconsFill.folder,
     path: AppRoutes.documents,
     priority: 20,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerDocuments),
@@ -234,8 +235,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   AppDestination(
     id: DestinationId.spending,
     label: 'Harcamalar',
-    icon: Icons.insights_outlined,
-    selectedIcon: Icons.insights_rounded,
+    icon: PhosphorIconsRegular.chartLineUp,
+    selectedIcon: PhosphorIconsFill.chartLineUp,
     path: AppRoutes.spending,
     priority: 21,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerSpending),
@@ -244,8 +245,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.deliveryPoints,
     label: 'Teslimat noktaları',
     barLabel: 'Noktalar',
-    icon: Icons.place_outlined,
-    selectedIcon: Icons.place_rounded,
+    icon: PhosphorIconsRegular.mapPin,
+    selectedIcon: PhosphorIconsFill.mapPin,
     path: AppRoutes.deliveryPoints,
     priority: 22,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerDeliveryPoints),
@@ -254,8 +255,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.financeInfo,
     label: 'Finans bilgisi',
     barLabel: 'Finans',
-    icon: Icons.account_balance_wallet_outlined,
-    selectedIcon: Icons.account_balance_wallet_rounded,
+    icon: PhosphorIconsRegular.wallet,
+    selectedIcon: PhosphorIconsFill.wallet,
     path: AppRoutes.financeInfo,
     priority: 23,
     visible: (p, f) =>
@@ -266,8 +267,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.templates,
     label: 'Şablonlarım',
     barLabel: 'Şablonlar',
-    icon: Icons.bookmarks_outlined,
-    selectedIcon: Icons.bookmarks_rounded,
+    icon: PhosphorIconsRegular.bookmarks,
+    selectedIcon: PhosphorIconsFill.bookmarks,
     path: AppRoutes.templates,
     priority: 24,
     visible: (p, f) => p.isCustomer && p.can(Pg.customerCreateOrder),
@@ -276,8 +277,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.limits,
     label: 'Limitlerim',
     barLabel: 'Limitler',
-    icon: Icons.speed_outlined,
-    selectedIcon: Icons.speed_rounded,
+    icon: PhosphorIconsRegular.gauge,
+    selectedIcon: PhosphorIconsFill.gauge,
     path: AppRoutes.limits,
     priority: 25,
     visible: (p, f) => p.isCustomer,
@@ -286,8 +287,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.companyUsers,
     label: 'Şirket kullanıcıları',
     barLabel: 'Kullanıcı',
-    icon: Icons.manage_accounts_outlined,
-    selectedIcon: Icons.manage_accounts_rounded,
+    icon: PhosphorIconsRegular.userGear,
+    selectedIcon: PhosphorIconsFill.userGear,
     path: AppRoutes.companyUsers,
     priority: 26,
     visible: (p, f) =>
@@ -299,8 +300,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.assistant,
     label: 'Asistan',
     // Robot simgesi yok (spec A.6): ana sayfalardaki asistan düğmesiyle aynı sohbet balonu.
-    icon: Icons.chat_bubble_outline_rounded,
-    selectedIcon: Icons.chat_bubble_rounded,
+    icon: PhosphorIconsRegular.chatCircle,
+    selectedIcon: PhosphorIconsFill.chatCircle,
     path: AppRoutes.assistant,
     priority: 30,
     visible: (p, f) => f.assistant,
@@ -309,8 +310,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     id: DestinationId.notifications,
     label: 'Bildirimler',
     barLabel: 'Bildirim',
-    icon: Icons.notifications_none_rounded,
-    selectedIcon: Icons.notifications_rounded,
+    icon: PhosphorIconsRegular.bell,
+    selectedIcon: PhosphorIconsFill.bell,
     path: AppRoutes.notifications,
     priority: 31,
     visible: _always,
@@ -318,8 +319,8 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   const AppDestination(
     id: DestinationId.profile,
     label: 'Profil',
-    icon: Icons.person_outline_rounded,
-    selectedIcon: Icons.person_rounded,
+    icon: PhosphorIconsRegular.user,
+    selectedIcon: PhosphorIconsFill.user,
     path: AppRoutes.profile,
     priority: 99,
     visible: _always,
@@ -479,13 +480,13 @@ NavLayout buildNavLayout(
   if (p.isCustomer && p.can(Pg.customerCreateOrder, Perm.create)) {
     center = const CenterActionSpec(
       label: 'Sipariş ver',
-      icon: Icons.add_rounded,
+      icon: PhosphorIconsRegular.plus,
       path: AppRoutes.orderNew,
     );
   } else if (p.isFieldSales && p.can(Pg.stationFieldOrders, Perm.create)) {
     center = const CenterActionSpec(
       label: 'Saha formu',
-      icon: Icons.post_add_rounded,
+      icon: PhosphorIconsRegular.filePlus,
       path: AppRoutes.fieldFormNew,
     );
   }

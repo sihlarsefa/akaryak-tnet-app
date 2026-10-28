@@ -32,49 +32,60 @@ class RequestsPage extends ConsumerWidget {
             if (p.error != null)
               CmFailureView(failure: p.error!, onRetry: ctrl.load)
             else
-              EmptyState(
-                title: s.segment == RequestSegment.pending
-                    ? 'Bekleyen talep yok'
-                    : CmCopy.requestsEmpty,
-                message: CmCopy.requestsEmptyMessage,
-                illustration: AknIllustration.approvals,
+              FadeUp(
+                offset: 16,
+                scale: 0.97,
+                child: EmptyState(
+                  title: s.segment == RequestSegment.pending
+                      ? 'Bekleyen talep yok'
+                      : CmCopy.requestsEmpty,
+                  message: CmCopy.requestsEmptyMessage,
+                  illustration: AknIllustration.approvals,
+                ),
               ),
           ],
         ),
       );
     } else {
-      body = PullToRefresh(
-        onRefresh: () => ctrl.load(refresh: true),
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (n) {
-            if (n.metrics.extentAfter < 400) ctrl.loadMore();
-            return false;
-          },
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 4, bottom: 16),
-            itemCount: p.items.length + 1,
-            itemBuilder: (context, i) {
-              if (i == p.items.length) {
-                return LoadMoreFooter(
-                  loading: p.loadingMore,
-                  error: p.loadMoreError,
-                  onRetry: ctrl.loadMore,
-                );
-              }
-              final r = p.items[i];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (i > 0) const AknLedgerDivider(),
-                  RequestCard(
-                    request: r,
-                    onTap: () => context.push(AppRoutes.companyRequest(r.id)),
-                  ),
-                ],
-              );
+      // Kartlar sırayla yükselerek gelir; bölüm değişince akış yeniden başlar.
+      body = StaggerScope(
+        key: ValueKey(s.segment),
+        child: PullToRefresh(
+          onRefresh: () => ctrl.load(refresh: true),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (n) {
+              if (n.metrics.extentAfter < 400) ctrl.loadMore();
+              return false;
             },
+            child: ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                top: 4,
+                bottom: 16 + MediaQuery.paddingOf(context).bottom,
+              ),
+              itemCount: p.items.length + 1,
+              itemBuilder: (context, i) {
+                if (i == p.items.length) {
+                  return LoadMoreFooter(
+                    loading: p.loadingMore,
+                    error: p.loadMoreError,
+                    onRetry: ctrl.loadMore,
+                  );
+                }
+                final r = p.items[i];
+                return StaggerItem(
+                  key: ValueKey(r.id),
+                  index: i,
+                  child: Padding(
+                    padding: CmCard.listMargin,
+                    child: RequestCard(
+                      request: r,
+                      onTap: () => context.push(AppRoutes.companyRequest(r.id)),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
@@ -101,8 +112,9 @@ class RequestsPage extends ConsumerWidget {
   }
 }
 
-/// Talep satırı (tasarım v2 §6.8, ledger): ürün ve litre, talep no / kişi / zaman, sağda tahmini
-/// tutar; durum lambası ("Onayınızı bekliyor" sıra sizde) ve sonuç ("1 sipariş oluştu", gerekçe).
+/// Talep kartı (tasarım v3 §4): beyaz r20 kart; başta durumun simge karosu, ürün ve litre, talep
+/// no / kişi / zaman, sağda tahmini tutar; ince çizginin altında durum lambası ("Onayınızı
+/// bekliyor" sıra sizde) ve sonuç ("1 sipariş oluştu", gerekçe). Basınca 0,97'ye iner.
 class RequestCard extends StatelessWidget {
   const RequestCard({super.key, required this.request, this.onTap});
 
@@ -138,35 +150,65 @@ class RequestCard extends StatelessWidget {
         r.canDecide ? null : 'Onaylayanın kararı bekleniyor',
       _ => null,
     };
-    return AknListTile(
-      title: title,
-      subtitle: subtitle,
-      amount: r.estimatedAmount == null ? null : Fmt.money(r.estimatedAmount),
-      amountMeta: r.estimatedAmount == null ? null : 'tahmini',
-      status: AknStatusLine(
-        lamp: AknLamp.status(lamp),
-        trailing: outcome == null
+    final tap = onTap;
+    return CmCard(
+      pressable: tap != null,
+      child: AknListTile(
+        leading: CmIconTile(
+          icon: switch (r.status) {
+            CustomerOrderRequestStatus.approved =>
+              PhosphorIconsRegular.sealCheck,
+            CustomerOrderRequestStatus.rejected => PhosphorIconsRegular.xCircle,
+            CustomerOrderRequestStatus.cancelled =>
+              PhosphorIconsRegular.arrowUUpLeft,
+            _ => PhosphorIconsRegular.clipboardText,
+          },
+          tone: lamp.tone,
+        ),
+        padding: CmCard.rowPadding,
+        titleStyle: cmRowTitle(context),
+        title: cmKeepUnits(title),
+        subtitle: subtitle,
+        amount: r.estimatedAmount == null ? null : Fmt.money(r.estimatedAmount),
+        amountMeta: r.estimatedAmount == null ? null : 'tahmini',
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Divider(height: 1, thickness: 1, color: c.lineSoft),
+            const SizedBox(height: 10),
+            AknStatusLine(
+              lamp: AknLamp.status(lamp),
+              trailing: outcome == null
+                  ? null
+                  : Text(
+                      outcome,
+                      style: t.bodySmall.copyWith(
+                        color: failed > 0 ? c.danger.fg : c.dim,
+                        fontWeight: failed > 0 ? FontWeight.w600 : null,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
+          ],
+        ),
+        onTap: tap == null
             ? null
-            : Text(
-                outcome,
-                style: t.bodySmall.copyWith(
-                  color: failed > 0 ? c.danger.fg : c.dim,
-                  fontWeight: failed > 0 ? FontWeight.w600 : null,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+            : () {
+                AknHaptics.selection();
+                tap();
+              },
+        semanticLabel: [
+          r.number,
+          lamp.label,
+          title,
+          r.requestedByName,
+          if (r.estimatedAmount != null)
+            'tahmini ${Fmt.money(r.estimatedAmount)}',
+          ?outcome,
+        ].join(', '),
       ),
-      onTap: onTap,
-      semanticLabel: [
-        r.number,
-        lamp.label,
-        title,
-        r.requestedByName,
-        if (r.estimatedAmount != null)
-          'tahmini ${Fmt.money(r.estimatedAmount)}',
-        ?outcome,
-      ].join(', '),
     );
   }
 }

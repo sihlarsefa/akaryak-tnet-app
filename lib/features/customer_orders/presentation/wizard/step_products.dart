@@ -6,6 +6,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_number.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../application/home_controller.dart';
 import '../../application/wizard_controller.dart';
 import '../../application/wizard_models.dart';
@@ -17,9 +18,10 @@ import '../widgets/common.dart';
 import '../widgets/contact_actions.dart';
 import 'wizard_parts.dart';
 
-/// Adım 1 (tasarım v2 §7.9 "Ürün"): bayi (birden çoksa), "Şablondan doldur", her satırda ürün
-/// kartları (güncel fiyatıyla), büyük litre alanı ve hızlı litre çipleri; altta toplam litre ve
-/// tahmini tutar göstergeleri.
+/// Adım 1 (tasarım v3 "Ürün"): bayi seçim kartları (birden çoksa), "Şablondan başla", her satırda
+/// ürün seçim kartları (güncel fiyatıyla; seçilince turuncu ışık ve onay işareti), büyük litre
+/// alanı ve hızlı litre çipleri; altta sayarak güncellenen toplam litre ve tahmini tutar
+/// göstergeleri. Adım açılınca kartlar birbiri ardına yükselerek gelir.
 class StepProducts extends ConsumerStatefulWidget {
   const StepProducts({super.key});
 
@@ -66,7 +68,11 @@ class _StepProductsState extends ConsumerState<StepProducts> {
         children: [
           for (final t in templates)
             AknListTile(
-              leadingIcon: Icons.bookmarks_outlined,
+              leading: const A2IconTile(
+                icon: PhosphorIconsRegular.bookmarks,
+                tone: AknTone.brand,
+              ),
+              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
               title: t.name,
               subtitle: t.subtitle,
               onTap: () => Navigator.of(ctx).pop(t.id),
@@ -99,120 +105,137 @@ class _StepProductsState extends ConsumerState<StepProducts> {
     final block = ctrl.orderingBlock;
     final templates = form?.templates ?? home?.templates ?? const [];
     final estimate = w.estimate;
+    final products = form?.products ?? const <ProductOption>[];
+    // Bölümler ve ürün kartları birbiri ardına yükselerek gelir (v3 §5).
+    final enter = WizardCascade();
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+    return WizardStepList(
       children: [
-        ContentWidth(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (w.notice != null)
-                WizardPad(
-                  AknBanner(
-                    tone: AknTone.info,
-                    icon: Icons.info_outline_rounded,
-                    message: w.notice!,
-                  ),
-                ),
-              if (block != null)
-                _OrderingBlocked(
-                  reason: block,
-                  infoRequested: w.ordering?.infoRequested ?? false,
-                  approvalId: w.ordering?.openApprovalRequestId,
-                ),
-              if (stations.length > 1) ...[
-                const WizardHeading('Bayi'),
-                for (final s in stations)
-                  ChoiceCard(
-                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    title: s.title,
-                    subtitle: s.canOrder
-                        ? _limitNote(home?.limits, s.id)
-                        : (s.blockReason ?? 'Şu an sipariş alınamıyor'),
-                    leadingIcon: Icons.local_gas_station_outlined,
-                    tag: s.id == home?.stationId ? 'Varsayılan' : null,
-                    selected: d.stationId == s.id,
-                    enabled: s.canOrder,
-                    onTap: () => ctrl.setStation(s.id),
-                  ),
-                if (errorFor('station') != null)
-                  WizardError(errorFor('station')!),
-              ],
-              WizardHeading(
-                'Ürün ve litre',
-                action: templates.isEmpty
-                    ? null
-                    : AknButton.ghost(
-                        label: OrdersCopy.fromTemplate,
-                        icon: Icons.bookmarks_outlined,
-                        size: AknButtonSize.small,
-                        onPressed: () => _pickTemplate(templates),
-                      ),
+        if (w.notice != null)
+          enter(
+            'notice',
+            WizardPad(
+              AknBanner(
+                tone: AknTone.info,
+                icon: PhosphorIconsRegular.info,
+                message: w.notice!,
               ),
-              for (var i = 0; i < d.lines.length; i++)
-                _LineEditor(
-                  key: ValueKey(d.lines[i].uid),
-                  index: i,
-                  count: d.lines.length,
-                  line: d.lines[i],
-                  products: form?.products ?? const [],
-                  prices: w.prices,
-                  controller: _controllerFor(d.lines[i]),
-                  focusNode: _focus.putIfAbsent(d.lines[i].uid, FocusNode.new),
-                  error: errorFor(d.lines[i].uid),
-                  onProduct: (id) =>
-                      ctrl.updateLine(d.lines[i].uid, productId: id),
-                  onLiters: (v) => ctrl.updateLine(
-                    d.lines[i].uid,
-                    liters: v,
-                    clearLiters: v == null,
-                  ),
-                  onRemove: d.lines.length > 1
-                      ? () => ctrl.removeLine(d.lines[i].uid)
-                      : null,
+            ),
+          ),
+        if (block != null)
+          enter(
+            'blocked',
+            _OrderingBlocked(
+              reason: block,
+              infoRequested: w.ordering?.infoRequested ?? false,
+              approvalId: w.ordering?.openApprovalRequestId,
+            ),
+          ),
+        if (stations.length > 1) ...[
+          enter('station-heading', const WizardHeading('Bayi')),
+          for (final s in stations)
+            enter(
+              'station-${s.id}',
+              ChoiceCard(
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                title: s.title,
+                subtitle: s.canOrder
+                    ? _limitNote(home?.limits, s.id)
+                    : (s.blockReason ?? 'Şu an sipariş alınamıyor'),
+                leading: A2IconTile(
+                  icon: PhosphorIconsRegular.gasPump,
+                  tone: d.stationId == s.id ? AknTone.brand : null,
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 4, 20, 0),
-                child: Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: AknButton.ghost(
-                    label: OrdersCopy.addLine,
-                    icon: Icons.add_rounded,
+                tag: s.id == home?.stationId ? 'Varsayılan' : null,
+                selected: d.stationId == s.id,
+                enabled: s.canOrder,
+                onTap: () => ctrl.setStation(s.id),
+              ),
+            ),
+          if (errorFor('station') != null) WizardError(errorFor('station')!),
+        ],
+        enter(
+          'products-heading',
+          WizardHeading(
+            'Ürün ve litre',
+            action: templates.isEmpty
+                ? null
+                : AknButton.ghost(
+                    label: OrdersCopy.fromTemplate,
+                    icon: PhosphorIconsRegular.bookmarks,
                     size: AknButtonSize.small,
-                    onPressed: d.lines.length >= WizardRules.maxLines
-                        ? null
-                        : ctrl.addLine,
+                    onPressed: () => _pickTemplate(templates),
                   ),
-                ),
+          ),
+        ),
+        for (var i = 0; i < d.lines.length; i++)
+          _LineEditor(
+            key: ValueKey(d.lines[i].uid),
+            index: i,
+            count: d.lines.length,
+            line: d.lines[i],
+            products: products,
+            prices: w.prices,
+            controller: _controllerFor(d.lines[i]),
+            focusNode: _focus.putIfAbsent(d.lines[i].uid, FocusNode.new),
+            error: errorFor(d.lines[i].uid),
+            staggerFrom: enter.take(
+              (products.length <= 6 ? products.length : 1) + 1,
+            ),
+            onProduct: (id) => ctrl.updateLine(d.lines[i].uid, productId: id),
+            onLiters: (v) => ctrl.updateLine(
+              d.lines[i].uid,
+              liters: v,
+              clearLiters: v == null,
+            ),
+            onRemove: d.lines.length > 1
+                ? () => ctrl.removeLine(d.lines[i].uid)
+                : null,
+          ),
+        enter(
+          'add-line',
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 4, 20, 0),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AknButton.ghost(
+                label: OrdersCopy.addLine,
+                icon: PhosphorIconsRegular.plus,
+                size: AknButtonSize.small,
+                onPressed: d.lines.length >= WizardRules.maxLines
+                    ? null
+                    : ctrl.addLine,
               ),
-              WizardPad(
-                top: 16,
-                KpiRow(
-                  children: [
-                    KpiTile(
-                      label: 'Toplam',
-                      value: d.totalLiters,
-                      format: (v) => Fmt.number(v, maxFraction: 3),
-                      unit: 'L',
-                      semanticLabel: 'Toplam ${Fmt.liters(d.totalLiters)}',
-                    ),
-                    KpiTile(
-                      label: 'Tahmini tutar',
-                      value: estimate.value,
-                      format: (v) => Fmt.number(v.round()),
-                      unit: '₺',
-                      caption: estimate.value == null && estimate.unknown
-                          ? OrdersCopy.priceUnknown
-                          : null,
-                      semanticLabel: estimate.value != null
-                          ? 'Tahmini tutar ${Fmt.money(estimate.value)}'
-                          : 'Tahmini tutar ${estimate.unknown ? OrdersCopy.priceUnknown : 'yok'}',
-                    ),
-                  ],
+            ),
+          ),
+        ),
+        enter(
+          'totals',
+          WizardPad(
+            top: 16,
+            KpiRow(
+              children: [
+                KpiTile(
+                  label: 'Toplam',
+                  value: d.totalLiters,
+                  format: (v) => Fmt.number(v, maxFraction: 3),
+                  unit: 'L',
+                  semanticLabel: 'Toplam ${Fmt.liters(d.totalLiters)}',
                 ),
-              ),
-            ],
+                KpiTile(
+                  label: 'Tahmini tutar',
+                  value: estimate.value,
+                  format: (v) => Fmt.number(v.round()),
+                  unit: '₺',
+                  caption: estimate.value == null && estimate.unknown
+                      ? OrdersCopy.priceUnknown
+                      : null,
+                  semanticLabel: estimate.value != null
+                      ? 'Tahmini tutar ${Fmt.money(estimate.value)}'
+                      : 'Tahmini tutar ${estimate.unknown ? OrdersCopy.priceUnknown : 'yok'}',
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -253,8 +276,8 @@ class _OrderingBlocked extends ConsumerWidget {
           AknBanner(
             tone: infoRequested ? AknTone.warn : AknTone.danger,
             icon: infoRequested
-                ? Icons.mark_email_unread_outlined
-                : Icons.block_rounded,
+                ? PhosphorIconsRegular.envelopeSimple
+                : PhosphorIconsRegular.prohibit,
             title: infoRequested
                 ? 'Finans ek bilgi bekliyor'
                 : 'Bu bayide şu an sipariş veremezsiniz',
@@ -278,7 +301,14 @@ class _OrderingBlocked extends ConsumerWidget {
   }
 }
 
-/// Bir sipariş satırı: ürün kartları, litre alanı ve hızlı litre çipleri.
+/// Ürün kartının simgesi: kalorifer yakıtı alev, diğer akaryakıtlar damla.
+IconData _productIcon(String name) =>
+    TurkishText.lower(name).contains('kalorifer')
+    ? PhosphorIconsRegular.fire
+    : PhosphorIconsRegular.drop;
+
+/// Bir sipariş satırı: ürün kartları, litre alanı ve hızlı litre çipleri. Adım açılınca ürün
+/// kartları ve litre bölümü [staggerFrom] sırasından başlayarak birbiri ardına yükselir.
 class _LineEditor extends StatelessWidget {
   const _LineEditor({
     super.key,
@@ -293,6 +323,7 @@ class _LineEditor extends StatelessWidget {
     required this.onLiters,
     this.error,
     this.onRemove,
+    this.staggerFrom = 0,
   });
 
   static const quickLiters = [5000.0, 8000.0, 10000.0];
@@ -308,6 +339,7 @@ class _LineEditor extends StatelessWidget {
   final ValueChanged<int> onProduct;
   final ValueChanged<double?> onLiters;
   final VoidCallback? onRemove;
+  final int staggerFrom;
 
   @override
   Widget build(BuildContext context) {
@@ -317,6 +349,7 @@ class _LineEditor extends StatelessWidget {
     final lineAmount = Estimate.line(line, {
       if (line.productId != null && price != null) line.productId!: price,
     });
+    final cards = products.length <= 6;
     return Padding(
       padding: EdgeInsets.fromLTRB(20, index == 0 ? 0 : 20, 20, 0),
       child: Column(
@@ -339,62 +372,85 @@ class _LineEditor extends StatelessWidget {
                 ),
                 if (onRemove != null)
                   AknIconButton(
-                    icon: Icons.delete_outline_rounded,
+                    icon: PhosphorIconsRegular.trash,
                     semanticLabel: 'Satır ${index + 1} sil',
                     onPressed: onRemove,
                   ),
               ],
             ),
-          if (products.length <= 6)
-            for (final p in products)
-              ChoiceCard(
-                margin: const EdgeInsets.only(bottom: 8),
-                title: p.name,
-                subtitle: prices[p.id] == null
-                    ? null
-                    : 'güncel fiyat ${Fmt.unitPrice(prices[p.id])}',
-                selected: line.productId == p.id,
-                onTap: () => onProduct(p.id),
+          if (cards)
+            for (final (k, p) in products.indexed)
+              A2Rise(
+                key: ValueKey('product-${p.id}'),
+                index: staggerFrom + k,
+                child: ChoiceCard(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  leading: A2IconTile(
+                    icon: _productIcon(p.name),
+                    tone: line.productId == p.id ? AknTone.brand : null,
+                  ),
+                  title: p.name,
+                  subtitle: prices[p.id] == null
+                      ? null
+                      : 'güncel fiyat ${Fmt.unitPrice(prices[p.id])}',
+                  selected: line.productId == p.id,
+                  onTap: () => onProduct(p.id),
+                ),
               )
           else
-            DropdownButtonFormField<int>(
-              initialValue: line.productId,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Ürün *'),
-              items: [
-                for (final p in products)
-                  DropdownMenuItem(value: p.id, child: Text(p.name)),
-              ],
-              onChanged: (v) {
-                if (v != null) onProduct(v);
-              },
+            A2Rise(
+              key: const ValueKey('product-picker'),
+              index: staggerFrom,
+              child: DropdownButtonFormField<int>(
+                initialValue: line.productId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Ürün *'),
+                items: [
+                  for (final p in products)
+                    DropdownMenuItem(value: p.id, child: Text(p.name)),
+                ],
+                onChanged: (v) {
+                  if (v != null) onProduct(v);
+                },
+              ),
             ),
-          const SizedBox(height: 8),
-          LitersField(
-            label: 'Litre',
-            controller: controller,
-            focusNode: focusNode,
-            requiredValue: true,
-            helper: lineAmount == null
-                ? null
-                : 'Tahmini ${Fmt.money(lineAmount)}',
-            onChanged: onLiters,
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final q in quickLiters)
-                AknChip(
-                  label: Fmt.liters(q),
-                  selected: line.liters == q,
-                  semanticLabel: '${Fmt.liters(q)} seç',
-                  onTap: () {
-                    controller.text = Fmt.number(q, maxFraction: 3);
-                    onLiters(q);
-                  },
+          A2Rise(
+            key: const ValueKey('liters'),
+            index: staggerFrom + (cards ? products.length : 1),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 10),
+                LitersField(
+                  label: 'Litre',
+                  controller: controller,
+                  focusNode: focusNode,
+                  requiredValue: true,
+                  helper: lineAmount == null
+                      ? null
+                      : 'Tahmini ${Fmt.money(lineAmount)}',
+                  onChanged: onLiters,
                 ),
-            ],
+                const SizedBox(height: 6),
+                // Hızlı litre çipleri (seçilince mürekkep dolgu ve kayan onay işareti).
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final q in quickLiters)
+                      AknChip(
+                        label: Fmt.liters(q),
+                        selected: line.liters == q,
+                        semanticLabel: '${Fmt.liters(q)} seç',
+                        onTap: () {
+                          controller.text = Fmt.number(q, maxFraction: 3);
+                          onLiters(q);
+                        },
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
           if (error != null) WizardError(error!, padding: EdgeInsets.zero),
         ],

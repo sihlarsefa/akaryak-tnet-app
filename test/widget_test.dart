@@ -119,7 +119,10 @@ void main() {
     final bar = find.byType(AnimatedBottomBar);
     // Ortadaki yükseltilmiş düğme (etiket yalnızca yazı).
     await tester.tap(
-      find.descendant(of: bar, matching: find.byIcon(Icons.add_rounded)),
+      find.descendant(
+        of: bar,
+        matching: find.byIcon(PhosphorIconsRegular.plus),
+      ),
     );
     await _pumpFor(tester, const Duration(seconds: 1));
     // Sipariş sihirbazı (A2) tam ekran açılır: ilk adım "Ürün ve litre".

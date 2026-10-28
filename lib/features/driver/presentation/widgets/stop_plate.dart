@@ -1,10 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 
-/// Bir plaka okuması (§7.11): etiket (15/20 500) üstte, değer pompa göstergesi gibi Mona Sans
-/// Condensed 700 (sürücü kipinde 28/32) ve küçük birimi ("km", "L") aynı satırda.
+/// Bir plaka okuması (§7.11): etiket (sürücü kipinde 15/20 600 soluk) üstte, değer pompa göstergesi
+/// gibi Plus Jakarta Sans 800 tablo rakamları (sürücü kipinde 28/32) ve küçük birimi ("km", "L")
+/// aynı satırda.
 @immutable
 class StopReadout {
   const StopReadout({
@@ -20,7 +23,7 @@ class StopReadout {
   /// "09:00", "18", "08:00–18:00".
   final String value;
 
-  /// "km", "L" (değerden 3 px sonra, daha küçük).
+  /// "km", "L" (değerden sonra, daha küçük).
   final String? unit;
 
   /// Ekran okuyucu metni (varsayılan "etiket: değer birim").
@@ -30,13 +33,18 @@ class StopReadout {
       semanticLabel ?? '$label: $value${unit == null ? '' : ' $unit'}';
 }
 
-/// Durak plakasının okumaları: tek satırda iki uca yaslı sütunlar (ADR levhasının alt yarısı gibi);
-/// sığmazsa alt satıra geçer. Büyük yazıda (≥ 1,6×) etiket solda, değer sağda satırlar olur.
-/// Değer hiçbir zaman sayının ortasından bölünmez.
+/// Durak plakasının okumaları (tasarım v3 §4–5): sığdıkça tek satırda sütunlar (her sütun en az
+/// içeriği kadar, kalan yer eşit paylaşılır); sığmazsa iki uca yaslı sarılır. Büyük yazıda (≥ 1,6×)
+/// etiket solda, değer sağda satırlar olur. Değerler sayaç gibi yuvarlanarak yerine oturur (ilk
+/// çizimde sütun sütun, değer değişince eski rakamdan yenisine: uzaklık azaldıkça, fark
+/// değiştikçe). Değer hiçbir zaman sayının ortasından bölünmez.
 class StopReadouts extends StatelessWidget {
   const StopReadouts({super.key, required this.items});
 
   final List<StopReadout> items;
+
+  /// Okuma [i] ne zaman yuvarlanmaya başlar (kart yükselirken).
+  static Duration _delay(int i) => Duration(milliseconds: 240 + 90 * i);
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +52,8 @@ class StopReadouts extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final labelStyle = t.label.copyWith(
-      color: c.ink,
-      fontWeight: FontWeight.w500,
+      color: c.dim,
+      fontWeight: FontWeight.w600,
     );
     final valueStyle = t.number.copyWith(color: c.ink);
     final unitStyle = t.readoutUnit.copyWith(color: c.ink);
@@ -53,13 +61,12 @@ class StopReadouts extends StatelessWidget {
       text: r.value,
       style: valueStyle,
       children: [
-        if (r.unit != null && r.unit!.isNotEmpty) ...[
-          const WidgetSpan(child: SizedBox(width: 3)),
-          TextSpan(text: r.unit, style: unitStyle),
-        ],
+        if (r.unit != null && r.unit!.isNotEmpty)
+          TextSpan(text: ' ${r.unit}', style: unitStyle),
       ],
     );
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 16;
+    final scaler = MediaQuery.textScalerOf(context);
+    final large = scaler.scale(10) >= 16;
     if (large) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -74,7 +81,7 @@ class StopReadouts extends StatelessWidget {
                 decoration: i == 0
                     ? null
                     : BoxDecoration(
-                        border: Border(top: BorderSide(color: c.line)),
+                        border: Border(top: BorderSide(color: c.lineSoft)),
                       ),
                 child: Row(
                   children: [
@@ -88,10 +95,9 @@ class StopReadouts extends StatelessWidget {
                           alignment: AlignmentDirectional.centerEnd,
                           child: MediaQuery.withClampedTextScaling(
                             maxScaleFactor: 1.6,
-                            child: Text.rich(
+                            child: RollingText(
                               value(items[i]),
-                              maxLines: 1,
-                              softWrap: false,
+                              delay: _delay(i),
                             ),
                           ),
                         ),
@@ -104,36 +110,83 @@ class StopReadouts extends StatelessWidget {
         ],
       );
     }
-    return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      spacing: 20,
-      runSpacing: 10,
-      children: [
-        for (final r in items)
-          Semantics(
-            label: r.spoken,
-            excludeSemantics: true,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(r.label, style: labelStyle),
-                Text.rich(value(r), maxLines: 1, softWrap: false),
-              ],
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 16.0;
+        double measure(InlineSpan span) {
+          final tp = TextPainter(
+            text: span,
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final w = tp.width;
+          tp.dispose();
+          return w.ceilToDouble();
+        }
+
+        final mins = [
+          for (final r in items)
+            math.max(
+              measure(TextSpan(text: r.label, style: labelStyle)),
+              measure(value(r)),
             ),
-          ),
-      ],
+        ];
+        final need = mins.fold<double>(0, (a, b) => a + b);
+        final room = box.maxWidth - gap * (items.length - 1);
+        // Sığarsa tek satırda sütunlar (her biri en az içeriği kadar, artan yer eşit paylaşılır);
+        // sığmazsa iki uca yaslı sarılır. Ağaç her iki düzende de aynıdır: değerler yalnızca kendi
+        // rakamları değişince döner (yazarken "Planlanan" yeniden dönmez).
+        final columns = need <= room;
+        final extra = columns ? (room - need) / items.length : 0.0;
+        return Wrap(
+          alignment: columns ? WrapAlignment.start : WrapAlignment.spaceBetween,
+          spacing: columns ? gap : 20,
+          runSpacing: 12,
+          children: [
+            for (var i = 0; i < items.length; i++)
+              SizedBox(
+                width: columns
+                    ? (mins[i] + extra).floorToDouble()
+                    : (mins[i] > box.maxWidth ? box.maxWidth : null),
+                child: Semantics(
+                  label: items[i].spoken,
+                  excludeSemantics: true,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(items[i].label, style: labelStyle, maxLines: 2),
+                      const SizedBox(height: 2),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: RollingText(value(items[i]), delay: _delay(i)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// Şoförün durak plakası (tasarım v2 §5.2, §7.11; tahta ekran 6): ekranın tek turuncu plakası.
-/// Başta tankerin ADR levhası ("30 / 1202") ve "Motorin, bu durakta"; altında bu durağın litresi
-/// (sürücü kipinde 64/62), 3 px siyah çizgi ve okumalar (Plan, Uzaklık, Teslim saati). Her şey
-/// siyah basılır; durum rengi plakaya girmez.
+/// Şoförün durak plakası (tasarım v3 §4 kahraman kart, §7.11): ekranın tek plakası — beyaz kart,
+/// üstte sıcak yıkama, r26, sıcak gölge. Başta tankerin ADR levhası ("30 / 1202") ve "Motorin, bu
+/// durakta"; altında bu durağın litresi (sürücü kipinde 56/60, sayaç gibi yuvarlanır, uzun sayı
+/// sığmazsa küçülür), isteğe bağlı güzergâh çizgisi ([chart]), çizgi ve okumalar (Plan, Uzaklık,
+/// Teslim saati). Durum rengi plakaya girmez.
+///
+/// [header] verilirse (ana sayfadaki sıradaki durak: sıra, yük çubuğu, müşteri ve adres) aynı
+/// kartın üstünde, ince çizgiyle ayrılarak durur ve kendi ekran okuyucu düğümünü korur. [onTap]
+/// verilirse kartın tamamı basılınca hafifçe küçülür ve ayrıntıyı açar (ekran okuyucu bu eylemi
+/// başlıkta bulur).
 ///
 /// Teslim sihirbazında aynı plaka sayaç okumasını canlı gösterir ([title] "Sayaç okuması",
-/// [liveRegion]).
+/// [liveRegion]): her tuşta rakamlar eski değerden yenisine döner.
 class DriverStopPlate extends StatelessWidget {
   const DriverStopPlate({
     super.key,
@@ -145,6 +198,9 @@ class DriverStopPlate extends StatelessWidget {
     this.margin,
     this.semanticLabel,
     this.liveRegion = false,
+    this.header,
+    this.chart,
+    this.onTap,
   });
 
   /// Ürün adı ("Motorin"): ADR kodlarını ve varsayılan başlığı belirler.
@@ -165,6 +221,15 @@ class DriverStopPlate extends StatelessWidget {
   /// Değer değiştikçe okunur (sayaç girişi).
   final bool liveRegion;
 
+  /// Kartın üstündeki içerik (sıradaki durağın kimliği); kendi anlamsal düğümüyle.
+  final Widget? header;
+
+  /// Litrenin altındaki grafik (güzergâh çizgisi, `TruckRoute`).
+  final Widget? chart;
+
+  /// Kartın tamamı dokunulabilir (basınca küçülür, seçim titreşimi).
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final heading = title ?? DriverCopy.onThisStop(product);
@@ -176,50 +241,107 @@ class DriverStopPlate extends StatelessWidget {
           for (final r in readouts) r.spoken,
         ].join(', ');
     final adr = AdrPlate.forProduct(product);
-    return Semantics(
+    final head = Builder(
+      builder: (context) {
+        final c = context.akn;
+        final t = context.aknText;
+        return MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.6,
+          child: Row(
+            children: [
+              adr ??
+                  SizedBox.square(
+                    dimension: 40,
+                    child: DecoratedBox(
+                      decoration: ShapeDecoration(
+                        color: c.plateIconFill,
+                        shape: const RoundedSuperellipseBorder(
+                          borderRadius: BorderRadius.all(
+                            Radius.circular(AknRadius.sm),
+                          ),
+                        ),
+                      ),
+                      child: Icon(
+                        PhosphorIconsRegular.gasPump,
+                        size: 22,
+                        color: c.plateAccent,
+                      ),
+                    ),
+                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  heading,
+                  style: t.headline.copyWith(
+                    fontSize: 18,
+                    height: 24 / 18,
+                    letterSpacing: -0.2,
+                    color: c.ink,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    final body = Semantics(
       container: true,
       liveRegion: liveRegion,
       label: spoken,
       excludeSemantics: true,
-      child: AknPlate(
-        margin: margin,
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        head: Builder(
-          builder: (context) {
-            final c = context.akn;
-            final t = context.aknText;
-            return MediaQuery.withClampedTextScaling(
-              maxScaleFactor: 1.6,
-              child: Row(
-                children: [
-                  adr ??
-                      Icon(
-                        Icons.local_gas_station_outlined,
-                        size: 24,
-                        color: c.ink,
-                      ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      heading,
-                      style: t.headline.copyWith(
-                        fontSize: 18,
-                        height: 22 / 18,
-                        color: c.ink,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        figure: PlateFigure(value: figure, unit: unit),
-        below: readouts.isEmpty ? null : StopReadouts(items: readouts),
-        rule: readouts.isNotEmpty,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          head,
+          const SizedBox(height: 12),
+          PlateFigure(value: figure, unit: unit),
+          if (chart != null) ...[const SizedBox(height: 14), chart!],
+          if (readouts.isNotEmpty) ...[
+            SizedBox(height: chart != null ? 16 : 14),
+            const PlateRule(),
+            const SizedBox(height: 12),
+            StopReadouts(items: readouts),
+          ],
+        ],
       ),
     );
+    final h = header;
+    Widget plate = AknPlate(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      child: h == null
+          ? body
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                h,
+                const SizedBox(height: 14),
+                const PlateRule(),
+                const SizedBox(height: 14),
+                body,
+              ],
+            ),
+    );
+    final tap = onTap;
+    if (tap != null) {
+      plate = PressScale(
+        scale: 0.985,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: () {
+            AknHaptics.selection();
+            tap();
+          },
+          child: plate,
+        ),
+      );
+    }
+    if (margin != null) plate = Padding(padding: margin!, child: plate);
+    return plate;
   }
 }

@@ -285,11 +285,15 @@ void main() {
               roleLabel: 'Şoför',
               upcoming: [
                 (
-                  Icons.local_shipping_outlined,
+                  PhosphorIconsRegular.truck,
                   'Teslimatlarım',
                   'Bugünkü duraklar sırayla.',
                 ),
-                (Icons.route_outlined, 'Yol tarifi', 'Tek dokunuşla harita.'),
+                (
+                  PhosphorIconsRegular.path,
+                  'Yol tarifi',
+                  'Tek dokunuşla harita.',
+                ),
               ],
             ),
           ),

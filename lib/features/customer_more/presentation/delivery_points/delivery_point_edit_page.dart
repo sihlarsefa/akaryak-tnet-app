@@ -253,7 +253,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
           '"${p.name}" yeni siparişlerde seçilemez. Geçmiş siparişler ve belgeler etkilenmez.',
       confirmLabel: 'Pasifleştir',
       destructive: true,
-      icon: Icons.location_off_rounded,
+      icon: PhosphorIconsRegular.gpsSlash,
     );
     if (!ok || !mounted) return;
     setState(() => _saving = true);
@@ -306,7 +306,7 @@ class _EditFormState extends ConsumerState<_EditForm> {
         showBell: false,
         leading: IconButton(
           tooltip: 'Kapat',
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(PhosphorIconsRegular.x),
           onPressed: _close,
         ),
         actionBar: canEdit
@@ -343,200 +343,234 @@ class _EditFormState extends ConsumerState<_EditForm> {
             : null,
         body: Form(
           key: _form,
-          child: ListView(
-            padding: const EdgeInsets.only(top: 0, bottom: 24),
-            children: [
-              if (_error != null)
-                AknBanner(
-                  margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  tone: AknTone.danger,
-                  message: _error!,
-                  onClose: () => setState(() => _error = null),
-                ),
-              CmSection(
-                title: 'Nokta',
-                child: AknTextField(
-                  controller: _name,
-                  label: 'Nokta adı',
-                  hint: 'ör. Pendik Lojistik Merkezi',
-                  requiredMark: true,
-                  enabled: enabled,
-                  maxLength: DeliveryPointDraft.nameMaxLength,
-                  textCapitalization: TextCapitalization.words,
-                  textInputAction: TextInputAction.next,
-                  validator: (v) => (v ?? '').trim().isEmpty
-                      ? 'Teslimat noktası adı zorunlu.'
-                      : null,
-                ),
-              ),
-              CmSection(
-                title: 'Adres',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    PickerField(
-                      label: 'İl',
-                      value: _city,
+          // Bölüm kartları birbiri ardına yükselerek gelir (v3 §5); hata bandı belirince kartlar
+          // yeniden oynamaz (anahtarlı).
+          child: CmRiseScope(
+            child: ListView(
+              padding: const EdgeInsets.only(top: 0, bottom: 24),
+              children: [
+                if (_error != null)
+                  FadeUp(
+                    key: const ValueKey('error'),
+                    offset: 8,
+                    child: AknBanner(
+                      margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                      tone: AknTone.danger,
+                      message: _error!,
+                      onClose: () => setState(() => _error = null),
+                    ),
+                  ),
+                CmRise(
+                  key: const ValueKey('section-0'),
+                  index: 0,
+                  child: CmSection(
+                    title: 'Nokta',
+                    child: AknTextField(
+                      controller: _name,
+                      label: 'Nokta adı',
+                      hint: 'ör. Pendik Lojistik Merkezi',
                       requiredMark: true,
                       enabled: enabled,
-                      errorText: _submitted && _city.isEmpty
-                          ? 'İl seçin.'
-                          : null,
-                      onTap: _pickCity,
-                    ),
-                    const SizedBox(height: 12),
-                    PickerField(
-                      label: 'İlçe',
-                      value: _district,
-                      requiredMark: true,
-                      enabled: enabled && _city.isNotEmpty,
-                      errorText: _submitted && _district.isEmpty
-                          ? 'İlçe seçin.'
-                          : null,
-                      onTap: _pickDistrict,
-                    ),
-                    const SizedBox(height: 12),
-                    AknTextField(
-                      controller: _address,
-                      label: 'Açık adres',
-                      requiredMark: true,
-                      enabled: enabled,
-                      minLines: 2,
-                      maxLines: 4,
-                      maxLength: DeliveryPointDraft.addressMaxLength,
-                      keyboardType: TextInputType.streetAddress,
-                      textCapitalization: TextCapitalization.sentences,
+                      maxLength: DeliveryPointDraft.nameMaxLength,
+                      textCapitalization: TextCapitalization.words,
+                      textInputAction: TextInputAction.next,
                       validator: (v) => (v ?? '').trim().isEmpty
-                          ? 'Açık adres zorunlu.'
+                          ? 'Teslimat noktası adı zorunlu.'
                           : null,
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              CmSection(
-                title: 'Konum',
-                subtitle: 'Şoför noktayı bu konumla bulur (isteğe bağlı).',
-                child: LocationSection(
-                  value: _location,
-                  label: _name.text.trim().isEmpty ? null : _name.text.trim(),
-                  enabled: enabled,
-                  onChanged: (v) => setState(() => _location = v),
-                ),
-              ),
-              CmSection(
-                title: 'Teslim kabul saatleri',
-                subtitle: windowText ?? 'Belirtilmemiş (her saat)',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
+                CmRise(
+                  key: const ValueKey('section-1'),
+                  index: 1,
+                  child: CmSection(
+                    title: 'Adres',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: PickerField(
-                            label: 'Başlangıç',
-                            value: _start?.label,
-                            enabled: enabled,
-                            icon: Icons.schedule_outlined,
-                            onTap: () => _pickTime(start: true),
-                          ),
+                        PickerField(
+                          label: 'İl',
+                          value: _city,
+                          requiredMark: true,
+                          enabled: enabled,
+                          errorText: _submitted && _city.isEmpty
+                              ? 'İl seçin.'
+                              : null,
+                          onTap: _pickCity,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: PickerField(
-                            label: 'Bitiş',
-                            value: _end?.label,
-                            enabled: enabled,
-                            icon: Icons.schedule_outlined,
-                            onTap: () => _pickTime(start: false),
-                          ),
+                        const SizedBox(height: 12),
+                        PickerField(
+                          label: 'İlçe',
+                          value: _district,
+                          requiredMark: true,
+                          enabled: enabled && _city.isNotEmpty,
+                          errorText: _submitted && _district.isEmpty
+                              ? 'İlçe seçin.'
+                              : null,
+                          onTap: _pickDistrict,
+                        ),
+                        const SizedBox(height: 12),
+                        AknTextField(
+                          controller: _address,
+                          label: 'Açık adres',
+                          requiredMark: true,
+                          enabled: enabled,
+                          minLines: 2,
+                          maxLines: 4,
+                          maxLength: DeliveryPointDraft.addressMaxLength,
+                          keyboardType: TextInputType.streetAddress,
+                          textCapitalization: TextCapitalization.sentences,
+                          validator: (v) => (v ?? '').trim().isEmpty
+                              ? 'Açık adres zorunlu.'
+                              : null,
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Gün sonuna kadar (24:00)'),
-                      value: _end?.isEndOfDay ?? false,
-                      onChanged: enabled
-                          ? (v) => setState(() {
-                              _start ??= const WindowTime(8 * 60);
-                              _end = v
-                                  ? WindowTime.endOfDay
-                                  : const WindowTime(18 * 60);
-                            })
-                          : null,
+                  ),
+                ),
+                CmRise(
+                  key: const ValueKey('section-2'),
+                  index: 2,
+                  child: CmSection(
+                    title: 'Konum',
+                    subtitle: 'Şoför noktayı bu konumla bulur (isteğe bağlı).',
+                    child: LocationSection(
+                      value: _location,
+                      label: _name.text.trim().isEmpty
+                          ? null
+                          : _name.text.trim(),
+                      enabled: enabled,
+                      onChanged: (v) => setState(() => _location = v),
                     ),
-                    if (_start != null || _end != null)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: AknButton.ghost(
-                          label: 'Saat aralığını kaldır',
-                          size: AknButtonSize.small,
-                          onPressed: enabled
-                              ? () => setState(() {
-                                  _start = null;
-                                  _end = null;
+                  ),
+                ),
+                CmRise(
+                  key: const ValueKey('section-3'),
+                  index: 3,
+                  child: CmSection(
+                    title: 'Teslim kabul saatleri',
+                    subtitle: windowText ?? 'Belirtilmemiş (her saat)',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: PickerField(
+                                label: 'Başlangıç',
+                                value: _start?.label,
+                                enabled: enabled,
+                                icon: PhosphorIconsRegular.clock,
+                                onTap: () => _pickTime(start: true),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: PickerField(
+                                label: 'Bitiş',
+                                value: _end?.label,
+                                enabled: enabled,
+                                icon: PhosphorIconsRegular.clock,
+                                onTap: () => _pickTime(start: false),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Gün sonuna kadar (24:00)'),
+                          value: _end?.isEndOfDay ?? false,
+                          onChanged: enabled
+                              ? (v) => setState(() {
+                                  _start ??= const WindowTime(8 * 60);
+                                  _end = v
+                                      ? WindowTime.endOfDay
+                                      : const WindowTime(18 * 60);
                                 })
                               : null,
                         ),
-                      ),
-                  ],
+                        if (_start != null || _end != null)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: AknButton.ghost(
+                              label: 'Saat aralığını kaldır',
+                              size: AknButtonSize.small,
+                              onPressed: enabled
+                                  ? () => setState(() {
+                                      _start = null;
+                                      _end = null;
+                                    })
+                                  : null,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-              CmSection(
-                title: 'Tank ve erişim',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    LitersField(
-                      label: 'Tank kapasitesi',
-                      controller: _tank,
-                      enabled: enabled,
-                      min: 1,
-                      max: DeliveryPointDraft.tankMax,
-                      helper:
-                          'Sipariş litresi tankı aşarsa sipariş ekranında uyarı gösterilir.',
+                CmRise(
+                  key: const ValueKey('section-4'),
+                  index: 4,
+                  child: CmSection(
+                    title: 'Tank ve erişim',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        LitersField(
+                          label: 'Tank kapasitesi',
+                          controller: _tank,
+                          enabled: enabled,
+                          min: 1,
+                          max: DeliveryPointDraft.tankMax,
+                          helper:
+                              'Sipariş litresi tankı aşarsa sipariş ekranında uyarı gösterilir.',
+                        ),
+                        const SizedBox(height: 12),
+                        AknTextField(
+                          controller: _notes,
+                          label: 'Erişim notu',
+                          hint: 'ör. Ana kapıda güvenliğe plaka bildirin.',
+                          enabled: enabled,
+                          minLines: 2,
+                          maxLines: 5,
+                          maxLength: DeliveryPointDraft.accessNotesMaxLength,
+                          textCapitalization: TextCapitalization.sentences,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    AknTextField(
-                      controller: _notes,
-                      label: 'Erişim notu',
-                      hint: 'ör. Ana kapıda güvenliğe plaka bildirin.',
-                      enabled: enabled,
-                      minLines: 2,
-                      maxLines: 5,
-                      maxLength: DeliveryPointDraft.accessNotesMaxLength,
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              CmSection(
-                title: 'Yerinde sorumlu',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AknTextField(
-                      controller: _contactName,
-                      label: 'Ad soyad',
-                      enabled: enabled,
-                      maxLength: DeliveryPointDraft.contactNameMaxLength,
-                      textCapitalization: TextCapitalization.words,
-                      autofillHints: const [AutofillHints.name],
+                CmRise(
+                  key: const ValueKey('section-5'),
+                  index: 5,
+                  child: CmSection(
+                    title: 'Yerinde sorumlu',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        AknTextField(
+                          controller: _contactName,
+                          label: 'Ad soyad',
+                          enabled: enabled,
+                          maxLength: DeliveryPointDraft.contactNameMaxLength,
+                          textCapitalization: TextCapitalization.words,
+                          autofillHints: const [AutofillHints.name],
+                        ),
+                        const SizedBox(height: 12),
+                        AknTextField(
+                          controller: _contactPhone,
+                          label: 'Telefon',
+                          enabled: enabled,
+                          maxLength: DeliveryPointDraft.contactPhoneMaxLength,
+                          keyboardType: TextInputType.phone,
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    AknTextField(
-                      controller: _contactPhone,
-                      label: 'Telefon',
-                      enabled: enabled,
-                      maxLength: DeliveryPointDraft.contactPhoneMaxLength,
-                      keyboardType: TextInputType.phone,
-                      autofillHints: const [AutofillHints.telephoneNumber],
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -21,11 +21,11 @@ import '../data/finance_models.dart';
 import 'finance_customers_page.dart'
     show financeProfileLamp, riskLamp, riskShort;
 
-/// Cari finans kartı (spec A.4 A5; tasarım v2 §7.13): itilen başlık "Finans kartı"; gövde cari adı
-/// (`display`), VKN ve son karar, durum ve risk lambaları; **plaka** "Kullanılabilir limit" (kalan
-/// limit, kullanım ölçeri, Limit / Kullanılan / Kullanım); finans koşulları, tahsilat riski,
-/// teminatlar (ledger satırları), notlar, karar geçmişi ve risk raporları. Salt okunur (kart
-/// düzenleme web portalında).
+/// Cari finans kartı (spec A.4 A5; tasarım v3 "Akış"): itilen başlık "Finans kartı"; gövde cari adı
+/// (`display`), VKN ve son karar, durum ve risk çipleri; **kahraman kart** "Kullanılabilir limit" (kalan
+/// limit, kullanım ölçeri, Limit / Kullanılan / Kullanım; yükselerek gelir); sonra beyaz kartlarda
+/// finans koşulları, tahsilat riski, teminatlar, notlar, karar geçmişi ve risk raporları — kartlar art
+/// arda yükselerek gelir. Salt okunur (kart düzenleme web portalında).
 class FinanceCardPage extends ConsumerWidget {
   const FinanceCardPage({super.key, required this.stationCustomerId});
 
@@ -59,13 +59,15 @@ class FinanceCardPage extends ConsumerWidget {
                 : const _CardSkeleton())
           : PullToRefresh(
               onRefresh: refresh,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 32),
-                children: [
-                  _Header(profile: card.profile),
-                  ..._sections(context, ref, card),
-                ],
+              child: StaggerScope(
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: 32),
+                  children: [
+                    FadeUp(offset: 10, child: _Header(profile: card.profile)),
+                    ..._sections(context, ref, card),
+                  ],
+                ),
               ),
             ),
     );
@@ -88,19 +90,32 @@ class FinanceCardPage extends ConsumerWidget {
     final hasLimit =
         usage != null && usage.hasLimit && (usage.limitAmount ?? 0) > 0;
     final overdue = (p.overdueAmount ?? 0) > 0;
+    // Kartlar art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
+    var n = 0;
+    Widget stagger(Widget child) => StaggerItem(index: n++, child: child);
+    const money = TextStyle(fontFeatures: AknNumerals.tabular);
     return [
       if (hasLimit)
-        _LimitPlate(usage: usage)
+        // Kahraman kart ilk açılışta yükselip büyüyerek gelir.
+        FadeUp(
+          offset: 24,
+          scale: 0.94,
+          duration: AknMotion.heroRise,
+          curve: AknMotion.emphasizedCurve,
+          child: _LimitPlate(usage: usage),
+        )
       else
-        const _Section(
-          title: 'Limit',
-          child: FactList(
-            facts: [
-              FactRow(
-                label: 'Bağlantı limiti',
-                value: 'Tanımlı değil (limitsiz)',
-              ),
-            ],
+        stagger(
+          const _Section(
+            title: 'Limit',
+            child: FactList(
+              facts: [
+                FactRow(
+                  label: 'Bağlantı limiti',
+                  value: 'Tanımlı değil (limitsiz)',
+                ),
+              ],
+            ),
           ),
         ),
       if (p.status == FinanceProfileStatus.pending ||
@@ -118,156 +133,180 @@ class FinanceCardPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: AknBanner(
             tone: AknTone.warn,
-            icon: Icons.event_busy_rounded,
+            icon: PhosphorIconsRegular.calendarX,
             message:
                 'Gözden geçirme günü ${Fmt.longDate(p.nextReviewDate)} idi. Kartı web portalında güncelleyin.',
           ),
         ),
-      _Section(
-        title: 'Finans koşulları',
-        child: FactList(
-          facts: [
-            FactRow(
-              label: 'Onaylanan limit',
-              value: p.approvedLimitAmount == null
-                  ? 'Öneri yok'
-                  : Fmt.moneyWhole(p.approvedLimitAmount),
-            ),
-            FactRow(
-              label: 'İzinli yöntemler',
-              value: p.allowedMethodCodes.isEmpty
-                  ? 'Tümü (kısıt yok)'
-                  : p.allowedMethodCodes.map(paymentMethodName).join(', '),
-            ),
-            FactRow(
-              label: 'En uzun vade',
-              value: p.maxTermDays == null
-                  ? 'Kısıt yok'
-                  : (p.maxTermDays == 0 ? 'Peşin' : '${p.maxTermDays} gün'),
-            ),
-            FactRow(
-              label: 'Teminat oranı',
-              value: [
-                Fmt.percent(p.collateralRatioPercent),
-                if (p.suggestedCollateralRatioPercent != null)
-                  'öneri ${Fmt.percent(p.suggestedCollateralRatioPercent)}',
-              ].join(', '),
-            ),
-            if (p.firstNOrdersRequireFinance != null)
+      stagger(
+        _Section(
+          title: 'Finans koşulları',
+          child: FactList(
+            facts: [
               FactRow(
-                label: 'Finans incelemesi',
-                value: 'İlk ${p.firstNOrdersRequireFinance} sipariş',
+                label: 'Onaylanan limit',
+                value: p.approvedLimitAmount == null
+                    ? 'Öneri yok'
+                    : Fmt.moneyWhole(p.approvedLimitAmount),
+                valueStyle: money,
               ),
-            FactRow(
-              label: 'Stratejik fiyat',
-              value: p.isStrategicPricing ? 'Evet' : 'Hayır',
-            ),
-            FactRow(
-              label: 'Sonraki gözden geçirme',
-              value: Fmt.longDate(p.nextReviewDate),
-              tone: reviewOverdue ? AknTone.warn : null,
-            ),
-          ],
-        ),
-      ),
-      _Section(
-        title: 'Tahsilat riski',
-        child: FactList(
-          facts: [
-            FactRow(label: 'Açık bakiye', value: Fmt.money(p.openBalance)),
-            FactRow(
-              label: 'Gecikmiş tutar',
-              value: overdue ? Fmt.money(p.overdueAmount) : 'Yok',
-              tone: overdue ? AknTone.danger : null,
-            ),
-            FactRow(
-              label: 'Karşılıksız çek',
-              value: p.hasBouncedCheque ? 'Var' : 'Yok',
-              tone: p.hasBouncedCheque ? AknTone.danger : null,
-            ),
-            FactRow(
-              label: 'Protestolu senet',
-              value: p.hasProtestedNote ? 'Var' : 'Yok',
-              tone: p.hasProtestedNote ? AknTone.danger : null,
-            ),
-          ],
-        ),
-      ),
-      if (p.collaterals.isNotEmpty)
-        _Section(
-          title: 'Teminatlar',
-          count: p.collaterals.length,
-          padded: false,
-          child: AknLedger(
-            children: [for (final c in p.collaterals) _CollateralRow(c: c)],
-          ),
-        ),
-      if (p.notes != null)
-        _Section(
-          title: 'Notlar',
-          child: Text(p.notes!, style: t.body),
-        ),
-      if (card.reviews.isNotEmpty)
-        _Section(
-          title: 'Karar geçmişi',
-          child: StepTimeline(
-            steps: adaptSteps(context, [
-              for (final r in card.reviews)
-                TimelineStep(
-                  title: r.decision.label,
-                  subtitle: [
-                    ?r.decidedByDisplay,
-                    ?r.note,
-                    ?FinanceCopy.describeConditions(r.conditionsJson),
-                  ].join('\n'),
-                  time: Fmt.date(r.decidedAt),
-                  state: switch (r.decision) {
-                    FinanceDecisionKind.rejected => TimelineState.failed,
-                    FinanceDecisionKind.infoRequested => TimelineState.warning,
-                    _ => TimelineState.done,
-                  },
+              FactRow(
+                label: 'İzinli yöntemler',
+                value: p.allowedMethodCodes.isEmpty
+                    ? 'Tümü (kısıt yok)'
+                    : p.allowedMethodCodes.map(paymentMethodName).join(', '),
+              ),
+              FactRow(
+                label: 'En uzun vade',
+                value: p.maxTermDays == null
+                    ? 'Kısıt yok'
+                    : (p.maxTermDays == 0 ? 'Peşin' : '${p.maxTermDays} gün'),
+              ),
+              FactRow(
+                label: 'Teminat oranı',
+                value: [
+                  Fmt.percent(p.collateralRatioPercent),
+                  if (p.suggestedCollateralRatioPercent != null)
+                    'öneri ${Fmt.percent(p.suggestedCollateralRatioPercent)}',
+                ].join(', '),
+              ),
+              if (p.firstNOrdersRequireFinance != null)
+                FactRow(
+                  label: 'Finans incelemesi',
+                  value: 'İlk ${p.firstNOrdersRequireFinance} sipariş',
                 ),
-            ]),
-          ),
-        ),
-      if (card.riskReports.isNotEmpty)
-        _Section(
-          title: 'Risk raporları',
-          count: card.riskReports.length,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < card.riskReports.length; i++) ...[
-                if (i > 0)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: SizedBox(
-                      height: 1,
-                      child: ColoredBox(color: context.akn.line),
-                    ),
-                  ),
-                _RiskReport(report: card.riskReports[i]),
-              ],
+              FactRow(
+                label: 'Stratejik fiyat',
+                value: p.isStrategicPricing ? 'Evet' : 'Hayır',
+              ),
+              FactRow(
+                label: 'Sonraki gözden geçirme',
+                value: Fmt.longDate(p.nextReviewDate),
+                tone: reviewOverdue ? AknTone.warn : null,
+              ),
             ],
           ),
         ),
-      if (RouteAccess.isAllowed(customerRoute, policy, features)) ...[
-        const SizedBox(height: 16),
-        const AknLedgerDivider(),
-        AknListTile(
-          leadingIcon: Icons.apartment_outlined,
-          title: 'Cari kartını aç',
-          subtitle: 'Siparişler, teslimat noktaları ve notlar',
-          showChevron: true,
-          onTap: () => context.push(customerRoute),
+      ),
+      stagger(
+        _Section(
+          title: 'Tahsilat riski',
+          child: FactList(
+            facts: [
+              FactRow(
+                label: 'Açık bakiye',
+                value: Fmt.money(p.openBalance),
+                valueStyle: money,
+              ),
+              FactRow(
+                label: 'Gecikmiş tutar',
+                value: overdue ? Fmt.money(p.overdueAmount) : 'Yok',
+                tone: overdue ? AknTone.danger : null,
+                valueStyle: money,
+              ),
+              FactRow(
+                label: 'Karşılıksız çek',
+                value: p.hasBouncedCheque ? 'Var' : 'Yok',
+                tone: p.hasBouncedCheque ? AknTone.danger : null,
+              ),
+              FactRow(
+                label: 'Protestolu senet',
+                value: p.hasProtestedNote ? 'Var' : 'Yok',
+                tone: p.hasProtestedNote ? AknTone.danger : null,
+              ),
+            ],
+          ),
         ),
-        const AknLedgerDivider(),
-      ],
+      ),
+      if (p.collaterals.isNotEmpty)
+        stagger(
+          _Section(
+            title: 'Teminatlar',
+            count: p.collaterals.length,
+            padded: false,
+            child: AknLedger(
+              children: [for (final c in p.collaterals) _CollateralRow(c: c)],
+            ),
+          ),
+        ),
+      if (p.notes != null)
+        stagger(
+          _Section(
+            title: 'Notlar',
+            child: Text(p.notes!, style: t.body),
+          ),
+        ),
+      if (card.reviews.isNotEmpty)
+        stagger(
+          _Section(
+            title: 'Karar geçmişi',
+            child: StepTimeline(
+              steps: adaptSteps(context, [
+                for (final r in card.reviews)
+                  TimelineStep(
+                    title: r.decision.label,
+                    subtitle: [
+                      ?r.decidedByDisplay,
+                      ?r.note,
+                      ?FinanceCopy.describeConditions(r.conditionsJson),
+                    ].join('\n'),
+                    time: Fmt.date(r.decidedAt),
+                    state: switch (r.decision) {
+                      FinanceDecisionKind.rejected => TimelineState.failed,
+                      FinanceDecisionKind.infoRequested =>
+                        TimelineState.warning,
+                      _ => TimelineState.done,
+                    },
+                  ),
+              ]),
+            ),
+          ),
+        ),
+      if (card.riskReports.isNotEmpty)
+        stagger(
+          _Section(
+            title: 'Risk raporları',
+            count: card.riskReports.length,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < card.riskReports.length; i++) ...[
+                  if (i > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: SizedBox(
+                        height: 1,
+                        child: ColoredBox(color: context.akn.line),
+                      ),
+                    ),
+                  _RiskReport(report: card.riskReports[i]),
+                ],
+              ],
+            ),
+          ),
+        ),
+      if (RouteAccess.isAllowed(customerRoute, policy, features))
+        stagger(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: _CardSurface(
+              child: AknListTile(
+                leading: const _GlyphTile(icon: PhosphorIconsRegular.buildings),
+                title: 'Cari kartını aç',
+                subtitle: 'Siparişler, teslimat noktaları ve notlar',
+                showChevron: true,
+                padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
+                onTap: () => context.push(customerRoute),
+              ),
+            ),
+          ),
+        ),
     ];
   }
 }
 
-/// Bölüm: başlık ve içerik, kutu yok (§4.5).
+/// Bölüm (tasarım v3): sayfa zemininde süzülen beyaz kart (20 köşe, kart gölgesi); içinde başlık ve
+/// içerik. [padded] içerik 18 px kenarla girer; defter satırları kendi kenarlarını verir.
 class _Section extends StatelessWidget {
   const _Section({
     required this.title,
@@ -282,20 +321,86 @@ class _Section extends StatelessWidget {
   final bool padded;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      SectionHeader(title: title, count: count),
-      if (padded)
-        Padding(padding: AknSpace.pagePadding, child: child)
-      else
-        child,
-    ],
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+    child: _CardSurface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 58),
+            child: SectionHeader(
+              title: title,
+              count: count,
+              padding: const EdgeInsets.fromLTRB(18, 10, 8, 0),
+            ),
+          ),
+          if (padded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: child,
+            )
+          else
+            Padding(padding: const EdgeInsets.only(bottom: 4), child: child),
+        ],
+      ),
+    ),
   );
 }
 
-/// Olgular: etiket / değer satırları, aralarında ince çizgi.
+/// Beyaz kart yüzeyi (tasarım v3): 20 köşe, yumuşak kart gölgesi; koyu temada 1 px ince çizgi; içerik
+/// köşelere kırpılır.
+class _CardSurface extends StatelessWidget {
+  const _CardSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: AknRadius.card,
+        boxShadow: AknShadows.card(c),
+      ),
+      position: DecorationPosition.background,
+      child: DecoratedBox(
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: AknRadius.card,
+          border: c.isDark ? Border.all(color: c.line) : null,
+        ),
+        child: AknCardScope(
+          child: ClipRRect(borderRadius: AknRadius.card, child: child),
+        ),
+      ),
+    );
+  }
+}
+
+/// 36 px yuvarlak köşeli Beton simge karosu (kart satırının önü).
+class _GlyphTile extends StatelessWidget {
+  const _GlyphTile({required this.icon});
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: context.akn.surfaceAlt,
+        borderRadius: BorderRadius.circular(AknRadius.sm),
+      ),
+      child: Icon(icon, size: 19, color: context.akn.ink),
+    ),
+  );
+}
+
+/// Olgular: etiket / değer satırları, aralarında ince çizgi (tasarım v3: `lineSoft`).
 class FactList extends StatelessWidget {
   const FactList({super.key, required this.facts});
 
@@ -303,7 +408,7 @@ class FactList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final line = context.akn.line;
+    final line = context.akn.lineSoft;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -320,7 +425,7 @@ class FactList extends StatelessWidget {
   }
 }
 
-/// Gövdenin başı: cari adı (`display`), VKN ve son karar, kart durumu ve risk lambaları.
+/// Gövdenin başı (tasarım v3): cari adı (`display`), VKN ve son karar, kart durumu ve risk çipleri.
 class _Header extends StatelessWidget {
   const _Header({required this.profile});
 
@@ -402,7 +507,7 @@ class _LimitPlate extends StatelessWidget {
       semanticLabel:
           'Kullanılabilir limit ${amount(math.max(0, available))}${problem == null ? '' : ', $problem'}',
       head: PlateHead(
-        icon: Icons.speed_rounded,
+        icon: PhosphorIconsFill.gauge,
         title: 'Kullanılabilir limit',
         period: period,
       ),
@@ -462,7 +567,8 @@ Widget _readouts(BuildContext context, List<PlateReadout> items) {
   );
 }
 
-/// Teminat satırı: tür, sağda tutar; ikinci satırda banka, geçerlilik ve not; durum lambası.
+/// Teminat satırı (kart içinde): tür, sağda tutar (tablo rakamları); ikinci satırda banka, geçerlilik
+/// ve not; durum çipi.
 class _CollateralRow extends StatelessWidget {
   const _CollateralRow({required this.c});
 
@@ -481,6 +587,7 @@ class _CollateralRow extends StatelessWidget {
       ?c.note,
     ].join(', ');
     return AknListTile(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
       title: c.kind.label,
       subtitle: second.isEmpty ? null : second,
       amount: Fmt.moneyWhole(c.amount),
@@ -596,7 +703,7 @@ class _RiskReport extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: AknButton.ghost(
               label: 'Rapor PDF\'ini aç',
-              icon: Icons.picture_as_pdf_outlined,
+              icon: PhosphorIconsRegular.filePdf,
               size: AknButtonSize.small,
               onPressed: () => openAttachmentById(
                 context,

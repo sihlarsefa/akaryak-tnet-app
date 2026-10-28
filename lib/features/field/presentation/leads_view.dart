@@ -14,6 +14,7 @@ import '../data/field_repository.dart';
 import 'widgets/field_widgets.dart';
 
 /// Ön kayıt listesi (`leads?scope=mine|all&status&q`). [all]: bayinin tümü (`lead.viewAll`).
+/// Tasarım v3: satırlar sayfada yüzen kartlardır; ilk açılışta sırayla, kaydırdıkça kayarak belirir.
 class FieldLeadsView extends ConsumerStatefulWidget {
   const FieldLeadsView({super.key, this.all = false, this.initialStatus});
 
@@ -97,15 +98,15 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
         onChanged: (s) => setState(() => _status = s.isEmpty ? null : s.first),
       ),
       if (state.cachedAt != null) FieldCachedNote(at: state.cachedAt!),
-      for (final q in queued) ...[
-        FieldQueuedTile(
-          item: q,
-          onEdit: q.isLead
-              ? () => context.push('${AppRoutes.fieldLeadNew}?op=${q.op.id}')
-              : null,
+      for (final q in queued)
+        FieldListCard(
+          child: FieldQueuedTile(
+            item: q,
+            onEdit: q.isLead
+                ? () => context.push('${AppRoutes.fieldLeadNew}?op=${q.op.id}')
+                : null,
+          ),
         ),
-        const AknLedgerDivider(),
-      ],
     ];
 
     Widget list;
@@ -161,12 +162,11 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
                 shown: items.length,
               );
             }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (index > 0) const AknLedgerDivider(),
-                FieldLeadTile(row: items[index], showRep: widget.all),
-              ],
+            return FieldStaggerItem(
+              index: index,
+              child: FieldListCard(
+                child: FieldLeadTile(row: items[index], showRep: widget.all),
+              ),
             );
           },
         ),

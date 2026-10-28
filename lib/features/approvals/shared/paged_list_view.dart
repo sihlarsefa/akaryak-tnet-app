@@ -5,14 +5,18 @@ import 'package:flutter/material.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/ui/ui.dart';
 import 'failure_view.dart';
+import 'layout.dart';
 import 'paged_list.dart';
 
-/// Spec C.5 liste tarifi: başlık parçaları (arama, çipler) içerikle birlikte kayar; ilk yüklemede
-/// iskelet, aşağı çekip yenileme (» döner), sonsuz kaydırma alt satırı, boş / hata durumları.
+/// Spec C.5 liste tarifi (tasarım v3 "Akış"): başlık parçaları (arama, çipler) içerikle birlikte
+/// kayar; ilk yüklemede parıltılı iskelet, aşağı çekip yenileme (» döner), sonsuz kaydırma alt
+/// satırı, boş / hata durumları. Yükleme → içerik geçişi solarak olur.
 ///
-/// [ledger] (tasarım v2 §4.4 "beyaz defter"): öğeler tam genişlik defter satırlarıdır; yatay boşluk ve
-/// öğe aralığı yerine satırlar arasında 20 px içeriden ince çizgi, iskelet de defter satırı biçiminde.
-/// Kapalıyken eski düzen (kenar boşluklu, aralıklı öğeler) sürer.
+/// Öğeler [StaggerScope] içinde sırayla yükselir (55 ms arayla; süzgeç değişince — [staggerKey] —
+/// yeniden), kaydırınca gelen yeni öğeler hemen belirir; öğelerin durumu korunur ([A5StaggerItem]).
+///
+/// [ledger]: öğeler tek beyaz kartta (r20, kart gölgesi) satırlardır, aralarında içeriden ince
+/// çizgi; iskelet de satır biçiminde. Kapalıyken her öğe kendi kartıdır (sayfa kenarı, aralıklı).
 class A5PagedListView<T> extends StatefulWidget {
   const A5PagedListView({
     super.key,
@@ -111,10 +115,10 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
       if (s.error != null) {
         children.add(
           Padding(
-            padding: EdgeInsets.fromLTRB(
-              widget.ledger ? 20 : 16,
+            padding: const EdgeInsets.fromLTRB(
+              AknSpace.page,
               8,
-              widget.ledger ? 20 : 16,
+              AknSpace.page,
               0,
             ),
             child: AknBanner(
@@ -129,11 +133,17 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
       final resolved = widget.padding.resolve(Directionality.of(context));
       if (widget.ledger) {
         children.add(
-          AknLedger(
-            children: [
-              for (var i = 0; i < s.items.length; i++)
-                widget.itemBuilder(context, s.items[i], i),
-            ],
+          StaggerScope(
+            key: ValueKey(widget.staggerKey),
+            child: AknLedger(
+              children: [
+                for (var i = 0; i < s.items.length; i++)
+                  A5StaggerItem(
+                    index: i,
+                    child: widget.itemBuilder(context, s.items[i], i),
+                  ),
+              ],
+            ),
           ),
         );
       } else {
@@ -152,7 +162,7 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
                             ? 0
                             : widget.itemSpacing,
                       ),
-                      child: StaggerItem(
+                      child: A5StaggerItem(
                         index: i,
                         child: widget.itemBuilder(context, s.items[i], i),
                       ),
@@ -229,7 +239,7 @@ class _Footer extends StatelessWidget {
           AknButton.ghost(
             label: 'Tekrar dene',
             semanticLabel: 'Daha fazlası yüklenemedi, tekrar dene',
-            icon: Icons.refresh_rounded,
+            icon: PhosphorIconsRegular.arrowClockwise,
             onPressed: onRetry,
           ),
         ],
@@ -243,7 +253,20 @@ class _Footer extends StatelessWidget {
     }
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 8, 16, bottomPadding),
-      child: child,
+      child: AnimatedSwitcher(
+        duration: AknMotion.of(context, AknMotion.base),
+        transitionBuilder: (c, a) => FadeTransition(
+          opacity: a,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.94, end: 1).animate(a),
+            child: c,
+          ),
+        ),
+        child: KeyedSubtree(
+          key: ValueKey((loading, error != null, hasMore)),
+          child: child,
+        ),
+      ),
     );
   }
 }

@@ -4,6 +4,9 @@ import '../ui/ui.dart';
 
 /// Yer tutucu ekran ("Yakında"). Aşama 0'da her özellik rotası bunu gösterir; özellik ajanları kendi
 /// ekranlarıyla değiştirir (spec C.3).
+///
+/// Tasarım v3: ortada süzülen çizim ve basamaklı gelen metin (`EmptyState`); yazı büyüdüğünde sayfa
+/// kayar, hiçbir şey taşmaz.
 class ComingSoonPage extends StatelessWidget {
   const ComingSoonPage({
     super.key,
@@ -23,11 +26,20 @@ class ComingSoonPage extends StatelessWidget {
     return AppScaffold(
       title: title,
       subtitle: subtitle,
-      body: Center(
-        child: EmptyState(
-          title: 'Yakında',
-          message: message ?? '$title ekranı hazırlanıyor.',
-          illustration: illustration,
+      body: LayoutBuilder(
+        builder: (context, box) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: box.maxHeight.isFinite ? box.maxHeight : 0,
+            ),
+            child: Center(
+              child: EmptyState(
+                title: 'Yakında',
+                message: message ?? '$title ekranı hazırlanıyor.',
+                illustration: illustration,
+              ),
+            ),
+          ),
         ),
       ),
     );

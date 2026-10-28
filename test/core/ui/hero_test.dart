@@ -1,5 +1,9 @@
-// Redesign R1 components: hero app bar + header strip, status-bar icons per surface, AnimatedNumber,
-// floating bottom bar, button variants, card press.
+// Design v3 "Akış" components: the page-coloured app bar that turns frosted on scroll (root
+// `display` / pushed `headline` titles, the back button in its circle), the deprecated hero
+// header, status-bar icons per surface, AnimatedNumber's count-up, the frosted bottom bar with its
+// sliding pill and deep-orange badges, button variants, card press and filter chips.
+import 'dart:ui' as ui;
+
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -47,14 +51,17 @@ void main() {
       final bar = tester.widget<AppBar>(find.byType(AppBar));
       expect(bar.backgroundColor, c.bg);
       expect(bar.systemOverlayStyle, AknTheme.overlayFor(b));
-      // v2 §6.1: a root tab page (no back button) titles in `display`
-      // 30/36 600 at the 20 px edge, in a 60 px bar.
+      // v3 §4: a root tab page (no back button) titles in `display`
+      // 28/34 800 (−0.8) at the 20 px edge, in a 60 px bar.
       expect(bar.toolbarHeight, AknTheme.rootBarHeight);
+      expect(AknTheme.rootBarHeight, 60);
       expect(bar.titleSpacing, AknSpace.page);
       final title = tester.widget<Text>(find.text('Siparişler'));
       expect(title.style!.color, c.ink);
-      expect(title.style!.fontWeight, FontWeight.w600);
-      expect(title.style!.fontSize, 30);
+      expect(title.style!.fontWeight, FontWeight.w800);
+      expect(title.style!.fontSize, 28);
+      expect(title.style!.height, 34 / 28);
+      expect(title.style!.letterSpacing, -0.8);
       expect(title.style!.fontFamily, AknFonts.sans);
       expect(find.byType(OnHero), findsNothing);
     });
@@ -82,37 +89,98 @@ void main() {
       await tester.pumpAndSettle();
       final bar = tester.widget<AppBar>(find.byType(AppBar));
       expect(bar.toolbarHeight, AknTheme.pushedBarHeight);
+      expect(AknTheme.pushedBarHeight, 52);
+      // v3 §4: the platform BackButton (its tooltip and semantics) draws the
+      // Phosphor arrowLeft 22 in a 40 px white circle with the card shadow.
       expect(find.byType(BackButtonIcon), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.arrowLeft), findsOneWidget);
+      final circle = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).shape == BoxShape.circle,
+        ),
+      );
+      expect(tester.getSize(circle), const Size.square(40));
+      final disc = tester.widget<DecoratedBox>(circle).decoration;
+      expect((disc as BoxDecoration).color, AknColors.light.surface);
+      expect(disc.boxShadow, AknShadows.card(AknColors.light));
+      // The title in `headline` 17/22 700, one line.
       final title = tester.widget<Text>(find.text('SIP-20261021-12002'));
       expect(title.style!.fontSize, 17);
-      expect(title.style!.fontWeight, FontWeight.w600);
+      expect(title.style!.fontWeight, FontWeight.w700);
       expect(title.maxLines, 1);
     });
 
-    testWidgets('white app bar: hairline + shadow fade in once scrolled', (
+    testWidgets('app bar turns frosted with a soft shadow once scrolled', (
       tester,
     ) async {
       await pumpUi(tester, _page(hero: false), scaffold: false);
-      double edge() => tester
+      const c = AknColors.light;
+      final scaffold = find.byType(AppScaffold);
+      double frost() => tester
           .widget<AnimatedOpacity>(
             find.descendant(
-              of: find.byType(AppScaffold),
+              of: scaffold,
               matching: find.byType(AnimatedOpacity),
             ),
           )
           .opacity;
-      expect(edge(), 0);
+      Color fill() =>
+          tester.widget<AppBar>(find.byType(AppBar)).backgroundColor!;
+      // At rest: the page colour, no frost.
+      expect(frost(), 0);
+      expect(fill(), c.bg);
       await tester.drag(find.byType(ListView), const Offset(0, -300));
       await tester.pumpAndSettle();
-      expect(edge(), 1);
+      // v3 §4: content under the bar — the bar clears and the frost shows:
+      // `surface` at 85 % over a σ 16 blur with a soft shadow, never a
+      // hairline.
+      expect(frost(), 1);
+      expect(fill().a, 0);
+      final blur = find.descendant(
+        of: scaffold,
+        matching: find.byType(BackdropFilter),
+      );
+      expect(
+        tester.widget<BackdropFilter>(blur).filter,
+        ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+      );
+      final glass =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .descendant(
+                          of: blur,
+                          matching: find.byType(DecoratedBox),
+                        )
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
+      expect(glass.color, c.surface.withValues(alpha: 0.85));
+      expect(glass.border, isNull);
+      final shadow =
+          tester
+                  .widget<DecoratedBox>(
+                    find
+                        .ancestor(of: blur, matching: find.byType(DecoratedBox))
+                        .first,
+                  )
+                  .decoration
+              as BoxDecoration;
+      expect(shadow.boxShadow, isNotEmpty);
       await tester.drag(find.byType(ListView), const Offset(0, 600));
       await tester.pumpAndSettle();
-      expect(edge(), 0);
+      expect(frost(), 0);
+      expect(fill(), c.bg);
     });
 
     for (final navy in [false, true]) {
       testBothThemes(
-        '${navy ? 'navy (alias)' : 'hero'} (deprecated): the normal white bar, no strip',
+        '${navy ? 'navy (alias)' : 'hero'} (deprecated): the normal page-coloured bar, no strip',
         (tester, b) async {
           await pumpUi(
             tester,
@@ -122,7 +190,8 @@ void main() {
           );
           final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
           final bar = tester.widget<AppBar>(find.byType(AppBar));
-          // v2 §6.1: no orange app bar; status icons follow the page.
+          // v3 §4: no orange app bar (the orange band is the homes' header);
+          // the bar is the page colour and status icons follow the page.
           expect(bar.systemOverlayStyle, AknTheme.overlayFor(b));
           expect(bar.backgroundColor, c.bg);
           final strips = tester
@@ -161,7 +230,7 @@ void main() {
       expect(find.text('Satır 0'), findsOneWidget);
     });
 
-    testWidgets('status bar: dark icons on the white bar (hero too)', (
+    testWidgets('status bar: dark icons on the light page bar (hero too)', (
       tester,
     ) async {
       await pumpUi(tester, _page(hero: true), scaffold: false);
@@ -177,7 +246,7 @@ void main() {
       expect(_applied().systemNavigationBarIconBrightness, Brightness.dark);
     });
 
-    testWidgets('dark mode: light status icons on the white-bar pages too', (
+    testWidgets('dark mode: light status icons on the bar pages too', (
       tester,
     ) async {
       await pumpUi(
@@ -217,7 +286,7 @@ void main() {
   });
 
   group('AknHeroHeader', () {
-    testBothThemes('deprecated: a plain white header, chips render as lamps', (
+    testBothThemes('deprecated: a plain page-colour header, chips are lamps', (
       tester,
       b,
     ) async {
@@ -228,7 +297,7 @@ void main() {
           title: 'Günaydın, Ayşe',
           subtitle: 'Demo Petrol',
           chips: [
-            AknHeroChip(label: 'Sahip', icon: Icons.verified_user_rounded),
+            AknHeroChip(label: 'Sahip', icon: PhosphorIconsFill.shieldCheck),
             AknHeroChip(label: 'Finans'),
           ],
         ),
@@ -239,13 +308,14 @@ void main() {
         isSemantics(isHeader: true, label: 'Günaydın, Ayşe'),
       );
       final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
-      // v2 §6.28: no orange strip — the page colour, an ink display title,
-      // a dim subtitle; off the plate a hero chip is a lamp.
+      // v3: no orange strip — the page colour, an ink `display` title
+      // (28/34 800), a dim subtitle; off the plate a hero chip is a lamp.
       expect(OnHero.isOn(tester.element(find.text('Sahip'))), isFalse);
       expect(find.byType(AknLamp), findsNWidgets(2));
       final title = tester.widget<Text>(find.text('Günaydın, Ayşe'));
       expect(title.style!.color, c.ink);
-      expect(title.style!.fontSize, 30);
+      expect(title.style!.fontSize, 28);
+      expect(title.style!.fontWeight, FontWeight.w800);
       expect(tester.widget<Text>(find.text('Demo Petrol')).style!.color, c.dim);
       final fill = tester.widget<ColoredBox>(
         find
@@ -311,32 +381,61 @@ void main() {
   });
 
   group('AnimatedNumber', () {
-    // v2 §6.9 / §8.3: no count-ups — only the plate rolls. The final value
-    // is on screen from the first frame and screen readers hear it once.
-    testWidgets('shows the formatted value at once, read once', (tester) async {
+    // v3 §5 "Numbers": a value counts up from 0 when it first appears and
+    // counts on from the number on screen when it changes (AknMotion.count,
+    // 600 ms). Tabular figures in a box held at the final width keep the
+    // digits ticking in place; screen readers hear the final value once.
+    String shown(WidgetTester tester) => tester
+        .widget<Text>(
+          find.descendant(
+            of: find.byType(AnimatedNumber),
+            matching: find.byType(Text),
+          ),
+        )
+        .data!;
+
+    testWidgets('counts up from 0 to the formatted value, read once', (
+      tester,
+    ) async {
       final handle = tester.ensureSemantics();
       await pumpUi(
         tester,
         AnimatedNumber(value: 12500, format: (v) => '${v.round()} L'),
       );
+      final size = tester.getSize(find.byType(AnimatedNumber));
+      // The first frame starts at 0; the screen reader already has the
+      // final value — and only it.
+      expect(find.text('0 L'), findsOneWidget);
+      expect(find.bySemanticsLabel('12500 L'), findsOneWidget);
+      expect(find.bySemanticsLabel('0 L'), findsNothing);
+      expect(tester.hasRunningAnimations, isTrue);
+      await tester.pump(AknMotion.count ~/ 2);
+      final mid = int.parse(shown(tester).replaceAll(' L', ''));
+      expect(mid, inExclusiveRange(0, 12500));
+      expect(find.bySemanticsLabel('12500 L'), findsOneWidget);
+      // Nothing beside the number moves while it counts.
+      expect(tester.getSize(find.byType(AnimatedNumber)), size);
+      await tester.pump(AknMotion.count);
       expect(find.text('12500 L'), findsOneWidget);
       expect(find.bySemanticsLabel('12500 L'), findsOneWidget);
+      expect(tester.getSize(find.byType(AnimatedNumber)), size);
       expect(tester.hasRunningAnimations, isFalse);
       handle.dispose();
     });
 
-    testWidgets('default format groups; proportional Condensed figures', (
+    testWidgets('default format groups; tabular figures in `number`', (
       tester,
     ) async {
       await pumpUi(tester, const AnimatedNumber(value: 1234567));
+      await tester.pump(AknMotion.count);
       expect(find.text('1.234.567'), findsOneWidget);
       final style = tester.widget<Text>(find.byType(Text)).style!;
-      expect(
-        style.fontFeatures ?? const [],
-        isNot(contains(const FontFeature.tabularFigures())),
-      );
-      expect(style.fontFamily, AknFonts.condensed);
-      expect(style.fontWeight, FontWeight.w700);
+      // v3 §1: every figure is tabular (the count never changes width), in
+      // Plus Jakarta Sans `number` 24/30 800.
+      expect(style.fontFeatures, contains(const FontFeature.tabularFigures()));
+      expect(style.fontFamily, AknFonts.sans);
+      expect(style.fontSize, 24);
+      expect(style.fontWeight, FontWeight.w800);
     });
 
     testWidgets('reduce motion shows the value at once', (tester) async {
@@ -345,11 +444,11 @@ void main() {
         const AnimatedNumber(value: 640),
         reduceMotion: true,
       );
-      await tester.pump();
       expect(find.text('640'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
     });
 
-    testWidgets('a new value replaces the old one without counting', (
+    testWidgets('a new value counts on from the number on screen', (
       tester,
     ) async {
       var value = 100;
@@ -362,9 +461,17 @@ void main() {
           ),
         ),
       );
+      await tester.pumpAndSettle();
       expect(find.text('100'), findsOneWidget);
+      expect(tester.hasRunningAnimations, isFalse);
       await tester.tap(find.byType(AnimatedNumber));
       await tester.pump();
+      // From 100, not from 0; the screen reader hears only the new value.
+      expect(find.text('100'), findsOneWidget);
+      expect(find.bySemanticsLabel('200'), findsOneWidget);
+      await tester.pump(AknMotion.count ~/ 2);
+      expect(int.parse(shown(tester)), inExclusiveRange(100, 200));
+      await tester.pump(AknMotion.count);
       expect(find.text('200'), findsOneWidget);
       expect(tester.hasRunningAnimations, isFalse);
     });
@@ -385,6 +492,7 @@ void main() {
   });
 
   group('AnimatedBottomBar', () {
+    // v3 §4: Phosphor Regular at rest, Fill when active.
     Widget bar({int badge = 3, AknCenterAction? center}) => Align(
       alignment: Alignment.bottomCenter,
       child: AnimatedBottomBar(
@@ -392,82 +500,147 @@ void main() {
         onSelected: (_) {},
         centerAction: center,
         items: [
-          const AknNavItem(icon: Icons.home_rounded, label: 'Ana sayfa'),
+          const AknNavItem(
+            icon: PhosphorIconsRegular.house,
+            selectedIcon: PhosphorIconsFill.house,
+            label: 'Ana sayfa',
+          ),
           AknNavItem(
-            icon: Icons.task_alt_rounded,
+            icon: PhosphorIconsRegular.checkCircle,
+            selectedIcon: PhosphorIconsFill.checkCircle,
             label: 'Onaylarım',
             badgeCount: badge,
           ),
           const AknNavItem(
-            icon: Icons.receipt_long_rounded,
+            icon: PhosphorIconsRegular.receipt,
+            selectedIcon: PhosphorIconsFill.receipt,
             label: 'Siparişler',
           ),
-          const AknNavItem(icon: Icons.more_horiz_rounded, label: 'Diğer'),
+          const AknNavItem(
+            icon: PhosphorIconsRegular.dotsThree,
+            label: 'Diğer',
+          ),
         ],
       ),
     );
 
-    testBothThemes('docked full width, hairline on top, Asfalt badge', (
-      tester,
-      b,
-    ) async {
-      await pumpUi(tester, bar(), brightness: b, size: const Size(390, 800));
-      await tester.pump(const Duration(milliseconds: 400));
-      final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
-      final rect = tester.getRect(find.byType(AnimatedBottomBar));
-      expect(rect.left, 0);
-      expect(rect.right, 390);
-      final box = tester.widget<DecoratedBox>(
-        find
-            .descendant(
-              of: find.byType(AnimatedBottomBar),
-              matching: find.byType(DecoratedBox),
-            )
-            .first,
-      );
-      final deco = box.decoration as BoxDecoration;
-      // v2 §6.4: no floating pill, no shadow; dark mode sits on `surface`.
-      expect(deco.color, c.isDark ? c.surface : c.surfaceRaised);
-      expect(deco.boxShadow, isNull);
-      expect((deco.border! as Border).top.color, c.line);
-      // §6.3: red is reserved for danger — the count badge is ink.
-      final badge = tester.widget<Container>(
-        find
-            .ancestor(of: find.text('3'), matching: find.byType(Container))
-            .first,
-      );
-      expect((badge.decoration! as BoxDecoration).color, c.ink);
-      expect(tester.takeException(), isNull);
-    });
+    testBothThemes(
+      'docked full width, frosted, no hairline; deep-orange badge',
+      (tester, b) async {
+        await pumpUi(tester, bar(), brightness: b, size: const Size(390, 800));
+        await tester.pump(const Duration(milliseconds: 400));
+        final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
+        final rect = tester.getRect(find.byType(AnimatedBottomBar));
+        expect(rect.left, 0);
+        expect(rect.right, 390);
+        // v3 §4: the dock lifts off the content with the bar shadow …
+        final dock = tester.widget<DecoratedBox>(
+          find
+              .descendant(
+                of: find.byType(AnimatedBottomBar),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        expect((dock.decoration as BoxDecoration).boxShadow, AknShadows.bar(c));
+        // … and is frosted: `surfaceRaised` at 92 % over a σ 20 blur, with no
+        // hairline (dark mode keeps a faint top edge, as dark cards do).
+        final blur = find.descendant(
+          of: find.byType(AnimatedBottomBar),
+          matching: find.byType(BackdropFilter),
+        );
+        expect(
+          tester.widget<BackdropFilter>(blur).filter,
+          ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        );
+        final glass =
+            tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: blur,
+                            matching: find.byType(DecoratedBox),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        expect(glass.color, c.surfaceRaised.withValues(alpha: 0.92));
+        if (c.isDark) {
+          expect(
+            (glass.border! as Border).top.color,
+            c.line.withValues(alpha: 0.7),
+          );
+        } else {
+          expect(glass.border, isNull);
+        }
+        // The count badge: a deep-orange pill (`brandFillPressed`) in a 2 px
+        // ring of the bar colour; white 10 w800 tabular figures (≥ 4.5:1).
+        final badge = tester.widget<Container>(
+          find
+              .ancestor(of: find.text('3'), matching: find.byType(Container))
+              .first,
+        );
+        final pill = badge.decoration! as BoxDecoration;
+        expect(pill.color, c.brandFillPressed);
+        expect(pill.borderRadius, AknRadius.pillAll);
+        expect(pill.border, Border.all(color: c.surfaceRaised, width: 2));
+        final digits = tester.widget<Text>(find.text('3')).style!;
+        expect(digits.color, c.onBrandFill);
+        expect(digits.fontSize, 10);
+        expect(digits.fontWeight, FontWeight.w800);
+        expect(
+          digits.fontFeatures,
+          contains(const FontFeature.tabularFigures()),
+        );
+        expect(
+          contrast(c.onBrandFill, c.brandFillPressed),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
 
-    testWidgets('selected: ink label 600 + orange needle; others navInactive', (
-      tester,
-    ) async {
+    testWidgets('selected: ink 700 label and Fill icon on the brandSoft pill; '
+        'others navInactive 600, Regular', (tester) async {
       await pumpUi(tester, bar(badge: 0), size: const Size(390, 800));
       await tester.pump(const Duration(milliseconds: 400));
       const c = AknColors.light;
       final style = tester.widget<Text>(find.text('Ana sayfa')).style!;
       expect(style.color, c.ink);
-      expect(style.fontWeight, FontWeight.w600);
+      expect(style.fontWeight, FontWeight.w700);
       final other = tester.widget<Text>(find.text('Siparişler')).style!;
       expect(other.color, c.navInactive);
-      expect(other.fontWeight, FontWeight.w500);
-      // The needle: 22 × 3 in the logo orange over the first item.
-      final needle = find.byWidgetPredicate(
-        (w) =>
-            w is DecoratedBox &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).color == c.logo,
+      expect(other.fontWeight, FontWeight.w600);
+      expect(find.byIcon(PhosphorIconsFill.house), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.house), findsNothing);
+      expect(find.byIcon(PhosphorIconsRegular.receipt), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsFill.receipt), findsNothing);
+      // The pill: one 56 × 32 `brandSoft` capsule (r16) behind the active
+      // icon, 10 px under the top, in the middle of its slot (the needle and
+      // the hairline are gone).
+      final pill = find.descendant(
+        of: find.byType(AnimatedBottomBar),
+        matching: find.byType(CustomPaint),
       );
-      expect(needle, findsOneWidget);
-      final r = tester.getRect(needle);
-      expect(r.width, 22);
-      expect(r.height, 3);
+      expect(pill, findsOneWidget);
+      const slot = (390 - 12) / 4;
+      expect(
+        pill,
+        paints..rrect(
+          rrect: RRect.fromRectAndRadius(
+            const Rect.fromLTWH(slot / 2 - 28, 10, 56, 32),
+            const Radius.circular(16),
+          ),
+          color: c.brandSoft,
+        ),
+      );
       final home = tester.getRect(find.text('Ana sayfa'));
-      expect((r.center.dx - home.center.dx).abs(), lessThan(1));
+      final centre = tester.getTopLeft(pill).dx + slot / 2;
+      expect((centre - home.center.dx).abs(), lessThan(1));
     });
 
-    testWidgets('center action still works with the capsule notch', (
+    testWidgets('center action: the orange key runs its action', (
       tester,
     ) async {
       var opened = 0;
@@ -475,13 +648,35 @@ void main() {
         tester,
         bar(
           center: AknCenterAction(
-            icon: Icons.add_rounded,
+            icon: PhosphorIconsRegular.plus,
             label: 'Sipariş ver',
             onPressed: () => opened++,
           ),
         ),
       );
-      await tester.tap(find.byIcon(Icons.add_rounded));
+      // v3 §4 (decision G): a 52 × 40 r14 key in the primary button's orange
+      // gradient with a white glyph.
+      const c = AknColors.light;
+      final key = find.descendant(
+        of: find.byType(AnimatedBottomBar),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).gradient == c.buttonGradient,
+        ),
+      );
+      expect(tester.getSize(key), const Size(52, 40));
+      expect(
+        (tester.widget<DecoratedBox>(key).decoration as BoxDecoration)
+            .borderRadius,
+        BorderRadius.circular(14),
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.plus)).color,
+        c.onBrandFill,
+      );
+      await tester.tap(find.byIcon(PhosphorIconsRegular.plus));
       await tester.pump(const Duration(milliseconds: 200));
       await tester.tap(find.text('Sipariş ver'));
       await tester.pump(const Duration(milliseconds: 200));
@@ -492,7 +687,8 @@ void main() {
 
   group('Buttons and cards', () {
     testWidgets(
-      'variants: orange primary, white bordered secondary / outline',
+      'variants: orange gradient primary with its glow, white bordered '
+      'secondary / outline',
       (tester) async {
         await pumpUi(
           tester,
@@ -504,7 +700,7 @@ void main() {
             ],
           ),
         );
-        BoxDecoration deco(String label) =>
+        ShapeDecoration deco(String label) =>
             tester
                     .widget<AnimatedContainer>(
                       find
@@ -515,27 +711,42 @@ void main() {
                           .first,
                     )
                     .decoration!
-                as BoxDecoration;
+                as ShapeDecoration;
+        RoundedSuperellipseBorder shape(String label) =>
+            deco(label).shape as RoundedSuperellipseBorder;
         const c = AknColors.light;
-        // Owner decision G: primary = the orange gradient (#F7742F →
-        // #E8590C) with a WHITE 17 px w700 label, radius 12.
+        // Owner decision G: primary = the orange gradient (#FF7B35 →
+        // #E5530A) with a WHITE 16 px w700 label; v3 §4: the warm glow
+        // under it, a radius-16 superellipse.
+        expect(c.brandFillStart, const Color(0xFFFF7B35));
+        expect(c.brandFill, const Color(0xFFE5530A));
         expect(deco('Gönder').gradient, c.buttonGradient);
-        expect(deco('Gönder').borderRadius, BorderRadius.circular(12));
+        expect(deco('Gönder').shadows, AknShadows.button(c));
+        expect(shape('Gönder').borderRadius, BorderRadius.circular(16));
+        expect(shape('Gönder').side, BorderSide.none);
         final primaryLabel = tester.widget<Text>(find.text('Gönder')).style!;
         expect(primaryLabel.color, c.onBrandFill);
         expect(primaryLabel.color, const Color(0xFFFFFFFF));
-        expect(primaryLabel.fontSize, 17);
+        expect(primaryLabel.fontSize, 16);
         expect(primaryLabel.fontWeight, FontWeight.w700);
-        // Secondary and outline: white, 1.5 px control border, ink label.
-        expect(deco('Revize').color, c.surface);
-        expect((deco('Revize').border! as Border).top.color, c.lineStrong);
-        expect((deco('Revize').border! as Border).top.width, 1.5);
-        expect(deco('Vazgeç').color, c.surface);
-        expect((deco('Vazgeç').border! as Border).top.color, c.lineStrong);
+        // Secondary and outline: white, a 1.5 px `lineStrong` 60 % border,
+        // an ink label, no glow.
+        expect(
+          AknTheme.secondaryBorder(c),
+          c.lineStrong.withValues(alpha: 0.6),
+        );
+        for (final label in ['Revize', 'Vazgeç']) {
+          expect(deco(label).gradient!.colors, everyElement(c.surface));
+          expect(
+            shape(label).side,
+            BorderSide(color: AknTheme.secondaryBorder(c), width: 1.5),
+          );
+          expect(shape(label).borderRadius, BorderRadius.circular(16));
+          expect(deco(label).shadows, anyOf(isNull, isEmpty));
+          expect(tester.widget<Text>(find.text(label)).style!.color, c.ink);
+        }
         // The default size is the 52 px flow button.
         expect(tester.getSize(find.byType(AknButton).first).height, 52);
-        final label = tester.widget<Text>(find.text('Revize'));
-        expect(label.style!.color, c.ink);
       },
     );
 
@@ -560,15 +771,14 @@ void main() {
       expect(
         tester.getTopLeft(find.text('Vazgeç')).dy,
         greaterThan(tester.getTopLeft(find.text('Onayla')).dy),
-        reason: 'v2 §6.21: the action first, the cancel under it',
+        reason: 'the action first, the cancel under it',
       );
       await tester.tap(find.text('Vazgeç'));
       await tester.pumpAndSettle();
     });
 
-    testWidgets('tappable card: selection haptic, flat press (fill + 0.98)', (
-      tester,
-    ) async {
+    testWidgets('tappable card: selection haptic; press 0.97, fill dims, the '
+        'shadow settles', (tester) async {
       final haptics = <String>[];
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
@@ -606,7 +816,10 @@ void main() {
             .first,
       );
       expect(scale.scale, AknMotion.pressScale);
-      // v2 §6.6: pressed = Beton fill; flat (no shadow), radius 12, hairline.
+      expect(scale.scale, 0.97);
+      // v3 §3/§5: pressed = the fill dims to `surfaceAlt` and the card
+      // settles onto the page (only the contact shadow).
+      const c = AknColors.light;
       final pressedBox = tester.widget<AnimatedContainer>(
         find
             .ancestor(
@@ -615,10 +828,9 @@ void main() {
             )
             .first,
       );
-      expect(
-        (pressedBox.decoration! as BoxDecoration).color,
-        AknColors.light.surfaceAlt,
-      );
+      final pressed = pressedBox.decoration! as BoxDecoration;
+      expect(pressed.color, c.surfaceAlt);
+      expect(pressed.boxShadow, AknShadows.pressed(c));
       await gesture.up();
       await tester.pump(const Duration(milliseconds: 200));
       expect(taps, 1);
@@ -631,16 +843,17 @@ void main() {
             )
             .first,
       );
+      // At rest: a white card floating on the soft card shadow, radius 20,
+      // no hairline in light mode.
       final deco = box.decoration! as BoxDecoration;
-      expect(deco.borderRadius, BorderRadius.circular(12));
-      expect(deco.boxShadow, anyOf(isNull, isEmpty));
-      expect(deco.color, AknColors.light.surface);
-      expect((deco.border! as Border).top.color, AknColors.light.line);
+      expect(deco.borderRadius, BorderRadius.circular(20));
+      expect(deco.boxShadow, AknShadows.card(c));
+      expect(deco.color, c.surface);
+      expect(deco.border, isNull);
     });
 
-    testWidgets('filter chips: selected is an ink chip, no orange (v2 §6.11)', (
-      tester,
-    ) async {
+    testWidgets('filter chips: selected is an ink pill with a check, never '
+        'orange', (tester) async {
       await pumpUi(
         tester,
         FilterChips<int>(
@@ -652,19 +865,50 @@ void main() {
           onChanged: (_) {},
         ),
       );
-      final c = AknColors.light;
-      final label = tester.widget<Text>(find.text('Bekleyen'));
-      expect(label.style!.color, c.bg);
-      final other = tester.widget<Text>(find.text('Biten'));
-      expect(other.style!.color, c.ink);
-      final fills = tester
-          .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
-          .map((w) => (w.decoration as BoxDecoration?)?.color)
-          .toList();
-      expect(fills, containsAll([c.ink, c.surfaceAlt]));
-      expect(fills, isNot(contains(c.brandFill)));
+      await tester.pump(const Duration(milliseconds: 500));
+      const c = AknColors.light;
+      Finder chip(String label) => find
+          .ancestor(of: find.text(label), matching: find.byType(Container))
+          .first;
+      BoxDecoration deco(String label) =>
+          tester.widget<Container>(chip(label)).decoration! as BoxDecoration;
+      double check(String label) => tester
+          .widget<Opacity>(
+            find
+                .ancestor(
+                  of: find.descendant(
+                    of: chip(label),
+                    matching: find.byIcon(PhosphorIconsBold.check),
+                  ),
+                  matching: find.byType(Opacity),
+                )
+                .first,
+          )
+          .opacity;
+      // v3 §4 Chips: selected = an ink pill with a page-coloured label and a
+      // check (never colour alone); at rest white with a 1 px `line` border
+      // and an ink label.
+      expect(deco('Bekleyen').color, c.ink);
+      expect((deco('Bekleyen').border! as Border).top.color, c.ink);
+      expect(deco('Bekleyen').borderRadius, AknRadius.chip);
+      expect(tester.widget<Text>(find.text('Bekleyen')).style!.color, c.bg);
+      expect(check('Bekleyen'), 1);
+      expect(deco('Biten').color, c.surface);
+      expect((deco('Biten').border! as Border).top.color, c.line);
+      expect(tester.widget<Text>(find.text('Biten')).style!.color, c.ink);
+      expect(check('Biten'), 0);
+      // Never orange (the orange "your move" flavour is `tonal`).
+      for (final label in ['Bekleyen', 'Biten']) {
+        final d = deco(label);
+        for (final color in [d.color, (d.border! as Border).top.color]) {
+          expect(
+            color,
+            isNot(anyOf(c.brand, c.brandFill, c.brandSoft, c.brandLine)),
+          );
+        }
+      }
       expect(contrast(c.bg, c.ink), greaterThanOrEqualTo(4.5));
-      expect(contrast(c.ink, c.surfaceAlt), greaterThanOrEqualTo(4.5));
+      expect(contrast(c.ink, c.surface), greaterThanOrEqualTo(4.5));
     });
   });
 

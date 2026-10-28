@@ -248,7 +248,7 @@ class _DisputePageState extends ConsumerState<DisputePage> {
         showBell: false,
         leading: IconButton(
           tooltip: 'Kapat',
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(PhosphorIconsRegular.x),
           onPressed: _close,
         ),
         actionBar: Column(
@@ -282,143 +282,161 @@ class _DisputePageState extends ConsumerState<DisputePage> {
             ),
           ],
         ),
-        body: ListView(
-          padding: const EdgeInsets.only(top: 8, bottom: 24),
-          children: [
-            if (d.isDelivered)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-                child: AknCard(
+        // Kartlar birbiri ardına yükselerek gelir (v3 §5).
+        body: CmRiseScope(
+          child: ListView(
+            padding: const EdgeInsets.only(top: 8, bottom: 24),
+            children: [
+              if (d.isDelivered)
+                CmRise(
+                  key: const ValueKey('facts'),
+                  index: 0,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                    child: CmCard(
+                      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+                      child: Column(
+                        children: [
+                          FactRow(
+                            label: 'Teslim edilen',
+                            value: Fmt.liters(d.deliveredLiters),
+                          ),
+                          FactRow(
+                            label: 'Planlanan',
+                            value: Fmt.liters(d.plannedLiters),
+                          ),
+                          if (d.deliveryDocumentNo != null)
+                            FactRow(
+                              label: 'İrsaliye no',
+                              value: d.deliveryDocumentNo!,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              CmRise(
+                key: const ValueKey('photos'),
+                index: 1,
+                child: CmSection(
+                  title: _photoOnly
+                      ? 'Fotoğraflar'
+                      : '1. Fotoğraflar (isteğe bağlı)',
+                  subtitle: CmCopy.disputePhotoHint,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      FactRow(
-                        label: 'Teslim edilen',
-                        value: Fmt.liters(d.deliveredLiters),
-                      ),
-                      FactRow(
-                        label: 'Planlanan',
-                        value: Fmt.liters(d.plannedLiters),
-                      ),
-                      if (d.deliveryDocumentNo != null)
-                        FactRow(
-                          label: 'İrsaliye no',
-                          value: d.deliveryDocumentNo!,
+                      for (final p in _photos)
+                        AttachmentTile(
+                          fileName: p.image.fileName,
+                          kindLabel: 'İtiraz fotoğrafı',
+                          sizeBytes: p.image.sizeBytes,
+                          contentType: p.image.contentType,
+                          thumbnail: Image.memory(
+                            p.image.bytes,
+                            fit: BoxFit.cover,
+                            cacheWidth: 160,
+                          ),
+                          state: p.uploaded
+                              ? AttachmentTileState.done
+                              : (p.error != null
+                                    ? AttachmentTileState.failed
+                                    : AttachmentTileState.uploading),
+                          progress: p.progress,
+                          errorText: p.error,
+                          onRetry: p.error == null ? null : () => _upload(p),
+                          onDelete: _sending ? null : () => _remove(p),
+                        ),
+                      if (_photos.length < maxPhotos)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              AknButton.secondary(
+                                label: 'Fotoğraf çek',
+                                icon: PhosphorIconsRegular.camera,
+                                size: AknButtonSize.small,
+                                onPressed: _sending || !online
+                                    ? null
+                                    : () => _add(CaptureSource.camera),
+                              ),
+                              AknButton.secondary(
+                                label: 'Galeriden seç',
+                                icon: PhosphorIconsRegular.images,
+                                size: AknButtonSize.small,
+                                onPressed: _sending || !online
+                                    ? null
+                                    : () => _add(CaptureSource.gallery),
+                              ),
+                            ],
+                          ),
                         ),
                     ],
                   ),
                 ),
               ),
-            CmSection(
-              title: _photoOnly
-                  ? 'Fotoğraflar'
-                  : '1. Fotoğraflar (isteğe bağlı)',
-              subtitle: CmCopy.disputePhotoHint,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final p in _photos)
-                    AttachmentTile(
-                      fileName: p.image.fileName,
-                      kindLabel: 'İtiraz fotoğrafı',
-                      sizeBytes: p.image.sizeBytes,
-                      contentType: p.image.contentType,
-                      thumbnail: Image.memory(
-                        p.image.bytes,
-                        fit: BoxFit.cover,
-                        cacheWidth: 160,
-                      ),
-                      state: p.uploaded
-                          ? AttachmentTileState.done
-                          : (p.error != null
-                                ? AttachmentTileState.failed
-                                : AttachmentTileState.uploading),
-                      progress: p.progress,
-                      errorText: p.error,
-                      onRetry: p.error == null ? null : () => _upload(p),
-                      onDelete: _sending ? null : () => _remove(p),
-                    ),
-                  if (_photos.length < maxPhotos)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          AknButton.secondary(
-                            label: 'Fotoğraf çek',
-                            icon: Icons.photo_camera_rounded,
-                            size: AknButtonSize.small,
-                            onPressed: _sending || !online
-                                ? null
-                                : () => _add(CaptureSource.camera),
-                          ),
-                          AknButton.secondary(
-                            label: 'Galeriden seç',
-                            icon: Icons.photo_library_rounded,
-                            size: AknButtonSize.small,
-                            onPressed: _sending || !online
-                                ? null
-                                : () => _add(CaptureSource.gallery),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (!_photoOnly)
-              CmSection(
-                title: '2. Açıklama',
-                subtitle: CmCopy.disputeNoteHint,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 0,
+              if (!_photoOnly)
+                CmRise(
+                  key: const ValueKey('note'),
+                  index: 2,
+                  child: CmSection(
+                    title: '2. Açıklama',
+                    subtitle: CmCopy.disputeNoteHint,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final preset in presets)
-                          ActionChip(
-                            label: Text(preset),
-                            onPressed: _sending
-                                ? null
-                                : () {
-                                    final cur = _note.text.trim();
-                                    _note.text = cur.isEmpty
-                                        ? preset
-                                        : (cur.contains(preset)
-                                              ? cur
-                                              : '$cur, $preset');
-                                    _note.selection = TextSelection.collapsed(
-                                      offset: _note.text.length,
-                                    );
-                                  },
-                          ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 0,
+                          children: [
+                            for (final preset in presets)
+                              ActionChip(
+                                label: Text(preset),
+                                onPressed: _sending
+                                    ? null
+                                    : () {
+                                        final cur = _note.text.trim();
+                                        _note.text = cur.isEmpty
+                                            ? preset
+                                            : (cur.contains(preset)
+                                                  ? cur
+                                                  : '$cur, $preset');
+                                        _note.selection =
+                                            TextSelection.collapsed(
+                                              offset: _note.text.length,
+                                            );
+                                      },
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        AknTextField(
+                          controller: _note,
+                          label: 'İtiraz açıklaması',
+                          requiredMark: true,
+                          minLines: 3,
+                          maxLines: 6,
+                          maxLength: maxNote,
+                          enabled: !_sending,
+                          textCapitalization: TextCapitalization.sentences,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
+                          helper:
+                              '${_note.text.trim().length}/$maxNote karakter',
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Gönderdiğinizde bayiniz bilgilendirilir. Düzeltme bildirildiğinde teslimatı yeniden onaylamanız istenir.',
+                          style: t.caption.copyWith(color: c.dim),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    AknTextField(
-                      controller: _note,
-                      label: 'İtiraz açıklaması',
-                      requiredMark: true,
-                      minLines: 3,
-                      maxLines: 6,
-                      maxLength: maxNote,
-                      enabled: !_sending,
-                      textCapitalization: TextCapitalization.sentences,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      helper: '${_note.text.trim().length}/$maxNote karakter',
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Gönderdiğinizde bayiniz bilgilendirilir. Düzeltme bildirildiğinde teslimatı yeniden onaylamanız istenir.',
-                      style: t.caption.copyWith(color: c.dim),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -63,7 +63,7 @@ void main() {
       expect(find.byType(ChevronSpinner), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.check), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 1500));
       expect(find.text('Teklifi gönder'), findsOneWidget);
     });
@@ -92,7 +92,7 @@ void main() {
     });
   });
 
-  testBothThemes('KpiTile shows the formatted value at once (no count-up)', (
+  testBothThemes('KpiTile counts up to the formatted value, read once', (
     tester,
     b,
   ) async {
@@ -104,9 +104,18 @@ void main() {
       ),
       brightness: b,
     );
-    // v2 §8.3: only the plate rolls; readouts render their final value.
+    // v3 §5 "Numbers": readouts count up from 0 when they appear
+    // (AknMotion.count); screen readers hear the final value from the
+    // first frame, never the count.
+    expect(find.text('0'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Bekleyen: 12.500')), findsOneWidget);
+    await tester.pump(AknMotion.count ~/ 2);
+    expect(find.text('0'), findsNothing);
+    expect(find.text('12.500'), findsNothing);
+    await tester.pump(AknMotion.count);
     expect(find.text('12.500'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('Bekleyen: 12.500')), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 
   testWidgets('KpiTile shows the final value at once under reduce motion', (
@@ -117,8 +126,8 @@ void main() {
       const SizedBox(width: 200, child: KpiTile(label: 'Litre', value: 640)),
       reduceMotion: true,
     );
-    await tester.pump();
     expect(find.text('640'), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 
   testBothThemes('EmptyState and ErrorState call their actions', (
@@ -172,23 +181,20 @@ void main() {
             currentIndex: 0,
             onSelected: selected.add,
             centerAction: AknCenterAction(
-              icon: Icons.add_rounded,
+              icon: PhosphorIconsRegular.plus,
               label: 'Sipariş ver',
               onPressed: () => center++,
             ),
             items: const [
-              AknNavItem(icon: Icons.home_rounded, label: 'Ana sayfa'),
+              AknNavItem(icon: PhosphorIconsFill.house, label: 'Ana sayfa'),
               AknNavItem(
-                icon: Icons.task_alt_rounded,
+                icon: PhosphorIconsFill.checkCircle,
                 label: 'Onaylarım',
                 badgeCount: 3,
               ),
+              AknNavItem(icon: PhosphorIconsFill.truck, label: 'Teslimatlar'),
               AknNavItem(
-                icon: Icons.local_shipping_rounded,
-                label: 'Teslimatlar',
-              ),
-              AknNavItem(
-                icon: Icons.more_horiz_rounded,
+                icon: PhosphorIconsRegular.dotsThree,
                 label: 'Diğer',
                 showDot: true,
               ),
@@ -204,7 +210,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(selected, [1, 3]);
 
-      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.tap(find.byIcon(PhosphorIconsRegular.plus));
       await tester.pump(const Duration(milliseconds: 200));
       expect(center, 1);
 
@@ -237,8 +243,9 @@ void main() {
         find.text(OfflineBanner.message(offline: true, pending: 2)),
         findsOneWidget,
       );
-      // v2 §6.3: the bell keeps its outlined glyph; the Asfalt badge counts.
-      await tester.tap(find.byIcon(Icons.notifications_none_rounded));
+      // v3 §4: the bell keeps its Regular (outline) glyph; the orange count
+      // badge counts.
+      await tester.tap(find.byIcon(PhosphorIconsRegular.bell));
       await tester.pump(const Duration(milliseconds: 200));
       expect(opened, 1);
     });
@@ -249,7 +256,7 @@ void main() {
         const AppScaffold(title: 'Profil', body: Text('içerik')),
         scaffold: false,
       );
-      expect(find.byIcon(Icons.notifications_none_rounded), findsNothing);
+      expect(find.byIcon(PhosphorIconsRegular.bell), findsNothing);
       expect(find.byType(OfflineBanner), findsNothing);
     });
   });
@@ -359,7 +366,10 @@ void main() {
       },
     );
 
-    testBothThemes('track 64 r14 Beton, 56 px orange knob', (tester, b) async {
+    testBothThemes('a 64 px surfaceAlt pill track, a 56 px orange knob', (
+      tester,
+      b,
+    ) async {
       await pumpUi(
         tester,
         Padding(
@@ -379,14 +389,26 @@ void main() {
           .map((w) => w.decoration)
           .whereType<BoxDecoration>()
           .toList();
-      expect(boxes.map((d) => d.color), contains(c.surfaceAlt));
-      final knob = tester.widget<AnimatedContainer>(
-        find.descendant(
-          of: find.byType(SlideToConfirm),
-          matching: find.byType(AnimatedContainer),
+      // v3 §4: the track is a `surfaceAlt` pill.
+      expect(
+        boxes.where(
+          (d) => d.color == c.surfaceAlt && d.borderRadius == AknRadius.pillAll,
         ),
+        isNotEmpty,
       );
-      expect((knob.decoration! as BoxDecoration).color, c.logo);
+      // The knob: a 56 px circle in the primary's orange gradient (logo
+      // orange underneath) with its warm glow.
+      final knobFinder = find.descendant(
+        of: find.byType(SlideToConfirm),
+        matching: find.byType(AnimatedContainer),
+      );
+      final knob = tester.widget<AnimatedContainer>(knobFinder);
+      final deco = knob.decoration! as BoxDecoration;
+      expect(deco.color, c.logo);
+      expect(deco.gradient, c.buttonGradient);
+      expect(deco.shape, BoxShape.circle);
+      expect(deco.boxShadow, AknShadows.button(c));
+      expect(tester.getSize(knobFinder), const Size.square(56));
       expect(tester.getSize(find.byType(SlideToConfirm)).height, 64);
     });
   });
@@ -558,7 +580,7 @@ void main() {
             title: 'Kartal depo motorin siparişi',
             subtitle: '12.500 L · Tuzla şantiye',
             meta: '14:20',
-            leadingIcon: Icons.local_shipping_rounded,
+            leadingIcon: PhosphorIconsFill.truck,
             onTap: () {},
           ),
           StatusChip.style(OrderStatus.awaitingApproval.statusStyle),
@@ -571,14 +593,17 @@ void main() {
             currentIndex: 0,
             onSelected: (_) {},
             items: const [
-              AknNavItem(icon: Icons.home_rounded, label: 'Ana sayfa'),
-              AknNavItem(icon: Icons.task_alt_rounded, label: 'Onaylarım'),
+              AknNavItem(icon: PhosphorIconsFill.house, label: 'Ana sayfa'),
               AknNavItem(
-                icon: Icons.request_quote_rounded,
+                icon: PhosphorIconsFill.checkCircle,
+                label: 'Onaylarım',
+              ),
+              AknNavItem(
+                icon: PhosphorIconsFill.invoice,
                 label: 'Teklif masası',
               ),
-              AknNavItem(icon: Icons.receipt_long_rounded, label: 'Siparişler'),
-              AknNavItem(icon: Icons.more_horiz_rounded, label: 'Diğer'),
+              AknNavItem(icon: PhosphorIconsFill.receipt, label: 'Siparişler'),
+              AknNavItem(icon: PhosphorIconsRegular.dotsThree, label: 'Diğer'),
             ],
           ),
         ],
@@ -627,24 +652,59 @@ void main() {
     await tester.tap(find.text('DBS'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(picked, 'dbs');
-    // v2 §6.25: the selected card wears a 2 px ink border and an ink check,
-    // never an orange fill.
+    // v3: the selected card wears a 2 px orange border over a soft orange
+    // wash and a filled orange check — never colour alone (the check and
+    // "seçili"); the other one is a plain card with an empty control ring.
     final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
-    final check = tester.widget<Icon>(find.byIcon(Icons.check_circle_rounded));
-    expect(check.color, c.ink);
-    final borders = tester
-        .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
-        .map((w) => w.foregroundDecoration)
+    BoxDecoration card(String title) =>
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: find.widgetWithText(ChoiceCard, title),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    final on = card('Çek');
+    final onSide = (on.border! as Border).top;
+    expect(onSide.color, c.brand);
+    expect(onSide.width, 2);
+    expect(on.gradient!.colors.first, c.brandSoft);
+    expect(on.borderRadius, AknRadius.card);
+    final check = tester.widget<Icon>(
+      find.byIcon(PhosphorIconsFill.checkCircle),
+    );
+    expect(check.color, c.brandFill);
+    // Non-text contrast: the check reads on the wash and on the card.
+    expect(contrast(c.brandFill, c.brandSoft), greaterThanOrEqualTo(3));
+    expect(contrast(c.brandFill, c.surface), greaterThanOrEqualTo(3));
+    final off = card('DBS');
+    final offSide = (off.border! as Border).top;
+    // Light: no visible border (the card shadow lifts it); dark: 1 px line.
+    if (c.isDark) {
+      expect(offSide.color, c.line);
+      expect(offSide.width, 1);
+    } else {
+      expect(offSide.color.a, 0);
+      expect(off.boxShadow, AknShadows.card(c));
+    }
+    expect(off.gradient!.colors, everyElement(c.surface));
+    final ring = tester
+        .widgetList<Container>(
+          find.descendant(
+            of: find.widgetWithText(ChoiceCard, 'DBS'),
+            matching: find.byType(Container),
+          ),
+        )
+        .map((w) => w.decoration)
         .whereType<BoxDecoration>()
-        .map((d) => (d.border! as Border).top)
-        .toList();
-    expect(borders.first.color, c.ink);
-    expect(borders.first.width, 2);
-    expect(borders.last.color, c.line);
-    final fills = tester
-        .widgetList<AnimatedContainer>(find.byType(AnimatedContainer))
-        .map((w) => (w.decoration as BoxDecoration?)?.color);
-    expect(fills, isNot(contains(c.brandSoft)));
+        .singleWhere((d) => d.shape == BoxShape.circle);
+    expect((ring.border! as Border).top.color, c.lineStrong);
+    expect((ring.border! as Border).top.width, 1.5);
+    expect(contrast(c.lineStrong, c.surface), greaterThanOrEqualTo(3));
   });
 
   testBothThemes('ResultView: check for success, icon otherwise', (
@@ -664,7 +724,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 700));
     expect(find.byType(SuccessCheck), findsOneWidget);
-    expect(find.byIcon(Icons.error_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.warningCircle), findsOneWidget);
     expect(find.text('Gönderilemedi'), findsOneWidget);
   });
 }

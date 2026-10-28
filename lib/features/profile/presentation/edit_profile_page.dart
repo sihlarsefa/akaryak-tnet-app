@@ -18,8 +18,10 @@ final userProfileProvider = FutureProvider.autoDispose<UserProfile>(
   (ref) => ref.watch(profileRepositoryProvider).profile(),
 );
 
-/// Profil bilgileri (spec A.4 A8 `me/profile`): ad soyad ve cep telefonu. Telefon değişirse mevcut şifre
-/// istenir; kayıttan sonra sunucu tüm oturumları kapatır ("Güvenlik bilgileriniz değişti").
+/// Profil bilgileri (spec A.4 A8 `me/profile`; tasarım v3): ad soyad ve cep telefonu, altında
+/// değiştirilemeyen bilgiler (e-posta, rol, bağlı olduğu yer) simge karolu beyaz kartta; bölümler sırayla
+/// belirir. Telefon değişirse uyarı ve mevcut şifre alanı yumuşakça açılır; kayıttan sonra sunucu tüm
+/// oturumları kapatır ("Güvenlik bilgileriniz değişti").
 class EditProfilePage extends ConsumerStatefulWidget {
   const EditProfilePage({super.key});
 
@@ -138,7 +140,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     confirmLabel: ProfileCopy.leave,
     cancelLabel: ProfileCopy.stay,
     tone: AknTone.warn,
-    icon: Icons.edit_note_rounded,
+    icon: PhosphorIconsRegular.notePencil,
   );
 
   @override
@@ -195,44 +197,63 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                     32,
                   ),
                   children: [
-                    if (_error != null) ...[
-                      AknBanner(tone: AknTone.danger, message: _error!),
-                      const SizedBox(height: 16),
-                    ],
-                    AknTextField(
-                      controller: _name,
-                      label: ProfileCopy.fullName,
-                      requiredMark: true,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.name],
-                      maxLength: 150,
-                      validator: (v) {
-                        final s = v?.trim() ?? '';
-                        if (s.isEmpty) return ProfileCopy.fullNameRequired;
-                        if (s.length > 150) return ProfileCopy.fullNameTooLong;
-                        return null;
-                      },
+                    // Hata bandı yerinde açılır (yapı sabit: alanlar yeniden kurulmaz).
+                    AknAnimatedSize(
+                      duration: AknMotion.slow,
+                      curve: AknMotion.emphasizedCurve,
+                      alignment: Alignment.topCenter,
+                      child: _error == null
+                          ? const SizedBox(width: double.infinity)
+                          : Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: AknBanner(
+                                tone: AknTone.danger,
+                                message: _error!,
+                              ),
+                            ),
+                    ),
+                    SettingsReveal(
+                      index: 0,
+                      child: AknTextField(
+                        controller: _name,
+                        label: ProfileCopy.fullName,
+                        requiredMark: true,
+                        textCapitalization: TextCapitalization.words,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.name],
+                        maxLength: 150,
+                        validator: (v) {
+                          final s = v?.trim() ?? '';
+                          if (s.isEmpty) return ProfileCopy.fullNameRequired;
+                          if (s.length > 150) {
+                            return ProfileCopy.fullNameTooLong;
+                          }
+                          return null;
+                        },
+                      ),
                     ),
                     const SizedBox(height: 16),
-                    AknTextField(
-                      controller: _phone,
-                      label: ProfileCopy.mobilePhone,
-                      hint: '05XX XXX XX XX',
-                      helper: ProfileCopy.mobilePhoneHelper,
-                      keyboardType: TextInputType.phone,
-                      autofillHints: const [AutofillHints.telephoneNumber],
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[0-9 +()-]'),
-                        ),
-                        LengthLimitingTextInputFormatter(20),
-                      ],
-                      validator: (v) =>
-                          Validators.mobilePhone(v, required: false),
+                    SettingsReveal(
+                      index: 1,
+                      child: AknTextField(
+                        controller: _phone,
+                        label: ProfileCopy.mobilePhone,
+                        hint: '05XX XXX XX XX',
+                        helper: ProfileCopy.mobilePhoneHelper,
+                        keyboardType: TextInputType.phone,
+                        autofillHints: const [AutofillHints.telephoneNumber],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[0-9 +()-]'),
+                          ),
+                          LengthLimitingTextInputFormatter(20),
+                        ],
+                        validator: (v) =>
+                            Validators.mobilePhone(v, required: false),
+                      ),
                     ),
-                    AnimatedSize(
-                      duration: AknMotion.of(context, AknMotion.base),
+                    AknAnimatedSize(
+                      duration: AknMotion.slow,
                       curve: AknMotion.emphasizedCurve,
                       alignment: Alignment.topCenter,
                       child: !_phoneChanged
@@ -244,7 +265,7 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                 children: [
                                   const AknBanner(
                                     tone: AknTone.warn,
-                                    icon: Icons.lock_reset_rounded,
+                                    icon: PhosphorIconsRegular.lockKey,
                                     message: ProfileCopy.phoneChangeNote,
                                   ),
                                   const SizedBox(height: 16),
@@ -271,8 +292,8 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                                       ),
                                       icon: Icon(
                                         _showPassword
-                                            ? Icons.visibility_off_rounded
-                                            : Icons.visibility_rounded,
+                                            ? PhosphorIconsRegular.eyeSlash
+                                            : PhosphorIconsRegular.eye,
                                       ),
                                     ),
                                     validator: (v) =>
@@ -286,35 +307,65 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
                             ),
                     ),
                     const SizedBox(height: 24),
-                    AknCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FactRow(
-                            label: ProfileCopy.email,
-                            value: Fmt.orDash(loaded.email),
-                            valueStyle: context.aknText.body,
-                          ),
-                          if (loaded.roleLabel != null)
-                            FactRow(
-                              label: ProfileCopy.role,
-                              value: loaded.roleLabel!,
-                              valueStyle: context.aknText.body,
+                    // v3: değiştirilemeyen bilgiler simge karolu satırlarla beyaz kartta.
+                    SettingsReveal(
+                      index: 2,
+                      child: AknCard(
+                        radius: 20,
+                        padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SettingsFactLine(
+                              icon: PhosphorIconsRegular.envelopeSimple,
+                              label: ProfileCopy.email,
+                              value: Fmt.orDash(loaded.email),
                             ),
-                          if (loaded.organizationTitle != null)
-                            FactRow(
-                              label: ProfileCopy.organization,
-                              value: loaded.organizationTitle!,
-                              valueStyle: context.aknText.body,
+                            if (loaded.roleLabel != null)
+                              SettingsFactLine(
+                                icon: PhosphorIconsRegular.identificationBadge,
+                                label: ProfileCopy.role,
+                                value: loaded.roleLabel!,
+                              ),
+                            if (loaded.organizationTitle != null)
+                              SettingsFactLine(
+                                icon: PhosphorIconsRegular.buildingOffice,
+                                label: ProfileCopy.organization,
+                                value: loaded.organizationTitle!,
+                              ),
+                            const SizedBox(height: 6),
+                            Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: context.akn.lineSoft,
                             ),
-                          const SizedBox(height: 4),
-                          Text(
-                            ProfileCopy.emailHint,
-                            style: context.aknText.caption.copyWith(
-                              color: context.akn.dim,
+                            const SizedBox(height: 12),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                ExcludeSemantics(
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(top: 1),
+                                    child: Icon(
+                                      PhosphorIconsRegular.info,
+                                      size: 16,
+                                      color: context.akn.dim,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    ProfileCopy.emailHint,
+                                    style: context.aknText.caption.copyWith(
+                                      color: context.akn.dim,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ],

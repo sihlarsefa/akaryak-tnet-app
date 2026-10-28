@@ -13,12 +13,16 @@ class LinePoint {
   final double? value;
 }
 
-/// Aylık çizgi (ortalama birim fiyat; tasarım v2 §5.1 "line on plate", §6.20): 2 px mürekkep çizgi,
-/// son noktada 10 px `chartHighlight` nokta ve 2 px yüzey halkası, 12/16 700 son değer etiketi (gelen
-/// çizginin karşı tarafında, üstüne binmez), taban çizgisi ve ay adları (sonuncusu kalın). Küçük
-/// oynamalar abartılmasın diye dikey aralık ortalamanın en az %4'üdür. Plakada aynı çizim plaka
-/// mürekkebiyle çıkar (renkler bağlamdan).
-class StatsLine extends StatelessWidget {
+/// Aylık çizgi (ortalama birim fiyat; tasarım v3 §4–5): 2,5 px vurgu renginde (`chartHighlight`)
+/// yumuşak çizgi, altında aynı rengin aşağı doğru sönen dolgusu, son noktada 10 px nokta, 2 px yüzey
+/// halkası ve hafif hale; 12/16 700 tabular son değer etiketi (gelen çizginin karşı tarafında,
+/// üstüne binmez), taban saç çizgisi ve ay adları (sonuncusu kalın). Küçük oynamalar abartılmasın
+/// diye dikey aralık ortalamanın en az %4'üdür.
+///
+/// Hareket: ilk görünüşte çizgi soldan sağa kendini çizer, dolgu onunla belirir, sonra nokta "pop"
+/// ile oturur ve etiket belirir; değerler değişince yeniden çizer. Hareket azaltmada son hâli.
+/// Renkler bağlamdan gelir (plakada aynı çizim plaka paletiyle çıkar).
+class StatsLine extends StatefulWidget {
   const StatsLine({
     super.key,
     required this.values,
@@ -39,6 +43,55 @@ class StatsLine extends StatelessWidget {
   final String? semanticLabel;
 
   @override
+  State<StatsLine> createState() => _StatsLineState();
+}
+
+class _StatsLineState extends State<StatsLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _draw = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _draw.value = 1;
+    } else {
+      _draw.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(StatsLine old) {
+    super.didUpdateWidget(old);
+    if (_same(old.values, widget.values)) return;
+    if (AknMotion.reduced(context)) {
+      _draw.value = 1;
+    } else {
+      _draw.forward(from: 0);
+    }
+  }
+
+  static bool _same(List<double> a, List<double> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _draw.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
@@ -48,30 +101,34 @@ class StatsLine extends StatelessWidget {
       letterSpacing: 0,
     );
     return Semantics(
-      label: semanticLabel,
-      image: semanticLabel != null,
+      label: widget.semanticLabel,
+      image: widget.semanticLabel != null,
       excludeSemantics: true,
       child: SizedBox(
-        height: height,
+        height: widget.height,
         width: double.infinity,
-        child: CustomPaint(
-          painter: _LinePainter(
-            values: values,
-            labels: labels,
-            endLabel: endLabel,
-            line: c.ink,
-            dot: c.chartHighlight,
-            ring: c.surface,
-            base: c.line,
-            labelStyle: base.copyWith(
-              color: c.dim,
-              fontWeight: FontWeight.w500,
+        child: RepaintBoundary(
+          child: CustomPaint(
+            painter: _LinePainter(
+              progress: _draw,
+              values: widget.values,
+              labels: widget.labels,
+              endLabel: widget.endLabel,
+              line: c.chartHighlight,
+              dot: c.chartHighlight,
+              ring: c.surface,
+              base: c.line,
+              labelStyle: base.copyWith(
+                color: c.dim,
+                fontWeight: FontWeight.w500,
+              ),
+              strongStyle: base.copyWith(
+                color: c.ink,
+                fontWeight: FontWeight.w700,
+                fontFeatures: AknNumerals.tabular,
+              ),
+              scaler: MediaQuery.textScalerOf(context),
             ),
-            strongStyle: base.copyWith(
-              color: c.ink,
-              fontWeight: FontWeight.w700,
-            ),
-            scaler: MediaQuery.textScalerOf(context),
           ),
         ),
       ),
@@ -81,6 +138,7 @@ class StatsLine extends StatelessWidget {
 
 class _LinePainter extends CustomPainter {
   _LinePainter({
+    required this.progress,
     required this.values,
     required this.labels,
     required this.endLabel,
@@ -91,8 +149,9 @@ class _LinePainter extends CustomPainter {
     required this.labelStyle,
     required this.strongStyle,
     required this.scaler,
-  });
+  }) : super(repaint: progress);
 
+  final Animation<double> progress;
   final List<double> values;
   final List<String> labels;
   final String? endLabel;
@@ -114,6 +173,10 @@ class _LinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final n = values.length;
+    final p = progress.value;
+    // Çizgi ilk %70'te çizilir; nokta ve etiket son %30'da "pop" ile oturur.
+    final drawT = AknMotion.emphasizedCurve.transform((p / 0.7).clamp(0, 1));
+    final popT = AknMotion.pop.transform(((p - 0.62) / 0.38).clamp(0, 1));
     final labelH = labels.isEmpty ? 0.0 : scaler.scale(12) * 16 / 12 + 4;
     final baseY = size.height - labelH;
     canvas.drawLine(
@@ -151,29 +214,71 @@ class _LinePainter extends CustomPainter {
     double y(int i) => span <= 0
         ? (top + bottom) / 2
         : bottom - (values[i] - lo) / span * (bottom - top);
-    final path = Path()..moveTo(x(0), y(0));
-    for (var i = 1; i < n; i++) {
-      path.lineTo(x(i), y(i));
+    final pts = [for (var i = 0; i < n; i++) Offset(x(i), y(i))];
+    final path = _smooth(pts);
+    final metric = path.computeMetrics().toList();
+    final length = metric.fold<double>(0, (a, m) => a + m.length);
+    final drawn = Path();
+    var remaining = length * drawT;
+    Offset? head;
+    for (final m in metric) {
+      if (remaining <= 0) break;
+      final take = math.min(remaining, m.length);
+      drawn.addPath(m.extractPath(0, take), Offset.zero);
+      head = m.getTangentForOffset(take)?.position;
+      remaining -= take;
+    }
+    if (n >= 2 && head != null) {
+      // Çizginin altındaki sönen dolgu, çizilen kısım kadar.
+      final fill = Path.from(drawn)
+        ..lineTo(head.dx, baseY - 1)
+        ..lineTo(pts.first.dx, baseY - 1)
+        ..close();
+      canvas.drawPath(
+        fill,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              line.withValues(alpha: 0.20 * drawT),
+              line.withValues(alpha: 0),
+            ],
+          ).createShader(Rect.fromLTRB(0, top, size.width, baseY)),
+      );
     }
     canvas.drawPath(
-      path,
+      drawn,
       Paint()
         ..color = line
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
+        ..strokeWidth = 2.5
         ..strokeJoin = StrokeJoin.round
         ..strokeCap = StrokeCap.round,
     );
-    final end = Offset(x(n - 1), y(n - 1));
-    canvas.drawCircle(end, 7, Paint()..color = ring);
-    canvas.drawCircle(end, 5, Paint()..color = dot);
+    if (popT <= 0) return;
+    final end = pts.last;
+    canvas.drawCircle(
+      end,
+      10 * popT,
+      Paint()..color = dot.withValues(alpha: 0.18),
+    );
+    canvas.drawCircle(end, 7 * popT, Paint()..color = ring);
+    canvas.drawCircle(end, 5 * popT, Paint()..color = dot);
     final el = endLabel;
     if (el != null) {
-      final tp = _tp(el, strongStyle);
+      final tp = _tp(
+        el,
+        strongStyle.copyWith(
+          color: strongStyle.color?.withValues(
+            alpha: popT.clamp(0.0, 1.0) * (strongStyle.color?.a ?? 1),
+          ),
+        ),
+      );
       // Etiket, son noktaya gelen çizginin karşı tarafına (çizgi yukarıdan geliyorsa alta).
       final fromAbove = n >= 2 && y(n - 2) < end.dy;
-      final lx = (end.dx - 8 - tp.width).clamp(0.0, size.width - tp.width);
-      final ly = fromAbove ? end.dy + 7 : end.dy - 7 - tp.height;
+      final lx = (end.dx - 10 - tp.width).clamp(0.0, size.width - tp.width);
+      final ly = fromAbove ? end.dy + 8 : end.dy - 8 - tp.height;
       tp.paint(
         canvas,
         Offset(lx, ly.clamp(0.0, math.max(0.0, baseY - tp.height - 1))),
@@ -182,8 +287,49 @@ class _LinePainter extends CustomPainter {
     }
   }
 
+  /// Noktalardan geçen yumuşak eğri (aşmayan monoton kübik; uç noktalar sabit).
+  static Path _smooth(List<Offset> p) {
+    final path = Path();
+    if (p.isEmpty) return path;
+    path.moveTo(p.first.dx, p.first.dy);
+    if (p.length < 3) {
+      for (final q in p.skip(1)) {
+        path.lineTo(q.dx, q.dy);
+      }
+      return path;
+    }
+    for (var i = 0; i < p.length - 1; i++) {
+      final a = p[i];
+      final b = p[i + 1];
+      final dx = (b.dx - a.dx) / 3;
+      // Komşu eğimlerin ortalaması; tepe ve diplerde düz (aşma yok), uçlarda tek yanlı eğim.
+      double sec(int a, int b) => (p[b].dy - p[a].dy) / (p[b].dx - p[a].dx);
+      double slope(int k) {
+        if (k <= 0) return sec(0, 1);
+        if (k >= p.length - 1) return sec(k - 1, k);
+        final l = sec(k - 1, k);
+        final r = sec(k, k + 1);
+        if (l * r <= 0) return 0;
+        return (l + r) / 2;
+      }
+
+      final sa = slope(i);
+      final sb = slope(i + 1);
+      path.cubicTo(
+        a.dx + dx,
+        a.dy + sa * dx,
+        b.dx - dx,
+        b.dy - sb * dx,
+        b.dx,
+        b.dy,
+      );
+    }
+    return path;
+  }
+
   @override
   bool shouldRepaint(_LinePainter old) =>
+      old.progress != progress ||
       old.values != values ||
       old.labels != labels ||
       old.endLabel != endLabel ||
@@ -215,7 +361,7 @@ class StatsLineChart extends StatelessWidget {
   final String Function(double value) valueLabel;
   final String semanticsLabel;
 
-  /// Deprecated: çizgi mürekkep, son nokta vurgu rengi.
+  /// Deprecated: çizgi ve son nokta vurgu renginde (belirteçlerden).
   final Color? color;
   final bool labels;
   final String? emptyHint;

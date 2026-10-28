@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 
-/// Asistanın görünümü (spec A.6): duran » LogoMark; yalnızca "yazıyor" iken oklar sakin bir döngüyle
-/// yeniden çizilir. Robot ya da nabız gibi atan düğme yoktur. Azaltılmış hareket ve ekran okuyucu
-/// gezintisinde hiç oynamaz; ekran dışındayken (TickerMode) durur.
+/// Asistanın görünümü (spec A.6; tasarım v3): » LogoMark karosu, altında yumuşak sıcak bir gölgeyle
+/// hafifçe yükselmiş; yalnızca "yazıyor" iken oklar sakin bir döngüyle yeniden çizilir (ortam hareketi:
+/// [AknMotion.ambientOf] açıkken). Robot ya da nabız gibi atan düğme yoktur. Azaltılmış hareket ve ekran
+/// okuyucu gezintisinde hiç oynamaz; ekran dışındayken (TickerMode) durur.
 class AssistantAvatar extends StatefulWidget {
   const AssistantAvatar({super.key, this.size = 32, this.typing = false});
 
@@ -26,7 +27,8 @@ class _AssistantAvatarState extends State<AssistantAvatar>
     final mq = MediaQuery.maybeOf(context);
     final calm =
         (mq?.disableAnimations ?? false) || (mq?.accessibleNavigation ?? false);
-    return widget.typing && !calm;
+    // Döngü yalnızca ortam hareketi açıkken (testlerde ve azaltılmış harekette kapalı).
+    return widget.typing && !calm && AknMotion.ambientOf(context);
   }
 
   void _sync() {
@@ -71,11 +73,28 @@ class _AssistantAvatarState extends State<AssistantAvatar>
               : v < 0.75
               ? 0.35 + 0.65 * AknMotion.emphasizedCurve.transform(v / 0.75)
               : 1.0;
-          return LogoMark(
+          final mark = LogoMark(
             size: widget.size,
             progress: p,
             trackOpacity: drawing ? 0.35 : 0,
             semanticLabel: null,
+          );
+          // Büyük boylarda (karşılama, aydınlatma) karo sıcak bir gölgeyle yükselir.
+          if (widget.size < 28) return mark;
+          final c = context.akn;
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.size * 0.225),
+              boxShadow: [
+                BoxShadow(
+                  color: c.logo.withValues(alpha: c.isDark ? 0.3 : 0.26),
+                  blurRadius: widget.size * 0.45,
+                  offset: Offset(0, widget.size * 0.18),
+                  spreadRadius: -widget.size * 0.12,
+                ),
+              ],
+            ),
+            child: mark,
           );
         },
       ),

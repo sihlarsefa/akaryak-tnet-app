@@ -108,6 +108,13 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    // Tema değişimi (Açık / Koyu / Sistem) renkleri 400 ms'de yumuşakça karıştırır (tasarım v3);
+    // erişilebilirlikte "hareketi azalt" açıksa anında geçer.
+    final reduceMotion = WidgetsBinding
+        .instance
+        .platformDispatcher
+        .accessibilityFeatures
+        .disableAnimations;
     return MaterialApp.router(
       title: 'AkaryakıtNet',
       debugShowCheckedModeBanner: false,
@@ -115,6 +122,12 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
       theme: AknTheme.light(),
       darkTheme: AknTheme.dark(),
       themeMode: themeMode,
+      themeAnimationStyle: reduceMotion
+          ? AnimationStyle.noAnimation
+          : const AnimationStyle(
+              duration: AknMotion.slow,
+              curve: AknMotion.standard,
+            ),
       locale: const Locale('tr', 'TR'),
       supportedLocales: const [Locale('tr', 'TR')],
       localizationsDelegates: const [

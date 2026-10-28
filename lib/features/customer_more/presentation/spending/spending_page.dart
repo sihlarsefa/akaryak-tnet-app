@@ -39,7 +39,7 @@ class SpendingPage extends ConsumerWidget {
                     value: p,
                     label: p == SpendingPreset.custom ? 'Özel…' : p.label,
                     icon: p == SpendingPreset.custom
-                        ? Icons.date_range_rounded
+                        ? PhosphorIconsRegular.calendarDots
                         : null,
                   ),
               ],
@@ -283,7 +283,17 @@ class _ActiveFilters extends ConsumerWidget {
           for (final (label, next) in chips)
             InputChip(
               label: Text(label),
-              onDeleted: () => ctrl.setFilter(next),
+              labelStyle: context.aknText.label.copyWith(
+                color: context.akn.brandInk,
+              ),
+              backgroundColor: context.akn.brandSoft,
+              deleteIconColor: context.akn.brandInk,
+              side: BorderSide.none,
+              shape: const StadiumBorder(),
+              onDeleted: () {
+                AknHaptics.selection();
+                ctrl.setFilter(next);
+              },
               deleteButtonTooltipMessage: 'Kaldır',
             ),
         ],
@@ -292,8 +302,9 @@ class _ActiveFilters extends ConsumerWidget {
   }
 }
 
-/// Raporun plakası (tasarım v2 §5.1): seçilen aralığın toplam harcaması, kural ve okumalar (litre,
-/// ortalama ₺/L, sipariş). Ekranın tek plakası.
+/// Raporun kahraman kartı (tasarım v3 §4 AknPlate): seçilen aralığın toplam harcaması (rakamlar
+/// yuvarlanarak gelir), kural ve okumalar (litre, ortalama ₺/L, sipariş). Ekranın tek kahraman
+/// kartı.
 class _Kpis extends StatelessWidget {
   const _Kpis({required this.report, required this.range});
 
@@ -315,7 +326,7 @@ class _Kpis extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       semanticLabel: spoken,
       head: PlateHead(
-        icon: Icons.payments_outlined,
+        icon: PhosphorIconsRegular.money,
         title: 'Toplam harcama',
         period: '${Fmt.dayMonth(range.from)} – ${Fmt.dayMonth(range.to)}',
       ),
@@ -355,43 +366,64 @@ class _TabBody extends StatelessWidget {
     final t = context.aknText;
     final r = report;
     final metric = state.metric;
+    // Sekme değişince yeni sekmenin kartları birbiri ardına yükselerek gelir (v3 §5).
+    return CmRiseScope(
+      key: ValueKey(state.tab),
+      child: _body(context, t, r, metric),
+    );
+  }
+
+  Widget _body(
+    BuildContext context,
+    AknTextStyles t,
+    SpendingReport r,
+    SpendingMetric metric,
+  ) {
     switch (state.tab) {
       case SpendingTab.month:
         final newest = r.months.reversed.where((m) => m.orderCount > 0);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            CmSection(
-              title: metric == SpendingMetric.amount
-                  ? 'Aylık tutar'
-                  : 'Aylık litre',
-              subtitle: '${r.months.length} ay',
-              child: MonthBarChart(months: r.months, metric: metric),
+            CmRise(
+              index: 0,
+              child: CmSection(
+                title: metric == SpendingMetric.amount
+                    ? 'Aylık tutar'
+                    : 'Aylık litre',
+                subtitle: '${r.months.length} ay',
+                child: MonthBarChart(months: r.months, metric: metric),
+              ),
             ),
-            CmSection(
-              title: 'Aylar',
-              bleed: true,
-              child: newest.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Siparişli ay yok.',
-                        style: t.bodySmall.copyWith(color: context.akn.dim),
+            CmRise(
+              index: 1,
+              child: CmSection(
+                title: 'Aylar',
+                bleed: true,
+                child: newest.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+                        child: Text(
+                          'Siparişli ay yok.',
+                          style: t.bodySmall.copyWith(color: context.akn.dim),
+                        ),
+                      )
+                    : AknLedger(
+                        children: [
+                          for (final m in newest)
+                            AknListTile(
+                              padding: CmCard.rowPadding,
+                              titleStyle: cmRowTitle(context),
+                              title: m.label,
+                              subtitle: '${m.orderCount} sipariş',
+                              amount: Fmt.money(m.amount),
+                              amountMeta: Fmt.liters(m.liters),
+                              semanticLabel:
+                                  '${m.label}, ${Fmt.money(m.amount)}, ${Fmt.liters(m.liters)}, ${m.orderCount} sipariş',
+                            ),
+                        ],
                       ),
-                    )
-                  : AknLedger(
-                      children: [
-                        for (final m in newest)
-                          AknListTile(
-                            title: m.label,
-                            subtitle: '${m.orderCount} sipariş',
-                            amount: Fmt.money(m.amount),
-                            amountMeta: Fmt.liters(m.liters),
-                            semanticLabel:
-                                '${m.label}, ${Fmt.money(m.amount)}, ${Fmt.liters(m.liters)}, ${m.orderCount} sipariş',
-                          ),
-                      ],
-                    ),
+              ),
             ),
           ],
         );
@@ -408,17 +440,20 @@ class _TabBody extends StatelessWidget {
           SpendingTab.point => 'Teslimat noktalarına göre',
           _ => 'Bayilere göre',
         };
-        return CmSection(
-          title: title,
-          subtitle: list.length > 6
-              ? 'İlk 5 kalem ve diğerleri, ${list.length} kalem'
-              : '${list.length} kalem',
-          child: list.isEmpty
-              ? Text(
-                  'Kayıt yok.',
-                  style: t.bodySmall.copyWith(color: context.akn.dim),
-                )
-              : BucketBars(buckets: list, metric: metric, onTap: onDrill),
+        return CmRise(
+          index: 0,
+          child: CmSection(
+            title: title,
+            subtitle: list.length > 6
+                ? 'İlk 5 kalem ve diğerleri, ${list.length} kalem'
+                : '${list.length} kalem',
+            child: list.isEmpty
+                ? Text(
+                    'Kayıt yok.',
+                    style: t.bodySmall.copyWith(color: context.akn.dim),
+                  )
+                : BucketBars(buckets: list, metric: metric, onTap: onDrill),
+          ),
         );
     }
   }
@@ -434,9 +469,9 @@ class _SpendingSkeleton extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(20, 12, 20, 16),
       child: Column(
         children: [
-          SkeletonBox(height: 196, radius: 20),
+          SkeletonBox(height: 196, radius: AknRadius.plateRadius),
           SizedBox(height: 24),
-          SkeletonBox(height: 220, radius: 12),
+          SkeletonBox(height: 220, radius: 20),
         ],
       ),
     ),

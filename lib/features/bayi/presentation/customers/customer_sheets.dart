@@ -74,6 +74,7 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
     try {
       await ref.read(bayiActionsProvider).requestLimit(s.customerId, draft);
       if (!mounted) return;
+      AknHaptics.success();
       AppToast.success(
         'Limit talebi merkez onayına gönderildi.',
         context: context,
@@ -99,13 +100,25 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (limit != null)
-            AknCard(
-              shadow: false,
-              color: context.akn.surfaceAlt,
-              child: FactRow(
-                label: 'Mevcut limit',
-                value: currentLimitText(limit),
-                padding: EdgeInsets.zero,
+            // Mevcut limit Beton kuyuda (v3 sayfa içi grup).
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.akn.surfaceAlt,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: FactRow(
+                  label: 'Mevcut limit',
+                  value: currentLimitText(limit),
+                  padding: EdgeInsets.zero,
+                  valueStyle: const TextStyle(
+                    fontFeatures: AknNumerals.tabular,
+                  ),
+                ),
               ),
             ),
           const SizedBox(height: 16),

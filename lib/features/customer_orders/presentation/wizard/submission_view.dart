@@ -83,7 +83,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
       message: OrdersCopy.pushPrimerMessage,
       confirmLabel: 'Bildirimlere izin ver',
       cancelLabel: 'Şimdi değil',
-      icon: Icons.notifications_active_rounded,
+      icon: PhosphorIconsRegular.bellRinging,
     );
     if (ok) unawaited(push.requestPermission());
   }
@@ -118,7 +118,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
         return _Scroll(
           child: ResultView(
             tone: AknTone.warn,
-            icon: Icons.schedule_rounded,
+            icon: PhosphorIconsRegular.clock,
             title: OrdersCopy.uncertainTitle,
             message: OrdersCopy.uncertainMessage,
             primaryLabel: OrdersCopy.retry,
@@ -132,7 +132,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
         return _Scroll(
           child: ResultView(
             tone: AknTone.info,
-            icon: Icons.manage_search_rounded,
+            icon: PhosphorIconsRegular.listMagnifyingGlass,
             title: OrdersCopy.askNewKeyTitle,
             message: OrdersCopy.askNewKeyMessage,
             primaryLabel: OrdersCopy.resend,
@@ -153,7 +153,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
             children: [
               ResultView(
                 tone: AknTone.danger,
-                icon: Icons.error_outline_rounded,
+                icon: PhosphorIconsRegular.warningCircle,
                 title: title,
                 message: f == null ? null : OrdersCopy.failureMessage(f),
                 primaryLabel: OrdersCopy.edit,
@@ -229,7 +229,27 @@ class _Busy extends StatelessWidget {
             children: [
               const ChevronSpinner(size: 48),
               const SizedBox(height: 20),
-              Text(title, style: t.title, textAlign: TextAlign.center),
+              // Başlık değişince (gönderiliyor → kontrol ediliyor) yenisi söner / belirir.
+              AnimatedSwitcher(
+                duration: AknMotion.of(context, AknMotion.base),
+                switchInCurve: AknMotion.emphasizedCurve,
+                transitionBuilder: (child, a) => FadeTransition(
+                  opacity: a,
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.25),
+                      end: Offset.zero,
+                    ).animate(a),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  title,
+                  key: ValueKey(title),
+                  style: t.title.copyWith(color: c.ink),
+                  textAlign: TextAlign.center,
+                ),
+              ),
               if (message != null) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -263,31 +283,44 @@ class _CreatedList extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final o in orders)
-          AknListTile(
-            dense: true,
-            leadingIcon: o.financeStatus == OrderFinanceStatus.pending
-                ? Icons.account_balance_outlined
-                : Icons.receipt_long_outlined,
-            showChevron: true,
-            title: o.orderNumber,
-            subtitle: [
-              if (o.financeStatus == OrderFinanceStatus.pending)
-                'Finans onayında',
-              if (o.estimatedAmount != null)
-                'Tahmini ${Fmt.money(o.estimatedAmount)}',
-            ].join(', '),
-            onTap: () => context.push(AppRoutes.order(o.orderId)),
-          ),
-        if (orders.isEmpty)
-          Text(
-            'Sipariş oluşturulmadı.',
-            style: t.bodySmall.copyWith(color: c.dim),
-          ),
-      ],
+    if (orders.isEmpty) {
+      return Text(
+        'Sipariş oluşturulmadı.',
+        style: t.bodySmall.copyWith(color: c.dim),
+      );
+    }
+    return A2Card(
+      child: AknLedger(
+        children: [
+          for (final (i, o) in orders.indexed)
+            StaggerItem(
+              index: i,
+              child: AknListTile(
+                dense: true,
+                leading: A2IconTile(
+                  icon: o.financeStatus == OrderFinanceStatus.pending
+                      ? PhosphorIconsRegular.bank
+                      : PhosphorIconsRegular.receipt,
+                  tone: AknTone.ok,
+                  size: 36,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                showChevron: true,
+                title: o.orderNumber,
+                subtitle: [
+                  if (o.financeStatus == OrderFinanceStatus.pending)
+                    'Finans onayında',
+                  if (o.estimatedAmount != null)
+                    'Tahmini ${Fmt.money(o.estimatedAmount)}',
+                ].join(', '),
+                onTap: () => context.push(AppRoutes.order(o.orderId)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -350,7 +383,7 @@ class _Success extends ConsumerWidget {
               if (state.reconciled)
                 const AknBanner(
                   tone: AknTone.info,
-                  icon: Icons.manage_search_rounded,
+                  icon: PhosphorIconsRegular.listMagnifyingGlass,
                   message:
                       'Sonuç Siparişlerim listesinden doğrulandı; sipariş tekrar gönderilmedi.',
                   margin: EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -358,17 +391,24 @@ class _Success extends ConsumerWidget {
               if (expiryOn && expires != null && !r.isCompanyRequest)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: FactLine(
-                    icon: Icons.timer_outlined,
-                    text:
-                        'Teklif ${withDative(Fmt.time(config.deviceDeadline(expires)))} '
-                        'kadar geçerli; gün sonunda kapanır.',
+                  child: FadeUp(
+                    delay: AknMotion.staggerDelay(3),
+                    child: A2Card(
+                      padding: const EdgeInsets.all(14),
+                      child: FactLine(
+                        icon: PhosphorIconsRegular.timer,
+                        tone: AknTone.brand,
+                        text:
+                            'Teklif ${withDative(Fmt.time(config.deviceDeadline(expires)))} '
+                            'kadar geçerli; gün sonunda kapanır.',
+                      ),
+                    ),
                   ),
                 ),
               if (doc != null && !doc.isUploadable && doc.message != null)
                 AknBanner(
                   tone: AknTone.info,
-                  icon: Icons.photo_camera_outlined,
+                  icon: PhosphorIconsRegular.camera,
                   message: doc.message!,
                   margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
@@ -383,7 +423,7 @@ class _Success extends ConsumerWidget {
               if (doc != null && docDone)
                 AknBanner(
                   tone: AknTone.ok,
-                  icon: Icons.check_circle_rounded,
+                  icon: PhosphorIconsFill.checkCircle,
                   message: instrument
                       ? '${doc.label} yüklendi. ${OrdersCopy.instrumentHint}.'
                       : '${doc.label} yüklendi.',
@@ -403,16 +443,19 @@ class _Success extends ConsumerWidget {
               if (state.templateSaved == true)
                 const Padding(
                   padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: FactLine(
-                    icon: Icons.check_circle_rounded,
-                    tone: AknTone.ok,
-                    text: 'Şablon kaydedildi',
+                  child: A2Card(
+                    padding: EdgeInsets.all(14),
+                    child: FactLine(
+                      icon: PhosphorIconsFill.checkCircle,
+                      tone: AknTone.ok,
+                      text: 'Şablon kaydedildi',
+                    ),
                   ),
                 ),
               if (state.templateSaved == false)
                 const AknBanner(
                   tone: AknTone.warn,
-                  icon: Icons.bookmark_border_rounded,
+                  icon: PhosphorIconsRegular.bookmarkSimple,
                   message:
                       'Şablon kaydedilemedi; sipariş ayrıntısından “Şablon yap” ile yeniden deneyebilirsiniz.',
                   margin: EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -502,7 +545,8 @@ class _DocumentCardState extends State<_DocumentCard> {
 
   Widget _card(CapturedImage? image) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-    child: AknCard(
+    child: A2Card(
+      padding: const EdgeInsets.all(18),
       child: PaymentDocumentPanel(
         target: widget.target,
         embedded: true,
@@ -546,7 +590,7 @@ class _Partial extends ConsumerWidget {
             children: [
               ResultView(
                 tone: AknTone.warn,
-                icon: Icons.call_split_rounded,
+                icon: PhosphorIconsRegular.arrowsSplit,
                 title: OrdersCopy.partialTitle,
                 message: [
                   if (r.partialError != null) r.partialError!,
@@ -572,7 +616,7 @@ class _Partial extends ConsumerWidget {
                   children: [
                     AknButton(
                       label: OrdersCopy.sendRemaining,
-                      icon: Icons.send_rounded,
+                      icon: PhosphorIconsRegular.paperPlaneRight,
                       expand: true,
                       onPressedAsync: onSendRemaining,
                       showSuccess: false,

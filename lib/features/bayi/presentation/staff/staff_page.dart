@@ -16,8 +16,10 @@ import '../../data/staff_models.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 
-/// Ekip (`/bayi/staff`, spec A.4): rol çipleri, arama, ara, son giriş; aktif / pasif anahtarı ve "Şifre
-/// bağlantısı gönder" yalnızca `StationStaff:Duzenler` ile. Saha satış temsilcisi bu ekranı görmez.
+/// Ekip (`/bayi/staff`, spec A.4; tasarım v3): rol çipleri, arama, ara, son giriş; aktif / pasif
+/// anahtarı ve "Şifre bağlantısı gönder" yalnızca `StationStaff:Duzenler` ile. Her personel beyaz bir
+/// kart; kartlar art arda yükselerek gelir (süzgeç değişince yeniden). Saha satış temsilcisi bu ekranı
+/// görmez.
 class StaffPage extends ConsumerStatefulWidget {
   const StaffPage({super.key});
 
@@ -73,7 +75,7 @@ class _StaffPageState extends ConsumerState<StaffPage> {
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
                 child: SearchField(
                   hint: 'Ad, e-posta, telefon ya da rol',
                   controller: _search,
@@ -92,28 +94,47 @@ class _StaffPageState extends ConsumerState<StaffPage> {
                 const PageWell(
                   top: 12,
                   tone: AknTone.neutral,
-                  icon: Icons.visibility_outlined,
+                  icon: PhosphorIconsRegular.eye,
                   message:
                       'Ekibi görüntüleyebilirsiniz; aktif / pasif ve şifre işlemleri için yetkiniz yok.',
                 ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               if (rows.isEmpty)
-                const EmptyState(
-                  compact: true,
-                  title: BayiCopy.staffEmptyTitle,
-                  message: BayiCopy.staffEmptyMessage,
-                  illustration: AknIllustration.customers,
+                const FadeUp(
+                  offset: 18,
+                  scale: 0.96,
+                  duration: AknMotion.slow,
+                  child: EmptyState(
+                    compact: true,
+                    title: BayiCopy.staffEmptyTitle,
+                    message: BayiCopy.staffEmptyMessage,
+                    illustration: AknIllustration.customers,
+                  ),
                 )
               else
-                AknLedger(
-                  children: [
-                    for (final m in rows)
-                      StaffRow(
-                        member: m,
-                        manage: g.manageStaff,
-                        busy: s.busy.contains(m.userId),
-                      ),
-                  ],
+                // Süzgeç değişince kartlar yeniden art arda gelir (seçici yerinde kalır, başparmağı
+                // kayar).
+                StaggerScope(
+                  key: ValueKey(s.filter),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var i = 0; i < rows.length; i++)
+                        StaggerItem(
+                          key: ValueKey(rows[i].userId),
+                          index: i,
+                          child: BayiCard(
+                            margin: PagedListBody.cardMargin,
+                            pressable: false,
+                            child: StaffRow(
+                              member: rows[i],
+                              manage: g.manageStaff,
+                              busy: s.busy.contains(rows[i].userId),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               if (rows.isNotEmpty)
                 ListFooterNote(
@@ -127,8 +148,9 @@ class _StaffPageState extends ConsumerState<StaffPage> {
   }
 }
 
-/// Ekip satırı (defter satırı): baş harf, ad ("Siz", "Pasif" lambaları), e-posta, roller, son giriş;
-/// arama düğmesi; yönetici için aktif / pasif anahtarı ve "Şifre bağlantısı gönder".
+/// Ekip kartının içeriği (tasarım v3): baş harf yuvarlağı (pasifken soluk), ad ("Siz", "Pasif"
+/// çipleri), e-posta, roller Beton küçük haplarda, son giriş; arama düğmesi; yönetici için aktif /
+/// pasif anahtarı ve "Şifre bağlantısı gönder" (kart içinde ince çizginin altında).
 class StaffRow extends ConsumerWidget {
   const StaffRow({
     super.key,
@@ -176,7 +198,7 @@ class StaffRow extends ConsumerWidget {
       title: 'Şifre bağlantısı gönderilsin mi?',
       message: '${m.email} adresine şifre belirleme bağlantısı gider.',
       confirmLabel: 'Gönder',
-      icon: Icons.mark_email_read_outlined,
+      icon: PhosphorIconsRegular.envelopeSimpleOpen,
     );
     if (!ok || !context.mounted) return;
     try {
@@ -211,16 +233,17 @@ class StaffRow extends ConsumerWidget {
         'Saha satış',
     ];
     return Padding(
-      padding: const EdgeInsetsDirectional.fromSTEB(20, 12, 8, 12),
+      padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 8, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Opacity(
-                opacity: m.isActive ? 1 : 0.6,
-                child: AknAvatar(name: m.displayName, size: 40),
+              AnimatedOpacity(
+                opacity: m.isActive ? 1 : 0.55,
+                duration: AknMotion.of(context, AknMotion.base),
+                child: AknAvatar(name: m.displayName, size: 44),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -254,39 +277,72 @@ class StaffRow extends ConsumerWidget {
                     ),
                     Text(m.email, style: t.bodySmall.copyWith(color: c.dim)),
                     if (roles.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Wrap(
                         spacing: 6,
-                        runSpacing: 2,
+                        runSpacing: 6,
                         children: [
                           for (var i = 0; i < roles.length; i++)
-                            Text(
-                              roles[i],
-                              semanticsLabel: roles[i],
-                              style: t.bodySmall.copyWith(
-                                color: c.ink,
-                                fontWeight: FontWeight.w500,
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: c.surfaceAlt,
+                                borderRadius: AknRadius.pillAll,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 3,
+                                ),
+                                child: Text(
+                                  roles[i],
+                                  semanticsLabel: roles[i],
+                                  style: t.label.copyWith(color: c.ink),
+                                ),
                               ),
                             ),
                         ],
                       ),
                     ],
-                    const SizedBox(height: 2),
-                    Text(login, style: t.caption.copyWith(color: c.dim)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(
+                          PhosphorIconsRegular.clockCounterClockwise,
+                          size: 14,
+                          color: c.dim,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            login,
+                            style: t.caption.copyWith(color: c.dim),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               if (m.phoneNumber != null)
                 AknIconButton(
-                  icon: Icons.call_outlined,
+                  icon: PhosphorIconsRegular.phone,
                   semanticLabel: '${m.displayName} ara',
                   onPressed: () => callPhone(context, m.phoneNumber!),
                 ),
             ],
           ),
-          if (manage && !me)
+          if (manage && !me) ...[
             Padding(
-              padding: const EdgeInsetsDirectional.only(start: 54, top: 6),
+              padding: const EdgeInsetsDirectional.only(
+                start: 58,
+                top: 10,
+                end: 8,
+                bottom: 4,
+              ),
+              child: SizedBox(height: 1, child: ColoredBox(color: c.lineSoft)),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 54, top: 2),
               child: Wrap(
                 spacing: 16,
                 runSpacing: 4,
@@ -316,6 +372,7 @@ class StaffRow extends ConsumerWidget {
                   if (m.isActive)
                     AknButton.ghost(
                       label: 'Şifre bağlantısı gönder',
+                      icon: PhosphorIconsRegular.envelopeSimple,
                       size: AknButtonSize.small,
                       onPressed: busy || !online
                           ? null
@@ -324,6 +381,7 @@ class StaffRow extends ConsumerWidget {
                 ],
               ),
             ),
+          ],
         ],
       ),
     );

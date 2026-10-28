@@ -16,11 +16,13 @@ import '../widgets/paged_list_body.dart';
 import 'desk_row_card.dart';
 import 'desk_sheets.dart';
 
-/// Teklif masası (spec A.4 / A.3 adım 3, tasarım v2 §7.7): kök başlık, finans bekleyenler için kuyu,
-/// sayılı çipler (Tümü, Yeni, Revize, Süresi yaklaşan), defter satırları (satır içi ₺/L ve teslim
-/// günü), "Önerileri uygula", "Aynı fiyatı uygula", çoklu seçim ve toplu gönderim; satır başına sonuç
-/// (finansa gidenler uyarı tonunda), gönderim sonrası masa ve sayılar tazelenir. Geri sayım yalnızca
-/// süre dolumu açıkken; `quotingBlocked` iken masa salt okunur.
+/// Teklif masası (spec A.4 / A.3 adım 3, tasarım v3 "Akış"): kök başlık, finans bekleyenler için kuyu,
+/// sayılı çipler (Tümü, Yeni, Revize, Süresi yaklaşan), her sipariş beyaz bir kart (kart içi ₺/L ve
+/// teslim günü; seçilince turuncu yumuşak zemin), "Önerileri uygula", "Aynı fiyatı uygula", çoklu
+/// seçim ve toplu gönderim; kart başına sonuç çipi süzülerek gelir (finansa gidenler uyarı tonunda),
+/// gönderim sonrası masa ve sayılar tazelenir. Kartlar art arda yükselerek gelir (görünüm ya da süzgeç
+/// değişince yeniden). Geri sayım yalnızca süre dolumu açıkken; `quotingBlocked` iken masa salt
+/// okunur.
 class QuoteDeskPage extends ConsumerStatefulWidget {
   const QuoteDeskPage({super.key, this.initialCustomerId});
 
@@ -130,6 +132,9 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           : null,
       body: PagedListBody<DeskRow>(
         list: s.list,
+        // Kartta fiyat alanı ve onay kutusu var: kart dokununca küçülmez.
+        pressableCards: false,
+        staggerKey: (s.view, s.customerId, s.productId),
         onRefresh: () => c.reload(silent: true),
         onLoadMore: () => unawaited(c.loadMore()),
         filtered: s.isFiltered || s.view != DeskView.all,
@@ -154,7 +159,7 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           if (blocked)
             PageWell(
               tone: AknTone.danger,
-              icon: Icons.block_rounded,
+              icon: PhosphorIconsRegular.prohibit,
               title: 'Yeni teklif verilemez',
               message:
                   header?.quotingBlockedReason ??
@@ -163,20 +168,20 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           if (header?.epdkWarning != null)
             PageWell(
               tone: AknTone.warn,
-              icon: Icons.verified_user_outlined,
+              icon: PhosphorIconsRegular.shieldCheck,
               message: header!.epdkWarning!,
             ),
           if ((header?.financeHeld ?? 0) > 0)
             PageWell(
               tone: AknTone.info,
-              icon: Icons.account_balance_outlined,
+              icon: PhosphorIconsRegular.bank,
               message:
                   '${header!.financeHeld} sipariş finans onayında; finans onaylayınca masaya düşer.',
             ),
           if (!grants.quoteOnDesk && header != null)
             const PageWell(
               tone: AknTone.neutral,
-              icon: Icons.visibility_outlined,
+              icon: PhosphorIconsRegular.eye,
               message:
                   'Teklif masasını görüntüleyebilirsiniz; teklif verme yetkiniz yok.',
             ),
@@ -261,7 +266,7 @@ class _SelectAllRow extends ConsumerWidget {
     final today = s.today;
     void toggle() => all || selected > 0 ? c.clearSelection() : c.selectAll();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 20, 0),
+      padding: const EdgeInsets.fromLTRB(24, 8, 20, 0),
       child: Row(
         children: [
           Semantics(
@@ -381,7 +386,7 @@ class _DeskActionBar extends ConsumerWidget {
           if (selected > 0) ...[status, const SizedBox(height: 6)],
           AknButton.secondary(
             label: 'Toplu işlemler',
-            icon: Icons.checklist_rounded,
+            icon: PhosphorIconsRegular.listChecks,
             size: AknButtonSize.small,
             expand: true,
             onPressed: () => _showDeskTools(context, ref),
@@ -468,8 +473,8 @@ Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
               AknButton.secondary(
                 label: allSelected ? 'Seçimi kaldır' : 'Tümünü seç',
                 icon: allSelected
-                    ? Icons.deselect_rounded
-                    : Icons.select_all_rounded,
+                    ? PhosphorIconsRegular.selectionSlash
+                    : PhosphorIconsRegular.selectionAll,
                 expand: true,
                 onPressed: () {
                   allSelected ? c.clearSelection() : c.selectAll();
@@ -479,7 +484,7 @@ Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
               const SizedBox(height: 8),
               AknButton.secondary(
                 label: 'Önerileri uygula',
-                icon: Icons.auto_fix_high_rounded,
+                icon: PhosphorIconsRegular.magicWand,
                 expand: true,
                 onPressed: () {
                   final n = c.applySuggestions();
@@ -495,7 +500,7 @@ Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
               const SizedBox(height: 8),
               AknButton.secondary(
                 label: 'Aynı fiyatı uygula',
-                icon: Icons.copy_all_rounded,
+                icon: PhosphorIconsRegular.copy,
                 expand: true,
                 onPressed: selected == 0
                     ? null

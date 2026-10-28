@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,9 +31,10 @@ import '../profile_paths.dart';
 import 'support_sheet.dart';
 import 'widgets/settings_widgets.dart';
 
-/// Profil ve ayarlar (spec A.4 A8; tasarım v2 §7.17): düz baş (avatar, ad, rol), olgu satırları, güvenlik (biyometrik kilit, şifre,
-/// profil, telefonla giriş, aktif oturumlar), bildirim tercihleri, tema, destek, yasal metinler,
-/// gizlilik (asistan onayı), bekleyen işlemler, hakkında, çıkış ve hesabımı sil.
+/// Profil ve ayarlar (spec A.4 A8; tasarım v3): sıcak "üye kartı" baş (halkalı avatar, ad, rol, e-posta ve
+/// telefon), simge karolu beyaz grup kartları — güvenlik (biyometrik kilit, şifre, profil, telefonla
+/// giriş, aktif oturumlar), bildirim tercihleri, tema, destek, yasal metinler, gizlilik (asistan onayı),
+/// bekleyen işlemler, hakkında — çıkış ve hesabımı sil. Bölümler açılışta sırayla belirir.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
@@ -53,171 +55,238 @@ class ProfilePage extends ConsumerWidget {
       if (!ok) AppToast.error(ProfileCopy.linkFailed);
     }
 
+    var order = 0;
+    // Bölümler sırayla belirir (tasarım v3 §5). Tümü bir kez kurulur (tembel liste değil): kaydırınca
+    // yeni bölüm doğmaz, açılıştaki sıralı giriş bir kez oynar.
+    Widget reveal(Widget child) => SettingsReveal(index: order++, child: child);
+
     return AppScaffold(
       title: ProfileCopy.title,
-      body: ListView(
+      body: SingleChildScrollView(
         padding: EdgeInsets.only(
+          top: 4,
           bottom: 32 + MediaQuery.viewPaddingOf(context).bottom,
         ),
-        children: [
-          if (access != null) _ProfileHeader(access: access),
-          const PendingOpsChip(
-            margin: EdgeInsets.fromLTRB(AknSpace.page, 12, AknSpace.page, 0),
-          ),
-
-          // ---------------------------------------------------------- Güvenlik
-          const SettingsHeader(ProfileCopy.security),
-          SettingsGroup(
-            children: [
-              const _BiometricTile(),
-              SettingsTile(
-                icon: Icons.password_rounded,
-                title: ProfileCopy.passwordSave,
-                subtitle: ProfileCopy.changePasswordHint,
-                onTap: () => context.push(ProfilePaths.password),
-              ),
-              SettingsTile(
-                icon: Icons.person_outline_rounded,
-                title: ProfileCopy.editTitle,
-                subtitle: ProfileCopy.editProfile,
-                onTap: () => context.push(ProfilePaths.edit),
-              ),
-              if (features.otpLogin && !isPlatform) const _PhoneLoginTile(),
-              SettingsTile(
-                icon: Icons.devices_outlined,
-                title: ProfileCopy.sessions,
-                subtitle: ProfileCopy.sessionsHint,
-                onTap: () => context.push(ProfilePaths.sessions),
-              ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Bildirimler
-          const SettingsHeader(ProfileCopy.notifications),
-          SettingsGroup(
-            children: [
-              SettingsTile(
-                icon: Icons.notifications_active_outlined,
-                title: ProfileCopy.notificationPrefs,
-                subtitle: ProfileCopy.notificationPrefsHint,
-                onTap: () => context.push(NotificationsPaths.settings),
-              ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Görünüm
-          const SettingsHeader(ProfileCopy.appearance),
-          const _ThemePicker(),
-
-          // ---------------------------------------------------------- Destek
-          const SettingsHeader(ProfileCopy.support),
-          SettingsGroup(
-            children: [
-              SettingsTile(
-                icon: Icons.support_agent_outlined,
-                title: ProfileCopy.supportTitle,
-                subtitle: ProfileCopy.supportSubtitle,
-                onTap: () => unawaited(showSupportSheet(context)),
-              ),
-              if (assistantOn)
-                SettingsTile(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  title: ProfileCopy.askAssistant,
-                  subtitle: ProfileCopy.askAssistantHint,
-                  onTap: () => context.push(AppRoutes.assistant),
-                ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Yasal
-          const SettingsHeader(ProfileCopy.legal),
-          SettingsGroup(
-            children: [
-              SettingsTile(
-                icon: Icons.policy_outlined,
-                title: ProfileCopy.privacyPolicy,
-                external: true,
-                onTap: () => unawaited(open(legal.privacy)),
-              ),
-              SettingsTile(
-                icon: Icons.verified_user_outlined,
-                title: ProfileCopy.kvkk,
-                external: true,
-                onTap: () => unawaited(open(legal.kvkk)),
-              ),
-              SettingsTile(
-                icon: Icons.gavel_outlined,
-                title: ProfileCopy.terms,
-                external: true,
-                onTap: () => unawaited(open(legal.terms)),
-              ),
-              SettingsTile(
-                icon: Icons.auto_awesome_outlined,
-                title: ProfileCopy.aiDisclosure,
-                external: true,
-                onTap: () => unawaited(open(legal.ai)),
-              ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Gizlilik
-          const SettingsHeader(ProfileCopy.privacy),
-          SettingsGroup(
-            children: [
-              if (showConsent) _AssistantConsentTile(gate: gate),
-              SettingsTile(
-                icon: Icons.app_settings_alt_outlined,
-                title: ProfileCopy.permissions,
-                subtitle: ProfileCopy.permissionsHint,
-                external: true,
-                onTap: () => unawaited(_openAppSettings()),
-              ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Uygulama
-          const SettingsHeader(ProfileCopy.app),
-          SettingsGroup(
-            children: [
-              const _PendingOpsTile(),
-              const _AboutTile(),
-              if (env.isFake || env.isDev)
-                SettingsTile(
-                  icon: Icons.developer_mode_outlined,
-                  title: ProfileCopy.devMenu,
-                  subtitle: ProfileCopy.devMenuHint,
-                  onTap: () => context.push(AppRoutes.dev),
-                ),
-            ],
-          ),
-
-          // ---------------------------------------------------------- Çıkış
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AknSpace.page,
-              28,
-              AknSpace.page,
-              0,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (access != null) reveal(_ProfileHeader(access: access)),
+            const PendingOpsChip(
+              margin: EdgeInsets.fromLTRB(AknSpace.page, 12, AknSpace.page, 0),
             ),
-            child: AknButton.danger(
-              label: ProfileCopy.signOut,
-              icon: Icons.logout_rounded,
-              expand: true,
-              onPressed: () => unawaited(confirmAndSignOut(context, ref)),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SettingsGroup(
-            children: [
-              SettingsTile(
-                icon: Icons.person_remove_outlined,
-                title: ProfileCopy.deleteAccount,
-                destructive: true,
-                onTap: () => context.push(ProfilePaths.deleteAccount),
+
+            // ---------------------------------------------------------- Güvenlik
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.security),
+                  SettingsGroup(
+                    children: [
+                      const _BiometricTile(),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.password,
+                        title: ProfileCopy.passwordSave,
+                        subtitle: ProfileCopy.changePasswordHint,
+                        onTap: () => context.push(ProfilePaths.password),
+                      ),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.user,
+                        title: ProfileCopy.editTitle,
+                        subtitle: ProfileCopy.editProfile,
+                        onTap: () => context.push(ProfilePaths.edit),
+                      ),
+                      if (features.otpLogin && !isPlatform)
+                        const _PhoneLoginTile(),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.devices,
+                        title: ProfileCopy.sessions,
+                        subtitle: ProfileCopy.sessionsHint,
+                        onTap: () => context.push(ProfilePaths.sessions),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+
+            // ---------------------------------------------------------- Bildirimler
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.notifications),
+                  SettingsGroup(
+                    children: [
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.bellRinging,
+                        title: ProfileCopy.notificationPrefs,
+                        subtitle: ProfileCopy.notificationPrefsHint,
+                        onTap: () => context.push(NotificationsPaths.settings),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Görünüm
+            reveal(
+              const Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SettingsHeader(ProfileCopy.appearance),
+                  _ThemePicker(),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Destek
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.support),
+                  SettingsGroup(
+                    children: [
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.headset,
+                        title: ProfileCopy.supportTitle,
+                        subtitle: ProfileCopy.supportSubtitle,
+                        onTap: () => unawaited(showSupportSheet(context)),
+                      ),
+                      if (assistantOn)
+                        SettingsTile(
+                          icon: PhosphorIconsRegular.chatCircle,
+                          title: ProfileCopy.askAssistant,
+                          subtitle: ProfileCopy.askAssistantHint,
+                          onTap: () => context.push(AppRoutes.assistant),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Yasal
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.legal),
+                  SettingsGroup(
+                    children: [
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.fileLock,
+                        title: ProfileCopy.privacyPolicy,
+                        external: true,
+                        onTap: () => unawaited(open(legal.privacy)),
+                      ),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.shieldCheck,
+                        title: ProfileCopy.kvkk,
+                        external: true,
+                        onTap: () => unawaited(open(legal.kvkk)),
+                      ),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.gavel,
+                        title: ProfileCopy.terms,
+                        external: true,
+                        onTap: () => unawaited(open(legal.terms)),
+                      ),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.sparkle,
+                        title: ProfileCopy.aiDisclosure,
+                        external: true,
+                        onTap: () => unawaited(open(legal.ai)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Gizlilik
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.privacy),
+                  SettingsGroup(
+                    children: [
+                      if (showConsent) _AssistantConsentTile(gate: gate),
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.gearSix,
+                        title: ProfileCopy.permissions,
+                        subtitle: ProfileCopy.permissionsHint,
+                        external: true,
+                        onTap: () => unawaited(_openAppSettings()),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Uygulama
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsHeader(ProfileCopy.app),
+                  SettingsGroup(
+                    children: [
+                      const _PendingOpsTile(),
+                      const _AboutTile(),
+                      if (env.isFake || env.isDev)
+                        SettingsTile(
+                          icon: PhosphorIconsRegular.code,
+                          title: ProfileCopy.devMenu,
+                          subtitle: ProfileCopy.devMenuHint,
+                          onTap: () => context.push(AppRoutes.dev),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // ---------------------------------------------------------- Çıkış
+            reveal(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AknSpace.page,
+                      32,
+                      AknSpace.page,
+                      0,
+                    ),
+                    child: AknButton.danger(
+                      label: ProfileCopy.signOut,
+                      icon: PhosphorIconsRegular.signOut,
+                      expand: true,
+                      onPressed: () =>
+                          unawaited(confirmAndSignOut(context, ref)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SettingsGroup(
+                    children: [
+                      SettingsTile(
+                        icon: PhosphorIconsRegular.userMinus,
+                        title: ProfileCopy.deleteAccount,
+                        destructive: true,
+                        onTap: () => context.push(ProfilePaths.deleteAccount),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -231,8 +300,10 @@ class ProfilePage extends ConsumerWidget {
   }
 }
 
-/// Profil başı (tasarım v2 §7.17): plaka yok — 56 px avatar, `display` ad, rol ve çalıştığı yer;
-/// altında e-posta ve telefon olgu satırları (beyaz grup kutusu). Düzenle sağ üstte.
+/// Profil başı (tasarım v3): sıcak "üye kartı" — kahraman kartın dilinde beyaz kart (üstte sıcak
+/// `plateTint` ışığı, r26, sıcak gölge); solda turuncu degrade halkalı 64 px avatar (açılışta "pop"),
+/// yanında ad (`title` 22/28 800), rol ve çalıştığı yer; sağ üstte 44 px yuvarlak "Düzenle". İnce çizginin
+/// altında e-posta ve telefon, simge karolarıyla.
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({required this.access});
 
@@ -251,10 +322,15 @@ class _ProfileHeader extends StatelessWidget {
       if (roles.isNotEmpty) roles.join(', '),
       ?access.organizationTitle,
     ].join(', ');
-    final facts = <(String, String)>[
-      if (access.email != null) (ProfileCopy.email, access.email!),
+    final facts = <(IconData, String, String)>[
+      if (access.email != null)
+        (PhosphorIconsRegular.envelopeSimple, ProfileCopy.email, access.email!),
       if (access.phoneMasked != null)
-        (ProfileCopy.mobilePhone, access.phoneMasked!),
+        (
+          PhosphorIconsRegular.deviceMobile,
+          ProfileCopy.mobilePhone,
+          access.phoneMasked!,
+        ),
     ];
     final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     final names = Column(
@@ -265,7 +341,13 @@ class _ProfileHeader extends StatelessWidget {
           header: true,
           child: Text(
             access.displayName,
-            style: t.display.copyWith(color: c.ink),
+            style: t.title.copyWith(
+              fontSize: 22,
+              height: 28 / 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+              color: c.ink,
+            ),
             textScaler: MediaQuery.textScalerOf(
               context,
             ).clamp(maxScaleFactor: 1.6),
@@ -277,63 +359,151 @@ class _ProfileHeader extends StatelessWidget {
         ],
       ],
     );
-    final edit = AknIconButton(
-      icon: Icons.edit_outlined,
-      semanticLabel: ProfileCopy.editProfile,
-      onPressed: () => context.push(ProfilePaths.edit),
-    );
+    final edit = _EditButton(onPressed: () => context.push(ProfilePaths.edit));
+    final avatar = _RingAvatar(name: access.displayName);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AknSpace.page, 4, 8, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Büyük yazıda ad avatarın altına iner (tam genişlik).
-          if (large) ...[
-            Row(
-              children: [
-                AknAvatar(name: access.displayName, size: 56),
-                const Spacer(),
-                edit,
-              ],
-            ),
-            const SizedBox(height: 12),
-            names,
-          ] else
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                AknAvatar(name: access.displayName, size: 56),
-                const SizedBox(width: 16),
-                Expanded(child: names),
-                edit,
-              ],
-            ),
-          if (facts.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.only(right: AknSpace.page - 8),
-              child: AknCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 8, AknSpace.page, 0),
+      child: DecoratedBox(
+        decoration: c.plateDecoration(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 14, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Büyük yazıda ad avatarın altına iner (tam genişlik).
+              if (large) ...[
+                Row(children: [avatar, const Spacer(), edit]),
+                const SizedBox(height: 12),
+                names,
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    for (var i = 0; i < facts.length; i++) ...[
-                      if (i > 0) const Divider(height: 1, indent: 16),
-                      FactRow(
-                        label: facts[i].$1,
-                        value: facts[i].$2,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                      ),
-                    ],
+                    avatar,
+                    const SizedBox(width: 14),
+                    Expanded(child: names),
+                    const SizedBox(width: 8),
+                    edit,
                   ],
+                ),
+              if (facts.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Divider(height: 1, thickness: 1, color: c.plateLine),
+                for (final (icon, label, value) in facts)
+                  SettingsFactLine(
+                    icon: icon,
+                    label: label,
+                    value: value,
+                    warm: true,
+                  ),
+              ] else
+                const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Turuncu degrade halkalı avatar (64 px): halka ile avatar arasında kart renginde ince boşluk; açılışta
+/// küçükten büyüyerek ve hafifçe taşarak yerine oturur, halkanın ışığı çok yavaş döner.
+class _RingAvatar extends StatelessWidget {
+  const _RingAvatar({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: AknMotion.reduced(context) ? 1 : 0.6, end: 1),
+      duration: AknMotion.of(context, const Duration(milliseconds: 560)),
+      curve: AknMotion.pop,
+      builder: (context, v, child) => Transform.scale(scale: v, child: child),
+      // Halkanın ışığı çok yavaş döner (ortam hareketi; testlerde ve azaltılmış harekette durur).
+      child: RepaintBoundary(
+        child: AknAmbient(
+          period: const Duration(seconds: 14),
+          curve: Curves.linear,
+          builder: (context, t, child) => DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: SweepGradient(
+                colors: [c.heroStart, c.brand, c.heroEnd, c.heroStart],
+                transform: GradientRotation(2 * math.pi * t),
+              ),
+            ),
+            child: child,
+          ),
+          child: SizedBox.square(
+            dimension: 66,
+            child: Padding(
+              padding: const EdgeInsets.all(2.5),
+              child: Container(
+                padding: const EdgeInsets.all(2.5),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.plate,
+                ),
+                child: AknAvatar(name: name, size: 56),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Düzenle": 44 px yuvarlak, kart renginde, ince çizgili kalem düğmesi (48 dp hedef); basınca içe çöker.
+class _EditButton extends StatelessWidget {
+  const _EditButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Tooltip(
+      message: ProfileCopy.editProfile,
+      excludeFromSemantics: true,
+      child: Semantics(
+        button: true,
+        label: ProfileCopy.editProfile,
+        excludeSemantics: true,
+        onTap: onPressed,
+        child: PressScale(
+          scale: 0.92,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              AknHaptics.selection();
+              onPressed();
+            },
+            child: SizedBox.square(
+              dimension: AknSpace.minTap,
+              child: Center(
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: c.plate,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: c.plateBorder),
+                    boxShadow: AknShadows.card(c),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    PhosphorIconsRegular.pencilSimple,
+                    size: 20,
+                    color: c.ink,
+                  ),
                 ),
               ),
             ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -391,7 +561,7 @@ class _PhoneLoginTile extends ConsumerWidget {
     final status = ref.watch(phoneStatusProvider).valueOrNull;
     final verified = status?.verified ?? false;
     return SettingsTile(
-      icon: Icons.smartphone_outlined,
+      icon: PhosphorIconsRegular.deviceMobile,
       title: verified ? ProfileCopy.phoneLogin : ProfileCopy.phoneLoginEnable,
       subtitle: status == null
           ? null
@@ -422,18 +592,24 @@ class _ThemePicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
-    return Semantics(
-      container: true,
-      label: ProfileCopy.theme,
-      child: AknSegmented<ThemeMode>(
-        segments: const [
-          FilterOption(value: ThemeMode.system, label: ProfileCopy.themeSystem),
-          FilterOption(value: ThemeMode.light, label: ProfileCopy.themeLight),
-          FilterOption(value: ThemeMode.dark, label: ProfileCopy.themeDark),
-        ],
-        value: mode,
-        onChanged: (m) =>
-            unawaited(ref.read(themeModeProvider.notifier).set(m)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AknSpace.page),
+      child: Semantics(
+        container: true,
+        label: ProfileCopy.theme,
+        child: AknSegmented<ThemeMode>(
+          segments: const [
+            FilterOption(
+              value: ThemeMode.system,
+              label: ProfileCopy.themeSystem,
+            ),
+            FilterOption(value: ThemeMode.light, label: ProfileCopy.themeLight),
+            FilterOption(value: ThemeMode.dark, label: ProfileCopy.themeDark),
+          ],
+          value: mode,
+          onChanged: (m) =>
+              unawaited(ref.read(themeModeProvider.notifier).set(m)),
+        ),
       ),
     );
   }
@@ -452,7 +628,7 @@ class _AssistantConsentTile extends ConsumerWidget {
       message: ProfileCopy.withdrawMessage,
       confirmLabel: ProfileCopy.withdraw,
       cancelLabel: ProfileCopy.cancel,
-      icon: Icons.privacy_tip_outlined,
+      icon: PhosphorIconsRegular.shieldWarning,
       destructive: true,
     );
     if (!ok || !context.mounted) return;
@@ -474,7 +650,7 @@ class _AssistantConsentTile extends ConsumerWidget {
     final enabled = ref.watch(assistantEnabledProvider);
     return switch (gate) {
       GateReady(:final acceptedAt) => SettingsTile(
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: PhosphorIconsRegular.chatCircle,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentGiven(
           acceptedAt == null ? null : Fmt.date(acceptedAt),
@@ -486,13 +662,13 @@ class _AssistantConsentTile extends ConsumerWidget {
         ),
       ),
       GateNeedsConsent() => SettingsTile(
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: PhosphorIconsRegular.chatCircle,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentNotGiven,
         onTap: enabled ? () => context.push(AppRoutes.assistant) : null,
       ),
       GateChecking() => const SettingsTile(
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: PhosphorIconsRegular.chatCircle,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentChecking,
       ),
@@ -509,7 +685,7 @@ class _PendingOpsTile extends ConsumerWidget {
     final pending = ref.watch(pendingOpsCountProvider);
     final attention = ref.watch(attentionOpsCountProvider);
     return SettingsTile(
-      icon: Icons.cloud_upload_outlined,
+      icon: PhosphorIconsRegular.cloudArrowUp,
       tone: attention > 0
           ? AknTone.danger
           : pending > 0
@@ -534,7 +710,7 @@ class _AboutTile extends ConsumerWidget {
     final extras = ref.watch(configExtrasProvider).valueOrNull;
     final server = [?extras?.contractVersion, ?extras?.apiBuild].join(', ');
     return SettingsTile(
-      icon: Icons.info_outline_rounded,
+      icon: PhosphorIconsRegular.info,
       title: ProfileCopy.about,
       subtitle: [
         ProfileCopy.version(

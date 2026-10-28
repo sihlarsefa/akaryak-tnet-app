@@ -18,6 +18,7 @@ import '../data/auth_api.dart';
 import 'widgets/auth_banners.dart';
 import 'widgets/auth_header.dart';
 import 'widgets/code_entry.dart';
+import 'widgets/gate_view.dart';
 import 'widgets/hold_button.dart';
 
 /// Profildeki telefonun durumu (Profil > Güvenlik "Telefonla girişi etkinleştir" de kullanır).
@@ -211,40 +212,62 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
             onAction: _close,
           );
         }
+        // v3: solda telefon çizimi (süzülen turuncu disk), başlık ve cümle; numara ve doğrulama durumu
+        // beyaz kartta; eylemler altta. Bölümler sırayla yukarı kayarak belirir.
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AuthPop(
+                child: GateArt(
+                  icon: s.verified
+                      ? PhosphorIconsRegular.shieldCheck
+                      : PhosphorIconsRegular.deviceMobile,
+                  tone: s.verified ? AknTone.ok : AknTone.brand,
+                  size: 92,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             const AuthPageHeader(
               title: AuthCopy.phoneIntroTitle,
               message: AuthCopy.phoneIntroBody,
               showLogo: false,
             ),
             const SizedBox(height: 20),
-            AknCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  FactRow(
-                    label: AuthCopy.phoneNumberLabel,
-                    value: s.phoneMasked!,
-                    padding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 10),
-                  AknLamp(
-                    label: s.verified
-                        ? AuthCopy.phoneVerified
-                        : AuthCopy.phoneNotVerified,
-                    tone: s.verified ? AknTone.ok : AknTone.neutral,
-                  ),
-                  if (s.verified) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      AuthCopy.phoneVerifiedBody,
-                      style: t.bodySmall.copyWith(color: c.dim),
+            AuthRise(
+              delay: const Duration(milliseconds: 120),
+              child: AknCard(
+                radius: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FactRow(
+                      label: AuthCopy.phoneNumberLabel,
+                      value: s.phoneMasked!,
+                      padding: EdgeInsets.zero,
                     ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: AknLamp(
+                        label: s.verified
+                            ? AuthCopy.phoneVerified
+                            : AuthCopy.phoneNotVerified,
+                        tone: s.verified ? AknTone.ok : AknTone.neutral,
+                      ),
+                    ),
+                    if (s.verified) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        AuthCopy.phoneVerifiedBody,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -278,7 +301,7 @@ class _PhoneVerificationPageState extends ConsumerState<PhoneVerificationPage> {
                     ? AuthCopy.reverify
                     : AuthCopy.sendVerification,
                 busyLabel: AuthCopy.sendingCode,
-                icon: Icons.sms_outlined,
+                icon: PhosphorIconsRegular.chatDots,
                 variant: s.verified
                     ? AknButtonVariant.secondary
                     : AknButtonVariant.primary,

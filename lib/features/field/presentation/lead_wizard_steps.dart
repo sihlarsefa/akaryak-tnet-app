@@ -148,7 +148,7 @@ class _CompanyStep extends ConsumerWidget {
     final ctrl = ref.read(leadWizardProvider(args).notifier);
     final d = s.draft;
     final e = s.errors;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         if (s.resumeCandidate != null) ...[
@@ -324,7 +324,8 @@ class _CompanyStep extends ConsumerWidget {
   }
 }
 
-/// Canlı VKN kontrolü sonucu.
+/// Canlı VKN kontrolü sonucu: kontrol sürerken küçük döner simge, sonra sonuç (biçim hatası, engel,
+/// bilgi ya da "VKN uygun" çipi) solarak ve yüksekliği kayarak yerine gelir.
 class _TaxCheck extends StatelessWidget {
   const _TaxCheck({required this.state});
 
@@ -332,62 +333,101 @@ class _TaxCheck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final (key, child) = _content(context);
+    return AknAnimatedSize(
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: AknMotion.of(context, AknMotion.base),
+        switchInCurve: AknMotion.emphasizedCurve,
+        switchOutCurve: AknMotion.exit,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.topLeft,
+          children: [...previous, ?current],
+        ),
+        transitionBuilder: (child, animation) => FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(animation),
+            alignment: Alignment.centerLeft,
+            child: child,
+          ),
+        ),
+        child: KeyedSubtree(key: ValueKey(key), child: child),
+      ),
+    );
+  }
+
+  (String, Widget) _content(BuildContext context) {
     final t = context.aknText;
     final dup = state.dup;
     final digits = Validators.digitsOnly(state.draft.taxNumber);
     if (state.dupChecking) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: Row(
-          children: [
-            const ChevronSpinner(size: 16, semanticLabel: null),
-            const SizedBox(width: 8),
-            Text('VKN kontrol ediliyor…', style: t.caption),
-          ],
-        ),
-      );
-    }
-    if (dup == null) return const SizedBox.shrink();
-    if (dup.formatError != null) return FieldErrorText(dup.formatError);
-    if (dup.blocksSubmit) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: AknBanner(
-          tone: AknTone.danger,
-          message: dup.messages.isNotEmpty
-              ? dup.messages.join(' ')
-              : dup.openLeadNumber != null
-              ? 'Bu VKN ile açık ön kayıt var: ${dup.openLeadNumber}.'
-              : 'Bu VKN ile cari bayinizde kayıtlı (${dup.existingCustomerCode ?? '—'}).',
-        ),
-      );
-    }
-    if (dup.existsElsewhere) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 8),
-        child: AknBanner(
-          tone: AknTone.info,
-          title: 'Bu VKN sistemde kayıtlı',
-          message:
-              'Ön kayıt finansa gönderilebilir; cari açılışı merkez onayıyla yapılır.',
-        ),
-      );
-    }
-    if (digits.length >= 10) {
-      return const Padding(
-        padding: EdgeInsets.only(top: 8),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: StatusChip(
-            label: 'VKN uygun',
-            tone: AknTone.ok,
-            icon: Icons.check_circle_rounded,
-            size: StatusChipSize.small,
+      return (
+        'checking',
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              const ChevronSpinner(size: 16, semanticLabel: null),
+              const SizedBox(width: 8),
+              Text('VKN kontrol ediliyor…', style: t.caption),
+            ],
           ),
         ),
       );
     }
-    return const SizedBox.shrink();
+    if (dup == null) return ('none', const SizedBox(width: double.infinity));
+    if (dup.formatError != null) {
+      return ('format', FieldErrorText(dup.formatError));
+    }
+    if (dup.blocksSubmit) {
+      return (
+        'blocked',
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: AknBanner(
+            tone: AknTone.danger,
+            message: dup.messages.isNotEmpty
+                ? dup.messages.join(' ')
+                : dup.openLeadNumber != null
+                ? 'Bu VKN ile açık ön kayıt var: ${dup.openLeadNumber}.'
+                : 'Bu VKN ile cari bayinizde kayıtlı (${dup.existingCustomerCode ?? '—'}).',
+          ),
+        ),
+      );
+    }
+    if (dup.existsElsewhere) {
+      return (
+        'elsewhere',
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: AknBanner(
+            tone: AknTone.info,
+            title: 'Bu VKN sistemde kayıtlı',
+            message:
+                'Ön kayıt finansa gönderilebilir; cari açılışı merkez onayıyla yapılır.',
+          ),
+        ),
+      );
+    }
+    if (digits.length >= 10) {
+      return (
+        'ok',
+        const Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: StatusChip(
+              label: 'VKN uygun',
+              tone: AknTone.ok,
+              icon: PhosphorIconsFill.checkCircle,
+              size: StatusChipSize.small,
+            ),
+          ),
+        ),
+      );
+    }
+    return ('none', const SizedBox(width: double.infinity));
   }
 }
 
@@ -403,7 +443,7 @@ class _FleetStep extends ConsumerWidget {
     final s = ref.watch(leadWizardProvider(args));
     final ctrl = ref.read(leadWizardProvider(args).notifier);
     final d = s.draft;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(context, 'Filo ve depo'),
@@ -463,7 +503,7 @@ class _NeedsStep extends ConsumerWidget {
     final d = s.draft;
     final o = s.effectiveOptions;
     final t = context.aknText;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(
@@ -640,7 +680,7 @@ class _PaymentStep extends ConsumerWidget {
     final d = s.draft;
     final o = s.effectiveOptions;
     final t = context.aknText;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(context, 'Ödeme talebi'),
@@ -757,7 +797,7 @@ class _VisitStepState extends ConsumerState<_VisitStep> {
       context,
       ref,
       reason: FieldCopy.visitPrimerReason,
-      icon: Icons.storefront_outlined,
+      icon: PhosphorIconsRegular.storefront,
     );
     if (!mounted) return;
     setState(() {
@@ -789,7 +829,7 @@ class _VisitStepState extends ConsumerState<_VisitStep> {
     final approximate =
         _outcome is LocationCaptured &&
         (_outcome! as LocationCaptured).fix.approximate;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(context, 'Ziyaret'),
@@ -807,7 +847,7 @@ class _VisitStepState extends ConsumerState<_VisitStep> {
             children: [
               Row(
                 children: [
-                  const AknIconBox(icon: Icons.my_location_rounded),
+                  const AknIconBox(icon: PhosphorIconsRegular.gpsFix),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -852,14 +892,14 @@ class _VisitStepState extends ConsumerState<_VisitStep> {
                         : d.hasVisitLocation
                         ? 'Konumu güncelle'
                         : 'Konumu ekle',
-                    icon: Icons.my_location_rounded,
+                    icon: PhosphorIconsRegular.gpsFix,
                     size: AknButtonSize.small,
                     onPressed: _busy ? null : _locate,
                   ),
                   if (d.hasVisitLocation) ...[
                     AknButton.ghost(
                       label: 'Haritada aç',
-                      icon: Icons.map_outlined,
+                      icon: PhosphorIconsRegular.mapTrifold,
                       size: AknButtonSize.small,
                       onPressed: () => launchExternal(
                         Uri.parse(
@@ -916,7 +956,7 @@ class _ContactsStep extends ConsumerWidget {
     final ctrl = ref.read(leadWizardProvider(args).notifier);
     final contacts = s.draft.contacts;
     final t = context.aknText;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(
@@ -939,7 +979,7 @@ class _ContactsStep extends ConsumerWidget {
                       ),
                       if (contacts.length > 1)
                         AknIconButton(
-                          icon: Icons.delete_outline_rounded,
+                          icon: PhosphorIconsRegular.trash,
                           semanticLabel: 'Yetkili ${i + 1} kaldır',
                           onPressed: () => ctrl.removeContact(i),
                         ),
@@ -992,7 +1032,7 @@ class _ContactsStep extends ConsumerWidget {
                   const SizedBox(height: 8),
                   ChoiceCard(
                     title: 'Portal daveti bu kişiye',
-                    leadingIcon: Icons.mail_outline_rounded,
+                    leadingIcon: PhosphorIconsRegular.envelopeSimple,
                     selected: contacts[i].isInviteRecipient,
                     onTap: () => ctrl.setInviteRecipient(i),
                   ),
@@ -1002,7 +1042,7 @@ class _ContactsStep extends ConsumerWidget {
           ),
         AknButton.secondary(
           label: 'Yetkili ekle',
-          icon: Icons.person_add_alt_rounded,
+          icon: PhosphorIconsRegular.userPlus,
           expand: true,
           onPressed: contacts.length >= LeadRules.maxContacts
               ? null
@@ -1025,7 +1065,7 @@ class _DeliveryStep extends ConsumerWidget {
     final s = ref.watch(leadWizardProvider(args));
     final ctrl = ref.read(leadWizardProvider(args).notifier);
     final d = s.draft;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(
@@ -1037,7 +1077,7 @@ class _DeliveryStep extends ConsumerWidget {
           alignment: Alignment.centerLeft,
           child: AknButton.ghost(
             label: 'Firma adresiyle aynı',
-            icon: Icons.content_copy_rounded,
+            icon: PhosphorIconsRegular.copy,
             onPressed: ctrl.copyCompanyAddressToDelivery,
           ),
         ),
@@ -1107,14 +1147,17 @@ class _KvkkStep extends ConsumerWidget {
         : TextSpan(
             children: [
               TextSpan(text: text.substring(0, i)),
-              const TextSpan(
+              TextSpan(
                 text: strong,
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: t.body.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: context.akn.ink,
+                ),
               ),
               TextSpan(text: text.substring(i + strong.length)),
             ],
           );
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(
@@ -1180,19 +1223,19 @@ class _DocumentsStep extends ConsumerWidget {
         children: [
           AknListTile(
             title: 'Fotoğraf çek',
-            leadingIcon: Icons.photo_camera_outlined,
+            leadingIcon: PhosphorIconsRegular.camera,
             onTap: () => Navigator.of(ctx).pop(CaptureSource.camera),
           ),
           AknListTile(
             title: 'Galeriden seç',
-            leadingIcon: Icons.photo_library_outlined,
+            leadingIcon: PhosphorIconsRegular.images,
             onTap: () => Navigator.of(ctx).pop(CaptureSource.gallery),
           ),
           // Saha fotoğrafı her zaman kameradan / galeriden; belgeler hazır PDF de olabilir.
           if (kind != AttachmentKind.visitPhoto)
             AknListTile(
               title: 'Dosya (PDF)',
-              leadingIcon: Icons.picture_as_pdf_outlined,
+              leadingIcon: PhosphorIconsRegular.filePdf,
               onTap: () => Navigator.of(ctx).pop(CaptureSource.file),
             ),
         ],
@@ -1216,7 +1259,7 @@ class _DocumentsStep extends ConsumerWidget {
       for (final k in _optional)
         if (!required.contains(k)) k,
     ];
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _heading(
@@ -1236,7 +1279,7 @@ class _DocumentsStep extends ConsumerWidget {
                   // Tam yükseklikte satır: dokunma hedefi en az 48 dp.
                   AknListTile(
                     title: m,
-                    leadingIcon: Icons.radio_button_unchecked_rounded,
+                    leadingIcon: PhosphorIconsRegular.circle,
                     leadingTone: AknTone.warn,
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     onTap: () =>
@@ -1349,12 +1392,12 @@ class _KindRow extends StatelessWidget {
     final t = context.aknText;
     final done = uploaded > 0;
     final (tone, icon, status) = done
-        ? (AknTone.ok, Icons.check_circle_rounded, 'Yüklendi')
+        ? (AknTone.ok, PhosphorIconsFill.checkCircle, 'Yüklendi')
         : local > 0
-        ? (AknTone.warn, Icons.schedule_rounded, 'Yüklenmeyi bekliyor')
+        ? (AknTone.warn, PhosphorIconsRegular.clock, 'Yüklenmeyi bekliyor')
         : required
-        ? (AknTone.danger, Icons.error_outline_rounded, 'Zorunlu')
-        : (AknTone.neutral, Icons.add_photo_alternate_outlined, 'İsteğe bağlı');
+        ? (AknTone.danger, PhosphorIconsRegular.warningCircle, 'Zorunlu')
+        : (AknTone.neutral, PhosphorIconsRegular.cameraPlus, 'İsteğe bağlı');
     return AknCard(
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       child: Row(
@@ -1381,7 +1424,7 @@ class _KindRow extends StatelessWidget {
           ),
           AknButton.ghost(
             label: 'Ekle',
-            icon: Icons.add_a_photo_outlined,
+            icon: PhosphorIconsRegular.cameraPlus,
             size: AknButtonSize.small,
             semanticLabel: '${kind.label} ekle',
             onPressed: onAdd,

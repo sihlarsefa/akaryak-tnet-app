@@ -53,7 +53,7 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
       message:
           'Teslimat "Teslim alındı" olarak kaydedilir ve bayinize bildirilir. Bu işlem geri alınamaz.',
       confirmLabel: 'Onayla',
-      icon: Icons.verified_rounded,
+      icon: PhosphorIconsFill.sealCheck,
       tone: AknTone.ok,
       content: AknCard(
         shadow: false,
@@ -143,36 +143,53 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
         loading: () => const _DetailSkeleton(),
         error: (e, _) =>
             CmFailureView(failure: AppFailure.from(e), onRetry: _refresh),
-        data: (d) => PullToRefresh(
-          onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 32),
-            children: [
-              _Hero(detail: d),
-              if (d.isDelivered) DeliveredPlate(detail: d),
-              if (d.actions.canAccept)
+        data: (d) {
+          // Bloklar açılışta sırayla yükselerek gelir; sonradan eklenen blok kendi yerinde belirir.
+          final blocks = <(String, Widget)>[
+            ('hero', _Hero(detail: d)),
+            if (d.isDelivered) ('plate', DeliveredPlate(detail: d)),
+            if (d.actions.canAccept)
+              (
+                'accept',
                 const AknBanner(
                   margin: EdgeInsets.fromLTRB(20, 16, 20, 0),
                   tone: AknTone.brand,
-                  icon: Icons.fact_check_outlined,
+                  icon: PhosphorIconsRegular.listChecks,
                   title: 'Teslimatı kontrol edip onaylayın',
                   message:
                       'Teslim edilen miktarı, irsaliye numarasını ve fotoğrafları kontrol edin. Sorun varsa itiraz edin.',
                 ),
-              if (d.isDelivered) ProofCard(detail: d),
-              if (d.status == ShipmentStatus.disputed ||
-                  d.disputePhotos.isNotEmpty)
+              ),
+            if (d.isDelivered) ('proof', ProofCard(detail: d)),
+            if (d.status == ShipmentStatus.disputed ||
+                d.disputePhotos.isNotEmpty)
+              (
+                'dispute',
                 _DisputeCard(detail: d, onAddPhoto: () => _dispute(d)),
-              _TimelineCard(detail: d),
-              _VehicleCard(detail: d),
-              _PlaceCard(place: d.place),
-              if (policy.cmShipmentDocuments &&
-                  d.status != ShipmentStatus.unknown)
-                _DocumentsCard(detail: d, onOpen: _openDoc),
-            ],
-          ),
-        ),
+              ),
+            ('timeline', _TimelineCard(detail: d)),
+            ('vehicle', _VehicleCard(detail: d)),
+            ('place', _PlaceCard(place: d.place)),
+            if (policy.cmShipmentDocuments &&
+                d.status != ShipmentStatus.unknown)
+              ('docs', _DocumentsCard(detail: d, onOpen: _openDoc)),
+          ];
+          return PullToRefresh(
+            onRefresh: _refresh,
+            child: CmRiseScope(
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  bottom: 32 + MediaQuery.paddingOf(context).bottom,
+                ),
+                children: [
+                  for (final (i, (id, block)) in blocks.indexed)
+                    CmRise(key: ValueKey(id), index: i, child: block),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -277,9 +294,10 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-/// Nesne sayfasının başı (tasarım v2 §6.1, §7.10): `display` başlık ("10.000 L motorin"), nokta ve
-/// gün, müşterinin gözünden durum lambası ve saat, sipariş bağlantısı; yolda ya da planlıyken büyük
-/// rota çizgisi (bayi → nokta). Canlı konum iddiası yok: araç işareti çizginin ortasında durur.
+/// Nesne sayfasının başı (tasarım v3): `display` başlık ("10.000 L motorin"; büyük yazıda litre
+/// birimiyle aynı satırda kalır), nokta ve gün, müşterinin gözünden durum lambası ve saat, sipariş
+/// bağlantısı; yolda ya da planlıyken büyük turuncu rota çizgisi (bayi → nokta). Canlı konum iddiası
+/// yok: araç işareti çizginin ortasında durur.
 class _Hero extends StatelessWidget {
   const _Hero({required this.detail});
 
@@ -331,7 +349,7 @@ class _Hero extends StatelessWidget {
             maxScaleFactor: 1.5,
             child: Semantics(
               header: true,
-              child: Text(title, style: t.display.copyWith(color: c.ink)),
+              child: CmUnitText(title, style: t.display.copyWith(color: c.ink)),
             ),
           ),
           if (sub.isNotEmpty) ...[
@@ -413,8 +431,8 @@ String shortTitle(String title) {
   return kept.isEmpty ? title.trim() : kept.join(' ');
 }
 
-/// Teslim edilenin plakası (tasarım v2 §5.2, §7.10): sayaç okuması büyük, kuralın altında sipariş
-/// edilen, fark ve teslim saati. Ekranın tek plakası.
+/// Teslim edilenin kahraman kartı (tasarım v3 §4 AknPlate): sayaç okuması büyük (yuvarlanarak
+/// gelir), kuralın altında sipariş edilen, fark ve teslim saati. Ekranın tek kahraman kartı.
 class DeliveredPlate extends StatelessWidget {
   const DeliveredPlate({super.key, required this.detail});
 
@@ -446,7 +464,7 @@ class DeliveredPlate extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       semanticLabel: spoken,
       head: const PlateHead(
-        icon: Icons.local_gas_station_outlined,
+        icon: PhosphorIconsRegular.gasPump,
         title: 'Teslim edilen',
       ),
       figure: PlateFigure(
@@ -530,7 +548,7 @@ class ProofCard extends StatelessWidget {
           else if (d.signatureWaiverLabel != null)
             AknBanner(
               tone: AknTone.info,
-              icon: Icons.draw_outlined,
+              icon: PhosphorIconsRegular.signature,
               title: 'İmza alınamadı',
               message: d.signatureWaiverLabel!,
             )
@@ -564,15 +582,16 @@ class _SignatureView extends ConsumerWidget {
         height: 120,
         decoration: BoxDecoration(
           color: c.surface,
-          borderRadius: AknRadius.card,
+          borderRadius: AknRadius.input,
           border: Border.all(color: c.line),
         ),
         clipBehavior: Clip.antiAlias,
         child: bytes.when(
           data: (b) => Image.memory(b, fit: BoxFit.contain, cacheHeight: 240),
           loading: () => const Center(child: ChevronSpinner(size: 20)),
-          error: (_, _) =>
-              Center(child: Icon(Icons.broken_image_outlined, color: c.dim)),
+          error: (_, _) => Center(
+            child: Icon(PhosphorIconsRegular.imageBroken, color: c.dim),
+          ),
         ),
       ),
     );
@@ -609,7 +628,7 @@ class _DisputeCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: AknButton.secondary(
                 label: 'Fotoğraf ekle',
-                icon: Icons.add_a_photo_outlined,
+                icon: PhosphorIconsRegular.cameraPlus,
                 size: AknButtonSize.small,
                 onPressed: onAddPhoto,
               ),
@@ -648,14 +667,14 @@ class _TimelineCard extends StatelessWidget {
             ? null
             : 'Plan ${Fmt.dateTime(d.scheduledAt)}${d.place.window == null ? '' : ', kabul ${d.place.window}'}',
         state: TimelineState.done,
-        icon: Icons.event_rounded,
+        icon: PhosphorIconsRegular.calendarDot,
       ),
       if (cancelled)
         const TimelineStep(
           title: 'İptal edildi',
           subtitle: 'Bayi bu sevkiyatı iptal etti.',
           state: TimelineState.failed,
-          icon: Icons.block_rounded,
+          icon: PhosphorIconsRegular.prohibit,
         )
       else ...[
         TimelineStep(
@@ -667,7 +686,7 @@ class _TimelineCard extends StatelessWidget {
               : (s == ShipmentStatus.inTransit
                     ? TimelineState.current
                     : TimelineState.done),
-          icon: Icons.local_shipping_rounded,
+          icon: PhosphorIconsFill.truck,
         ),
         TimelineStep(
           title: 'Teslim edildi',
@@ -683,7 +702,7 @@ class _TimelineCard extends StatelessWidget {
                     ? TimelineState.current
                     : TimelineState.done)
               : TimelineState.upcoming,
-          icon: Icons.fact_check_rounded,
+          icon: PhosphorIconsFill.listChecks,
         ),
         TimelineStep(
           title: s == ShipmentStatus.disputed ? 'İtiraz edildi' : 'Kabul',
@@ -695,8 +714,8 @@ class _TimelineCard extends StatelessWidget {
             _ => TimelineState.upcoming,
           },
           icon: s == ShipmentStatus.disputed
-              ? Icons.report_rounded
-              : Icons.verified_rounded,
+              ? PhosphorIconsFill.warningOctagon
+              : PhosphorIconsFill.sealCheck,
         ),
       ],
     ];
@@ -734,13 +753,15 @@ class _VehicleCard extends StatelessWidget {
         excludeSemantics: true,
         child: Row(
           children: [
+            const CmIconTile(icon: PhosphorIconsRegular.steeringWheel),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     d.driverName ?? 'Şoför atanmadı',
-                    style: t.headline.copyWith(color: c.ink),
+                    style: cmRowTitle(context),
                   ),
                   Text('Şoför', style: t.bodySmall.copyWith(color: c.dim)),
                 ],
@@ -770,20 +791,34 @@ class _PlaceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            place.name ?? Fmt.dash,
-            style: t.headline.copyWith(color: context.akn.ink),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const CmIconTile(
+                icon: PhosphorIconsRegular.mapPin,
+                tone: AknTone.brand,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(place.name ?? Fmt.dash, style: cmRowTitle(context)),
+                    if (place.address != null)
+                      Text(
+                        place.address!,
+                        style: t.bodySmall.copyWith(color: context.akn.dim),
+                      ),
+                    if (place.cityDistrict != null)
+                      Text(
+                        place.cityDistrict!,
+                        style: t.bodySmall.copyWith(color: context.akn.dim),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          if (place.address != null)
-            Text(
-              place.address!,
-              style: t.bodySmall.copyWith(color: context.akn.dim),
-            ),
-          if (place.cityDistrict != null)
-            Text(
-              place.cityDistrict!,
-              style: t.bodySmall.copyWith(color: context.akn.dim),
-            ),
           if (place.window != null) ...[
             const SizedBox(height: 6),
             FactRow(label: 'Kabul saati', value: place.window!),
@@ -794,7 +829,7 @@ class _PlaceCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: AknButton.secondary(
                 label: CmCopy.openInMaps,
-                icon: Icons.map_outlined,
+                icon: PhosphorIconsRegular.mapTrifold,
                 size: AknButtonSize.small,
                 onPressed: () => openInMaps(
                   place.latitude!,
@@ -830,7 +865,11 @@ class _DocumentsCard extends StatelessWidget {
       child: AknLedger(
         children: [
           for (final r in docs)
-            DocumentTile(request: r, onTap: () => onOpen(r)),
+            DocumentTile(
+              request: r,
+              onTap: () => onOpen(r),
+              padding: CmCard.rowPadding,
+            ),
         ],
       ),
     );

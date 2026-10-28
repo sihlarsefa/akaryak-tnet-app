@@ -11,13 +11,15 @@ import '../../../../core/utils/format.dart';
 import '../../application/driver_ops.dart';
 import '../../copy.dart';
 import '../../data/driver_outbox.dart';
+import 'entrance.dart';
 
 /// Bekleyen işlemin kullanıcıya görünen aşaması (spec C.4a "Queued vs sent").
 enum OpPhase {
   /// Şu an gönderiliyor (çevrimiçi, ilk deneme).
   sending,
 
-  /// Telefonda kayıtlı; bağlantı gelince gönderilecek (çevrimdışı, ertelendi, bağımlı işlem bekleniyor).
+  /// Telefonda kayıtlı; bağlantı gelince gönderilecek (çevrimdışı, ertelendi, bağımlı işlem
+  /// bekleniyor).
   queued,
 
   /// Sunucu onayladı.
@@ -46,8 +48,10 @@ bool isFreshlyDone(
     op.status == OutboxStatus.done &&
     DateTime.now().toUtc().difference(op.updatedAt) <= within;
 
-/// Kart üstündeki işlem çipi: "Gönderilmeyi bekliyor" (uyarı + saat), "Gönderiliyor", sunucu onaylayınca
-/// kısa bir başarı animasyonu ("Gönderildi"), reddedilince "İlgilenmeniz gerekiyor".
+/// Kart üstündeki işlem çipi (tasarım v3 §4 durum hapı): "Gönderilmeyi bekliyor" (uyarı),
+/// "Gönderiliyor" (dönen » ile gri hap), sunucu onaylayınca kısa bir başarı anı (yeşil hapta
+/// çizilen onay, "Gönderildi"), reddedilince "İlgilenmeniz gerekiyor". Aşama değişince çipler
+/// yumuşakça yer değiştirir.
 class OpStatusChip extends ConsumerStatefulWidget {
   const OpStatusChip({super.key, required this.op});
 
@@ -122,14 +126,32 @@ class _OpStatusChipState extends ConsumerState<OpStatusChip> {
         tone: AknTone.danger,
       ),
     };
+    // Aşama değişince eski çip söner, yenisi hafifçe büyüyerek gelir (v3 §5).
     return AnimatedSwitcher(
       duration: AknMotion.of(context, AknMotion.base),
+      switchInCurve: AknMotion.spring,
+      switchOutCurve: AknMotion.exit,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: AlignmentDirectional.centerStart,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, a) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.9, end: 1).animate(a),
+          alignment: AlignmentDirectional.centerStart.resolve(
+            Directionality.of(context),
+          ),
+          child: child,
+        ),
+      ),
       child: chip,
     );
   }
 }
 
-/// İşlem lambası (§6.12): nokta (gönderilirken dönen ok başı) + etiket; zemin, çerçeve yok.
+/// İşlem lambası (§4 durum hapı): uyarı / tehlike aşamaları çekirdek lambadır; gönderilirken aynı
+/// hap biçiminde gri kuyu, noktanın yerinde dönen ok başı.
 class _PhaseChip extends StatelessWidget {
   const _PhaseChip({
     super.key,
@@ -144,33 +166,25 @@ class _PhaseChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
     if (!spinner) {
       return AknLamp(label: label, tone: tone, semanticLabel: label);
     }
+    final c = context.akn;
+    final tc = c.tone(tone);
     return Semantics(
       label: label,
       excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ChevronSpinner(size: 14, color: c.ink, semanticLabel: null),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              style: context.aknText.bodySmall.copyWith(
-                color: c.ink,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+      child: _Pill(
+        background: tc.bg,
+        leading: ChevronSpinner(size: 12, color: tc.fg, semanticLabel: null),
+        label: label,
+        color: tc.fg,
       ),
     );
   }
 }
 
+/// Başarı anı: yeşil hapta küçük çizilen onay ve "Gönderildi".
 class _SentChip extends StatelessWidget {
   const _SentChip({super.key});
 
@@ -180,16 +194,59 @@ class _SentChip extends StatelessWidget {
     return Semantics(
       label: DriverCopy.opSent,
       excludeSemantics: true,
+      child: _Pill(
+        background: c.ok.bg,
+        leading: const SuccessCheck(
+          size: 16,
+          haptic: false,
+          burst: false,
+          semanticLabel: null,
+        ),
+        label: DriverCopy.opSent,
+        color: c.ok.fg,
+      ),
+    );
+  }
+}
+
+/// Lamba ölçüsünde hap: 26 px yüksek (yazıyla büyür), solda işaret, 12/16 700 etiket.
+class _Pill extends StatelessWidget {
+  const _Pill({
+    required this.background,
+    required this.leading,
+    required this.label,
+    required this.color,
+  });
+
+  final Color background;
+  final Widget leading;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 26),
+      padding: const EdgeInsetsDirectional.fromSTEB(8, 4, 10, 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: AknRadius.pillAll,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SuccessCheck(size: 18, haptic: false, semanticLabel: null),
+          leading,
           const SizedBox(width: 6),
-          Text(
-            DriverCopy.opSent,
-            style: context.aknText.bodySmall.copyWith(
-              color: c.ok.fg,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              style: t.captionStrong.copyWith(
+                fontSize: 12,
+                height: 16 / 12,
+                letterSpacing: 0.1,
+                color: color,
+              ),
             ),
           ),
         ],
@@ -198,9 +255,11 @@ class _SentChip extends StatelessWidget {
   }
 }
 
-/// İşlemin sonucu (ayrıntı ekranının alt çubuğu ve teslim sonucu): gönderiliyor / kaydedildi (uyarı +
-/// saat ikonu, başarı işareti asla) / gönderildi (çizilen başarı işareti) / reddedildi (sunucu mesajı +
-/// eylemler).
+/// İşlemin sonucu (ayrıntı ekranının alt çubuğu ve teslim sonucu; tasarım v3 §4 yumuşak tonlu
+/// kuyu): gönderiliyor (gri kuyu, dönen ») / kaydedildi (uyarı tonu + saat simgesi, başarı işareti
+/// asla) / gönderildi (yeşil kuyuda çizilen başarı işareti) / reddedildi (kırmızı kuyu, sunucu
+/// mesajı + eylemler). Aşama değişince zemin rengi kayarak değişir, simge yaylanarak yer
+/// değiştirir.
 class OpOutcomePanel extends ConsumerWidget {
   const OpOutcomePanel({
     super.key,
@@ -251,16 +310,28 @@ class OpOutcomePanel extends ConsumerWidget {
     final tc = c.tone(tone);
     final Widget leading = switch (phase) {
       OpPhase.sending => ChevronSpinner(
-        size: 22,
+        key: const ValueKey('sending'),
+        size: 20,
         color: c.ink,
         semanticLabel: null,
       ),
-      OpPhase.sent => const SuccessCheck(size: 32, semanticLabel: null),
-      OpPhase.queued => Icon(Icons.schedule_rounded, color: tc.fg, size: 24),
-      OpPhase.attention => Icon(
-        Icons.error_outline_rounded,
+      OpPhase.sent => const SuccessCheck(
+        key: ValueKey('sent'),
+        size: 32,
+        burst: false,
+        semanticLabel: null,
+      ),
+      OpPhase.queued => Icon(
+        PhosphorIconsRegular.clock,
+        key: const ValueKey('queued'),
         color: tc.fg,
-        size: 24,
+        size: 22,
+      ),
+      OpPhase.attention => Icon(
+        PhosphorIconsRegular.warningCircle,
+        key: const ValueKey('attention'),
+        color: tc.fg,
+        size: 22,
       ),
     };
     final next = op.nextAttemptAt;
@@ -272,21 +343,21 @@ class OpOutcomePanel extends ConsumerWidget {
       if (phase == OpPhase.queued && online)
         AknButton.ghost(
           label: DriverCopy.opRetry,
-          icon: Icons.refresh_rounded,
+          icon: PhosphorIconsRegular.arrowClockwise,
           size: AknButtonSize.small,
           onPressed: () => unawaited(commands.retry(op.id)),
         ),
       if (phase == OpPhase.attention && onFix != null)
         AknButton(
           label: DriverCopy.opFix,
-          icon: Icons.edit_outlined,
+          icon: PhosphorIconsRegular.pencilSimple,
           size: AknButtonSize.small,
           onPressed: onFix,
         ),
       if (phase == OpPhase.attention && onFix == null)
         AknButton.secondary(
           label: DriverCopy.opRetry,
-          icon: Icons.refresh_rounded,
+          icon: PhosphorIconsRegular.arrowClockwise,
           size: AknButtonSize.small,
           onPressed: () => unawaited(commands.retry(op.id)),
         ),
@@ -297,21 +368,24 @@ class OpOutcomePanel extends ConsumerWidget {
           onPressed: onDiscard,
         ),
     ];
+    final duration = AknMotion.of(context, AknMotion.base);
 
     return Semantics(
       container: true,
       liveRegion: true,
       child: AnimatedContainer(
-        duration: AknMotion.of(context, AknMotion.base),
+        duration: duration,
+        curve: AknMotion.standard,
         padding: EdgeInsets.fromLTRB(
-          14,
+          12,
           compact ? 12 : 14,
           14,
           compact ? 12 : 14,
         ),
         decoration: BoxDecoration(
-          color: c.surfaceAlt,
+          color: tc.bg,
           borderRadius: AknRadius.card,
+          border: Border.all(color: tc.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -320,25 +394,54 @@ class OpOutcomePanel extends ConsumerWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(width: 36, height: 36, child: Center(child: leading)),
+                // İşaret beyaz bir dairede: tonlu kuyunun üstünde net okunur.
+                AnimatedContainer(
+                  duration: duration,
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: c.isDark ? c.surfaceRaised : c.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: AknMotion.of(context, AknMotion.iconSwap),
+                    switchInCurve: AknMotion.pop,
+                    transitionBuilder: (child, a) =>
+                        ScaleTransition(scale: a, child: child),
+                    child: leading,
+                  ),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(title, style: t.bodyStrong.copyWith(color: c.ink)),
-                      if (body != null &&
-                          (!compact || phase == OpPhase.attention)) ...[
-                        const SizedBox(height: 2),
-                        Text(body, style: t.bodySmall.copyWith(color: c.ink)),
-                      ],
-                      if (retryLine != null)
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          retryLine,
-                          style: t.caption.copyWith(color: c.dim),
+                          title,
+                          style: t.bodyStrong.copyWith(
+                            color: c.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                    ],
+                        if (body != null &&
+                            (!compact || phase == OpPhase.attention)) ...[
+                          const SizedBox(height: 2),
+                          Text(body, style: t.bodySmall.copyWith(color: c.ink)),
+                        ],
+                        if (retryLine != null)
+                          Text(
+                            retryLine,
+                            style: t.caption.copyWith(
+                              color: c.dim,
+                              fontFeatures: AknNumerals.tabular,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -359,8 +462,10 @@ class OpOutcomePanel extends ConsumerWidget {
   }
 }
 
-/// Ana sayfadaki bekleyen işlem şeridi: "2 işlem gönderilmeyi bekliyor" / "1 işlem ilgilenmenizi
-/// bekliyor"; dokununca bekleyen işlemler sayfası açılır.
+/// Ana sayfadaki bekleyen işlem şeridi (tasarım v3 §4 yumuşak tonlu kuyu): "2 işlem gönderilmeyi
+/// bekliyor" / "1 işlem ilgilenmenizi bekliyor"; tonun simgesi beyaz dairede (ilgi bekleyende
+/// uygulamada hafifçe nefes alır), sağda "Göster" ve ok. Basınca küçülür; dokununca bekleyen
+/// işlemler sayfası açılır. Belirince yumuşakça yükselir.
 class DriverOutboxStrip extends ConsumerWidget {
   const DriverOutboxStrip({super.key, this.margin = EdgeInsets.zero});
 
@@ -373,65 +478,102 @@ class DriverOutboxStrip extends ConsumerWidget {
     final online = ref.watchOnline();
     final attention = s.attention > 0;
     final tone = attention ? AknTone.danger : AknTone.warn;
-    final tc = context.akn.tone(tone);
+    final c = context.akn;
+    final t = context.aknText;
+    final tc = c.tone(tone);
     final text = attention
         ? DriverCopy.opsAttention(s.attention)
         : online
         ? DriverCopy.opsWaiting(s.waiting)
         : DriverCopy.opsWaitingOffline(s.waiting);
+    final icon = Icon(
+      attention
+          ? PhosphorIconsRegular.warningCircle
+          : (online
+                ? PhosphorIconsRegular.cloudArrowUp
+                : PhosphorIconsRegular.clock),
+      size: 20,
+      color: tc.fg,
+    );
+    final glyph = SizedBox.square(
+      dimension: 36,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: c.isDark ? c.surfaceRaised : c.surface,
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: attention
+              ? AknAmbient(
+                  period: AknMotion.breathe,
+                  reverse: true,
+                  child: icon,
+                  builder: (context, v, child) =>
+                      Transform.scale(scale: 1 + 0.12 * v, child: child),
+                )
+              : icon,
+        ),
+      ),
+    );
     return Padding(
       padding: margin,
-      child: Semantics(
-        button: true,
-        label: text,
-        onTap: () => showPendingOpsSheet(context),
-        excludeSemantics: true,
-        child: Material(
-          color: context.akn.surfaceAlt,
-          shape: const RoundedRectangleBorder(borderRadius: AknRadius.card),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => showPendingOpsSheet(context),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: context.minTap),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      attention
-                          ? Icons.error_outline_rounded
-                          : (online
-                                ? Icons.cloud_upload_outlined
-                                : Icons.schedule_rounded),
-                      size: 20,
-                      color: tc.fg,
+      child: DriverFadeUp(
+        offset: 10,
+        child: Semantics(
+          button: true,
+          label: text,
+          onTap: () => showPendingOpsSheet(context),
+          excludeSemantics: true,
+          child: PressScale(
+            child: Material(
+              color: tc.bg,
+              shape: RoundedRectangleBorder(
+                borderRadius: AknRadius.card,
+                side: BorderSide(color: tc.line),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () {
+                  AknHaptics.selection();
+                  showPendingOpsSheet(context);
+                },
+                splashFactory: NoSplash.splashFactory,
+                highlightColor: tc.line.withValues(alpha: 0.5),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: context.minTap),
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.fromSTEB(
+                      10,
+                      10,
+                      8,
+                      10,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        text,
-                        style: context.aknText.label.copyWith(
-                          color: context.akn.ink,
+                    child: Row(
+                      children: [
+                        glyph,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            text,
+                            style: t.label.copyWith(color: c.ink),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Text(
+                          DriverCopy.opsShow,
+                          style: t.label.copyWith(
+                            color: c.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Icon(
+                          PhosphorIconsRegular.caretRight,
+                          size: 18,
+                          color: c.ink,
+                        ),
+                      ],
                     ),
-                    Text(
-                      DriverCopy.opsShow,
-                      style: context.aknText.label.copyWith(
-                        color: context.akn.ink,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 20,
-                      color: context.akn.ink,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

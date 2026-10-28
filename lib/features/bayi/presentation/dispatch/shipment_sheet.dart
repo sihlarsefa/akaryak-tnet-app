@@ -14,14 +14,16 @@ import '../../application/bayi_actions.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/dispatch_controller.dart';
 import '../../data/dispatch_models.dart';
+import '../home/home_atoms.dart' show HomeIconTile;
 import '../widgets/bayi_widgets.dart';
 import 'driver_picker.dart';
 import 'report_sheet.dart';
 
-/// Sevkiyat ayrıntısı ve teslim kanıtı (`shipments/{id}/detail`): kanıt fotoğrafları, imza / imza
-/// alınamama nedeni, itiraz notu ve fotoğrafları; yetkiye ve sunucu bayraklarına göre Yola çıkar,
-/// Teslim bildir / Teslimatı düzelt, Şoför değiştir, İptal. Sevkiyat uygulamayı kullanan bir şoföre
-/// aitse her işlemden önce onay sorulur.
+/// Sevkiyat ayrıntısı ve teslim kanıtı (`shipments/{id}/detail`; tasarım v3): durum çipi (durum
+/// değişince solup büyüyerek yenilenir), litre okumaları, olgular Beton bir kuyuda gruplu, kanıt
+/// fotoğrafları, imza / imza alınamama nedeni, itiraz notu ve fotoğrafları; teslim noktası simge
+/// karosuyla; yetkiye ve sunucu bayraklarına göre Yola çıkar, Teslim bildir / Teslimatı düzelt, Şoför
+/// değiştir, İptal. Sevkiyat uygulamayı kullanan bir şoföre aitse her işlemden önce onay sorulur.
 Future<void> showShipmentSheet(
   BuildContext context,
   int shipmentId, {
@@ -63,7 +65,7 @@ class _ShipmentSheetBodyState extends ConsumerState<ShipmentSheetBody> {
       title: '$name uygulamayı kullanıyor',
       message: '$hint Yine de devam etmek istiyor musunuz?',
       confirmLabel: action,
-      icon: Icons.phone_iphone_rounded,
+      icon: PhosphorIconsRegular.deviceMobile,
       tone: AknTone.warn,
     );
   }
@@ -268,21 +270,25 @@ class _Content extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            AknLamp.status(lamp),
-            if (d.isAppDriver)
-              const AknLamp(
-                label: 'uygulamada',
-                tone: AknTone.ok,
-                size: AknLampSize.small,
-              ),
-          ],
+        // Durum değişince (yola çıktı, teslim bildirildi) çip solup büyüyerek yenilenir.
+        _Swap(
+          child: Wrap(
+            key: ValueKey((d.status, d.isAppDriver)),
+            spacing: 12,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AknLamp.status(lamp),
+              if (d.isAppDriver)
+                const AknLamp(
+                  label: 'uygulamada',
+                  tone: AknTone.ok,
+                  size: AknLampSize.small,
+                ),
+            ],
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -350,7 +356,7 @@ class _Content extends ConsumerWidget {
           const SizedBox(height: 12),
           AknBanner(
             tone: AknTone.danger,
-            icon: Icons.report_outlined,
+            icon: PhosphorIconsRegular.warningOctagon,
             title: 'Carinin itirazı',
             message: d.disputeNote!,
           ),
@@ -359,33 +365,49 @@ class _Content extends ConsumerWidget {
           const SizedBox(height: 12),
           AknBanner(
             tone: AknTone.warn,
-            icon: Icons.gesture_rounded,
+            icon: PhosphorIconsRegular.signature,
             title: 'İmza alınamadı',
             message: d.signatureWaiverLabel!,
           ),
         ],
-        const SizedBox(height: 8),
-        for (var i = 0; i < facts.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
-          facts[i],
-        ],
-        if (d.vehiclePlate != null) ...[
-          Divider(height: 1, thickness: 1, color: c.line),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
+        const SizedBox(height: 14),
+        // Olgular Beton kuyuda gruplu, aralarında ince çizgi.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: c.surfaceAlt,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text(
-                    'Plaka',
-                    style: t.bodySmall.copyWith(color: c.dim),
+                for (var i = 0; i < facts.length; i++) ...[
+                  if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
+                  facts[i],
+                ],
+                if (d.vehiclePlate != null) ...[
+                  if (facts.isNotEmpty)
+                    Divider(height: 1, thickness: 1, color: c.line),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Plaka',
+                            style: t.bodySmall.copyWith(color: c.dim),
+                          ),
+                        ),
+                        PlateBadge(plate: d.vehiclePlate!),
+                      ],
+                    ),
                   ),
-                ),
-                PlateBadge(plate: d.vehiclePlate!),
+                ],
               ],
             ),
           ),
-        ],
+        ),
         if (d.deliveryNote != null) ...[
           const SizedBox(height: 12),
           Text('Teslim notu', style: t.label.copyWith(color: c.ink)),
@@ -407,21 +429,35 @@ class _Content extends ConsumerWidget {
           const SizedBox(height: 8),
           AttachmentGallery(attachments: d.disputeAttachments),
         ],
-        const SizedBox(height: 16),
-        Text(
-          point.name ?? 'Teslimat noktası',
-          style: t.bodyStrong.copyWith(color: c.ink),
+        const SizedBox(height: 18),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const HomeIconTile(icon: PhosphorIconsRegular.mapPin),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    point.name ?? 'Teslimat noktası',
+                    style: t.bodyStrong.copyWith(color: c.ink),
+                  ),
+                  if (point.address != null || point.place != null)
+                    Text(
+                      [?point.address, ?point.place].join(', '),
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    ),
+                  if (point.window != null)
+                    Text(
+                      'Teslim penceresi ${point.window}',
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ),
-        if (point.address != null || point.place != null)
-          Text(
-            [?point.address, ?point.place].join(', '),
-            style: t.bodySmall.copyWith(color: c.dim),
-          ),
-        if (point.window != null)
-          Text(
-            'Teslim penceresi ${point.window}',
-            style: t.bodySmall.copyWith(color: c.dim),
-          ),
         Wrap(
           spacing: 20,
           children: [
@@ -493,6 +529,36 @@ class _Content extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// Durum değişiminde içerik solup büyüyerek yenilenir (v3 §5 "state changes"); hareket azaltmada
+/// doğrudan.
+class _Swap extends StatelessWidget {
+  const _Swap({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: AknMotion.of(context, AknMotion.base),
+    switchInCurve: AknMotion.standard,
+    switchOutCurve: AknMotion.exit,
+    layoutBuilder: (current, previous) => Stack(
+      alignment: AlignmentDirectional.topStart,
+      children: [...previous, ?current],
+    ),
+    transitionBuilder: (child, animation) => FadeTransition(
+      opacity: animation,
+      child: ScaleTransition(
+        alignment: AlignmentDirectional.centerStart.resolve(
+          Directionality.of(context),
+        ),
+        scale: animation.drive(Tween<double>(begin: 0.9, end: 1)),
+        child: child,
+      ),
+    ),
+    child: child,
+  );
 }
 
 class _ActionButton extends StatelessWidget {

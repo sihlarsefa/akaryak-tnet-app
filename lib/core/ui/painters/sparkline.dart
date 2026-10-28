@@ -2,12 +2,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../motion.dart';
 import '../tokens.dart';
 
-/// Tiny trend line (design v2 §6.20 line chart, small): a 2 px ink line and
-/// an end dot (10 px `chartHighlight` with a 2 px surface ring). No area
-/// fill, no gradient, no draw-in (only the plate's counter roll animates on
-/// its own).
+/// Tiny trend line (design v3 §4): a smooth 2.5 px curve in the chart
+/// highlight (orange on white; the plate's accent on the hero card) over a
+/// soft gradient area that fades to nothing, ending in a dot with a surface
+/// ring and a faint halo. It draws itself in from the left when first shown
+/// (the end dot pops in last); reduce motion shows it at once.
 class Sparkline extends StatelessWidget {
   const Sparkline({
     super.key,
@@ -21,10 +23,11 @@ class Sparkline extends StatelessWidget {
   final List<double> values;
   final double height;
 
-  /// Line colour (ink by default; black on the plate).
+  /// Line colour (`chartHighlight` by default — the plate accent on the
+  /// plate card).
   final Color? color;
 
-  /// Deprecated: v2 draws no area under the line; ignored.
+  /// The gradient area under the line.
   final bool fill;
 
   /// Describe the trend for screen readers ("Son 6 ay harcama, artışta").
@@ -33,6 +36,7 @@ class Sparkline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
+    final line = color ?? c.chartHighlight;
     return Semantics(
       label: semanticLabel,
       image: true,
@@ -40,14 +44,19 @@ class Sparkline extends StatelessWidget {
       child: SizedBox(
         height: height,
         width: double.infinity,
-        child: CustomPaint(
-          painter: SparklinePainter(
-            values: values,
-            color: color ?? c.ink,
-            progress: 1,
-            fill: false,
-            surface: c.surface,
-            dot: c.chartHighlight,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0, end: 1),
+          duration: AknMotion.of(context, const Duration(milliseconds: 900)),
+          curve: AknMotion.emphasizedCurve,
+          builder: (context, progress, _) => CustomPaint(
+            painter: SparklinePainter(
+              values: values,
+              color: line,
+              progress: progress,
+              fill: fill,
+              surface: c.surface,
+              dot: line,
+            ),
           ),
         ),
       ),
@@ -71,7 +80,7 @@ class SparklinePainter extends CustomPainter {
   /// Drawn share of the line (0..1).
   final double progress;
 
-  /// Deprecated: ignored (no area fill in v2).
+  /// The gradient area under the line ([color] 22 % → 0 %).
   final bool fill;
   final Color surface;
 
@@ -80,11 +89,11 @@ class SparklinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (values.length < 2) return;
+    if (values.length < 2 || size.isEmpty) return;
     final minV = values.reduce(math.min);
     final maxV = values.reduce(math.max);
     final span = (maxV - minV).abs() < 1e-9 ? 1.0 : maxV - minV;
-    const pad = 6.0;
+    const pad = 7.0;
     final w = size.width - pad * 2;
     final h = size.height - pad * 2;
     Offset at(int i) => Offset(
@@ -92,6 +101,7 @@ class SparklinePainter extends CustomPainter {
       pad + h - h * (values[i] - minV) / span,
     );
 
+    // Smooth curve: horizontal tangents at every point never overshoot.
     final line = Path()..moveTo(at(0).dx, at(0).dy);
     for (var i = 1; i < values.length; i++) {
       final p0 = at(i - 1);
@@ -99,22 +109,52 @@ class SparklinePainter extends CustomPainter {
       final mx = (p0.dx + p1.dx) / 2;
       line.cubicTo(mx, p0.dy, mx, p1.dy, p1.dx, p1.dy);
     }
+    final p = progress.clamp(0.0, 1.0);
+    final reveal = pad + w * p;
     canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, pad + w * progress + pad, size.height));
+    canvas.clipRect(Rect.fromLTWH(0, 0, reveal + 2, size.height));
+    if (fill) {
+      final last = at(values.length - 1);
+      final area = Path.from(line)
+        ..lineTo(last.dx, size.height)
+        ..lineTo(at(0).dx, size.height)
+        ..close();
+      canvas.drawPath(
+        area,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              color.withValues(alpha: color.a * 0.22),
+              color.withValues(alpha: 0),
+            ],
+          ).createShader(Offset.zero & size),
+      );
+    }
     canvas.drawPath(
       line,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
+        ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round
         ..color = color,
     );
     canvas.restore();
-    if (progress >= 1) {
+    // The end dot pops in over the last 15 % of the draw-in.
+    final pop = ((p - 0.85) / 0.15).clamp(0.0, 1.0);
+    if (pop > 0) {
+      final s = Curves.easeOutBack.transform(pop);
       final last = at(values.length - 1);
-      canvas.drawCircle(last, 7, Paint()..color = surface);
-      canvas.drawCircle(last, 5, Paint()..color = dot ?? color);
+      final d = dot ?? color;
+      canvas.drawCircle(
+        last,
+        10 * s,
+        Paint()..color = d.withValues(alpha: d.a * 0.16),
+      );
+      canvas.drawCircle(last, 6.5 * s, Paint()..color = surface);
+      canvas.drawCircle(last, 4.5 * s, Paint()..color = d);
     }
   }
 
@@ -123,6 +163,7 @@ class SparklinePainter extends CustomPainter {
       old.values != values ||
       old.color != color ||
       old.progress != progress ||
+      old.fill != fill ||
       old.surface != surface ||
       old.dot != dot;
 }

@@ -24,11 +24,12 @@ import 'location_capture.dart';
 import 'widgets/field_widgets.dart';
 import 'widgets/tupras_strip.dart';
 
-/// Saha satış ana sayfası (tasarım v2 §7.16, §7.6 `fieldRep`): `AknHomeHeader` → kendi portföyünün
-/// istatistik destesi (üstteki kart plaka) → gönderilmeyi bekleyenler → "Saha formlarım" (okuma
-/// şeridi + onay bekleyen, taslak, reddedilen satırları) → "Ön kayıtlarım" → "Tüpraş fiyatları" →
-/// bulunduğunuz yerde hava. "Saha formu" alt menünün ortasındaki tuştadır. Sınıf adı ve kurucu imzası
-/// sabittir.
+/// Saha satış ana sayfası (tasarım v3 "Akış", `fieldRep`): turuncu `AknHomeHeader` bandı → bandın
+/// üstüne yükselen kendi portföyünün istatistik destesi → gönderilmeyi bekleyenler → "Saha formlarım"
+/// (sayaç gibi sayan KPI kutuları + onay bekleyen, taslak, reddedilen satır kartları) → "Ön
+/// kayıtlarım" → "Tüpraş fiyatları" → bulunduğunuz yerde hava. Bölümler ilk açılışta sırayla, sonra
+/// kaydırdıkça görünür oldukça kayarak belirir. "Saha formu" alt menünün ortasındaki tuştadır. Sınıf
+/// adı ve kurucu imzası sabittir.
 class FieldHome extends ConsumerWidget {
   const FieldHome({super.key});
 
@@ -247,10 +248,18 @@ class _HomeList extends StatelessWidget {
       if (assistant) const _AssistantRow(),
       const SizedBox(height: 32),
     ];
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: children,
+    // Deste bandın üstüne kendi yükselişiyle gelir; diğer bölümler sırayla (ve kaydırınca) belirir.
+    return StaggerScope(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        children: [
+          for (var i = 0; i < children.length; i++)
+            i == 0
+                ? children[i]
+                : FieldStaggerItem(index: i - 1, child: children[i]),
+        ],
+      ),
     );
   }
 
@@ -331,14 +340,14 @@ class _HomeList extends StatelessWidget {
   }
 }
 
-/// İlk yükleme: plaka yerinde Beton kağıt (turuncu yok).
+/// İlk yükleme: plaka kartının yerinde parıltılı iskelet (hero kartı biçiminde, r26).
 class _DeckSkeleton extends StatelessWidget {
   const _DeckSkeleton();
 
   @override
   Widget build(BuildContext context) => const Padding(
     padding: EdgeInsets.fromLTRB(20, 4, 20, 12),
-    child: SkeletonBox(height: 300, radius: 20),
+    child: SkeletonBox(height: 300, radius: AknRadius.plateRadius),
   );
 }
 
@@ -352,7 +361,7 @@ class _SectionFailed extends ConsumerWidget {
     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
     child: AknBanner(
       tone: AknTone.warn,
-      icon: Icons.cloud_off_outlined,
+      icon: PhosphorIconsRegular.cloudSlash,
       title: title,
       message: FieldCopy.sectionFailed,
       actionLabel: FieldCopy.retry,
@@ -361,7 +370,7 @@ class _SectionFailed extends ConsumerWidget {
   );
 }
 
-/// Rol ipucu (ilk girişte bir kez; kapatılabilir): Beton kuyu.
+/// Rol ipucu (ilk girişte bir kez; kapatılabilir): yumuşak tonlu bilgi bandı.
 class _TipWell extends ConsumerStatefulWidget {
   const _TipWell();
 
@@ -383,7 +392,7 @@ class _TipWellState extends ConsumerState<_TipWell> {
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
       child: AknBanner(
         tone: AknTone.info,
-        icon: Icons.tips_and_updates_outlined,
+        icon: PhosphorIconsRegular.lightbulbFilament,
         title: 'Sahada bağlantı kesilirse',
         message:
             'Saha formunu ve ön kaydı bağlantı olmadan da kaydedebilirsiniz; bağlantı gelince otomatik gönderilir.',
@@ -418,17 +427,18 @@ class _AssistantRowState extends ConsumerState<_AssistantRow> {
     if (_hidden || key == null || ref.read(prefsStoreProvider).getBool(key)) {
       return const SizedBox.shrink();
     }
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
+    return FieldListCard(
+      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: AknListTile(
-        leadingIcon: Icons.chat_bubble_outline_rounded,
+        leadingIcon: PhosphorIconsRegular.chatCircle,
+        leadingTone: AknTone.brand,
         title: 'Asistana sorun',
         subtitle: '"Koşullu onay ne demek?", "Barem bandı nedir?"',
         semanticLabel:
             'Asistana sorun: saha formu ve ön kayıt hakkında sorular',
         onTap: () => context.push(AppRoutes.assistant),
         trailing: AknIconButton(
-          icon: Icons.close_rounded,
+          icon: PhosphorIconsRegular.x,
           semanticLabel: 'Asistan satırını kapat',
           size: 20,
           color: context.akn.dim,
@@ -496,7 +506,7 @@ class _WeatherHereState extends ConsumerState<_WeatherHere> {
       context,
       ref,
       reason: FieldCopy.weatherPrimerReason,
-      icon: Icons.wb_sunny_outlined,
+      icon: PhosphorIconsRegular.sun,
     );
     if (!mounted) return;
     setState(() {
@@ -511,57 +521,80 @@ class _WeatherHereState extends ConsumerState<_WeatherHere> {
     final fix = ref.watch(fieldHereProvider);
     final t = context.aknText;
     final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Semantics(
-            header: true,
-            child: Text(
-              'Bulunduğunuz yerde hava',
-              style: t.title.copyWith(color: c.ink),
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (fix != null)
-            WeatherCard(lat: fix.latitude, lng: fix.longitude)
-          else
-            Container(
-              decoration: BoxDecoration(
-                color: c.surfaceAlt,
-                borderRadius: AknRadius.card,
-              ),
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Icon(Icons.wb_sunny_outlined, size: 20, color: c.ink),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 240),
-                    child: Text(
-                      'Ziyaret planınız için bulunduğunuz yerin hava durumunu görün.',
-                      style: t.bodySmall.copyWith(color: c.ink),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(title: 'Bulunduğunuz yerde hava'),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: AnimatedSwitcher(
+            duration: AknMotion.of(context, AknMotion.base),
+            switchInCurve: AknMotion.emphasizedCurve,
+            child: fix != null
+                ? WeatherCard(
+                    key: const ValueKey('weather'),
+                    lat: fix.latitude,
+                    lng: fix.longitude,
+                  )
+                : AknCard(
+                    key: const ValueKey('prompt'),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                    child: Wrap(
+                      spacing: 14,
+                      runSpacing: 12,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const _FloatingSun(),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 220),
+                          child: Text(
+                            'Ziyaret planınız için bulunduğunuz yerin hava durumunu görün.',
+                            style: t.bodySmall.copyWith(color: c.ink),
+                          ),
+                        ),
+                        AknButton.secondary(
+                          label: _busy ? 'Konum alınıyor…' : 'Konumu kullan',
+                          icon: PhosphorIconsRegular.gpsFix,
+                          size: AknButtonSize.small,
+                          onPressed: _busy ? null : _locate,
+                        ),
+                      ],
                     ),
                   ),
-                  AknButton.secondary(
-                    label: _busy ? 'Konum alınıyor…' : 'Konumu kullan',
-                    icon: Icons.my_location_rounded,
-                    size: AknButtonSize.small,
-                    onPressed: _busy ? null : _locate,
-                  ),
-                ],
-              ),
-            ),
-          FieldLocationNotice(
-            outcome: _outcome,
-            onRetry: _locate,
-            margin: const EdgeInsets.only(top: 8),
           ),
-        ],
+        ),
+        FieldLocationNotice(
+          outcome: _outcome,
+          onRetry: _locate,
+          margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        ),
+      ],
+    );
+  }
+}
+
+/// Hava kartı isteminin güneşi: sıcak turuncu yumuşak dairede, hafifçe süzülür (ortam hareketi).
+class _FloatingSun extends StatelessWidget {
+  const _FloatingSun();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final sun = Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: c.brandSoft, shape: BoxShape.circle),
+      child: Icon(PhosphorIconsFill.sun, size: 24, color: c.brand),
+    );
+    return AknAmbient(
+      period: AknMotion.float,
+      reverse: true,
+      builder: (context, t, child) => Transform.translate(
+        offset: Offset(0, -3 + 6 * t),
+        child: Transform.rotate(angle: 0.12 * t, child: child),
       ),
+      child: sun,
     );
   }
 }

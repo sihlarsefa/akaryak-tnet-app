@@ -94,7 +94,9 @@ void showActionFailure(BuildContext context, Object error) {
   }
 }
 
-/// "Son güncelleme 14:30" (önbellekten gösterilen veri ya da tazeleme hatası).
+/// "Son güncelleme 14:30" (önbellekten gösterilen veri ya da tazeleme hatası): tasarım v3'te sayfa
+/// kenarında küçük bir Beton hap — saat ya da bulut simgesi ve soluk cümle; belirince yumuşakça
+/// süzülür.
 class UpdatedCaption extends StatelessWidget {
   const UpdatedCaption({
     super.key,
@@ -120,19 +122,37 @@ class UpdatedCaption extends StatelessWidget {
         ? 'Son güncelleme ${Fmt.relative(at)}'
         : 'Yenilenemedi, son güncelleme ${Fmt.relative(at)}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Row(
-        children: [
-          Icon(
-            offline ? Icons.history_rounded : Icons.sync_problem_rounded,
-            size: 16,
-            color: c.dim,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: FadeUp(
+          offset: 6,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.surfaceAlt,
+              borderRadius: AknRadius.pillAll,
+            ),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(10, 5, 12, 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    offline
+                        ? PhosphorIconsRegular.clockCounterClockwise
+                        : PhosphorIconsRegular.cloudWarning,
+                    size: 15,
+                    color: c.dim,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(text, style: t.caption.copyWith(color: c.dim)),
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: t.caption.copyWith(color: c.dim)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -199,7 +219,8 @@ class FitEnd extends StatelessWidget {
 }
 
 /// Bölüm başlığı ([SectionHeader]); büyük yazı ölçeğinde eylem düğmesi başlığın altına iner (çekirdek
-/// başlıkta eylem düğmesi esnemez ve 2.0 ölçekte taşar).
+/// başlıkta eylem düğmesi esnemez ve 2.0 ölçekte taşar). Sağdaki kısa not ([caption]: "şu an, 10:42")
+/// büyük yazıda başlığın altına alt yazı olarak iner (başlık iki satıra kırılmasın).
 class BayiSectionHeader extends StatelessWidget {
   const BayiSectionHeader({
     super.key,
@@ -209,6 +230,7 @@ class BayiSectionHeader extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
+    this.caption,
   });
 
   final String title;
@@ -218,16 +240,22 @@ class BayiSectionHeader extends StatelessWidget {
   final VoidCallback? onAction;
   final EdgeInsetsGeometry padding;
 
+  /// Eylem yokken sağda kısa not (tablo rakamlı, soluk).
+  final String? caption;
+
   @override
   Widget build(BuildContext context) {
     final hasAction = actionLabel != null && onAction != null;
-    if (!hasAction || !isLargeText(context)) {
+    final large = isLargeText(context);
+    if (!hasAction || !large) {
+      final drop = large && caption != null && subtitle == null;
       return SectionHeader(
         title: title,
-        subtitle: subtitle,
+        subtitle: drop ? caption : subtitle,
         count: count,
         actionLabel: actionLabel,
         onAction: onAction,
+        caption: drop ? null : caption,
         padding: padding,
       );
     }
@@ -257,8 +285,9 @@ class BayiSectionHeader extends StatelessWidget {
 bool isLargeText(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(16) > 22;
 
-/// Bölüm seçici (2–3 seçenek): v2 [AknSegmented] (Beton ray, beyaz başparmak; her bölüm 48 dp hedefli,
-/// ekran okuyucuda seçili / seçilmemiş düğme). Adı ve parametreleri eski çağrılar için korunur.
+/// Bölüm seçici (2–3 seçenek, tasarım v3): [AknSegmented] (Beton hap ray, gölgeli beyaz başparmak yayla
+/// kayar; her bölüm 48 dp hedefli, ekran okuyucuda seçili / seçilmemiş düğme). Etiketler eşit dilime
+/// sığmazsa kayan çipler. Adı ve parametreleri eski çağrılar için korunur.
 class BayiSegmented<T> extends StatelessWidget {
   const BayiSegmented({
     super.key,
@@ -330,6 +359,10 @@ class BayiSegmented<T> extends StatelessWidget {
 
 /// [UsageBar]; etiket ve değer etiketi ("6.000 L / 16.000 L planlı") tek satıra sığmazsa (dar ekran,
 /// büyük yazı) değer etiketi çubuğun altına iner (çekirdek başlık satırında değer etiketi esnemez).
+///
+/// Tasarım v3: çubuk ilk görünüşte sıfırdan dolarak büyür (çekirdek [UsageBar], vurgulu eğri), değer
+/// değişince yeni değere kayar. Rengi baştan son değere göre seçilir (dolarken renk değiştirmez);
+/// hareket azaltmada son kare.
 class BayiUsageBar extends StatelessWidget {
   const BayiUsageBar({
     super.key,
@@ -338,6 +371,8 @@ class BayiUsageBar extends StatelessWidget {
     this.valueLabel,
     this.tone,
     this.height = 8,
+    this.warnAt = 0.8,
+    this.dangerAt = 1.0,
   });
 
   final double value;
@@ -346,12 +381,34 @@ class BayiUsageBar extends StatelessWidget {
   final AknTone? tone;
   final double height;
 
+  /// Eşikler ([UsageBar] ile aynı): üstünde uyarı, sonra tehlike rengi.
+  final double warnAt;
+  final double dangerAt;
+
   @override
   Widget build(BuildContext context) {
     final v = valueLabel;
-    if (v == null) {
-      return UsageBar(value: value, label: label, tone: tone, height: height);
-    }
+    final end = value.isNaN ? 0.0 : value;
+    // Ton son değerden: dolarken eşik geçilse de renk sabit kalır.
+    final fixedTone =
+        tone ??
+        (end >= dangerAt
+            ? AknTone.danger
+            : end >= warnAt
+            ? AknTone.warn
+            : null);
+    // Çekirdek çubuk kendisi dolarak gelir ve yeni değere kayar; burada ikinci bir ara değer
+    // (tween) yok — iç içe iki tween çubuğu değerinin çok gerisinde bırakır.
+    Widget bar(String? valueLabel) => UsageBar(
+      value: end,
+      label: label,
+      valueLabel: valueLabel,
+      tone: fixedTone,
+      height: height,
+      warnAt: warnAt,
+      dangerAt: dangerAt,
+    );
+    if (v == null) return bar(null);
     return LayoutBuilder(
       builder: (context, constraints) {
         final t = context.aknText;
@@ -373,22 +430,20 @@ class BayiUsageBar extends StatelessWidget {
             !constraints.hasBoundedWidth ||
             width(label ?? '', t.caption) + width(v, t.captionStrong) + 16 <=
                 constraints.maxWidth;
-        if (fits) {
-          return UsageBar(
-            value: value,
-            label: label,
-            valueLabel: v,
-            tone: tone,
-            height: height,
-          );
-        }
+        if (fits) return bar(v);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            UsageBar(value: value, label: label, tone: tone, height: height),
+            bar(null),
             const SizedBox(height: 4),
-            Text(v, style: t.captionStrong),
+            Text(
+              v,
+              style: t.captionStrong.copyWith(
+                color: context.akn.ink,
+                fontFeatures: AknNumerals.tabular,
+              ),
+            ),
           ],
         );
       },
@@ -417,7 +472,7 @@ class FilterButton extends StatelessWidget {
     excludeSemantics: true,
     onTap: onPressed,
     child: AknIconButton(
-      icon: Icons.tune_rounded,
+      icon: PhosphorIconsRegular.slidersHorizontal,
       semanticLabel: label,
       badgeCount: count,
       onPressed: onPressed,
@@ -449,7 +504,7 @@ class SectionFailedCard extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
     child: AknBanner(
       tone: AknTone.warn,
-      icon: Icons.cloud_off_outlined,
+      icon: PhosphorIconsRegular.cloudSlash,
       title: '$title: ${TurkishText.lower(BayiCopy.sectionFailed)}',
       message: BayiCopy.sectionFailedMessage,
       actionLabel: onRetry == null ? null : BayiCopy.retry,
@@ -485,7 +540,7 @@ class LoadMoreFooter extends StatelessWidget {
         child: Center(
           child: AknButton.ghost(
             label: '${BayiCopy.loadMoreFailed} ${BayiCopy.retry}',
-            icon: Icons.refresh_rounded,
+            icon: PhosphorIconsRegular.arrowClockwise,
             onPressed: onRetry,
           ),
         ),
@@ -573,13 +628,15 @@ Future<void> openPortal(
   }
 }
 
-/// Bölüm kartı: başlık satırı + içerik (ana sayfa ve ayrıntı ekranları).
+/// Bölüm kartı: başlık satırı + içerik (ana sayfa ve ayrıntı ekranları). Tasarım v3: sayfa zemininde
+/// süzülen beyaz kart ([BayiCard], 20 köşe, yumuşak kart gölgesi). [accent] yok sayılır (renkli şerit
+/// yok).
 class SectionCard extends StatelessWidget {
   const SectionCard({
     super.key,
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 4),
-    this.margin = const EdgeInsets.symmetric(horizontal: 16),
+    this.margin = const EdgeInsets.symmetric(horizontal: AknSpace.page),
     this.accent,
   });
 
@@ -589,8 +646,195 @@ class SectionCard extends StatelessWidget {
   final AknTone? accent;
 
   @override
-  Widget build(BuildContext context) =>
-      AknCard(margin: margin, padding: padding, accent: accent, child: child);
+  Widget build(BuildContext context) => BayiCard(
+    margin: margin,
+    padding: padding,
+    pressable: false,
+    child: child,
+  );
+}
+
+/// Kart içindeki defter satırının iç boşluğu (tasarım v3 liste kartı): 16 yan, 14 dikey.
+const EdgeInsets kCardRowPadding = EdgeInsets.fromLTRB(16, 14, 16, 14);
+
+/// Tasarım v3 kartı (§3 derinlik, §4 "list cards"): sayfa zemininde süzülen beyaz yüzey (20 köşe),
+/// yumuşak iki katlı kart gölgesi; koyu temada 1 px ince çizgi. İçerik köşelere kırpılır ve kartta
+/// olduğunu bilir ([AknCardScope]: defter satırları düz kalır, okumalar kuyu olur). [pressable] kart
+/// dokununca 0,97'ye iner, gölgesi sayfaya oturur ve bırakınca yaylanarak döner (§5 "Press");
+/// dokunuşu kaydırma devralırsa kart hemen bırakılır (liste kayarken kart küçük kalmaz). Kendi basılı
+/// hâli olan satırı ([AknListTile]) saran kart küçülmez (satır içeride küçülür; çift ölçek yok).
+/// Hareket azaltmada ölçek değişmez.
+class BayiCard extends StatefulWidget {
+  const BayiCard({
+    super.key,
+    required this.child,
+    this.margin = EdgeInsets.zero,
+    this.padding = EdgeInsets.zero,
+    this.radius = AknRadius.card,
+    this.pressable = true,
+    this.color,
+    this.shadow = true,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry margin;
+  final EdgeInsetsGeometry padding;
+  final BorderRadius radius;
+  final bool pressable;
+
+  /// Yüzey (varsayılan `surface`, beyaz).
+  final Color? color;
+
+  /// Kart gölgesi (sayfa içi gruplar); sayfa (sheet) içinde düz kutu için false.
+  final bool shadow;
+
+  @override
+  State<BayiCard> createState() => _BayiCardState();
+}
+
+class _BayiCardState extends State<BayiCard> {
+  bool _down = false;
+  ValueNotifier<bool>? _scrolling;
+
+  void _press(bool down) {
+    if (!widget.pressable || down == _down) return;
+    if (down) {
+      // Dokunuşu kaydırma devralınca kart bırakılır.
+      final n = context
+          .findAncestorStateOfType<ScrollableState>()
+          ?.position
+          .isScrollingNotifier;
+      if (n != _scrolling) {
+        _scrolling?.removeListener(_onScroll);
+        _scrolling = n?..addListener(_onScroll);
+      }
+    } else {
+      _scrolling?.removeListener(_onScroll);
+      _scrolling = null;
+    }
+    setState(() => _down = down);
+  }
+
+  void _onScroll() {
+    if ((_scrolling?.value ?? false) && mounted) _press(false);
+  }
+
+  @override
+  void dispose() {
+    _scrolling?.removeListener(_onScroll);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final pressed = _down && widget.pressable;
+    final reduced = AknMotion.reduced(context);
+    final duration = pressed ? AknMotion.press : AknMotion.pressOut;
+    Widget card = AnimatedContainer(
+      duration: AknMotion.of(context, duration),
+      curve: AknMotion.standard,
+      decoration: BoxDecoration(
+        color: widget.color ?? c.surface,
+        borderRadius: widget.radius,
+        boxShadow: !widget.shadow
+            ? null
+            : pressed
+            ? AknShadows.pressed(c)
+            : AknShadows.card(c),
+      ),
+      // Koyu temada kartı zeminden ayıran ince çizgi, içeriğin üstünde.
+      foregroundDecoration: c.isDark
+          ? BoxDecoration(
+              borderRadius: widget.radius,
+              border: Border.all(color: c.line),
+            )
+          : null,
+      // İçerik kartta olduğunu bilir: defter satırları düz kalır, okumalar kuyu olur.
+      child: AknCardScope(
+        child: ClipRRect(
+          borderRadius: widget.radius,
+          child: Padding(padding: widget.padding, child: widget.child),
+        ),
+      ),
+    );
+    if (widget.pressable) {
+      card = Listener(
+        onPointerDown: (_) => _press(true),
+        onPointerUp: (_) => _press(false),
+        onPointerCancel: (_) => _press(false),
+        child: AnimatedScale(
+          scale: pressed && !reduced ? AknMotion.pressScale : 1,
+          duration: duration,
+          curve: pressed ? AknMotion.standard : AknMotion.spring,
+          child: card,
+        ),
+      );
+    }
+    return Padding(padding: widget.margin, child: card);
+  }
+}
+
+/// Başlıklı olgu kartı (tasarım v3 ayrıntı sayfaları, "grouped fact cards"): beyaz kartın içinde
+/// bölüm başlığı ([SectionHeader]; sayı, alt yazı ve "Tümü" bağlantısı) ve altında içerik. Büyük
+/// yazıda bağlantı başlığın altına iner ([BayiSectionHeader]).
+class GroupCard extends StatelessWidget {
+  const GroupCard({
+    super.key,
+    required this.child,
+    this.title,
+    this.subtitle,
+    this.count,
+    this.actionLabel,
+    this.onAction,
+    this.margin = const EdgeInsets.fromLTRB(
+      AknSpace.page,
+      16,
+      AknSpace.page,
+      0,
+    ),
+    this.padding = const EdgeInsets.fromLTRB(18, 4, 18, 14),
+  });
+
+  final Widget child;
+  final String? title;
+  final String? subtitle;
+  final int? count;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final EdgeInsetsGeometry margin;
+
+  /// İçeriğin kart içindeki boşluğu (defter satırları kendi kenarını verirse sıfır).
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final head = title;
+    return BayiCard(
+      margin: margin,
+      pressable: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (head != null)
+            // Başlık satırı en az 48 px: eylemli ve eylemsiz kartlarda başlık aynı hizada.
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 58),
+              child: BayiSectionHeader(
+                title: head,
+                subtitle: subtitle,
+                count: count,
+                actionLabel: actionLabel,
+                onAction: onAction,
+                padding: const EdgeInsets.fromLTRB(18, 10, 8, 0),
+              ),
+            ),
+          Padding(padding: padding, child: child),
+        ],
+      ),
+    );
+  }
 }
 
 /// Sayı + etiket satırı (ana sayfa küçük göstergeleri), dokununca hedefe gider.
@@ -639,8 +883,8 @@ class CountLine extends StatelessWidget {
   }
 }
 
-/// Defter satırının ilk iki satırı (tasarım v2 §6.8): başlık (`headline` 17/22 600) ve ikinci satır
-/// (`bodySmall` dim) solda; tutar (`amount` 17/22 600, satır kırmaz) ve alt bilgisi ("42,35 ₺/L",
+/// Kart satırının ilk iki satırı (tasarım v3 liste kartı): başlık (`headline` 17/22 700) ve ikinci
+/// satır (`bodySmall` dim) solda; tutar (`amount` 17/22 700, tablo rakamları, satır kırmaz) ve alt bilgisi ("42,35 ₺/L",
 /// "tahmini") sağda, sağ kenara hizalı. Dar ekranda (< 340) ya da 1,3× üstü yazıda sağ sütun başlığın
 /// altına iner; hiçbir şey kesilmez.
 class LedgerHead extends StatelessWidget {
@@ -803,7 +1047,8 @@ class RowNote extends StatelessWidget {
   }
 }
 
-/// Gün başlığı (geçmiş listelerinde "Bugün", "Dün", "18 Ekim"): `label` 13/18 600 soluk, 20 px kenar.
+/// Gün başlığı (geçmiş listelerinde "Bugün", "Dün", "18 Ekim"; tasarım v3): solda küçük turuncu
+/// işaret ve 15/20 700 mürekkep başlık, sağda tablo rakamlı soluk özet; 20 px kenar.
 class DayHeader extends StatelessWidget {
   const DayHeader(this.text, {super.key, this.trailing});
 
@@ -816,18 +1061,56 @@ class DayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final style = t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim);
+    final style = t.bodyStrong.copyWith(
+      height: 20 / 15,
+      fontWeight: FontWeight.w700,
+      color: c.ink,
+    );
+    final line = MediaQuery.textScalerOf(context).scale(15) * 20 / 15;
     return Semantics(
       header: true,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 2),
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
         child: Wrap(
           alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 12,
+          runSpacing: 2,
           children: [
-            Text(text, style: style),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: line,
+                  child: Center(
+                    child: Container(
+                      width: 4,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [c.brandFillStart, c.brand],
+                        ),
+                        borderRadius: AknRadius.pillAll,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(child: Text(text, style: style)),
+              ],
+            ),
             if (trailing != null)
-              Text(trailing!, style: t.label.copyWith(color: c.dim)),
+              Text(
+                trailing!,
+                style: t.caption.copyWith(
+                  color: c.dim,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
           ],
         ),
       ),
@@ -836,19 +1119,37 @@ class DayHeader extends StatelessWidget {
 }
 
 /// Liste sonu cümlesi (§7.7): öğelerin nereye gittiğini söyler ("Teslim edilen siparişler …").
+/// Tasarım v3: bilgi simgesiyle soluk küçük metin, listenin sonunda yumuşakça belirir.
 class ListFooterNote extends StatelessWidget {
   const ListFooterNote(this.text, {super.key});
 
   final String text;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-    child: Text(
-      text,
-      style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final line = MediaQuery.textScalerOf(context).scale(14) * 20 / 14;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+      child: FadeUp(
+        offset: 8,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              height: line,
+              child: Icon(PhosphorIconsRegular.info, size: 16, color: c.dim),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Beton kuyu içinde kısa bilgi (§4.5): 44 px'lik tek satır uyarı ("2 sipariş finans onayında; …").

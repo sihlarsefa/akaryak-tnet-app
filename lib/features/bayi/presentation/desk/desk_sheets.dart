@@ -91,7 +91,9 @@ class _BulkSameSheetState extends ConsumerState<_BulkSameSheet> {
   }
 }
 
-/// Toplu gönderim sonuçları: satır başına sonuç (finansa gidenler uyarı tonunda).
+/// Toplu gönderim sonuçları (tasarım v3): hepsi gönderildiyse önce başarı işareti çizilir (halka, onay,
+/// küçük parıltı ve dokunsal geri bildirim); özet satırları ve satır başına sonuçlar art arda süzülür
+/// (finansa gidenler uyarı tonunda).
 Future<void> showDeskResultsSheet(BuildContext context, DeskSubmitSummary s) =>
     showAppSheet<void>(
       context: context,
@@ -114,72 +116,103 @@ class _ResultsBody extends StatelessWidget {
         (
           '${s.quoted} teklif gönderildi',
           AknTone.ok,
-          Icons.check_circle_rounded,
+          PhosphorIconsFill.checkCircle,
         ),
       if (s.routedToFinance > 0)
         (
           '${s.routedToFinance} sipariş finans onayına gönderildi',
           AknTone.warn,
-          Icons.account_balance_rounded,
+          PhosphorIconsFill.bank,
         ),
       if (s.failed > 0)
         (
           '${s.failed} satır gönderilemedi',
           AknTone.danger,
-          Icons.error_rounded,
+          PhosphorIconsFill.warningCircle,
         ),
     ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Semantics(
-          liveRegion: true,
-          container: true,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final (text, tone, icon) in lines)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(icon, color: c.tone(tone).fg, size: 20),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          text,
-                          style: t.bodyStrong.copyWith(color: c.ink),
-                        ),
+    final allGood = s.quoted > 0 && s.failed == 0 && s.routedToFinance == 0;
+    return StaggerScope(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (allGood) ...[
+            const Center(child: SuccessCheck(size: 64)),
+            const SizedBox(height: 14),
+          ],
+          Semantics(
+            liveRegion: true,
+            container: true,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (i, (text, tone, icon)) in lines.indexed)
+                  FadeUp(
+                    delay: Duration(milliseconds: 90 * i),
+                    offset: 10,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: c.tone(tone).bg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: c.tone(tone).fg, size: 18),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              text,
+                              style: t.bodyStrong.copyWith(color: c.ink),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-            ],
-          ),
-        ),
-        if (s.routedToFinance > 0)
-          const Padding(
-            padding: EdgeInsets.only(top: 4, bottom: 8),
-            child: AknBanner(
-              tone: AknTone.warn,
-              message:
-                  'Teklif cari limitini aştığı için bu siparişler finans onayına gitti; teklif kaydedilmedi. Finans onaylayınca masaya döner.',
+              ],
             ),
           ),
-        const SizedBox(height: 4),
-        // Satır başına sonuç: defter satırları (kart listesi değil).
-        for (var i = 0; i < s.results.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: c.line),
-          _ResultRow(result: s.results[i], row: s.rows[s.results[i].orderId]),
+          if (s.routedToFinance > 0)
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 8),
+              child: AknBanner(
+                tone: AknTone.warn,
+                message:
+                    'Teklif cari limitini aştığı için bu siparişler finans onayına gitti; teklif kaydedilmedi. Finans onaylayınca masaya döner.',
+              ),
+            ),
+          const SizedBox(height: 4),
+          // Satır başına sonuç: içeriden ince çizgiyle ayrılmış satırlar, art arda gelir.
+          for (var i = 0; i < s.results.length; i++)
+            StaggerItem(
+              index: i + lines.length,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (i > 0)
+                    Divider(height: 1, thickness: 1, color: c.lineSoft),
+                  _ResultRow(
+                    result: s.results[i],
+                    row: s.rows[s.results[i].orderId],
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 16),
+          AknButton(
+            label: 'Tamam',
+            expand: true,
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ],
-        const SizedBox(height: 16),
-        AknButton(
-          label: 'Tamam',
-          expand: true,
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
+      ),
     );
   }
 }

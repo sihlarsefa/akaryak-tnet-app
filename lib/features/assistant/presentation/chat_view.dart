@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
@@ -29,6 +29,14 @@ class ChatView extends ConsumerStatefulWidget {
 
 class _ChatViewState extends ConsumerState<ChatView> {
   final _composer = GlobalKey<ChatComposerState>();
+
+  /// Buzlu yazma alanının yüksekliği: liste altından kayar, son mesaj alanın hemen üstünde durur.
+  double _composerHeight = 132;
+
+  void _onComposerSize(Size size) {
+    if (!mounted || (size.height - _composerHeight).abs() < 0.5) return;
+    setState(() => _composerHeight = size.height);
+  }
 
   @override
   void initState() {
@@ -95,70 +103,226 @@ class _ChatViewState extends ConsumerState<ChatView> {
       }
     });
 
-    return Column(
+    // Tasarım v3: mesajlar buzlu yazma alanının altından kayar (alan içeriğin üstünde yüzer); liste
+    // altta alanın yüksekliği kadar boşluk bırakır.
+    final bottom = _composerHeight + 12;
+    return Stack(
       children: [
-        Expanded(
-          child: s.isEmpty
-              ? _Welcome(
-                  suggestions: s.suggestions,
-                  onAsk: (q) => unawaited(_send(q)),
-                  enabled: !s.typing && online,
-                )
-              : _Messages(
-                  state: s,
-                  onRetry: (m) => unawaited(
-                    ref.read(assistantChatProvider.notifier).retry(m.id),
+        Positioned.fill(
+          child: FadeThroughSwitcher(
+            child: s.isEmpty
+                ? _Welcome(
+                    key: const ValueKey('welcome'),
+                    suggestions: s.suggestions,
+                    onAsk: (q) => unawaited(_send(q)),
+                    enabled: !s.typing && online,
+                    bottomInset: bottom,
+                  )
+                : _Messages(
+                    key: const ValueKey('messages'),
+                    state: s,
+                    bottomInset: bottom,
+                    onRetry: (m) => unawaited(
+                      ref.read(assistantChatProvider.notifier).retry(m.id),
+                    ),
+                    onRate: (m, helpful) => unawaited(_rate(m, helpful)),
                   ),
-                  onRate: (m, helpful) => unawaited(_rate(m, helpful)),
-                ),
+          ),
         ),
-        ChatComposer(
-          key: _composer,
-          enabled: !s.typing,
-          offline: !online,
-          cooldownUntil: s.cooldownUntil,
-          onSend: (text) => unawaited(_send(text)),
-          onOpenKvkk: _openKvkk,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _SizeReporter(
+            onSize: _onComposerSize,
+            child: ChatComposer(
+              key: _composer,
+              enabled: !s.typing,
+              offline: !online,
+              cooldownUntil: s.cooldownUntil,
+              onSend: (text) => unawaited(_send(text)),
+              onOpenKvkk: _openKvkk,
+            ),
+          ),
         ),
       ],
     );
   }
 }
 
+/// Çocuğunun boyutunu her yerleşimden sonra (değiştiyse) bildirir.
+class _SizeReporter extends SingleChildRenderObjectWidget {
+  const _SizeReporter({required this.onSize, super.child});
+
+  final ValueChanged<Size> onSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSizeReporter(onSize);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSizeReporter renderObject,
+  ) => renderObject.onSize = onSize;
+}
+
+class _RenderSizeReporter extends RenderProxyBox {
+  _RenderSizeReporter(this.onSize);
+
+  ValueChanged<Size> onSize;
+  Size? _last;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    if (size == _last) return;
+    _last = size;
+    final s = size;
+    WidgetsBinding.instance.addPostFrameCallback((_) => onSize(s));
+  }
+}
+
 class _Messages extends StatelessWidget {
   const _Messages({
+    super.key,
     required this.state,
+    required this.bottomInset,
     required this.onRetry,
     required this.onRate,
   });
 
   final ChatState state;
+  final double bottomInset;
   final ValueChanged<ChatMessage> onRetry;
   final void Function(ChatMessage m, bool helpful) onRate;
+
+  static const _typingKey = ValueKey<String>('typing');
 
   @override
   Widget build(BuildContext context) {
     final items = state.messages.reversed.toList();
     final count = items.length + (state.typing ? 1 : 0);
-    return ListView.separated(
+    // Tasarım v3: yeni mesaj kayarak ve belirerek gelir (kullanıcınınki sağdan, asistanınki soldan).
+    // Öğeler kimlikleriyle eşlenir: yeni mesaj eklenince eskiler yeniden doğmaz, girişleri tekrar
+    // oynamaz.
+    return ListView.builder(
       reverse: true,
-      padding: const EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 16),
+      padding: EdgeInsets.fromLTRB(
+        AknSpace.page,
+        16,
+        AknSpace.page,
+        bottomInset,
+      ),
       itemCount: count,
-      separatorBuilder: (_, _) => const SizedBox(height: 16),
+      findChildIndexCallback: (key) {
+        if (key == _typingKey) return state.typing ? 0 : null;
+        if (key is! ValueKey<String>) return null;
+        final i = items.indexWhere((m) => m.id == key.value);
+        if (i < 0) return null;
+        return state.typing ? i + 1 : i;
+      },
       itemBuilder: (context, i) {
         if (state.typing && i == 0) {
-          return const TypingBubble();
+          return const KeyedSubtree(
+            key: _typingKey,
+            child: Padding(
+              padding: EdgeInsets.only(top: 16),
+              child: TypingBubble(),
+            ),
+          );
         }
         final index = state.typing ? i - 1 : i;
         final m = items[index];
-        final bubble = MessageBubble(
-          key: ValueKey(m.id),
-          message: m,
-          onRetry: m.failed ? () => onRetry(m) : null,
-          onRate: (helpful) => onRate(m, helpful),
+        return KeyedSubtree(
+          key: ValueKey<String>(m.id),
+          child: Padding(
+            padding: EdgeInsets.only(top: i == count - 1 ? 0 : 16),
+            child: _MessageIn(
+              fromUser: m.isUser,
+              child: MessageBubble(
+                key: ValueKey(m.id),
+                message: m,
+                onRetry: m.failed ? () => onRetry(m) : null,
+                onRate: (helpful) => onRate(m, helpful),
+              ),
+            ),
+          ),
         );
-        // Hareket yok (§8.3): yeni mesaj olduğu yerde belirir.
-        return bubble;
+      },
+    );
+  }
+}
+
+/// Bir mesajın girişi (tek seferlik): 420 ms'de belirir, kendi tarafından 28 px yatay ve 10 px dikey
+/// kayar, kuyruk köşesinden %92'den büyür. Yapı sabit (bitince sarmalayıcı kalır, durum korunur);
+/// azaltılmış harekette doğrudan çizilir.
+class _MessageIn extends StatefulWidget {
+  const _MessageIn({required this.fromUser, required this.child});
+
+  final bool fromUser;
+  final Widget child;
+
+  @override
+  State<_MessageIn> createState() => _MessageInState();
+}
+
+class _MessageInState extends State<_MessageIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  static final _move = CurveTween(curve: AknMotion.emphasizedCurve);
+  static final _fade = CurveTween(
+    curve: const Interval(0, 0.45, curve: Curves.easeOut),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+    } else {
+      unawaited(_c.forward());
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final side = widget.fromUser ? 1.0 : -1.0;
+    final rtl = Directionality.of(context) == TextDirection.rtl ? -1.0 : 1.0;
+    return AnimatedBuilder(
+      animation: _c,
+      child: widget.child,
+      builder: (context, child) {
+        final m = _move.evaluate(_c);
+        return Opacity(
+          opacity: _fade.evaluate(_c),
+          child: Transform.translate(
+            offset: Offset(28 * side * rtl * (1 - m), 10 * (1 - m)),
+            child: Transform.scale(
+              scale: 0.92 + 0.08 * m,
+              alignment: widget.fromUser
+                  ? AlignmentDirectional.bottomEnd.resolve(
+                      Directionality.of(context),
+                    )
+                  : AlignmentDirectional.bottomStart.resolve(
+                      Directionality.of(context),
+                    ),
+              child: child,
+            ),
+          ),
+        );
       },
     );
   }
@@ -166,14 +330,17 @@ class _Messages extends StatelessWidget {
 
 class _Welcome extends ConsumerWidget {
   const _Welcome({
+    super.key,
     required this.suggestions,
     required this.onAsk,
     required this.enabled,
+    required this.bottomInset,
   });
 
   final List<SuggestionGroup>? suggestions;
   final ValueChanged<String> onAsk;
   final bool enabled;
+  final double bottomInset;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -187,42 +354,63 @@ class _Welcome extends ConsumerWidget {
     final questions = [
       for (final g in groups ?? const <SuggestionGroup>[]) ...g.questions,
     ].take(6).toList();
-    // Sola dayalı karşılama (§4.2): 40 px logo karosu, `display` selam, tek cümle; örnek sorular
-    // çip olarak (Beton, r10, ink 600).
+    // Sola dayalı karşılama (v3): süzülen 48 px logo karosu, `display` selam, tek cümle; örnek sorular
+    // beyaz hap çipler (ince çizgi, ink 600), sırayla gelir; basınca içe çöker.
     return ListView(
-      padding: const EdgeInsets.fromLTRB(AknSpace.page, 20, AknSpace.page, 16),
+      padding: EdgeInsets.fromLTRB(
+        AknSpace.page,
+        24,
+        AknSpace.page,
+        bottomInset,
+      ),
       children: [
-        const Align(
+        Align(
           alignment: AlignmentDirectional.centerStart,
-          child: AssistantAvatar(size: 40),
+          child: AknAmbient(
+            period: AknMotion.float,
+            reverse: true,
+            builder: (context, t, child) =>
+                Transform.translate(offset: Offset(0, -4 * t), child: child),
+            child: const AssistantAvatar(size: 48),
+          ),
         ),
         const SizedBox(height: 20),
-        Semantics(
-          header: true,
-          child: Text(
-            AssistantCopy.greeting(first),
-            style: t.display.copyWith(color: c.ink),
-            textScaler: MediaQuery.textScalerOf(
-              context,
-            ).clamp(maxScaleFactor: 1.6),
+        FadeUp(
+          offset: 14,
+          child: Semantics(
+            header: true,
+            child: Text(
+              AssistantCopy.greeting(first),
+              style: t.display.copyWith(color: c.ink),
+              textScaler: MediaQuery.textScalerOf(
+                context,
+              ).clamp(maxScaleFactor: 1.6),
+            ),
           ),
         ),
         const SizedBox(height: 8),
-        Text(AssistantCopy.intro, style: t.body.copyWith(color: c.dim)),
-        const SizedBox(height: 24),
+        FadeUp(
+          offset: 14,
+          delay: const Duration(milliseconds: 60),
+          child: Text(
+            AssistantCopy.intro,
+            style: t.body.copyWith(color: c.dim),
+          ),
+        ),
+        const SizedBox(height: 28),
         Text(
           AssistantCopy.starters,
-          style: t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim),
+          style: t.captionStrong.copyWith(color: c.dim),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (groups == null)
           const Shimmer(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SkeletonBox(height: 36, width: 240, radius: 10),
+                SkeletonBox(height: 40, width: 240, radius: 20),
                 SizedBox(height: 8),
-                SkeletonBox(height: 36, width: 200, radius: 10),
+                SkeletonBox(height: 40, width: 200, radius: 20),
               ],
             ),
           )
@@ -231,8 +419,9 @@ class _Welcome extends ConsumerWidget {
             spacing: 8,
             runSpacing: 0,
             children: [
-              for (final q in questions)
+              for (final (i, q) in questions.indexed)
                 _StarterChip(
+                  index: i,
                   question: q,
                   onTap: enabled ? () => onAsk(q) : null,
                 ),
@@ -243,10 +432,12 @@ class _Welcome extends ConsumerWidget {
   }
 }
 
-/// Örnek soru çipi (§6.11): Beton dolgu, r10, ink 14/18 600; 36 px görünür, 48 px dokunma alanı.
+/// Örnek soru çipi (tasarım v3): beyaz hap (ince çizgi, kart gölgesi), solda turuncu kıvılcım, ink 14/20
+/// 600; 40 px görünür, 48 px dokunma alanı. Açılışta sırayla yukarı kayarak gelir; basınca içe çöker.
 class _StarterChip extends StatelessWidget {
-  const _StarterChip({required this.question, this.onTap});
+  const _StarterChip({required this.index, required this.question, this.onTap});
 
+  final int index;
   final String question;
   final VoidCallback? onTap;
 
@@ -254,36 +445,60 @@ class _StarterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    return Semantics(
-      button: true,
-      enabled: onTap != null,
-      label: question,
-      excludeSemantics: true,
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    final active = onTap != null;
+    return FadeUp(
+      offset: 12,
+      delay: Duration(milliseconds: 80 + 45 * index),
+      child: Semantics(
+        button: true,
+        enabled: active,
+        label: question,
+        excludeSemantics: true,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 36),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: c.surfaceAlt,
-                borderRadius: AknRadius.chip,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Text(
-                  question,
-                  style: t.label.copyWith(
-                    fontSize: 14,
-                    height: 18 / 14,
-                    fontWeight: FontWeight.w600,
-                    color: onTap == null ? c.dim : c.ink,
+        child: PressScale(
+          enabled: active,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap == null
+                ? null
+                : () {
+                    AknHaptics.selection();
+                    onTap!();
+                  },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 40),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: c.surface,
+                    borderRadius: AknRadius.chip,
+                    border: Border.all(color: c.line),
+                    boxShadow: AknShadows.pressed(c),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          PhosphorIconsFill.sparkle,
+                          size: 15,
+                          color: active ? c.brand : c.faint,
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            question,
+                            style: t.label.copyWith(
+                              fontSize: 14,
+                              height: 20 / 14,
+                              color: active ? c.ink : c.dim,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

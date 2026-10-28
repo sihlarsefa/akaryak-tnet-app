@@ -18,17 +18,17 @@ import '../widgets/payment_document_flow.dart';
 import 'wizard_parts.dart';
 
 IconData paymentMethodIcon(String code) => switch (code) {
-  PaymentCodes.cash => Icons.payments_outlined,
-  PaymentCodes.transfer => Icons.swap_horiz_rounded,
-  PaymentCodes.card => Icons.credit_card_outlined,
-  PaymentCodes.dbs => Icons.account_balance_outlined,
-  PaymentCodes.cheque => Icons.receipt_outlined,
-  PaymentCodes.promissoryNote => Icons.description_outlined,
-  PaymentCodes.openAccount => Icons.menu_book_outlined,
-  PaymentCodes.guarantee => Icons.shield_outlined,
-  PaymentCodes.utts => Icons.directions_car_outlined,
-  PaymentCodes.advance => Icons.account_balance_wallet_outlined,
-  _ => Icons.radio_button_unchecked_rounded,
+  PaymentCodes.cash => PhosphorIconsRegular.money,
+  PaymentCodes.transfer => PhosphorIconsRegular.arrowsLeftRight,
+  PaymentCodes.card => PhosphorIconsRegular.creditCard,
+  PaymentCodes.dbs => PhosphorIconsRegular.bank,
+  PaymentCodes.cheque => PhosphorIconsRegular.receipt,
+  PaymentCodes.promissoryNote => PhosphorIconsRegular.fileText,
+  PaymentCodes.openAccount => PhosphorIconsRegular.bookOpenText,
+  PaymentCodes.guarantee => PhosphorIconsRegular.shield,
+  PaymentCodes.utts => PhosphorIconsRegular.car,
+  PaymentCodes.advance => PhosphorIconsRegular.wallet,
+  _ => PhosphorIconsRegular.circle,
 };
 
 /// Adım 3: ödeme yöntemi kartları, vade / taksit, yöntem alanları (sunucu şeması), avans bakiyesi,
@@ -77,76 +77,92 @@ class StepPayment extends ConsumerWidget {
     String? errorFor(String f) =>
         issues.where((i) => i.field == f).firstOrNull?.message;
 
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+    // Başlık ve yöntem kartları birbiri ardına yükselerek gelir (v3 §5).
+    final enter = WizardCascade();
+
+    return WizardStepList(
       children: [
-        ContentWidth(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const WizardHeading('Ödeme yöntemi'),
-              if (o.blockedReason != null)
-                AknBanner(
-                  tone: AknTone.warn,
-                  icon: Icons.hourglass_top_rounded,
-                  message: o.blockedReason!,
-                  margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                )
-              else if (o.methods.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text(
-                    OrdersCopy.noMethods,
-                    style: t.body.copyWith(color: c.dim),
-                  ),
-                )
-              else ...[
-                for (final method in o.methods)
-                  ChoiceCard(
-                    margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                    title: method.displayName,
-                    subtitle: method.termLabel,
-                    leadingIcon: paymentMethodIcon(method.code),
-                    tag: method.requiresFinance
-                        ? 'Finans onayı'
-                        : (method.code == o.defaultMethodCode
-                              ? 'Varsayılan'
-                              : null),
-                    selected: d.payment.methodCode == method.code,
-                    onTap: () => ctrl.selectMethod(method.code),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 20, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: d.payment.hasMethod
-                        ? AknButton.ghost(
-                            label: 'Ödemeyi belirtmeden gönder',
-                            size: AknButtonSize.small,
-                            onPressed: ctrl.clearMethod,
-                          )
-                        : Padding(
-                            padding: const EdgeInsets.fromLTRB(10, 4, 0, 8),
-                            child: Text(
-                              OrdersCopy.noPayment,
-                              style: t.bodySmall.copyWith(color: c.dim),
-                            ),
-                          ),
-                  ),
+        enter('methods-heading', const WizardHeading('Ödeme yöntemi')),
+        if (o.blockedReason != null)
+          enter(
+            'blocked',
+            AknBanner(
+              tone: AknTone.warn,
+              icon: PhosphorIconsRegular.hourglassHigh,
+              message: o.blockedReason!,
+              margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            ),
+          )
+        else if (o.methods.isEmpty)
+          enter(
+            'no-methods',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                OrdersCopy.noMethods,
+                style: t.body.copyWith(color: c.dim),
+              ),
+            ),
+          )
+        else ...[
+          for (final method in o.methods)
+            enter(
+              'method-${method.code}',
+              ChoiceCard(
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                title: method.displayName,
+                subtitle: method.termLabel,
+                leading: A2IconTile(
+                  icon: paymentMethodIcon(method.code),
+                  tone: d.payment.methodCode == method.code
+                      ? AknTone.brand
+                      : null,
                 ),
-              ],
-              SafeAnimatedSize(
-                child: m == null
-                    ? const SizedBox(width: double.infinity)
-                    : _MethodDetail(
-                        key: ValueKey(m.code),
-                        method: m,
-                        options: o,
-                        errorFor: errorFor,
-                        warnings: warnings,
+                tag: method.requiresFinance
+                    ? 'Finans onayı'
+                    : (method.code == o.defaultMethodCode
+                          ? 'Varsayılan'
+                          : null),
+                selected: d.payment.methodCode == method.code,
+                onTap: () => ctrl.selectMethod(method.code),
+              ),
+            ),
+          enter(
+            'no-payment',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 0, 20, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: d.payment.hasMethod
+                    ? AknButton.ghost(
+                        label: 'Ödemeyi belirtmeden gönder',
+                        size: AknButtonSize.small,
+                        onPressed: ctrl.clearMethod,
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 4, 0, 8),
+                        child: Text(
+                          OrdersCopy.noPayment,
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
                       ),
               ),
-            ],
+            ),
+          ),
+        ],
+        // Yöntemin ayrıntıları yöntem değişince yumuşakça açılır / kapanır.
+        enter(
+          'method-detail',
+          SafeAnimatedSize(
+            child: m == null
+                ? const SizedBox(width: double.infinity)
+                : _MethodDetail(
+                    key: ValueKey(m.code),
+                    method: m,
+                    options: o,
+                    errorFor: errorFor,
+                    warnings: warnings,
+                  ),
           ),
         ),
       ],
@@ -291,7 +307,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
       children.add(
         AknBanner(
           tone: AknTone.warn,
-          icon: Icons.compare_arrows_rounded,
+          icon: PhosphorIconsRegular.arrowsLeftRight,
           message: warn.message,
           margin: const EdgeInsets.only(top: 8),
         ),
@@ -304,7 +320,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
       children.add(
         AknBanner(
           tone: err == null ? AknTone.info : AknTone.danger,
-          icon: Icons.account_balance_wallet_rounded,
+          icon: PhosphorIconsFill.wallet,
           title: 'Ön ödemeli bakiye',
           message:
               err ??
@@ -319,7 +335,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
     if (m.isInstrument) {
       children.add(
         const _Hint(
-          icon: Icons.photo_camera_outlined,
+          icon: PhosphorIconsRegular.camera,
           text: OrdersCopy.instrumentPhotoLater,
         ),
       );
@@ -330,14 +346,14 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
     }
 
     if (m.hint != null) {
-      children.add(_Hint(icon: Icons.info_outline_rounded, text: m.hint!));
+      children.add(_Hint(icon: PhosphorIconsRegular.info, text: m.hint!));
     }
 
     if (m.requiresFinance) {
       children.add(
         const AknBanner(
           tone: AknTone.info,
-          icon: Icons.shield_outlined,
+          icon: PhosphorIconsRegular.shield,
           message: OrdersCopy.financeHint,
           margin: EdgeInsets.only(top: 8),
         ),
@@ -367,8 +383,9 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         WizardHeading('${m.displayName} ayrıntıları', top: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        A2Card(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: children,
@@ -394,13 +411,13 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                   children: [
                     AknButton.secondary(
                       label: 'Dekontu çek',
-                      icon: Icons.photo_camera_outlined,
+                      icon: PhosphorIconsRegular.camera,
                       expand: true,
                       onPressed: _pickReceipt,
                     ),
                     AknButton.secondary(
                       label: 'Galeriden seç',
-                      icon: Icons.photo_library_outlined,
+                      icon: PhosphorIconsRegular.images,
                       expand: true,
                       onPressed: _pickReceiptFromGallery,
                     ),
@@ -410,7 +427,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                   alignment: Alignment.centerLeft,
                   child: AknButton.ghost(
                     label: 'Dosya (PDF) seç',
-                    icon: Icons.picture_as_pdf_outlined,
+                    icon: PhosphorIconsRegular.filePdf,
                     size: AknButtonSize.small,
                     onPressed: _pickReceiptFile,
                   ),
@@ -419,7 +436,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
             )
           : Row(
               children: [
-                Icon(Icons.check_circle_rounded, color: c.ok.fg),
+                Icon(PhosphorIconsFill.checkCircle, color: c.ok.fg),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -428,7 +445,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
                   ),
                 ),
                 AknIconButton(
-                  icon: Icons.close_rounded,
+                  icon: PhosphorIconsRegular.x,
                   semanticLabel: 'Dekontu kaldır',
                   onPressed: () =>
                       ref.read(orderWizardProvider.notifier).setReceipt(null),
@@ -509,7 +526,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
           return Padding(
             padding: pad,
             child: _Hint(
-              icon: Icons.info_outline_rounded,
+              icon: PhosphorIconsRegular.info,
               text:
                   'Kayıtlı geçerli ${TurkishText.lower(label)} yok; bilgileri aşağıya girin.',
             ),

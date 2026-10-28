@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import 'animated_number.dart';
 import 'timeline.dart';
 
-/// What went wrong at the current stop of a [StageStrip]: a 16 px danger
+/// What went wrong at the current stop of a [StageStrip]: an 18 px danger
 /// disc with a white "×" (rejected, cancelled) or "!" (disputed), and the
 /// line ends there.
 enum StageProblem { rejected, attention }
@@ -18,25 +19,30 @@ enum StageStripFallback {
   /// A vertical [StepTimeline] (order detail).
   timeline,
 
-  /// The dots without labels plus one line "Adım 2 / 4: Teslimat" (wizard
+  /// The nodes without labels plus one line "Adım 2 / 4: Teslimat" (wizard
   /// headers).
   compact,
 }
 
-/// The order's stage strip (design v2 §6.14): stops evenly spaced over the
-/// content width — Talep, Onay, Teklif, Karar, Plan, Yolda, Teslim.
+/// The order's stage strip (design v3 §4–5): stops evenly spaced over the
+/// content width — Talep, Onay, Teklif, Karar, Plan, Yolda, Teslim — on a
+/// rounded 4 px track.
 ///
-/// * Done: 10 px ink dot, solid 2 px ink connector.
-/// * Current: a 16 px ring — 3 px logo ring, 6 px logo centre and a 4 px
-///   soft halo when it is the viewer's move ([yourMove]), else the same ring
-///   in ink.
-/// * Future: 10 px hollow ring (2 px faint), dashed 2 px faint connector
-///   (6 on, 4 off).
+/// * Done: a 14 px green disc (`ok.solid`) with a white check; the track is
+///   filled green up to the current stop.
+/// * Current: an 18 px ring with a centre dot on a white bead — orange with
+///   a breathing halo when it is the viewer's move ([yourMove]), else ink
+///   with a soft halo.
+/// * Future: a 10 px white bead with a `lineStrong` ring.
 /// * [problem]: a danger disc with a white × or ! at the current stop; the
-///   line ends there.
-/// * Labels 12/16: done ink 500, current ink 700, future dim 400.
-/// * When [current] changes the ring slides to the new stop in 240 ms
-///   (instant under reduce motion).
+///   fill ends there.
+/// * Labels 12/16: done ink 600, current 800 (Pas when it is the viewer's
+///   move), future dim 500.
+/// * Motion: when it first appears the fill runs from the first stop to the
+///   current one, the ring travelling along and every passed stop popping
+///   its check; when [current] changes the ring slides on (instant under
+///   reduce motion). The halo breathes (ambient: off in tests and under
+///   reduce motion).
 /// * Width < 340 or text scale ≥ 1.3: [fallback].
 /// * With [onStageTap], done stops are 48 dp buttons ("Ürün adımına dön").
 class StageStrip extends StatelessWidget {
@@ -77,8 +83,8 @@ class StageStrip extends StatelessWidget {
   /// Horizontal inset of the first and last stop centre.
   static const double _pad = 18;
 
-  /// Height of the dot row.
-  static const double _dotRow = 16;
+  /// Height of the node row.
+  static const double _dotRow = 20;
 
   String get _summary {
     final n = stages.length;
@@ -144,12 +150,13 @@ class StageStrip extends StatelessWidget {
     double xOf(int i) => n <= 1 ? w / 2 : _pad + span * i;
     final labelStyle = t.caption.copyWith(height: 16 / 12, letterSpacing: 0);
     final labelHeight = MediaQuery.textScalerOf(context).scale(16);
-    final content = _dotRow + (labels ? 6 + labelHeight : 0);
+    final content = _dotRow + (labels ? 8 + labelHeight : 0);
     final tappable = onStageTap != null;
     final height = tappable ? math.max(content, AknSpace.minTap) : content;
     final top = (height - content) / 2;
     final labelWidth = math.max(span, 52.0);
     final summaryLine = !labels && fallback == StageStripFallback.compact;
+    final textDuration = AknMotion.of(context, AknMotion.base);
 
     final strip = SizedBox(
       height: height,
@@ -162,20 +169,12 @@ class StageStrip extends StatelessWidget {
             top: top,
             height: _dotRow,
             child: ExcludeSemantics(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(end: current.toDouble()),
-                duration: AknMotion.of(context, AknMotion.stageStep),
-                curve: AknMotion.emphasizedCurve,
-                builder: (context, position, _) => CustomPaint(
-                  painter: StageStripPainter(
-                    count: n,
-                    position: position,
-                    pad: _pad,
-                    yourMove: yourMove,
-                    problem: problem,
-                    colors: c,
-                  ),
-                ),
+              child: _StageTrack(
+                count: n,
+                current: current,
+                pad: _pad,
+                yourMove: yourMove,
+                problem: problem,
               ),
             ),
           ),
@@ -184,21 +183,28 @@ class StageStrip extends StatelessWidget {
               Positioned(
                 left: xOf(i) - labelWidth / 2,
                 width: labelWidth,
-                top: top + _dotRow + 6,
+                top: top + _dotRow + 8,
                 child: ExcludeSemantics(
-                  child: Text(
-                    stages[i],
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.visible,
-                    textAlign: TextAlign.center,
+                  child: AnimatedDefaultTextStyle(
+                    duration: textDuration,
                     style: labelStyle.copyWith(
-                      color: i <= current ? c.ink : c.dim,
+                      color: i == current && yourMove && problem == null
+                          ? c.brandInk
+                          : i <= current
+                          ? c.ink
+                          : c.dim,
                       fontWeight: i < current
-                          ? FontWeight.w500
+                          ? FontWeight.w600
                           : i == current
-                          ? FontWeight.w700
-                          : FontWeight.w400,
+                          ? FontWeight.w800
+                          : FontWeight.w500,
+                    ),
+                    child: Text(
+                      stages[i],
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ),
@@ -217,7 +223,10 @@ class StageStrip extends StatelessWidget {
                   excludeSemantics: true,
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () => onStageTap!(i),
+                    onTap: () {
+                      AknHaptics.selection();
+                      onStageTap!(i);
+                    },
                   ),
                 ),
               ),
@@ -231,7 +240,7 @@ class StageStrip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               strip,
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               ExcludeSemantics(
                 child: Text(
                   current >= n
@@ -247,8 +256,144 @@ class StageStrip extends StatelessWidget {
   }
 }
 
-/// Paints the dots and connectors of a [StageStrip]; [position] is the
-/// (animated) index of the current stop.
+/// The animated node row of a [StageStrip]: the fill runs to [current] on
+/// first appearance and slides on when it changes; the "your move" halo
+/// breathes.
+class _StageTrack extends StatefulWidget {
+  const _StageTrack({
+    required this.count,
+    required this.current,
+    required this.pad,
+    required this.yourMove,
+    required this.problem,
+  });
+
+  final int count;
+  final int current;
+  final double pad;
+  final bool yourMove;
+  final StageProblem? problem;
+
+  @override
+  State<_StageTrack> createState() => _StageTrackState();
+}
+
+class _StageTrackState extends State<_StageTrack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+  late final CurvedAnimation _t = CurvedAnimation(
+    parent: _c,
+    curve: AknMotion.emphasizedCurve,
+  );
+  double _from = 0;
+  late double _to = widget.current.toDouble();
+  bool _started = false;
+
+  double get _position => _from + (_to - _from) * _t.value;
+
+  Object get _handoffKey => (
+    'StageStrip',
+    widget.count,
+    widget.current,
+    widget.yourMove,
+    widget.problem,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _go(from: 0, to: widget.current.toDouble(), first: true);
+    // A wrapper that remounted the strip mid-sweep hands over its progress.
+    final handed = AknEntranceHandoff.take(_handoffKey);
+    if (handed != null && _c.isAnimating) {
+      _c.value = handed;
+      if (handed < 1) _c.forward();
+    }
+  }
+
+  @override
+  void deactivate() {
+    AknEntranceHandoff.put(_handoffKey, _c.value);
+    super.deactivate();
+  }
+
+  @override
+  void didUpdateWidget(_StageTrack old) {
+    super.didUpdateWidget(old);
+    if (old.current != widget.current) {
+      _go(from: _position, to: widget.current.toDouble(), first: false);
+    }
+  }
+
+  void _go({required double from, required double to, required bool first}) {
+    _from = from;
+    _to = to;
+    final steps = (to - from).abs();
+    final ms = first
+        ? 420 + 150 * steps
+        : AknMotion.stageStep.inMilliseconds * math.max(1.0, steps);
+    final d = AknMotion.of(
+      context,
+      Duration(milliseconds: ms.round().clamp(0, 1600)),
+    );
+    if (d == Duration.zero || from == to) {
+      _c.value = 1;
+      return;
+    }
+    _c.duration = d;
+    _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _t.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    Widget paint(double pulse) => AnimatedBuilder(
+      animation: _t,
+      builder: (context, _) {
+        final position = _position;
+        return CustomPaint(
+          size: Size.infinite,
+          painter: StageStripPainter(
+            count: widget.count,
+            position: position,
+            pad: widget.pad,
+            yourMove: widget.yourMove,
+            // The travelling ring turns into the problem disc on arrival.
+            problem: (_to - position).abs() < 0.3 ? widget.problem : null,
+            colors: c,
+            pulse: pulse,
+          ),
+        );
+      },
+    );
+    final live = widget.problem == null && widget.current < widget.count;
+    return RepaintBoundary(
+      child: live
+          ? AknAmbient(
+              period: AknMotion.breathe,
+              reverse: true,
+              builder: (context, p, _) => paint(p),
+            )
+          : paint(0),
+    );
+  }
+}
+
+/// Paints the track, the fill and the nodes of a [StageStrip]; [position]
+/// is the (animated) index of the current stop, [pulse] (0–1) the breath of
+/// the current ring's halo.
 class StageStripPainter extends CustomPainter {
   StageStripPainter({
     required this.count,
@@ -257,6 +402,7 @@ class StageStripPainter extends CustomPainter {
     required this.yourMove,
     required this.problem,
     required this.colors,
+    this.pulse = 0,
   });
 
   final int count;
@@ -265,6 +411,7 @@ class StageStripPainter extends CustomPainter {
   final bool yourMove;
   final StageProblem? problem;
   final AknColors colors;
+  final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -273,98 +420,127 @@ class StageStripPainter extends CustomPainter {
     final y = size.height / 2;
     final span = count <= 1 ? 0.0 : (size.width - pad * 2) / (count - 1);
     double xOf(double i) => count <= 1 ? size.width / 2 : pad + span * i;
-    final allDone = position >= count - 0.001 && problem == null;
-    final pos = position.clamp(0.0, (count - 1).toDouble());
+    final last = (count - 1).toDouble();
+    final pos = position.clamp(0.0, last);
     final xCur = xOf(pos);
+    final x0 = xOf(0);
+    final xN = xOf(last);
+    // Past the last stop the ring hands over to the last check.
+    final ringFade = position > last
+        ? (1 - (position - last) / 0.5).clamp(0.0, 1.0)
+        : 1.0;
 
-    // Connectors: solid ink up to the current stop, dashed faint after it.
-    final solid = Paint()
-      ..color = c.ink
-      ..strokeWidth = 2;
+    // Track and fill.
+    final round = StrokeCap.round;
     canvas.drawLine(
-      Offset(xOf(0), y),
-      Offset(allDone ? xOf(count - 1.0) : xCur, y),
-      solid,
+      Offset(x0, y),
+      Offset(xN, y),
+      Paint()
+        ..color = c.line
+        ..strokeWidth = 4
+        ..strokeCap = round,
     );
-    if (!allDone && problem == null) {
-      final dash = Paint()
-        ..color = c.faint
-        ..strokeWidth = 2;
-      final end = xOf(count - 1.0);
-      for (var x = xCur + 8; x < end; x += 10) {
-        canvas.drawLine(Offset(x, y), Offset(math.min(x + 6, end), y), dash);
-      }
+    if (xCur > x0) {
+      canvas.drawLine(
+        Offset(x0, y),
+        Offset(xCur, y),
+        Paint()
+          ..color = c.ok.solid
+          ..strokeWidth = 4
+          ..strokeCap = round,
+      );
     }
 
     // Stops.
     for (var i = 0; i < count; i++) {
-      final x = xOf(i.toDouble());
-      final isDone = allDone || i < pos - 0.5;
-      final isCurrent = !allDone && (i - pos).abs() <= 0.5;
-      if (isCurrent) continue;
-      if (isDone) {
-        canvas.drawCircle(Offset(x, y), 5, Paint()..color = c.ink);
-      } else {
-        canvas.drawCircle(Offset(x, y), 5, Paint()..color = c.bg);
+      final center = Offset(xOf(i.toDouble()), y);
+      final done = ((position - i - 0.5) / 0.5).clamp(0.0, 1.0);
+      final atRing = (i - pos).abs() <= 0.5 && ringFade > 0;
+      if (done > 0) {
+        final s = Curves.easeOutBack.transform(done);
+        canvas.save();
+        canvas.translate(center.dx, center.dy);
+        canvas.scale(s);
+        canvas.translate(-center.dx, -center.dy);
+        canvas.drawCircle(center, 7, Paint()..color = c.ok.solid);
+        _stageCheck(canvas, center, 7, c.ok.onSolid);
+        canvas.restore();
+      } else if (!atRing) {
+        canvas.drawCircle(center, 5, Paint()..color = c.surface);
         canvas.drawCircle(
-          Offset(x, y),
+          center,
           4,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2
-            ..color = c.faint,
+            ..color = c.lineStrong,
         );
       }
     }
-    if (allDone) return;
+    if (ringFade <= 0) return;
 
     final center = Offset(xCur, y);
     if (problem != null) {
       final tone = c.danger;
-      canvas.drawCircle(center, 8, Paint()..color = tone.solid);
+      canvas.drawCircle(center, 13, Paint()..color = tone.bg);
+      canvas.drawCircle(center, 9, Paint()..color = tone.solid);
       final mark = Paint()
         ..color = tone.onSolid
         ..strokeWidth = 2
         ..strokeCap = StrokeCap.round;
       if (problem == StageProblem.rejected) {
         canvas.drawLine(
-          center + const Offset(-3, -3),
-          center + const Offset(3, 3),
+          center + const Offset(-3.2, -3.2),
+          center + const Offset(3.2, 3.2),
           mark,
         );
         canvas.drawLine(
-          center + const Offset(3, -3),
-          center + const Offset(-3, 3),
+          center + const Offset(3.2, -3.2),
+          center + const Offset(-3.2, 3.2),
           mark,
         );
       } else {
         canvas.drawLine(
-          center + const Offset(0, -4),
+          center + const Offset(0, -4.5),
           center + const Offset(0, 1),
           mark,
         );
         canvas.drawCircle(
-          center + const Offset(0, 4),
-          1.2,
+          center + const Offset(0, 4.2),
+          1.25,
           Paint()..color = tone.onSolid,
         );
       }
       return;
     }
     final ringColor = yourMove ? c.logo : c.ink;
-    if (yourMove) {
-      canvas.drawCircle(center, 12, Paint()..color = c.brandSoft);
-    }
-    canvas.drawCircle(center, 8, Paint()..color = c.bg);
+    final p = pulse.clamp(0.0, 1.0);
     canvas.drawCircle(
       center,
-      6.5,
+      13 + 4 * p,
+      Paint()
+        ..color = ringColor.withValues(
+          alpha: (yourMove ? 0.2 : 0.09) * (1 - 0.55 * p) * ringFade,
+        ),
+    );
+    canvas.drawCircle(
+      center,
+      9,
+      Paint()..color = c.surface.withValues(alpha: ringFade),
+    );
+    canvas.drawCircle(
+      center,
+      7.75,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = ringColor,
+        ..strokeWidth = 2.5
+        ..color = ringColor.withValues(alpha: ringFade),
     );
-    canvas.drawCircle(center, 3, Paint()..color = ringColor);
+    canvas.drawCircle(
+      center,
+      3.5,
+      Paint()..color = ringColor.withValues(alpha: ringFade),
+    );
   }
 
   @override
@@ -374,5 +550,24 @@ class StageStripPainter extends CustomPainter {
       old.pad != pad ||
       old.yourMove != yourMove ||
       old.problem != problem ||
-      old.colors != colors;
+      old.colors != colors ||
+      old.pulse != pulse;
+}
+
+/// A small check inside a disc of radius [r].
+void _stageCheck(Canvas canvas, Offset center, double r, Color color) {
+  final s = r * 0.5;
+  final path = Path()
+    ..moveTo(center.dx - s * 0.95, center.dy + s * 0.05)
+    ..lineTo(center.dx - s * 0.25, center.dy + s * 0.72)
+    ..lineTo(center.dx + s, center.dy - s * 0.62);
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round,
+  );
 }

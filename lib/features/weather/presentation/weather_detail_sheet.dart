@@ -8,7 +8,9 @@ import '../data/weather_codes.dart';
 import '../data/weather_models.dart';
 import 'weather_widgets.dart';
 
-/// Saatlik (12 saat) ve 3 günlük tahmin, sürüş durumu ve Open-Meteo atfı.
+/// Saatlik (12 saat; hap hücreler, "Şimdi" yumuşak turuncu) ve 3 günlük tahmin (durum karolu satırlar),
+/// sürüş durumu ve Open-Meteo atfı (tasarım v3). Sayfa açılırken hücreler ve gün satırları sırayla
+/// yukarı kayarak belirir.
 Future<void> showWeatherDetailSheet(
   BuildContext context,
   WeatherReport report,
@@ -39,11 +41,14 @@ class WeatherDetail extends StatelessWidget {
           excludeSemantics: true,
           child: WeatherNowRow(report: report, large: true),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Text(
           '${WeatherCopy.feelsLike} ${temp(now.apparent)}, '
           '${WeatherCopy.windInline} ${Fmt.integer(now.windSpeed.round())} km/s',
-          style: t.bodySmall.copyWith(color: c.dim),
+          style: t.bodySmall.copyWith(
+            color: c.dim,
+            fontFeatures: AknNumerals.tabular,
+          ),
         ),
         const SizedBox(height: 16),
         DrivingStatusStrip(alert: report.drivingAlert()),
@@ -54,15 +59,20 @@ class WeatherDetail extends StatelessWidget {
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            // Hücreler yükselerek girer; kenarda kırpılmasınlar.
+            clipBehavior: Clip.none,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var i = 0; i < hours.length; i++) ...[
                   if (i > 0) const SizedBox(width: 8),
-                  WeatherHourCell(
-                    hour: hours[i],
-                    label: i == 0 ? WeatherCopy.now : null,
-                    highlight: i == 0,
+                  StaggerItem(
+                    index: i,
+                    child: WeatherHourCell(
+                      hour: hours[i],
+                      label: i == 0 ? WeatherCopy.now : null,
+                      highlight: i == 0,
+                    ),
                   ),
                 ],
               ],
@@ -74,7 +84,13 @@ class WeatherDetail extends StatelessWidget {
             title: WeatherCopy.threeDays,
             padding: EdgeInsets.fromLTRB(0, 20, 0, 4),
           ),
-          for (final d in report.days) _DayRow(day: d),
+          for (final (i, d) in report.days.indexed) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: c.lineSoft),
+            StaggerItem(
+              index: 3 + i,
+              child: _DayRow(day: d),
+            ),
+          ],
         ],
         const SizedBox(height: 12),
         Text(WeatherCopy.attribution, style: t.caption.copyWith(color: c.dim)),
@@ -108,15 +124,15 @@ class _DayRow extends StatelessWidget {
           '${rain == null ? '' : ', yağış olasılığı $rain'}',
       excludeSemantics: true,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             Expanded(
               flex: 3,
               child: Text(name, style: t.bodyStrong.copyWith(color: c.ink)),
             ),
-            Icon(cond.icon, size: 20, color: c.dim),
-            const SizedBox(width: 8),
+            WeatherIconTile(condition: cond, size: 36),
+            const SizedBox(width: 10),
             Expanded(
               flex: 4,
               child: Text(
@@ -125,7 +141,13 @@ class _DayRow extends StatelessWidget {
               ),
             ),
             if (rain != null) ...[
-              Text(rain, style: t.captionStrong.copyWith(color: c.dim)),
+              Text(
+                rain,
+                style: t.captionStrong.copyWith(
+                  color: c.dim,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
               const SizedBox(width: 10),
             ],
             Text(

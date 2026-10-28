@@ -70,7 +70,7 @@ class UpdateGateBody extends ConsumerWidget {
       case UpdateReason.forced:
         final store = storeUriFor(config, info);
         return GateView(
-          icon: Icons.system_update_rounded,
+          icon: PhosphorIconsRegular.downloadSimple,
           tone: AknTone.brand,
           title: config.updateTitle ?? AuthCopy.forcedTitle,
           message: config.updateMessage ?? AuthCopy.forcedBody,
@@ -92,15 +92,15 @@ class UpdateGateBody extends ConsumerWidget {
           below: store == null
               ? const AknBanner(
                   message: AuthCopy.noStoreBody,
-                  icon: Icons.storefront_outlined,
+                  icon: PhosphorIconsRegular.storefront,
                 )
               : null,
           footer: version,
         );
       case UpdateReason.optional:
         return GateView(
-          icon: Icons.new_releases_rounded,
-          tone: AknTone.info,
+          icon: PhosphorIconsRegular.sealWarning,
+          tone: AknTone.brand,
           title: config.updateTitle ?? AuthCopy.optionalTitle,
           message: config.updateMessage ?? AuthCopy.optionalBody,
           primary: AknButton(
@@ -127,8 +127,8 @@ class UpdateGateBody extends ConsumerWidget {
         final checking = ref.watch(serverGateProvider).isLoading;
         return GateView(
           icon: maintenance
-              ? Icons.construction_rounded
-              : Icons.cloud_sync_rounded,
+              ? PhosphorIconsRegular.wrench
+              : PhosphorIconsRegular.arrowsClockwise,
           tone: maintenance ? AknTone.info : AknTone.warn,
           title: maintenance ? AuthCopy.maintenanceTitle : AuthCopy.serverTitle,
           message: maintenance

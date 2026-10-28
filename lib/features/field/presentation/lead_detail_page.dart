@@ -16,8 +16,10 @@ import '../copy.dart';
 import '../data/lead_models.dart';
 import 'widgets/field_widgets.dart';
 
-/// Ön kayıt ayrıntısı (spec A.3 L2–L5): durum, ek bilgi isteği, belgeler; Düzenle, Finansa gönder,
-/// İptal et, Merkeze ilet (`approve.finance.lead`), Daveti yeniden gönder.
+/// Ön kayıt ayrıntısı (spec A.3 L2–L5; tasarım v3): başlıkta firma ve durum lambaları, ardından
+/// sayfada yüzen gruplanmış bilgi kartları (Firma, Yetkililer, Yakıt ihtiyacı, Ödeme talebi, Tedarik
+/// ve filo, Ziyaret, İlk teslimat noktası, KVKK, Belgeler) — sayfa açılınca sırayla belirir. Düzenle,
+/// Finansa gönder, İptal et, Merkeze ilet (`approve.finance.lead`), Daveti yeniden gönder.
 class FieldLeadDetailPage extends ConsumerWidget {
   const FieldLeadDetailPage({super.key, required this.id});
 
@@ -44,7 +46,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
       body: PullToRefresh(
         onRefresh: () =>
             ref.read(fieldLeadDetailProvider(id).notifier).refresh(),
-        child: ListView(
+        child: FieldStaggeredList(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: [
@@ -52,7 +54,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ..._banners(context, d, access),
             FieldSectionCard(
               title: 'Firma',
-              icon: Icons.business_rounded,
+              icon: PhosphorIconsRegular.buildingOffice,
               child: FieldFacts(
                 facts: [
                   ('VKN / TCKN', _taxNumber(draft.taxNumber)),
@@ -72,7 +74,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'Yetkililer',
-              icon: Icons.people_outline_rounded,
+              icon: PhosphorIconsRegular.users,
               child: Column(
                 children: [
                   for (final c in draft.contacts.where((c) => !c.isEmpty))
@@ -87,7 +89,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
                       trailing: c.phone == null
                           ? null
                           : AknIconButton(
-                              icon: Icons.call_rounded,
+                              icon: PhosphorIconsRegular.phone,
                               semanticLabel: '${c.name} kişisini ara',
                               onPressed: () => launchExternal(
                                 Uri(scheme: 'tel', path: c.phone),
@@ -104,7 +106,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'Yakıt ihtiyacı',
-              icon: Icons.local_gas_station_outlined,
+              icon: PhosphorIconsRegular.gasPump,
               child: FieldFacts(
                 facts: [
                   for (final p in draft.products.where(
@@ -141,7 +143,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'Ödeme talebi',
-              icon: Icons.payments_outlined,
+              icon: PhosphorIconsRegular.money,
               child: FieldFacts(
                 facts: [
                   ('Yöntemler', d.requestedMethodNames.join(', ')),
@@ -177,7 +179,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'Tedarik ve filo',
-              icon: Icons.local_shipping_outlined,
+              icon: PhosphorIconsRegular.truck,
               child: FieldFacts(
                 facts: [
                   ('Mevcut dağıtıcı', draft.currentDistributor),
@@ -204,7 +206,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             _VisitCard(draft: draft),
             FieldSectionCard(
               title: 'İlk teslimat noktası',
-              icon: Icons.place_outlined,
+              icon: PhosphorIconsRegular.mapPin,
               child: FieldFacts(
                 facts: [
                   ('Ad', draft.deliveryPointName),
@@ -221,7 +223,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'KVKK açık rıza',
-              icon: Icons.verified_user_outlined,
+              icon: PhosphorIconsRegular.shieldCheck,
               child: draft.kvkkConsent
                   ? FieldFacts(
                       facts: [
@@ -243,7 +245,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
             ),
             FieldSectionCard(
               title: 'Belgeler',
-              icon: Icons.attach_file_rounded,
+              icon: PhosphorIconsRegular.paperclip,
               trailing: Text(
                 '${view.documents.length}',
                 style: context.aknText.caption,
@@ -294,7 +296,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
         AknBanner(
           margin: m,
           tone: AknTone.warn,
-          icon: Icons.contact_support_outlined,
+          icon: PhosphorIconsRegular.chatCircleDots,
           title: 'Finans ek bilgi istedi',
           message:
               '${d.decisionNote ?? 'Bilgileri tamamlayın.'} Düzenleyip "Finansa gönder" ile yeniden gönderin.',
@@ -315,7 +317,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
         const AknBanner(
           margin: m,
           tone: AknTone.info,
-          icon: Icons.account_tree_outlined,
+          icon: PhosphorIconsRegular.treeStructure,
           message: 'Talep merkez onayına iletildi.',
         ),
       if (d.status == LeadStatus.rejected && d.decisionNote != null)
@@ -345,7 +347,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
           padding: m,
           child: AknButton.secondary(
             label: 'Onay talebini aç',
-            icon: Icons.task_alt_rounded,
+            icon: PhosphorIconsFill.checkCircle,
             expand: true,
             onPressed: () =>
                 context.push(AppRoutes.approval(d.approvalRequestId!)),
@@ -384,8 +386,8 @@ class FieldLeadDetailPage extends ConsumerWidget {
   }
 }
 
-/// Sayfanın başı (tasarım v2 §5.2: ön kayıt ayrıntısında plaka yok): `display` başlıkta firma, altında
-/// kayıt no, temsilci, tarih ve aylık litre; durum lambaları.
+/// Sayfanın başı (tasarım v3 §4: ön kayıt ayrıntısında plaka yok): firmanın baş harfleriyle yuvarlak
+/// avatar, `display` başlıkta firma, altında kayıt no, temsilci, tarih ve aylık litre; durum lambaları.
 class _Hero extends StatelessWidget {
   const _Hero({required this.detail});
 
@@ -400,17 +402,17 @@ class _Hero extends StatelessWidget {
     final approval = d.approvalStatus != null && d.status != LeadStatus.draft
         ? d.approvalStatus!.statusStyle
         : null;
+    final title = d.companyTitle.isEmpty ? 'Ünvansız ön kayıt' : d.companyTitle;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ExcludeSemantics(child: AknAvatar(name: title, size: 52)),
+          const SizedBox(height: 12),
           Semantics(
             header: true,
-            child: Text(
-              d.companyTitle.isEmpty ? 'Ünvansız ön kayıt' : d.companyTitle,
-              style: t.display.copyWith(color: c.ink),
-            ),
+            child: Text(title, style: t.display.copyWith(color: c.ink)),
           ),
           const SizedBox(height: 4),
           Text(
@@ -423,10 +425,10 @@ class _Hero extends StatelessWidget {
             ].join(', '),
             style: t.bodySmall.copyWith(color: c.dim),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Wrap(
-            spacing: 16,
-            runSpacing: 6,
+            spacing: 12,
+            runSpacing: 8,
             children: [
               AknLamp.style(status),
               // Onay durumu, kaydın durumuyla aynı kelimeyse ikinci kez yazılmaz.
@@ -451,7 +453,7 @@ class _VisitCard extends StatelessWidget {
     final lng = draft.visitLongitude;
     return FieldSectionCard(
       title: 'Ziyaret',
-      icon: Icons.storefront_outlined,
+      icon: PhosphorIconsRegular.storefront,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -476,7 +478,7 @@ class _VisitCard extends StatelessWidget {
                     ),
                     mode: LaunchMode.externalApplication,
                   ),
-                  icon: const Icon(Icons.map_outlined, size: 18),
+                  icon: const Icon(PhosphorIconsRegular.mapTrifold, size: 18),
                   label: const Text('Haritada aç'),
                 ),
               ],
@@ -535,19 +537,19 @@ class _LeadActions extends ConsumerWidget {
                 title: 'Merkeze ilet',
                 subtitle:
                     'VKN başka bayide kayıtlı; cari açılışı merkez onayıyla',
-                leadingIcon: Icons.account_tree_outlined,
+                leadingIcon: PhosphorIconsRegular.treeStructure,
                 onTap: () => Navigator.of(ctx).pop('forward'),
               ),
             if (invite)
               AknListTile(
                 title: 'Portal davetini yeniden gönder',
-                leadingIcon: Icons.mail_outline_rounded,
+                leadingIcon: PhosphorIconsRegular.envelopeSimple,
                 onTap: () => Navigator.of(ctx).pop('invite'),
               ),
             if (cancel)
               AknListTile(
                 title: 'Ön kaydı iptal et',
-                leadingIcon: Icons.block_rounded,
+                leadingIcon: PhosphorIconsRegular.prohibit,
                 leadingTone: AknTone.danger,
                 onTap: () => Navigator.of(ctx).pop('cancel'),
               ),
@@ -604,7 +606,7 @@ class _LeadActions extends ConsumerWidget {
       children: [
         if (hasMore)
           AknIconButton(
-            icon: Icons.more_horiz_rounded,
+            icon: PhosphorIconsRegular.dotsThree,
             semanticLabel: 'Diğer işlemler',
             onPressed: online ? more : null,
           ),
@@ -612,7 +614,7 @@ class _LeadActions extends ConsumerWidget {
           Expanded(
             child: AknButton.secondary(
               label: 'Düzenle',
-              icon: Icons.edit_outlined,
+              icon: PhosphorIconsRegular.pencilSimple,
               expand: true,
               onPressed: () => context.push('${AppRoutes.fieldLead(id)}/edit'),
             ),
@@ -622,7 +624,7 @@ class _LeadActions extends ConsumerWidget {
           Expanded(
             child: AknButton(
               label: 'Finansa gönder',
-              icon: Icons.send_rounded,
+              icon: PhosphorIconsRegular.paperPlaneRight,
               expand: true,
               showSuccess: false,
               onPressedAsync: online
@@ -633,7 +635,7 @@ class _LeadActions extends ConsumerWidget {
                         message:
                             'Finans ön kaydı inceler; ek bilgi isterse size bildirim gelir.',
                         confirmLabel: 'Gönder',
-                        icon: Icons.send_rounded,
+                        icon: PhosphorIconsRegular.paperPlaneRight,
                       );
                       if (ok) await run(ctrl.submit);
                     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/turkish_text.dart';
+import '../cm_widgets.dart';
 
 /// Aranabilir seçim sayfası (il / ilçe). [allowCustom] ile listede olmayan değer de seçilebilir.
 Future<String?> showSearchPicker(
@@ -75,7 +76,10 @@ class _SearchPickerState extends State<_SearchPicker> {
             children: [
               if (showCustom)
                 AknListTile(
-                  leadingIcon: Icons.edit_rounded,
+                  leading: const CmIconTile(
+                    icon: PhosphorIconsRegular.pencilSimple,
+                    tone: AknTone.brand,
+                  ),
                   title: '"$custom" kullan',
                   subtitle: 'Listede yok',
                   onTap: () => Navigator.of(context).pop(custom),
@@ -87,9 +91,12 @@ class _SearchPickerState extends State<_SearchPicker> {
                     title: o,
                     dense: true,
                     trailing: o == widget.selected
-                        ? Icon(Icons.check_rounded, color: c.ink)
+                        ? Icon(PhosphorIconsRegular.check, color: c.brand)
                         : null,
-                    onTap: () => Navigator.of(context).pop(o),
+                    onTap: () {
+                      AknHaptics.selection();
+                      Navigator.of(context).pop(o);
+                    },
                   ),
                 ),
               if (matches.isEmpty && !showCustom)
@@ -109,9 +116,9 @@ class _SearchPickerState extends State<_SearchPicker> {
   }
 }
 
-/// Seçim alanı (tasarım v2 §6.10): etiket üstte (`label` 13/18 500), altında beyaz 52 px alan
-/// (1 px `lineStrong`, r12) ve sağda açılır ok; dokununca seçim sayfası açılır. Hata satırı alanın
-/// altında.
+/// Seçim alanı (tasarım v3 §4 Inputs): etiket üstte, altında giriş alanı görünümünde 52 px alan
+/// (çekirdek [AknTextField.decoration]) ve sağda açılır ok; dokununca seçim sayfası açılır. Hata
+/// satırı alanın altında.
 class PickerField extends StatelessWidget {
   const PickerField({
     super.key,
@@ -121,7 +128,7 @@ class PickerField extends StatelessWidget {
     this.requiredMark = false,
     this.enabled = true,
     this.errorText,
-    this.icon = Icons.expand_more_rounded,
+    this.icon = PhosphorIconsRegular.caretDown,
   });
 
   final String label;

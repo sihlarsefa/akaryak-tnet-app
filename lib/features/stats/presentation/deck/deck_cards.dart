@@ -7,12 +7,13 @@ import '../../../../core/utils/tr_time.dart';
 import '../../copy.dart';
 import '../../data/stats_models.dart';
 import '../../data/stats_repository.dart';
-import '../charts/line_chart.dart';
 import '../stats_format.dart';
+import '../widgets/stats_atoms.dart';
 
 /// Destedeki bir kart: kimlik (sıra korunur), başlık, dönem ve içerik. Kabuk, başlık satırı ve ⋯ menüsü
-/// desteden gelir (tasarım v2 §5.3); içerik plakanın atomlarıyla çizilir ve renklerini bağlamdan okur:
-/// üstteki kartta plaka mürekkebi, arkadaki kâğıtlarda sayfa renkleri.
+/// desteden gelir (tasarım v3 §4 hero kartı); içerik plakanın atomlarıyla çizilir ve renklerini
+/// bağlamdan okur: üstteki kartta plaka paleti, arkadaki kâğıtlarda sayfa renkleri. Kart öne gelince
+/// içerik yeniden kurulur: rakam döner, çubuklar yükselir, okumalar ve satırlar yerine oturur.
 @immutable
 class DeckCardSpec {
   const DeckCardSpec({
@@ -107,7 +108,7 @@ class DeckCardScope extends InheritedWidget {
   /// Dönüş başlarken (ya da hareket azaltmada son kare çizilirken).
   final VoidCallback? onRollStart;
 
-  /// Fark çipinin zemini ve yazısı (plakada siyah / turuncu).
+  /// Fark çipinin zemini ve yazısı (plakada açık turuncu zemin + pas yazı, kâğıtta sakin kuyu).
   final Color? chipFill;
   final Color? chipInk;
 
@@ -143,7 +144,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.sales,
         tone: AknTone.brand,
-        icon: Icons.bar_chart_rounded,
+        icon: PhosphorIconsRegular.chartBar,
         title: own ? StatsCopy.cardSalesOwn : StatsCopy.cardSales,
         subtitle: period,
         howTo: own
@@ -168,7 +169,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.fuel,
         tone: AknTone.info,
-        icon: Icons.local_gas_station_outlined,
+        icon: PhosphorIconsRegular.gasPump,
         title: StatsCopy.cardFuel,
         subtitle: period,
         howTo: StatsCopy.howFuel,
@@ -192,7 +193,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.funnel,
         tone: AknTone.brand,
-        icon: Icons.filter_alt_outlined,
+        icon: PhosphorIconsRegular.funnel,
         title: StatsCopy.cardFunnel,
         subtitle: period,
         howTo: StatsCopy.howFunnel,
@@ -214,7 +215,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.collections,
         tone: AknTone.ok,
-        icon: Icons.account_balance_wallet_outlined,
+        icon: PhosphorIconsRegular.wallet,
         title: StatsCopy.cardCollections,
         subtitle: period,
         howTo: StatsCopy.howCollections,
@@ -242,7 +243,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.deliveries,
         tone: AknTone.info,
-        icon: Icons.local_shipping_outlined,
+        icon: PhosphorIconsRegular.truck,
         title: StatsCopy.cardDeliveries,
         subtitle: period,
         howTo: StatsCopy.howDeliveries,
@@ -263,7 +264,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.topCustomers,
         tone: AknTone.brand,
-        icon: Icons.groups_outlined,
+        icon: PhosphorIconsRegular.usersThree,
         title: own ? StatsCopy.cardTopCustomersOwn : StatsCopy.cardTopCustomers,
         subtitle: period,
         howTo: StatsCopy.howTopCustomers,
@@ -287,7 +288,7 @@ List<DeckCardSpec> bayiDeckCards(
         DeckCardSpec(
           id: DeckCards.ownForms,
           tone: AknTone.ok,
-          icon: Icons.assignment_outlined,
+          icon: PhosphorIconsRegular.clipboardText,
           title: StatsCopy.cardOwnForms,
           subtitle: self != null ? period : StatsCopy.now,
           howTo: StatsCopy.howOwnForms,
@@ -311,7 +312,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.team,
         tone: AknTone.ok,
-        icon: Icons.badge_outlined,
+        icon: PhosphorIconsRegular.identificationBadge,
         title: StatsCopy.cardTeam,
         subtitle: period,
         howTo: StatsCopy.howTeam,
@@ -327,7 +328,7 @@ List<DeckCardSpec> bayiDeckCards(
       DeckCardSpec(
         id: DeckCards.risk,
         tone: AknTone.danger,
-        icon: Icons.speed_rounded,
+        icon: PhosphorIconsFill.gauge,
         title: StatsCopy.cardRisk,
         subtitle: StatsCopy.now,
         howTo: StatsCopy.howRisk,
@@ -358,7 +359,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
       DeckCardSpec(
         id: DeckCards.spend,
         tone: AknTone.brand,
-        icon: Icons.payments_outlined,
+        icon: PhosphorIconsRegular.money,
         title: s.period.key == StatsPeriod.month
             ? StatsCopy.cardSpend
             : StatsCopy.kpiSpending,
@@ -383,7 +384,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
       DeckCardSpec(
         id: DeckCards.purchase,
         tone: AknTone.info,
-        icon: Icons.local_gas_station_outlined,
+        icon: PhosphorIconsRegular.gasPump,
         title: StatsCopy.cardPurchase,
         subtitle: period,
         howTo: StatsCopy.howPurchase,
@@ -404,7 +405,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
         DeckCardSpec(
           id: DeckCards.unitPrice,
           tone: AknTone.ok,
-          icon: Icons.sell_outlined,
+          icon: PhosphorIconsRegular.tag,
           title: StatsCopy.cardUnitPrice,
           subtitle: period,
           howTo: StatsCopy.howUnitPrice,
@@ -425,7 +426,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
       DeckCardSpec(
         id: DeckCards.limits,
         tone: AknTone.warn,
-        icon: Icons.speed_rounded,
+        icon: PhosphorIconsFill.gauge,
         title: StatsCopy.cardLimits,
         subtitle: StatsCopy.now,
         howTo: StatsCopy.howLimits,
@@ -439,7 +440,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
       DeckCardSpec(
         id: DeckCards.points,
         tone: AknTone.info,
-        icon: Icons.place_outlined,
+        icon: PhosphorIconsRegular.mapPin,
         title: StatsCopy.cardPoints,
         subtitle: period,
         howTo: StatsCopy.howPoints,
@@ -454,7 +455,7 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
       DeckCardSpec(
         id: DeckCards.orderStatus,
         tone: AknTone.brand,
-        icon: Icons.receipt_long_outlined,
+        icon: PhosphorIconsRegular.receipt,
         title: StatsCopy.cardOrderStatus,
         subtitle: StatsCopy.now,
         howTo: StatsCopy.howOrderStatus,
@@ -530,18 +531,33 @@ String _litersSummary(double liters, double previous) {
   ].join(', ');
 }
 
-/// Bu ayın ay sonu tahmini (tasarım v2 §5.1): yalnızca "Bu ay" döneminde ve ayın 5'inden sonra.
+/// Bu ayın ay sonu tahmini (tasarım v3 §4): yalnızca "Bu ay" döneminde ve ayın 5'inden sonra.
 double? deckMonthEndProjection(StatsPeriodInfo period, double monthToDate) {
   if (period.key != StatsPeriod.month || monthToDate <= 0) return null;
   final w = TrTime.wall(period.to ?? TrTime.now());
   return plateMonthEndProjection(monthToDate, DateTime(w.year, w.month, w.day));
 }
 
-/// Çubukların yükselişi sayacın son 300 ms'sinde başlar (tasarım v2 §8.1).
+/// Çubukların yükselişi sayacın son 300 ms'sinde başlar (tasarım v3 §5 "ana sayfa anı").
 Duration get _barsDelay =>
     AknMotion.plateLight + AknMotion.plateRoll - AknMotion.barsRise;
 
-/// Plakadaki satır yazısı (14/20 500) ve değeri (15/20 700).
+/// Rakamın altındaki cümlenin yazısı (tasarım v3 §4: 13/18 500, soluk) — fark çipinin yanındaki
+/// karşılaştırma ve kısa durum cümleleri. Deste büyük yazı yüksekliğini de bununla ölçer.
+TextStyle deckSentenceStyle(BuildContext context) => context.aknText.label
+    .copyWith(fontWeight: FontWeight.w500, color: context.akn.dim);
+
+/// Fark çipinin yazısı (13/24 700, tabular); renk desteden gelir.
+TextStyle deckChipStyle(BuildContext context) =>
+    context.aknText.bodySmall.copyWith(
+      fontSize: 13,
+      height: 24 / 13,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+      fontFeatures: AknNumerals.tabular,
+    );
+
+/// Plakadaki satır yazısı (14/20 500, mürekkep) ve değeri (15/20 700, tabular).
 TextStyle _lineStyle(BuildContext context) => context.aknText.bodySmall
     .copyWith(color: context.akn.ink, fontWeight: FontWeight.w500);
 
@@ -551,6 +567,7 @@ TextStyle _valueStyle(BuildContext context) =>
       height: 20 / 15,
       fontWeight: FontWeight.w700,
       color: context.akn.ink,
+      fontFeatures: AknNumerals.tabular,
     );
 
 /// [rowExtent] yüksekliğindeki satırlardan [maxHeight]'a kaç tanesi sığar (en az 1, en çok [max]).
@@ -559,13 +576,17 @@ int _fitRows(double maxHeight, double rowExtent, {int max = 3}) {
   return ((maxHeight + 0.5) / rowExtent).floor().clamp(1, max);
 }
 
-/// Sıralı çubuk satırının yüksekliği (14/20 satır + 4 + 8 çubuk + 9).
+/// Sıralı çubuk satırının yüksekliği (14/20 satır + 5 + 8 çubuk + 9).
 double _rankedExtent(BuildContext context) =>
-    MediaQuery.textScalerOf(context).scale(20) + 21;
+    MediaQuery.textScalerOf(context).scale(20) + 22;
+
+/// Satırların sırayla belirmesi: [i]. satır, kart öne geldikten [base] + 90 ms × i sonra.
+Duration _rowDelay(int i, {int base = 220}) =>
+    Duration(milliseconds: base + 90 * i);
 
 // ============================================================== içerik düzeni
 
-/// Kart içeriği (tasarım v2 §5.1): üstte rakam ve fark satırı, ardından üste yaslı ayrıntı
+/// Kart içeriği (tasarım v3 §4 hero kartı): üstte rakam ve fark satırı, ardından üste yaslı ayrıntı
 /// ([detailTop]: huni, ölçer) ve kartın altına yaslı ayrıntı ([detail]: kural ve okumalar). Liste
 /// içerikleri ([topAligned]) yukarıdan akar. Ayrıntı sığmazsa küçülür, asla taşmaz. Büyük yazı
 /// düzeninde ([DeckCardScope.compact]) yalnızca rakam ve cümle kalır (tam bilgi `/stats` sayfasında).
@@ -701,9 +722,11 @@ class _DeckFigure extends StatelessWidget {
 }
 
 /// Fark çipi ve karşılaştırma cümlesi ("▲ %9,4 geçen ayın aynı günlerine göre"); cümle sığmazsa çipin
-/// yanından sözcük sözcük alta akar. Çip plakada siyah zemin + turuncu yazı, kâğıtta koyu zemin + açık
-/// yazı; renkler desteden ([DeckCardScope]) gelir ki kart plakayı devralırken çip de yumuşakça geçsin.
-/// Plakada iyi / kötü rengi yoktur.
+/// yanından sözcük sözcük alta akar. Çip (tasarım v3 §4): r8, 24 px, 13 w700 tabular; plakada açık
+/// turuncu zemin (`deltaFill`) + pas yazı (`brandInk`), kâğıtta sakin kuyu + mürekkep. Renkler
+/// desteden ([DeckCardScope]) gelir ki kart plakayı devralırken çip de yumuşakça geçsin. Plakada
+/// iyi / kötü rengi yoktur; cümle 13/18 500 soluk. Kart öne gelince çip "pop" ile oturur, oku
+/// yönünde kayarak girer ve cümle hafifçe yükselerek belirir.
 class _DeckDelta extends StatelessWidget {
   const _DeckDelta({
     required this.label,
@@ -734,23 +757,24 @@ class _DeckDelta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final t = context.aknText;
     final scope = DeckCardScope.maybeOf(context);
     final fill = scope?.chipFill ?? c.deltaFill;
     final ink = scope?.chipInk ?? c.brandInk;
     final arrow =
         direction == AknDeltaDirection.up ||
         direction == AknDeltaDirection.down;
+    final down = direction == AknDeltaDirection.down;
     final chip = Container(
+      height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(color: fill, borderRadius: AknRadius.tag),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (arrow) ...[
-            TriangleGlyph(
-              down: direction == AknDeltaDirection.down,
-              color: ink,
+            _ArrowIn(
+              down: down,
+              child: TriangleGlyph(down: down, color: ink),
             ),
             const SizedBox(width: 5),
           ],
@@ -758,12 +782,7 @@ class _DeckDelta extends StatelessWidget {
             label,
             maxLines: 1,
             softWrap: false,
-            style: t.bodySmall.copyWith(
-              fontSize: 14,
-              height: 24 / 14,
-              fontWeight: FontWeight.w700,
-              color: ink,
-            ),
+            style: deckChipStyle(context).copyWith(color: ink),
           ),
         ],
       ),
@@ -771,29 +790,85 @@ class _DeckDelta extends StatelessWidget {
     return Semantics(
       label: spoken,
       excludeSemantics: true,
-      child: Text.rich(
-        TextSpan(
-          children: [
-            // Satır içi öğeyi metin ölçeği bir kez büyütür; çipin kendi yazısı ölçeksiz çizilir.
-            WidgetSpan(
-              alignment: PlaceholderAlignment.middle,
-              child: MediaQuery.withNoTextScaling(
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 10),
-                  child: chip,
+      child: StatsRise(
+        delay: const Duration(milliseconds: 160),
+        offset: 6,
+        child: Text.rich(
+          TextSpan(
+            children: [
+              // Satır içi öğeyi metin ölçeği bir kez büyütür; çipin kendi yazısı ölçeksiz çizilir.
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: MediaQuery.withNoTextScaling(
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 10),
+                    child: _PopIn(child: chip),
+                  ),
                 ),
               ),
-            ),
-            TextSpan(text: sentence),
-          ],
+              TextSpan(text: sentence),
+            ],
+          ),
+          style: deckSentenceStyle(context),
         ),
-        style: _lineStyle(context),
       ),
     );
   }
 }
 
-/// Rakamın altındaki kısa cümle ("31 ödeme tahsil edildi"); sorun satırı "!" ve kalın yazıyla.
+/// Çip ilk görünüşünde küçükten "pop" ile oturur (hareket azaltmada hemen).
+class _PopIn extends StatelessWidget {
+  const _PopIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = AknMotion.of(context, const Duration(milliseconds: 620));
+    if (d == Duration.zero) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: d,
+      // İlk 200 ms bekler, sonra taşarak oturur.
+      curve: const Interval(0.32, 1, curve: AknMotion.pop),
+      child: child,
+      builder: (context, v, child) => Opacity(
+        opacity: v.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.6 + 0.4 * v, child: child),
+      ),
+    );
+  }
+}
+
+/// Fark okunun girişi: yönünde birkaç piksel kayarak belirir.
+class _ArrowIn extends StatelessWidget {
+  const _ArrowIn({required this.down, required this.child});
+
+  final bool down;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final d = AknMotion.of(context, const Duration(milliseconds: 760));
+    if (d == Duration.zero) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: d,
+      curve: const Interval(0.45, 1, curve: AknMotion.spring),
+      child: child,
+      builder: (context, v, child) => Opacity(
+        opacity: v.clamp(0.0, 1.0),
+        child: Transform.translate(
+          offset: Offset(0, (down ? -5 : 5) * (1 - v)),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Rakamın altındaki kısa cümle ("31 ödeme tahsil edildi", 13/18 500 soluk); vurgulu ya da sorun
+/// satırı ("!" + kalın mürekkep). Kart öne gelince hafifçe yükselerek belirir.
 class _DeckLine extends StatelessWidget {
   const _DeckLine(this.text, {this.bold = false, this.bang = false});
 
@@ -803,24 +878,32 @@ class _DeckLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _lineStyle(context);
-    return Row(
-      children: [
-        if (bang) ...[const PlateBang(), const SizedBox(width: 8)],
-        Flexible(
-          child: Text(
-            text,
-            style: bold || bang
-                ? style.copyWith(fontWeight: FontWeight.w700)
-                : style,
+    final style = deckSentenceStyle(context);
+    return StatsRise(
+      delay: const Duration(milliseconds: 160),
+      offset: 6,
+      child: Row(
+        children: [
+          if (bang) ...[const PlateBang(), const SizedBox(width: 8)],
+          Flexible(
+            child: Text(
+              text,
+              style: bold || bang
+                  ? style.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: context.akn.ink,
+                    )
+                  : style,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
 
-/// Plakada oran satırı: "%94 zamanında ……… hedef %90" (oran kalın).
+/// Plakada oran satırı: "%94 zamanında ……… hedef %90" (oran 15/20 700 tabular, sayaç gibi döner;
+/// hedef soluk).
 class _RateRow extends StatelessWidget {
   const _RateRow({required this.rate, required this.label, this.trailing});
 
@@ -837,26 +920,31 @@ class _RateRow extends StatelessWidget {
         textBaseline: TextBaseline.alphabetic,
         children: [
           Expanded(
-            child: Text.rich(
+            child: RollingText(
               TextSpan(
                 children: [
                   TextSpan(text: rate, style: _valueStyle(context)),
-                  TextSpan(text: ' $label'),
+                  TextSpan(text: ' $label', style: style),
                 ],
               ),
-              style: style,
+              delay: const Duration(milliseconds: 200),
+              maxLines: 2,
+              softWrap: true,
             ),
           ),
-          if (trailing != null) Text(trailing!, style: style),
+          if (trailing != null)
+            Text(trailing!, style: style.copyWith(color: context.akn.dim)),
         ],
       ),
     );
   }
 }
 
-/// Plakadaki sıralı çubuklar (tasarım v2 §5.1): ad solda (14/20 500, tek satır), değer sağda (15/20
-/// 700; dar ekranda büyük yazıda küçülür, taşmaz), altında 8 px çubuk (mürekkep dolgu, iz bağlamın
-/// `chartTrack` rengi; iki seride iz formun boyu). İki seride iki maddelik lejant.
+/// Plakadaki sıralı çubuklar (tasarım v3 §4): ad solda (14/20 500, tek satır), değer sağda (15/20
+/// 700 tabular; dar ekranda büyük yazıda küçülür, taşmaz), altında 8 px tam yuvarlak çubuk. Plakada
+/// dolgu turuncu rampa (`heroStart` → `plateAccent`) ve yumuşak ışıma, iz `chartTrack`; kâğıtta
+/// mürekkep. İki seride iz formun boyu (`chartContext`). Kart öne gelince çubuklar satır satır
+/// büyür. İki seride iki maddelik lejant.
 class _RankedRows extends StatelessWidget {
   const _RankedRows({required this.rows, this.legend = const []});
 
@@ -869,14 +957,19 @@ class _RankedRows extends StatelessWidget {
     final t = context.aknText;
     final label = _lineStyle(context);
     final value = _valueStyle(context);
-    const end = BorderRadius.horizontal(right: Radius.circular(4));
+    final plate = c.isPlatePalette;
+    final (start, end) = statsAccentRamp(c);
+    final fill = plate ? end : c.ink;
+    final fillStart = plate ? start : c.ink;
+    final twoSeries = legend.isNotEmpty || rows.any((r) => r.track < 1);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final r in rows)
+        for (var i = 0; i < rows.length; i++)
           Semantics(
-            label: r.semanticLabel ?? '${r.label}: ${r.value}',
+            label:
+                rows[i].semanticLabel ?? '${rows[i].label}: ${rows[i].value}',
             excludeSemantics: true,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -887,7 +980,7 @@ class _RankedRows extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          r.label,
+                          rows[i].label,
                           style: label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -902,7 +995,7 @@ class _RankedRows extends StatelessWidget {
                           fit: BoxFit.scaleDown,
                           alignment: AlignmentDirectional.centerEnd,
                           child: Text(
-                            r.value,
+                            rows[i].value,
                             style: value,
                             maxLines: 1,
                             softWrap: false,
@@ -912,31 +1005,19 @@ class _RankedRows extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                SizedBox(
+                const SizedBox(height: 5),
+                StatsGrowBar(
                   height: 8,
-                  child: FractionallySizedBox(
-                    alignment: AlignmentDirectional.centerStart,
-                    widthFactor: r.track.clamp(0.0, 1.0),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: c.chartTrack,
-                        borderRadius: end,
-                      ),
-                      child: FractionallySizedBox(
-                        alignment: AlignmentDirectional.centerStart,
-                        widthFactor: r.track <= 0
-                            ? 0
-                            : (r.fraction / r.track).clamp(0.0, 1.0),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: c.ink,
-                            borderRadius: end,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+                  fraction: rows[i].track <= 0
+                      ? 0
+                      : rows[i].fraction.clamp(0.0, rows[i].track),
+                  track: rows[i].track.clamp(0.0, 1.0),
+                  trackColor: c.chartTrack,
+                  trackFill: twoSeries ? c.chartContext : null,
+                  fill: fill,
+                  fillStart: fillStart,
+                  glow: plate && !twoSeries,
+                  delay: _rowDelay(i),
                 ),
                 const SizedBox(height: 9),
               ],
@@ -956,15 +1037,18 @@ class _RankedRows extends StatelessWidget {
                         width: 12,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: l.filled ? c.ink : c.chartTrack,
-                          borderRadius: BorderRadius.circular(2),
+                          gradient: l.filled
+                              ? LinearGradient(colors: [fillStart, fill])
+                              : null,
+                          color: l.filled ? null : c.chartContext,
+                          borderRadius: BorderRadius.circular(4),
                         ),
                       ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           l.label,
-                          style: t.label.copyWith(color: c.ink),
+                          style: t.caption.copyWith(color: c.dim),
                         ),
                       ),
                     ],
@@ -979,7 +1063,7 @@ class _RankedRows extends StatelessWidget {
 
 // ============================================================== içerikler
 
-/// Satış / Bu ay harcama: rakam, fark, 6 aylık çubuklar (bu ay siyah, ay sonu tahmini kesikli), kural ve
+/// Satış / Bu ay harcama: rakam, fark, 6 aylık çubuklar (bu ay turuncu degrade, ay sonu tahmini kesikli), kural ve
 /// okumalar (litre, ortalama birim fiyat, ay sonu tahmini — ayın 5'inden önce sipariş sayısı). Büyük
 /// yazıda okuma etiketleri kısalır ("Yakıt", "Ay sonu") ki rakamlar aynı hizada kalsın.
 class _AmountBody extends StatelessWidget {
@@ -1162,7 +1246,7 @@ class _LitersBody extends StatelessWidget {
   }
 }
 
-/// Sipariş hunisi: dönüşüm (%72 dönüşüm), Talep / Teklif / Onay çubukları (sonuç siyah), kural ve ilk
+/// Sipariş hunisi: dönüşüm (%72 dönüşüm), Talep / Teklif / Onay çubukları (sonuç turuncu), kural ve ilk
 /// teklif süresi (kartın altında).
 class _FunnelBody extends StatelessWidget {
   const _FunnelBody({required this.funnel});
@@ -1383,7 +1467,7 @@ class _TopCustomersBody extends StatelessWidget {
   }
 }
 
-/// Saha ekibi: form ve sipariş toplamı, ilk üç temsilci (beyaz form, siyah siparişe dönüşen) ve iki
+/// Saha ekibi: form ve sipariş toplamı, ilk üç temsilci (açık form, turuncu siparişe dönüşen) ve iki
 /// maddelik lejant.
 class _TeamBody extends StatelessWidget {
   const _TeamBody({
@@ -1439,7 +1523,7 @@ class _TeamBody extends StatelessWidget {
   }
 }
 
-/// Limit riski: limitine yakın cari sayısı ve en riskli satırlar ("!" + kalın ad, siyah ölçer, %80
+/// Limit riski: limitine yakın cari sayısı ve en riskli satırlar ("!" + kalın ad, turuncu ölçer, %80
 /// eşik çizgisi); plakada sarı / kırmızı yok. Ölçer %100'de durur.
 class _RiskBody extends StatelessWidget {
   const _RiskBody({required this.risk});
@@ -1481,35 +1565,41 @@ class _RiskBody extends StatelessWidget {
                 label:
                     'Dikkat, ${rows[i].title}: limit kullanımı ${StatsFmt.rate(rows[i].usageRate)}',
                 excludeSemantics: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        const PlateBang(),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            rows[i].title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: style.copyWith(fontWeight: FontWeight.w700),
+                child: StatsRise(
+                  delay: _rowDelay(i),
+                  offset: 8,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const PlateBang(),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              rows[i].title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: style.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          StatsFmt.rate(rows[i].usageRate),
-                          style: _valueStyle(context),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    PlateMeter(
-                      value: math.min(1, rows[i].usageRate),
-                      threshold: StatsCopy.warnLevel,
-                    ),
-                  ],
+                          const SizedBox(width: 10),
+                          Text(
+                            StatsFmt.rate(rows[i].usageRate),
+                            style: _valueStyle(context),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      PlateMeter(
+                        value: math.min(1, rows[i].usageRate),
+                        threshold: StatsCopy.warnLevel,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -1617,7 +1707,8 @@ class _OwnFormsBody extends StatelessWidget {
 }
 
 /// Ortalama birim fiyat: ₺/L, mutlak fark çipi ve cümlesi ("geçen ayın aynı günlerine göre daha
-/// ucuz" — düşüş müşteri için iyidir; cümle söyler, renk söylemez) ve 6 aylık çizgi.
+/// ucuz" — düşüş müşteri için iyidir; cümle söyler, renk söylemez) ve kendini çizen 6 aylık çizgi
+/// ([PlateLine]: vurgu renginde çizgi, yumuşak dolgu, sonunda halkalı nokta).
 class _UnitPriceBody extends StatelessWidget {
   const _UnitPriceBody({
     required this.price,
@@ -1682,7 +1773,7 @@ class _UnitPriceBody extends StatelessWidget {
       compactLine: compactLine,
       detailBuilder: priced.length < 2
           ? null
-          : (context, maxHeight) => StatsLine(
+          : (context, maxHeight) => PlateLine(
               values: [for (final m in priced) m.unitPrice!],
               labels: [for (final m in priced) m.shortLabel],
               endLabel: StatsFmt.price(priced.last.unitPrice),

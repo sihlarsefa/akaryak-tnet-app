@@ -49,7 +49,7 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
       message: ProfileCopy.revokeMessage,
       confirmLabel: ProfileCopy.revoke,
       cancelLabel: ProfileCopy.cancel,
-      icon: Icons.phonelink_erase_rounded,
+      icon: PhosphorIconsRegular.deviceMobileSlash,
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -88,31 +88,37 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
             )
           : const SkeletonList(itemCount: 3, lines: 2);
     } else {
+      // v3: her cihaz kendi beyaz kartında (r20, kart gölgesi), kartlar sırayla belirir.
       body = PullToRefresh(
         onRefresh: () => ref.refresh(sessionsProvider.future),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 8, bottom: 32),
+          padding: const EdgeInsets.fromLTRB(
+            AknSpace.page,
+            8,
+            AknSpace.page,
+            32,
+          ),
           children: [
-            AknLedger(
-              children: [
-                for (final s in list)
-                  _SessionTile(
+            for (final (i, s) in list.indexed)
+              SettingsReveal(
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _SessionTile(
                     session: s,
                     onRevoke: s.current ? null : () => unawaited(_revoke(s)),
                   ),
-              ],
-            ),
+                ),
+              ),
             if (list.length <= 1)
-              const AknBanner(
-                tone: AknTone.info,
-                icon: Icons.verified_user_outlined,
-                message: ProfileCopy.onlyThisDevice,
-                margin: EdgeInsets.fromLTRB(
-                  AknSpace.page,
-                  16,
-                  AknSpace.page,
-                  0,
+              SettingsReveal(
+                index: list.length,
+                child: const AknBanner(
+                  tone: AknTone.info,
+                  icon: PhosphorIconsRegular.shieldCheck,
+                  message: ProfileCopy.onlyThisDevice,
+                  margin: EdgeInsets.only(top: 4),
                 ),
               ),
           ],
@@ -126,7 +132,7 @@ class _SessionsPageState extends ConsumerState<SessionsPage> {
       actionBar: barOf(
         AknButton.secondary(
           label: ProfileCopy.signOutAll,
-          icon: Icons.logout_rounded,
+          icon: PhosphorIconsRegular.signOut,
           expand: true,
           onPressed: () =>
               unawaited(confirmAndSignOut(context, ref, allDevices: true)),
@@ -164,13 +170,13 @@ class _SessionTile extends StatelessWidget {
             ? ProfileCopy.lastSeenInline(Fmt.relative(s.lastSeenAt))
             : ProfileCopy.lastSeen(Fmt.relative(s.lastSeenAt)),
     ].join(', ');
-    // Defter satırı (§6.8): 24 px soluk cihaz simgesi, ad, ayrıntı; bu cihaz yeşil lamba; diğerlerinde
-    // sağda küçük "Oturumu kapat" (büyük yazıda metnin altında).
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    // Kart (v3): 40 px cihaz karosu (bu cihazda yeşil kuyu), ad, ayrıntı; bu cihaz yeşil lamba; diğerlerinde
+    // ayrıntının altında küçük "Oturumu kapat".
     final revoke = onRevoke == null
         ? null
         : AknButton.danger(
             label: ProfileCopy.revoke,
+            icon: PhosphorIconsRegular.signOut,
             size: AknButtonSize.small,
             onPressed: onRevoke,
           );
@@ -181,21 +187,31 @@ class _SessionTile extends StatelessWidget {
         if (s.current) ProfileCopy.thisDevice,
         if (details.isNotEmpty) details,
       ].join(', '),
-      child: Padding(
-        padding: AknSpace.row,
+      child: AknCard(
+        radius: 20,
+        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              android
-                  ? Icons.phone_android_outlined
-                  : ios
-                  ? Icons.phone_iphone_outlined
-                  : Icons.devices_other_outlined,
-              size: 24,
-              color: c.dim,
+            ExcludeSemantics(
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: s.current ? c.ok.bg : c.surfaceAlt,
+                  borderRadius: AknRadius.buttonSmall,
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  android || ios
+                      ? PhosphorIconsRegular.deviceMobile
+                      : PhosphorIconsRegular.devices,
+                  size: 22,
+                  color: s.current ? c.ok.fg : c.ink,
+                ),
+              ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,11 +227,14 @@ class _SessionTile extends StatelessWidget {
                           const SizedBox(height: 2),
                           Text(
                             details,
-                            style: t.bodySmall.copyWith(color: c.dim),
+                            style: t.bodySmall.copyWith(
+                              color: c.dim,
+                              fontFeatures: AknNumerals.tabular,
+                            ),
                           ),
                         ],
                         if (s.current) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           const AknLamp(
                             label: ProfileCopy.thisDevice,
                             tone: AknTone.ok,
@@ -224,17 +243,16 @@ class _SessionTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (revoke != null && large) ...[
-                    const SizedBox(height: 8),
-                    revoke,
+                  if (revoke != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: revoke,
+                    ),
                   ],
                 ],
               ),
             ),
-            if (revoke != null && !large) ...[
-              const SizedBox(width: 12),
-              revoke,
-            ],
           ],
         ),
       ),

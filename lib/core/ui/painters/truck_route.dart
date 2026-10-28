@@ -5,20 +5,22 @@ import 'package:flutter/material.dart';
 import '../motion.dart';
 import '../tokens.dart';
 
-/// The route line (design v2 §6.15): origin dot → travelled part (solid ink)
-/// → **the vehicle, which is the brand tile** (a logo-orange square with the
-/// white ») → the rest of the way dashed → the destination ring.
+/// The route line (design v3 §4): origin dot → the travelled part, an
+/// orange line that brightens towards the vehicle → **the vehicle, the brand
+/// tile** (a logo-orange rounded square with the white » and a warm glow)
+/// → the rest of the way dotted in graphite → the destination ring.
 ///
-/// * [progress] (0..1) places the vehicle; it glides 400 ms when the value
-///   changes (an answer to data, never a loop). Without [progress], an
-///   in-transit route ([moving]) rests mid-way and a planned one at the
-///   origin. Reduce motion: no glide.
+/// * [progress] (0..1) places the vehicle. On first build the vehicle
+///   glides out from the origin to its place, and it glides again whenever
+///   the value changes (emphasized curve). Without [progress], an in-transit
+///   route ([moving]) rests mid-way and a planned one at the origin. Reduce
+///   motion: no glide.
+/// * While [moving], a soft ping ring breathes around the vehicle (ambient
+///   motion, [AknAmbient]; still in tests and under reduce motion).
 /// * [height] is 22 (rows, hero rows) or 16 (compact); larger values are
-///   clamped to 24 so older call sites keep the v2 size.
+///   clamped to 24 so older call sites keep their size.
 /// * Optional labels under the line: origin left ("Dilovası deposu, 09:58
 ///   çıktı"), destination right ("18 km kaldı").
-/// * The » tile is logo orange with a white glyph everywhere (the plate
-///   card is white in the owner's decision G).
 ///
 /// Give it a [semanticLabel] with the ETA: "Yolda. Dilovası deposundan
 /// Pendik Lojistik Merkezine, tahmini varış 11:20."
@@ -38,7 +40,8 @@ class TruckRoute extends StatelessWidget {
   final bool moving;
   final double height;
 
-  /// Overrides the travelled line and origin colour (ink by default).
+  /// Overrides the travelled line and origin colour (the orange gradient by
+  /// default).
   final Color? color;
   final String? originLabel;
   final String? destinationLabel;
@@ -52,23 +55,33 @@ class TruckRoute extends StatelessWidget {
     final labels = originLabel != null || destinationLabel != null;
     final t = Theme.of(context).textTheme.bodySmall?.copyWith(color: c.dim);
 
-    final line = TweenAnimationBuilder<double>(
-      tween: Tween<double>(end: target),
-      duration: AknMotion.of(context, AknMotion.routeGlide),
-      curve: AknMotion.emphasizedCurve,
-      builder: (context, p, _) => CustomPaint(
-        size: Size(double.infinity, h),
-        painter: TruckRoutePainter(
-          progress: p,
-          color: color ?? c.ink,
-          track: c.faint,
-          inset: 0,
-          pin: c.ink,
-          ringFill: c.bg,
-          vehicle: c.logo,
-          vehicleGlyph: const Color(0xFFFFFFFF),
-        ),
+    Widget paint(double p, double pulse) => CustomPaint(
+      size: Size(double.infinity, h),
+      painter: TruckRoutePainter(
+        progress: p,
+        color: color ?? c.brandBright,
+        travelledStart: color == null ? c.brandFillStart : null,
+        track: c.lineStrong,
+        inset: 0,
+        pin: c.ink,
+        ringFill: c.surface,
+        vehicle: c.logo,
+        vehicleGlyph: const Color(0xFFFFFFFF),
+        pulse: pulse,
       ),
+    );
+
+    final line = TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: target),
+      duration: AknMotion.of(context, const Duration(milliseconds: 700)),
+      curve: AknMotion.emphasizedCurve,
+      builder: (context, p, _) => moving
+          ? AknAmbient(
+              period: AknMotion.breathe,
+              curve: Curves.linear,
+              builder: (context, pulse, _) => paint(p, pulse),
+            )
+          : paint(p, 0),
     );
 
     return Semantics(
@@ -80,7 +93,7 @@ class TruckRoute extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 SizedBox(height: h, child: line),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -111,15 +124,16 @@ class TruckRoute extends StatelessWidget {
   }
 }
 
-/// Paints the v2 route line at any height (the board's geometry is drawn at
-/// 22 px and scales with the height): origin dot r5 in [color], travelled
-/// 3 px [color] line with a round cap, the [vehicle] tile (22 × 22, r5.5)
-/// with a [vehicleGlyph] », the remaining 2.5 px dashed [track] (7 on, 6
-/// off) and the destination ring (r5.5, 2.5 px [pin] stroke, [ringFill]
-/// inside).
+/// Paints the v3 route line at any height (the geometry is drawn at 22 px
+/// and scales with the height): origin dot r5, the travelled 3 px line with
+/// round caps ([travelledStart] → [color], or solid [color]), the [vehicle]
+/// tile (22 × 22, r6) with a warm glow and a [vehicleGlyph] », the remaining
+/// 2.5 px dotted [track] and the destination ring (r5.5, 2.5 px [pin]
+/// stroke, [ringFill] inside).
 ///
 /// [vehicle] null draws no tile (callers that place their own marker);
-/// [inset] adds extra space at both ends.
+/// [inset] adds extra space at both ends; [pulse] (0..1, looping) draws the
+/// ping ring that grows and fades around the vehicle (0 = none).
 class TruckRoutePainter extends CustomPainter {
   TruckRoutePainter({
     required this.progress,
@@ -130,6 +144,8 @@ class TruckRoutePainter extends CustomPainter {
     this.ringFill,
     this.vehicle,
     this.vehicleGlyph,
+    this.travelledStart,
+    this.pulse = 0,
   });
 
   final double progress;
@@ -140,6 +156,12 @@ class TruckRoutePainter extends CustomPainter {
   final Color? ringFill;
   final Color? vehicle;
   final Color? vehicleGlyph;
+
+  /// The travelled line's start colour (null: solid [color]).
+  final Color? travelledStart;
+
+  /// The vehicle's ping ring (0..1; 0 = none).
+  final double pulse;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -159,33 +181,38 @@ class TruckRoutePainter extends CustomPainter {
     final hi = hasVehicle ? size.width - inset - tile / 2 : x1;
     final xv = (x0 + (x1 - x0) * p).clamp(lo, math.max(lo, hi)).toDouble();
 
-    // Remaining way: dashed.
-    final dash = Paint()
+    // Remaining way: dotted, round caps.
+    final dots = Paint()
       ..color = track
-      ..strokeWidth = 2.5 * s;
-    final dashFrom = hasVehicle ? xv + tile / 2 + 3 * s : xv;
-    final dashTo = x1 - rDest;
-    for (var x = dashFrom; x < dashTo; x += 13 * s) {
+      ..strokeWidth = 2.5 * s
+      ..strokeCap = StrokeCap.round;
+    final dashFrom = hasVehicle ? xv + tile / 2 + 5 * s : xv + 4 * s;
+    final dashTo = x1 - rDest - 4 * s;
+    for (var x = dashFrom; x < dashTo; x += 8 * s) {
       canvas.drawLine(
         Offset(x, y),
-        Offset(math.min(x + 7 * s, dashTo), y),
-        dash,
+        Offset(math.min(x + 2 * s, dashTo), y),
+        dots,
       );
     }
-    // Travelled way: solid, round cap.
-    final travelledTo = hasVehicle ? xv - tile / 2 - 1 * s : xv;
+    // Travelled way: solid, round caps, brightening towards the vehicle.
+    final travelledTo = hasVehicle ? xv - tile / 2 - 3 * s : xv;
+    final start = travelledStart;
     if (travelledTo > x0) {
-      canvas.drawLine(
-        Offset(x0, y),
-        Offset(travelledTo, y),
-        Paint()
-          ..color = color
-          ..strokeWidth = 3 * s
-          ..strokeCap = StrokeCap.round,
-      );
+      final paint = Paint()
+        ..strokeWidth = 3 * s
+        ..strokeCap = StrokeCap.round;
+      if (start == null) {
+        paint.color = color;
+      } else {
+        paint.shader = LinearGradient(
+          colors: [start, color],
+        ).createShader(Rect.fromLTRB(x0, y - 2, travelledTo, y + 2));
+      }
+      canvas.drawLine(Offset(x0, y), Offset(travelledTo, y), paint);
     }
     // Origin dot.
-    canvas.drawCircle(Offset(x0, y), rOrigin, Paint()..color = color);
+    canvas.drawCircle(Offset(x0, y), rOrigin, Paint()..color = start ?? color);
     // Destination ring.
     final dest = Offset(size.width - inset - rDest - destStroke / 2, y);
     if (ringFill != null) {
@@ -199,17 +226,38 @@ class TruckRoutePainter extends CustomPainter {
         ..strokeWidth = destStroke
         ..color = pin,
     );
-    if (!hasVehicle) return;
-    // The vehicle: the brand tile with the ».
-    final rect = Rect.fromCenter(
-      center: Offset(xv, y),
-      width: tile,
-      height: tile,
-    );
+    final v = vehicle;
+    if (v == null) return;
+    final center = Offset(xv, y);
+    // The live ping: a ring that grows out of the tile and fades.
+    if (pulse > 0) {
+      final grow = Curves.easeOutCubic.transform(pulse);
+      final fade = 1 - pulse;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: center,
+            width: tile + 12 * s * grow,
+            height: tile + 12 * s * grow,
+          ),
+          Radius.circular(6 * s + 6 * s * grow),
+        ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2 * s
+          ..color = v.withValues(alpha: v.a * 0.45 * fade),
+      );
+    }
+    // The vehicle: the brand tile with the », on a warm glow.
+    final rect = Rect.fromCenter(center: center, width: tile, height: tile);
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(6 * s));
     canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(5.5 * s)),
-      Paint()..color = vehicle!,
+      rrect.shift(Offset(0, 2 * s)),
+      Paint()
+        ..color = v.withValues(alpha: v.a * 0.4)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 * s),
     );
+    canvas.drawRRect(rrect, Paint()..color = v);
     final glyph = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.6 * s
@@ -239,5 +287,7 @@ class TruckRoutePainter extends CustomPainter {
       old.pin != pin ||
       old.ringFill != ringFill ||
       old.vehicle != vehicle ||
-      old.vehicleGlyph != vehicleGlyph;
+      old.vehicleGlyph != vehicleGlyph ||
+      old.travelledStart != travelledStart ||
+      old.pulse != pulse;
 }

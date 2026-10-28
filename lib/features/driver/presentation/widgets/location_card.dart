@@ -30,8 +30,10 @@ Future<void> requestLocation(
   await capture.requestAndAcquire();
 }
 
-/// Teslim konumu kartı (özet adımı): durum, hassasiyet, "Hassas konum kapalı", izin / servis kapalıysa
-/// "Ayarları aç", zorunlu değilse "Konumsuz devam et". Ayarlardan dönünce konum yeniden denenir.
+/// Teslim konumu kartı (özet adımı; tasarım v3 §4): beyaz kart, solda tonun yumuşak kuyusunda durum
+/// simgesi (alınırken dönen » ve çevresinde nefes alan halka), durum, hassasiyet, "Hassas konum
+/// kapalı", izin / servis kapalıysa "Ayarları aç", zorunlu değilse "Konumsuz devam et". Durum
+/// değişince simge ve kuyu rengi yaylanarak değişir. Ayarlardan dönünce konum yeniden denenir.
 class LocationCard extends ConsumerStatefulWidget {
   const LocationCard({
     super.key,
@@ -102,7 +104,7 @@ class _LocationCardState extends ConsumerState<LocationCard> {
     void addLocationButton(String label) => actions.add(
       AknButton.secondary(
         label: label,
-        icon: Icons.my_location_outlined,
+        icon: PhosphorIconsRegular.gpsFix,
         size: AknButtonSize.small,
         onPressed: () => unawaited(requestLocation(context, ref, cap)),
       ),
@@ -123,13 +125,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
       case LocationPhase.idle:
       case LocationPhase.acquiring:
         tone = AknTone.info;
-        icon = Icons.my_location_outlined;
+        icon = PhosphorIconsRegular.gpsFix;
         status = DriverCopy.locationAcquiring;
       case LocationPhase.ready:
         final pos = p!;
         if (pos.approximate) {
           tone = AknTone.warn;
-          icon = Icons.location_searching_rounded;
+          icon = PhosphorIconsRegular.gps;
           status = DriverCopy.locationApproximate;
           detail =
               '${DriverCopy.locationApproximateBody} (${pos.accuracyLabel})';
@@ -142,25 +144,25 @@ class _LocationCardState extends ConsumerState<LocationCard> {
           );
         } else if (pos.isLowAccuracy) {
           tone = AknTone.warn;
-          icon = Icons.location_searching_rounded;
+          icon = PhosphorIconsRegular.gps;
           status = DriverCopy.locationOk(pos.accuracyLabel);
           detail = DriverCopy.locationLowAccuracy(pos.accuracyLabel);
           actions.add(
             AknButton.ghost(
               label: DriverCopy.locationRetry,
-              icon: Icons.refresh_rounded,
+              icon: PhosphorIconsRegular.arrowClockwise,
               size: AknButtonSize.small,
               onPressed: () => unawaited(cap.requestAndAcquire()),
             ),
           );
         } else {
           tone = AknTone.ok;
-          icon = Icons.location_on_outlined;
+          icon = PhosphorIconsRegular.mapPin;
           status = DriverCopy.locationOk(pos.accuracyLabel);
         }
       case LocationPhase.needsPermission:
         tone = widget.required ? AknTone.warn : AknTone.neutral;
-        icon = Icons.location_off_outlined;
+        icon = PhosphorIconsRegular.gpsSlash;
         status = widget.required
             ? DriverCopy.summaryNeedsGps
             : DriverCopy.locationOptionalHint;
@@ -168,13 +170,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.denied:
         tone = widget.required ? AknTone.danger : AknTone.warn;
-        icon = Icons.location_disabled_outlined;
+        icon = PhosphorIconsRegular.gpsSlash;
         status = DriverCopy.locationDenied;
         detail = DriverCopy.locationDeniedBody;
         actions.add(
           AknButton.secondary(
             label: DriverCopy.locationOpenSettings,
-            icon: Icons.settings_outlined,
+            icon: PhosphorIconsRegular.gear,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_openSettings()),
           ),
@@ -182,13 +184,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.serviceOff:
         tone = widget.required ? AknTone.danger : AknTone.warn;
-        icon = Icons.location_disabled_outlined;
+        icon = PhosphorIconsRegular.gpsSlash;
         status = DriverCopy.locationServiceOff;
         detail = DriverCopy.locationServiceOffBody;
         actions.add(
           AknButton.secondary(
             label: DriverCopy.locationOpenSettings,
-            icon: Icons.settings_outlined,
+            icon: PhosphorIconsRegular.gear,
             size: AknButtonSize.small,
             onPressed: () => unawaited(_openSettings(location: true)),
           ),
@@ -196,13 +198,13 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.failed:
         tone = widget.required ? AknTone.danger : AknTone.warn;
-        icon = Icons.location_searching_rounded;
+        icon = PhosphorIconsRegular.gps;
         status = DriverCopy.locationFailed;
         detail = DriverCopy.locationFailedBody;
         actions.add(
           AknButton.secondary(
             label: DriverCopy.locationRetry,
-            icon: Icons.refresh_rounded,
+            icon: PhosphorIconsRegular.arrowClockwise,
             size: AknButtonSize.small,
             onPressed: () => unawaited(cap.requestAndAcquire()),
           ),
@@ -210,62 +212,112 @@ class _LocationCardState extends ConsumerState<LocationCard> {
         addSkip();
       case LocationPhase.skipped:
         tone = AknTone.neutral;
-        icon = Icons.location_off_outlined;
+        icon = PhosphorIconsRegular.gpsSlash;
         status = DriverCopy.locationSkipped;
         addLocationButton(DriverCopy.locationAdd);
     }
 
     final tc = c.tone(tone);
     final busy = cap.isBusy || cap.phase == LocationPhase.idle;
-    final iconColor = tone == AknTone.neutral || tone == AknTone.info
-        ? c.dim
-        : tc.fg;
-    // Beton kuyu (§4.5): ton simgesi + mürekkep yazı; zemin rengi tonla değişmez.
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
+    final quiet = tone == AknTone.neutral || tone == AknTone.info;
+    final wellColor = quiet ? c.surfaceAlt : tc.bg;
+    final glyphColor = quiet ? c.ink : tc.fg;
+    final Widget glyph = busy
+        ? ChevronSpinner(
+            key: const ValueKey('busy'),
+            size: 18,
+            color: c.ink,
+            semanticLabel: null,
+          )
+        : Icon(icon, key: ValueKey('$icon$tone'), size: 22, color: glyphColor);
+    final duration = AknMotion.of(context, AknMotion.base);
+    final tile = AnimatedContainer(
+      duration: duration,
+      curve: AknMotion.standard,
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(color: wellColor, shape: BoxShape.circle),
+      child: Center(
+        child: AnimatedSwitcher(
+          duration: AknMotion.of(context, AknMotion.iconSwap),
+          switchInCurve: AknMotion.pop,
+          transitionBuilder: (child, a) => ScaleTransition(
+            scale: a,
+            child: FadeTransition(opacity: a, child: child),
+          ),
+          child: glyph,
+        ),
       ),
+    );
+    // Konum aranırken simgenin çevresinde yumuşak bir halka nefes alır (ortam hareketi).
+    final mark = busy
+        ? AknAmbient(
+            period: AknMotion.breathe,
+            reverse: true,
+            child: tile,
+            builder: (context, v, child) => SizedBox.square(
+              dimension: 52,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 44 + 8 * v,
+                    height: 44 + 8 * v,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: c.ink.withValues(alpha: 0.06 * (1 - v)),
+                    ),
+                  ),
+                  child!,
+                ],
+              ),
+            ),
+          )
+        : SizedBox.square(dimension: 52, child: Center(child: tile));
+    return AknCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            widget.title,
-            style: t.label.copyWith(color: c.dim, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 6),
           Semantics(
             liveRegion: true,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Center(
-                    child: busy
-                        ? ChevronSpinner(
-                            size: 18,
-                            color: c.ink,
-                            semanticLabel: null,
-                          )
-                        : Icon(icon, size: 22, color: iconColor),
-                  ),
-                ),
+                mark,
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(status, style: t.bodyStrong.copyWith(color: c.ink)),
-                      if (detail != null) ...[
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: t.label.copyWith(
+                            color: c.dim,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(detail, style: t.bodySmall.copyWith(color: c.ink)),
+                        Text(
+                          status,
+                          style: t.bodyStrong.copyWith(
+                            color: c.ink,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (detail != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            detail,
+                            style: t.bodySmall.copyWith(color: c.ink),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -273,7 +325,10 @@ class _LocationCardState extends ConsumerState<LocationCard> {
           ),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 4, children: actions),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(start: 62),
+              child: Wrap(spacing: 8, runSpacing: 4, children: actions),
+            ),
           ],
         ],
       ),
@@ -297,26 +352,34 @@ class StartLocationLine extends ConsumerWidget {
         final p = capture.position;
         final String text;
         final IconData icon;
+        var color = c.dim;
         var canAdd = false;
         switch (capture.phase) {
           case LocationPhase.ready when p != null:
             text = p.approximate
                 ? '${DriverCopy.locationApproximate}, ${p.accuracyLabel}'
                 : DriverCopy.locationStartWill(p.accuracyLabel);
-            icon = Icons.location_on_outlined;
+            icon = PhosphorIconsRegular.mapPin;
+            if (!p.approximate) color = c.ok.fg;
           case LocationPhase.idle || LocationPhase.acquiring:
             text = DriverCopy.locationAcquiring;
-            icon = Icons.my_location_outlined;
+            icon = PhosphorIconsRegular.gpsFix;
           case _:
             text = DriverCopy.locationStartOptional;
-            icon = Icons.location_off_outlined;
+            icon = PhosphorIconsRegular.gpsSlash;
             canAdd = capture.phase != LocationPhase.serviceOff;
         }
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: c.dim),
+              AnimatedSwitcher(
+                duration: AknMotion.of(context, AknMotion.iconSwap),
+                switchInCurve: AknMotion.pop,
+                transitionBuilder: (child, a) =>
+                    ScaleTransition(scale: a, child: child),
+                child: Icon(icon, key: ValueKey(icon), size: 20, color: color),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(text, style: t.bodySmall.copyWith(color: c.ink)),

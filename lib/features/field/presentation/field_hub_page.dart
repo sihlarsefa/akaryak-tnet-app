@@ -171,7 +171,7 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
 
   int? _intStatus(FieldSection s) => int.tryParse(_statusFor[s] ?? '');
 
-  /// Bölümün "ekle" eylemi (tasarım v2 §4.2: içeriğin üstünde yüzen düğme yok): üst çubukta küçük
+  /// Bölümün "ekle" eylemi (tasarım v3: içeriğin üstünde yüzen düğme yok): üst çubukta küçük turuncu
   /// birincil düğme ("+ Ön kayıt", "+ Saha formu").
   Widget? _addAction(BuildContext context, FieldSection s, FieldAccess a) {
     final (label, path, show) = switch (s) {
@@ -193,7 +193,7 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
     // Büyük yazıda başlıkla yan yana sığması için yalnızca simge (etiketi ekran okuyucuda).
     if (fieldLargeText(context)) {
       return AknIconButton(
-        icon: Icons.add_rounded,
+        icon: PhosphorIconsRegular.plus,
         semanticLabel: spoken,
         onPressed: () => context.push(path),
       );
@@ -202,7 +202,7 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
       padding: const EdgeInsetsDirectional.only(end: 6),
       child: AknButton(
         label: label,
-        icon: Icons.add_rounded,
+        icon: PhosphorIconsRegular.plus,
         size: AknButtonSize.small,
         semanticLabel: spoken,
         onPressed: () => context.push(path),

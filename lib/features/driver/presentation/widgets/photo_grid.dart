@@ -7,9 +7,12 @@ import '../../../../core/media/attachment_gallery.dart';
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 import '../../data/deliver_draft.dart';
+import 'entrance.dart';
 
-/// Teslim fotoğrafları ızgarası: yerel dosyalar ve (düzeltmede) önceki teslimatın fotoğrafları;
-/// her karede 48 dp "kaldır" düğmesi; dokununca büyük önizleme.
+/// Teslim fotoğrafları ızgarası (tasarım v3): yerel dosyalar ve (düzeltmede) önceki teslimatın
+/// fotoğrafları, r16 kareler. Yeni kare hafifçe büyüyerek belirir; her karede 48 dp "kaldır"
+/// düğmesi (koyu yarı saydam daire); dokununca büyük önizleme. Sondaki "Ekle" karesi kesikli
+/// çerçeveli, basınca küçülür.
 class PhotoGrid extends StatelessWidget {
   const PhotoGrid({
     super.key,
@@ -37,11 +40,18 @@ class PhotoGrid extends StatelessWidget {
           children: [
             for (var i = 0; i < photos.length; i++)
               SizedBox.square(
+                key: ValueKey('${photos[i].path}|${photos[i].publicId}'),
                 dimension: size,
-                child: _PhotoTile(
-                  photo: photos[i],
-                  index: i,
-                  onRemove: () => onRemove(i),
+                child: DriverFadeUp(
+                  offset: 8,
+                  scale: 0.9,
+                  duration: AknMotion.slow,
+                  curve: AknMotion.emphasizedCurve,
+                  child: _PhotoTile(
+                    photo: photos[i],
+                    index: i,
+                    onRemove: () => onRemove(i),
+                  ),
                 ),
               ),
             if (onAdd != null)
@@ -55,6 +65,9 @@ class PhotoGrid extends StatelessWidget {
     );
   }
 }
+
+/// Fotoğraf karelerinin köşesi (v3: r16).
+const BorderRadius _tileRadius = BorderRadius.all(Radius.circular(16));
 
 class _PhotoTile extends ConsumerWidget {
   const _PhotoTile({
@@ -103,7 +116,7 @@ class _PhotoTile extends ConsumerWidget {
         ? '${DriverCopy.photoPrevious}, fotoğraf ${index + 1}'
         : 'Teslim fotoğrafı ${index + 1}';
     return ClipRRect(
-      borderRadius: AknRadius.card,
+      borderRadius: _tileRadius,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -128,8 +141,8 @@ class _PhotoTile extends ConsumerWidget {
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: AknColors.light.ink,
-                    borderRadius: BorderRadius.circular(AknRadius.xs),
+                    color: AknColors.light.ink.withValues(alpha: 0.78),
+                    borderRadius: AknRadius.tag,
                   ),
                   child: Text(
                     DriverCopy.photoPreviousTag,
@@ -151,21 +164,32 @@ class _PhotoTile extends ConsumerWidget {
               onTap: onRemove,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: onRemove,
+                onTap: () {
+                  AknHaptics.light();
+                  onRemove();
+                },
                 child: SizedBox.square(
                   dimension: context.minTap,
                   child: Center(
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: AknColors.light.ink,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: AknColors.light.surface,
+                    child: PressScale(
+                      scale: 0.88,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AknColors.light.ink.withValues(alpha: 0.72),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AknColors.light.surface.withValues(
+                              alpha: 0.6,
+                            ),
+                          ),
+                        ),
+                        child: Icon(
+                          PhosphorIconsRegular.x,
+                          size: 18,
+                          color: AknColors.light.surface,
+                        ),
                       ),
                     ),
                   ),
@@ -178,8 +202,9 @@ class _PhotoTile extends ConsumerWidget {
     );
   }
 
-  static Widget _broken(AknColors c) =>
-      Center(child: Icon(Icons.broken_image_outlined, color: c.dim, size: 28));
+  static Widget _broken(AknColors c) => Center(
+    child: Icon(PhosphorIconsRegular.imageBroken, color: c.dim, size: 28),
+  );
 
   void _preview(BuildContext context) {
     Navigator.of(context, rootNavigator: true).push(
@@ -205,30 +230,56 @@ class _AddTile extends StatelessWidget {
       label: DriverCopy.photoTake,
       excludeSemantics: true,
       onTap: onTap,
-      child: Material(
-        color: c.surfaceAlt,
-        shape: const RoundedRectangleBorder(borderRadius: AknRadius.card),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_a_photo_outlined, color: c.ink, size: 28),
-                  const SizedBox(height: 4),
-                  Text(
-                    DriverCopy.photoAdd,
-                    style: t.label.copyWith(
-                      color: c.ink,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+      child: PressScale(
+        child: CustomPaint(
+          foregroundPainter: _DashedBorderPainter(
+            color: c.lineStrong,
+            radius: _tileRadius,
+          ),
+          child: Material(
+            color: c.surface,
+            shape: const RoundedRectangleBorder(borderRadius: _tileRadius),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                AknHaptics.light();
+                onTap();
+              },
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: c.surfaceAlt,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox.square(
+                        dimension: 40,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: c.brandSoft,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            PhosphorIconsRegular.cameraPlus,
+                            color: c.brandInk,
+                            size: 22,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        DriverCopy.photoAdd,
+                        style: t.label.copyWith(
+                          color: c.ink,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -236,6 +287,36 @@ class _AddTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Ekle" karesinin kesikli çerçevesi (1,5 px, 6 / 5 px).
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final BorderRadius radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final path = Path()..addRRect(radius.toRRect(rect.deflate(0.75)));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        final len = (d + 6).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(d, len), paint);
+        d += 11;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) =>
+      old.color != color || old.radius != radius;
 }
 
 class _PhotoPreviewPage extends ConsumerWidget {
@@ -248,7 +329,7 @@ class _PhotoPreviewPage extends ConsumerWidget {
     final path = photo.path;
     final publicId = photo.publicId;
     const broken = Center(
-      child: Icon(Icons.broken_image_outlined, color: Colors.white70),
+      child: Icon(PhosphorIconsRegular.imageBroken, color: Colors.white70),
     );
     Widget image = broken;
     if (path != null) {
@@ -282,7 +363,7 @@ class _PhotoPreviewPage extends ConsumerWidget {
         leading: IconButton(
           tooltip: DriverCopy.close,
           onPressed: () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(PhosphorIconsRegular.x),
         ),
       ),
       body: InteractiveViewer(

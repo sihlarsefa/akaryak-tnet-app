@@ -1,7 +1,8 @@
-/// AkaryakıtNet design system — design language v2 "Turuncu Plaka"
-/// (`work/akn-design-v2.md`): a white ledger, ink for every word and one flat
-/// logo-orange plate per screen. Tokens, themes, motion, status, components
-/// and painters. Import this one file:
+/// AkaryakıtNet design system — design language v3 "Akış": Plus Jakarta
+/// Sans, a calm graphite base with white cards floating on an off-white page,
+/// the luminous orange header band and hero card of every home, Phosphor
+/// icons and lively, physical motion. Tokens, themes, motion, status,
+/// components and painters. Import this one file:
 ///
 /// ```dart
 /// import 'package:akaryakitnet/core/ui/ui.dart';
@@ -11,10 +12,13 @@
 /// * Theme: `AknTheme.light()` / `.dark()`; tokens via `context.akn`
 ///   ([AknColors]: plate / onPlate, ink, dim, brand marks, brandFill /
 ///   onBrandFill, chart tokens, `plateInk()`) and `context.aknText`
-///   ([AknTextStyles]: Mona Sans words, Mona Sans Condensed figures); spacing
+///   ([AknTextStyles]: Plus Jakarta Sans, tabular figures); spacing
 ///   [AknSpace], radii [AknRadius], shadows [AknShadows]; driver mode
 ///   [AknDriverMode].
+/// * Icons: `PhosphorIconsRegular` (line), `PhosphorIconsFill` (selected,
+///   solid status), `PhosphorIconsBold` — re-exported from phosphor_flutter.
 /// * Motion: [AknMotion] (reduce-motion aware), [AknHaptics], [PressScale],
+///   [FadeUp], [StaggerScope] + [StaggerItem], [AknAmbient],
 ///   [FadeThroughIndexedStack], [SharedAxisSwitcher], [FadeThroughSwitcher],
 ///   [AknOpenContainer], [MorphHero] + [AknHero].
 /// * The plate: [AknPlate] (+ PlateHead, PlateFigure, PlateDelta,
@@ -42,6 +46,9 @@
 ///   [EmptyIllustration] (the six §11 drawings).
 /// * Dev: `DesignGalleryPage` at `/dev/gallery` (`gallery/`).
 library;
+
+export 'package:phosphor_flutter/phosphor_flutter.dart'
+    show PhosphorIconsBold, PhosphorIconsFill, PhosphorIconsRegular;
 
 export 'driver_mode.dart';
 export 'motion.dart';

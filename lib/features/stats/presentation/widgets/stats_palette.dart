@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 
-/// Grafik renkleri (tasarım v2 §6.20): tek seri, vurgu biçimi. Ton artık renk seçmez — her grafikte
-/// güncel / seçili değer [mark] (`chartHighlight`: beyazda turuncu, plakada siyah), diğer çubuklar
-/// [context] (`chartContext`: beyazda Şerit grisi, plakada beyaz), ölçer ve sıralı çubuk izi
-/// [track] (`chartTrack`). Kategori rengi, durum renginde seri ve mor yoktur.
+/// Grafik renkleri (tasarım v3 §2): tek seri, vurgu biçimi. Ton artık renk seçmez — her grafikte
+/// güncel / seçili değer [mark] (`chartHighlight`: beyaz kartta logo turuncusu, plakada vurgu
+/// turuncusu), diğer çubuklar [context] (`chartContext`: beyazda grafit gri, plakada açık turuncu),
+/// ölçer ve sıralı çubuk izi [track] (`chartTrack`). Kategori rengi, durum renginde seri, mavi ve mor
+/// yoktur.
 @immutable
 class StatsHue {
   const StatsHue({

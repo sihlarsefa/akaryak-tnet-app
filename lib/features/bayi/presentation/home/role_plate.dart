@@ -8,8 +8,8 @@ import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../data/home_models.dart';
 
-/// Rol plakası (tasarım v2 §7.6): istatistik destesi olmayan bayi ana sayfalarında ekranın tek
-/// plakası rolün sayısını taşır.
+/// Rol kartı (tasarım v3 kahraman kart): istatistik destesi olmayan bayi ana sayfalarında turuncu
+/// şeridin üstüne binen tek kart rolün sayısını taşır; ana sayfa onu ilk açılışta yükselterek getirir.
 /// * Sipariş masası: "Teklif bekleyen" `6` + "sipariş"; Revize / Süresi yaklaşan / Müşteri kararında.
 /// * Sevkiyat, depo: "Bugün planlı" `5` + "sevkiyat"; Yolda / Sürücüsüz / Kabul bekliyor.
 /// * Finans, muhasebe (destesi yoksa): "Vadesi geçen" `184.000 ₺`; 7 gün içinde / Belge kontrolü /
@@ -66,7 +66,7 @@ class BayiRolePlate extends ConsumerWidget {
         if (desk == null) return null;
         final expiring = desk.expiryEnabled ? desk.expiringSoon : null;
         return _PlateSpec(
-          icon: Icons.request_quote_outlined,
+          icon: PhosphorIconsRegular.invoice,
           title: 'Teklif bekleyen',
           period: 'şu an',
           figure: Fmt.integer(desk.awaitingQuote),
@@ -97,7 +97,7 @@ class BayiRolePlate extends ConsumerWidget {
         final s = d.shipments;
         if (s == null) return null;
         return _PlateSpec(
-          icon: Icons.local_shipping_outlined,
+          icon: PhosphorIconsRegular.truck,
           title: 'Bugün planlı',
           period: _today(),
           figure: Fmt.integer(s.plannedDue),
@@ -122,7 +122,7 @@ class BayiRolePlate extends ConsumerWidget {
         if (c == null) return null;
         final held = d.desk?.financeHeld ?? d.finance?.pending;
         return _PlateSpec(
-          icon: Icons.account_balance_wallet_outlined,
+          icon: PhosphorIconsRegular.wallet,
           title: 'Vadesi geçen',
           period: 'şu an',
           figure: Fmt.integer(c.overdueAmount.round()),

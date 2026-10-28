@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'package:local_auth_darwin/local_auth_darwin.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../core/utils/log.dart';
 
@@ -185,8 +186,8 @@ String unlockLabel(BiometricKind? kind, {TargetPlatform? platform}) {
 }
 
 IconData biometricIcon(BiometricKind? kind) => switch (kind) {
-  BiometricKind.face => Icons.face_rounded,
-  BiometricKind.fingerprint => Icons.fingerprint_rounded,
-  BiometricKind.iris => Icons.remove_red_eye_outlined,
-  BiometricKind.generic || null => Icons.lock_open_rounded,
+  BiometricKind.face => PhosphorIconsRegular.scanSmiley,
+  BiometricKind.fingerprint => PhosphorIconsRegular.fingerprint,
+  BiometricKind.iris => PhosphorIconsRegular.eye,
+  BiometricKind.generic || null => PhosphorIconsRegular.lockOpen,
 };

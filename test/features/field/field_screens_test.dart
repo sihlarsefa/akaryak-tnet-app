@@ -350,7 +350,7 @@ void main() {
         await pumpFor(tester, const Duration(milliseconds: 200));
         await tapText(tester, 'Kaydet');
         expect(find.text(FieldCopy.queuedTitle), findsOneWidget);
-        expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+        expect(find.byIcon(PhosphorIconsRegular.clock), findsOneWidget);
         expect(find.text('Taslak kaydedildi'), findsNothing);
         expect(app.log.exact('POST', 'field-orders'), isEmpty);
 

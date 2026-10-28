@@ -27,45 +27,75 @@ class _CounterState extends State<_Counter> {
 }
 
 void main() {
-  test('timings: the base scale and the v2 tokens (§8)', () {
+  test('timings: the base scale and the v3 tokens (§5)', () {
     expect(AknMotion.fast, const Duration(milliseconds: 150));
     expect(AknMotion.base, const Duration(milliseconds: 250));
     expect(AknMotion.slow, const Duration(milliseconds: 400));
     expect(AknMotion.emphasized, const Duration(milliseconds: 600));
-    // The one orchestrated moment (§8.1).
+    // The home moment: the hero card rises, its figure rolls, the bars grow.
     expect(AknMotion.plateLight, const Duration(milliseconds: 180));
+    expect(AknMotion.heroRise, const Duration(milliseconds: 520));
     expect(AknMotion.plateRoll, const Duration(milliseconds: 900));
     expect(AknMotion.barsRise, const Duration(milliseconds: 300));
     expect(AknMotion.barsStagger, const Duration(milliseconds: 40));
     expect(AknMotion.projectionDraw, const Duration(milliseconds: 200));
-    // Feedback (§8.2).
+    // Feedback: every touch scales to 0.97 (100 ms in) and springs back
+    // (260 ms); indicators slide on the spring.
     expect(AknMotion.plateHandoff, const Duration(milliseconds: 200));
     expect(AknMotion.deckFly, const Duration(milliseconds: 240));
-    expect(AknMotion.deckStep, const Duration(milliseconds: 220));
-    expect(AknMotion.press, const Duration(milliseconds: 90));
-    expect(AknMotion.pressOut, const Duration(milliseconds: 120));
-    expect(AknMotion.pressScale, 0.98);
-    expect(AknMotion.stamp, const Duration(milliseconds: 160));
-    expect(AknMotion.stageStep, const Duration(milliseconds: 240));
-    expect(AknMotion.needle, const Duration(milliseconds: 200));
-    expect(AknMotion.thumb, const Duration(milliseconds: 220));
+    expect(AknMotion.deckStep, const Duration(milliseconds: 260));
+    expect(AknMotion.press, const Duration(milliseconds: 100));
+    expect(AknMotion.pressOut, const Duration(milliseconds: 260));
+    expect(AknMotion.pressScale, 0.97);
+    expect(AknMotion.stamp, const Duration(milliseconds: 180));
+    expect(AknMotion.stageStep, const Duration(milliseconds: 280));
+    expect(AknMotion.needle, const Duration(milliseconds: 320));
+    expect(AknMotion.thumb, const Duration(milliseconds: 280));
+    expect(AknMotion.iconSwap, const Duration(milliseconds: 180));
     expect(AknMotion.routeGlide, const Duration(milliseconds: 400));
-    expect(AknMotion.sheet, const Duration(milliseconds: 250));
-    expect(AknMotion.scrim, const Duration(milliseconds: 200));
-    expect(AknMotion.toastIn, const Duration(milliseconds: 200));
-    expect(AknMotion.toastOut, const Duration(milliseconds: 150));
+    // Transitions: sheets 360 ms emphasized, dialogs 220 ms, toasts drop in
+    // on the spring.
+    expect(AknMotion.sheet, const Duration(milliseconds: 360));
+    expect(AknMotion.dialog, const Duration(milliseconds: 220));
+    expect(AknMotion.scrim, const Duration(milliseconds: 220));
+    expect(AknMotion.toastIn, const Duration(milliseconds: 320));
+    expect(AknMotion.toastOut, const Duration(milliseconds: 200));
     expect(AknMotion.skeletonPulse, const Duration(milliseconds: 1200));
+    expect(AknMotion.shimmer, const Duration(milliseconds: 1400));
+    // Numbers count; list items enter one after another.
+    expect(AknMotion.count, const Duration(milliseconds: 600));
+    expect(AknMotion.stagger, const Duration(milliseconds: 520));
+    expect(AknMotion.staggerStep, const Duration(milliseconds: 55));
+    expect(AknMotion.staggerMaxItems, 8);
+    // Ambient loops (AknAmbient).
+    expect(AknMotion.bandDrift, const Duration(seconds: 9));
+    expect(AknMotion.breathe, const Duration(milliseconds: 1800));
+    expect(AknMotion.float, const Duration(milliseconds: 3200));
+    // Curves.
+    expect(AknMotion.standard, Curves.easeOutCubic);
+    expect(AknMotion.emphasizedCurve, const Cubic(0.2, 0, 0, 1));
+    expect(AknMotion.exit, Curves.easeInCubic);
+    expect(AknMotion.spring, const Cubic(0.34, 1.36, 0.64, 1));
+    expect(AknMotion.pop, Curves.easeOutBack);
     expect(AknMotion.fly, Curves.easeIn);
+    // The spring overshoots a little (~5 %) and settles exactly.
+    var peak = 0.0;
+    for (var i = 0; i <= 100; i++) {
+      peak = math.max(peak, AknMotion.spring.transform(i / 100));
+    }
+    expect(peak, inExclusiveRange(1.02, 1.08));
+    expect(AknMotion.spring.transform(1), 1);
     // Bars rise 40 ms apart, all within the last 300 ms of the roll.
     expect(AknMotion.barDelay(0), Duration.zero);
     expect(AknMotion.barDelay(5), const Duration(milliseconds: 200));
     expect(AknMotion.barDelay(-1), Duration.zero);
-    // Deprecated (kept for API stability).
-    expect(AknMotion.staggerDelay(3), const Duration(milliseconds: 90));
-    expect(AknMotion.staggerDelay(40), const Duration(milliseconds: 240));
+    // List items cascade 55 ms apart; past the eighth they enter together.
+    expect(AknMotion.staggerDelay(0), Duration.zero);
+    expect(AknMotion.staggerDelay(3), const Duration(milliseconds: 165));
+    expect(AknMotion.staggerDelay(40), const Duration(milliseconds: 440));
   });
 
-  test('register roll: v(t) = 1 − (1 − t)^3.2 (§8.1)', () {
+  test('register roll: v(t) = 1 − (1 − t)^3.2 (§5)', () {
     expect(AknMotion.rollProgress(0), 0);
     expect(AknMotion.rollProgress(1), 1);
     for (final t in [0.05, 0.3, 0.6, 0.9]) {
@@ -105,29 +135,72 @@ void main() {
     });
   }
 
-  testWidgets('FadeUp animates in, and is instant under reduce motion', (
+  testWidgets('FadeUp fades, rises and grows in; instant under reduce motion', (
     tester,
   ) async {
-    await pumpUi(tester, const FadeUp(child: Text('Merhaba')));
-    final early = tester.widget<Opacity>(
-      find.ancestor(of: find.text('Merhaba'), matching: find.byType(Opacity)),
+    // The hero-card rise (§5): 24 px and from 0.94 over heroRise.
+    await pumpUi(
+      tester,
+      const FadeUp(
+        offset: 24,
+        scale: 0.94,
+        duration: AknMotion.heroRise,
+        child: _Counter('Merhaba'),
+      ),
     );
-    expect(early.opacity, lessThan(1));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(
-      find.ancestor(of: find.text('Merhaba'), matching: find.byType(Opacity)),
-      findsNothing,
-    );
+    final up = find.byType(FadeUp);
+    double opacity() => tester
+        .widget<FadeTransition>(
+          find.descendant(of: up, matching: find.byType(FadeTransition)).first,
+        )
+        .opacity
+        .value;
+    Matrix4 transform(int i) => tester
+        .widget<Transform>(
+          find.descendant(of: up, matching: find.byType(Transform)).at(i),
+        )
+        .transform;
+    double lift() => transform(0).getTranslation().y;
+    double scale() => transform(1).entry(0, 0);
+
+    // First frame: invisible, 24 px low, at 94 %.
+    expect(opacity(), 0);
+    expect(lift(), 24);
+    expect(scale(), closeTo(0.94, 1e-6));
+    await tester.pump(AknMotion.heroRise ~/ 4);
+    expect(opacity(), inExclusiveRange(0, 1));
+    expect(lift(), inExclusiveRange(0, 24));
+    expect(scale(), inExclusiveRange(0.94, 1));
+    // A tap mid-entrance lands on the child …
+    await tester.tap(find.text('Merhaba 0'));
+    await tester.pump(AknMotion.heroRise);
+    // … in place, at full size, and the child kept its state when the
+    // entrance ended (the tree shape never changes).
+    expect(opacity(), 1);
+    expect(lift(), 0);
+    expect(scale(), 1);
+    expect(find.text('Merhaba 1'), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
 
     await pumpUi(
       tester,
-      const FadeUp(key: ValueKey('r'), child: Text('Anında')),
+      const FadeUp(
+        key: ValueKey('r'),
+        offset: 24,
+        scale: 0.94,
+        child: Text('Anında'),
+      ),
       reduceMotion: true,
     );
-    expect(
-      find.ancestor(of: find.text('Anında'), matching: find.byType(Opacity)),
-      findsNothing,
+    // Reduce motion: the final frame from the first one; the entrance never
+    // runs.
+    expect(opacity(), 1);
+    expect(lift(), 0);
+    expect(scale(), 1);
+    final fade = tester.widget<FadeTransition>(
+      find.descendant(of: up, matching: find.byType(FadeTransition)).first,
     );
+    expect(fade.opacity.status, AnimationStatus.completed);
   });
 
   testWidgets('StaggerItem: no entrance under reduce motion', (tester) async {
@@ -138,13 +211,27 @@ void main() {
       ),
       reduceMotion: true,
     );
-    expect(find.byType(FadeUp), findsNothing);
+    // The child renders directly: nothing fades, moves or ticks.
+    expect(find.text('a'), findsOneWidget);
+    expect(find.text('b'), findsOneWidget);
+    for (final type in [FadeTransition, Opacity, Transform]) {
+      expect(
+        find.descendant(
+          of: find.byType(StaggerItem),
+          matching: find.byType(type),
+        ),
+        findsNothing,
+        reason: '$type',
+      );
+    }
+    expect(tester.hasRunningAnimations, isFalse);
   });
 
-  testWidgets('StaggerScope / StaggerItem: no list entrances in v2 (§8.3)', (
+  testWidgets('StaggerScope / StaggerItem: a cascade, then a scroll reveal', (
     tester,
   ) async {
-    final items = ValueNotifier<int>(2);
+    final items = ValueNotifier<int>(3);
+    addTearDown(items.dispose);
     await pumpUi(
       tester,
       StaggerScope(
@@ -153,27 +240,81 @@ void main() {
           builder: (context, n, _) => Column(
             children: [
               for (var i = 0; i < n; i++)
-                StaggerItem(index: i, child: Text('satır $i')),
+                StaggerItem(index: i, child: _Counter('satır $i')),
             ],
           ),
         ),
       ),
     );
-    // Items render at once: no fade, no lift.
-    expect(find.byType(FadeUp), findsNothing);
-    expect(find.text('satır 1'), findsOneWidget);
+    Finder item(int i) =>
+        find.byWidgetPredicate((w) => w is StaggerItem && w.index == i);
+    double opacity(int i) => tester
+        .widget<FadeTransition>(
+          find
+              .descendant(of: item(i), matching: find.byType(FadeTransition))
+              .first,
+        )
+        .opacity
+        .value;
+    double lift(int i) => tester
+        .widget<Transform>(
+          find.descendant(of: item(i), matching: find.byType(Transform)).first,
+        )
+        .transform
+        .getTranslation()
+        .y;
+
+    // v3 §5: every item starts hidden, 24 px low …
+    for (var i = 0; i < 3; i++) {
+      expect(opacity(i), 0, reason: 'item $i');
+      expect(lift(i), 24, reason: 'item $i');
+    }
+    // … and, inside the open scope, they enter one after another
+    // (staggerStep apart): the first is on its way while the second still
+    // waits its 55 ms.
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(opacity(0), greaterThan(0));
+    expect(opacity(1), 0);
+    expect(opacity(2), 0);
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    expect(opacity(2), greaterThan(0));
+    expect(opacity(1), greaterThan(opacity(2)));
+    expect(opacity(0), greaterThan(opacity(1)));
+    expect(lift(0), lessThan(lift(1)));
+    expect(lift(1), lessThan(lift(2)));
+    // A tap during the entrance lands on the item.
+    await tester.tap(find.text('satır 0 0'));
+
+    // Past the entrance: every item in place, and the tapped one kept its
+    // state when its entrance ended (the tree shape never changes).
+    await tester.pump(AknMotion.stagger);
+    for (var i = 0; i < 3; i++) {
+      expect(opacity(i), 1, reason: 'item $i');
+      expect(lift(i), 0, reason: 'item $i');
+    }
+    expect(find.text('satır 0 1'), findsOneWidget);
     expect(
-      find.ancestor(of: find.text('satır 0'), matching: find.byType(Opacity)),
-      findsNothing,
+      find.descendant(of: item(0), matching: find.byType(FadeTransition)),
+      findsOneWidget,
     );
-    expect(
-      find.ancestor(of: find.text('satır 0'), matching: find.byType(Transform)),
-      findsNothing,
-    );
-    items.value = 3;
+    expect(tester.hasRunningAnimations, isFalse);
+
+    // After the scope's window an item that scrolls in (or the next page)
+    // still slides in — at once, without waiting for its index.
+    await tester.pump(const Duration(milliseconds: 200));
+    items.value = 4;
     await tester.pump();
-    expect(find.text('satır 2'), findsOneWidget);
-    expect(find.byType(FadeUp), findsNothing);
+    expect(opacity(3), 0);
+    expect(lift(3), 24);
+    await tester.pump(const Duration(milliseconds: 40));
+    expect(opacity(3), greaterThan(0));
+    expect(lift(3), lessThan(24));
+    await tester.pump(AknMotion.stagger);
+    expect(opacity(3), 1);
+    expect(lift(3), 0);
+    expect(tester.hasRunningAnimations, isFalse);
   });
 
   testWidgets('AknMotion.animateTo jumps under reduce motion', (tester) async {
@@ -213,9 +354,8 @@ void main() {
     }
   });
 
-  testWidgets('PressScale: 0.98 while pressed, static under reduce motion', (
-    tester,
-  ) async {
+  testWidgets('PressScale: 0.97 while pressed, a spring back; static under '
+      'reduce motion', (tester) async {
     await pumpUi(
       tester,
       const Center(
@@ -230,14 +370,19 @@ void main() {
     final box = find.byType(PressScale);
     final gesture = await tester.startGesture(tester.getCenter(box));
     await tester.pump();
+    // v3 §5: the press lands at once (0.97 in 100 ms) …
     var scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
     expect(scale.scale, AknMotion.pressScale);
+    expect(scale.scale, 0.97);
     expect(scale.duration, AknMotion.press);
+    expect(scale.curve, AknMotion.standard);
     await gesture.up();
     await tester.pump();
+    // … and the release springs back (260 ms, a soft overshoot).
     scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
     expect(scale.scale, 1);
     expect(scale.duration, AknMotion.pressOut);
+    expect(scale.curve, AknMotion.spring);
     await tester.pumpAndSettle();
 
     await pumpUi(
@@ -276,7 +421,7 @@ void main() {
       const Shimmer(key: ValueKey('s'), child: SkeletonBox(width: 100)),
     );
     await tester.pump(const Duration(milliseconds: 100));
-    // With motion on, the loading pulse runs.
+    // With motion on, the loading shimmer sweeps (v3 §5, while loading).
     expect(tester.binding.hasScheduledFrame, isTrue);
   });
 

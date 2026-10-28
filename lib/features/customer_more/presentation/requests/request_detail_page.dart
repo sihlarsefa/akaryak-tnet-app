@@ -49,7 +49,7 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
           'Talep onaya gönderilmez; gerekirse yeniden sipariş verebilirsiniz.',
       confirmLabel: 'Geri çek',
       destructive: true,
-      icon: Icons.undo_rounded,
+      icon: PhosphorIconsRegular.arrowUUpLeft,
     );
     if (!ok || !mounted) return;
     setState(() => _cancelling = true);
@@ -82,7 +82,7 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
           ? cmBar(
               AknButton.secondary(
                 label: 'Talebi geri çek',
-                icon: Icons.undo_rounded,
+                icon: PhosphorIconsRegular.arrowUUpLeft,
                 expand: true,
                 loading: _cancelling,
                 onPressed: online && !_cancelling ? _cancel : null,
@@ -95,14 +95,13 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
         loading: () => const LoadingView(message: 'Talep yükleniyor'),
         error: (e, _) =>
             CmFailureView(failure: AppFailure.from(e), onRetry: _refresh),
-        data: (r) => PullToRefresh(
-          onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 24),
-            children: [
-              _Hero(request: r),
-              if (r.status == CustomerOrderRequestStatus.pending && r.canDecide)
+        data: (r) {
+          // Bloklar açılışta sırayla yükselerek gelir.
+          final blocks = <(String, Widget)>[
+            ('hero', _Hero(request: r)),
+            if (r.status == CustomerOrderRequestStatus.pending && r.canDecide)
+              (
+                'decide',
                 AknBanner(
                   margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   tone: AknTone.brand,
@@ -112,13 +111,16 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
                   actionLabel: "Onaylarım'da aç",
                   onAction: () => context.push(AppRoutes.approvals),
                 ),
-              if (r.status != CustomerOrderRequestStatus.pending)
-                _DecisionCard(request: r),
-              _LinesCard(request: r),
-              if (r.paymentDisplay != null || r.paymentDetails.isNotEmpty)
-                _PaymentCard(request: r),
-              if (r.hasOrders) _PaymentDocCard(requestId: r.id),
-              if (r.note != null)
+              ),
+            if (r.status != CustomerOrderRequestStatus.pending)
+              ('decision', _DecisionCard(request: r)),
+            ('lines', _LinesCard(request: r)),
+            if (r.paymentDisplay != null || r.paymentDetails.isNotEmpty)
+              ('payment', _PaymentCard(request: r)),
+            if (r.hasOrders) ('doc', _PaymentDocCard(requestId: r.id)),
+            if (r.note != null)
+              (
+                'note',
                 CmSection(
                   title: 'Onaylayana not',
                   child: Text(
@@ -128,17 +130,32 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+          ];
+          return PullToRefresh(
+            onRefresh: _refresh,
+            child: CmRiseScope(
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  bottom: 24 + MediaQuery.paddingOf(context).bottom,
+                ),
+                children: [
+                  for (final (i, (id, block)) in blocks.indexed)
+                    CmRise(key: ValueKey(id), index: i, child: block),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 }
 
-/// Nesne başı (tasarım v2 §6.1, §5.2): `display` başlık ("Motorin, 12.000 L"), kim / ne zaman,
-/// müşterinin gözünden durum lambası ve plaka: tahmini tutar (yoksa toplam litre), kural, okumalar
-/// (litre, satır, teslim).
+/// Nesne başı (tasarım v3): `display` başlık ("Motorin, 12.000 L"; büyük yazıda litre birimiyle
+/// aynı satırda kalır), kim / ne zaman, müşterinin gözünden durum lambası ve kahraman kart: tahmini
+/// tutar (yoksa toplam litre), kural, okumalar (litre, satır, teslim).
 class _Hero extends StatelessWidget {
   const _Hero({required this.request});
 
@@ -182,7 +199,7 @@ class _Hero extends StatelessWidget {
                 maxScaleFactor: 1.5,
                 child: Semantics(
                   header: true,
-                  child: Text(
+                  child: CmUnitText(
                     '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}',
                     style: t.display.copyWith(color: c.ink),
                   ),
@@ -204,7 +221,7 @@ class _Hero extends StatelessWidget {
         CmPlate(
           semanticLabel: spoken,
           head: PlateHead(
-            icon: Icons.request_quote_outlined,
+            icon: PhosphorIconsRegular.invoice,
             title: amount == null ? 'Toplam miktar' : 'Tahmini tutar',
             period: amount == null ? null : 'bayinin güncel fiyatıyla',
           ),
@@ -317,7 +334,7 @@ class _LinesCard extends ConsumerWidget {
               failed > 0 &&
               policy.can(Pg.customerCreateOrder, Perm.create))
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -342,7 +359,7 @@ class _LinesCard extends ConsumerWidget {
   }
 }
 
-/// Talep satırı (ledger): ürün ve litre, nokta / teslim / bayi, tahmini ₺/L; sonuç lambası
+/// Talep satırı (kart içinde): ürün ve litre, nokta / teslim / bayi, tahmini ₺/L; sonuç lambası
 /// ("Sipariş SIP-… oluştu" dokununca siparişi açar, "Oluşturulamadı: …" tehlike).
 class _LineRow extends StatelessWidget {
   const _LineRow({required this.line, required this.showResult});
@@ -366,7 +383,9 @@ class _LineRow extends StatelessWidget {
     ].where((x) => x.isNotEmpty).join(', ');
     final title = '${l.productName}, ${Fmt.liters(l.quantityLiters)}';
     return AknListTile(
-      title: title,
+      padding: CmCard.rowPadding,
+      titleStyle: cmRowTitle(context),
+      title: cmKeepUnits(title),
       subtitle: subtitle,
       meta: l.estimatedUnitPrice == null
           ? null
@@ -438,17 +457,23 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknListTile(
-            leadingIcon: Icons.photo_camera_outlined,
+            leading: const CmIconTile(icon: PhosphorIconsRegular.camera),
+            titleStyle: cmRowTitle(ctx),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Fotoğraf çek',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.camera),
           ),
           AknListTile(
-            leadingIcon: Icons.photo_library_outlined,
+            leading: const CmIconTile(icon: PhosphorIconsRegular.images),
+            titleStyle: cmRowTitle(ctx),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Galeriden seç',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.gallery),
           ),
           AknListTile(
-            leadingIcon: Icons.picture_as_pdf_outlined,
+            leading: const CmIconTile(icon: PhosphorIconsRegular.filePdf),
+            titleStyle: cmRowTitle(ctx),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Dosya (PDF)',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.file),
           ),
@@ -553,7 +578,7 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
                 const SizedBox(height: 12),
                 AknButton(
                   label: 'Görsel yükle',
-                  icon: Icons.upload_outlined,
+                  icon: PhosphorIconsRegular.uploadSimple,
                   expand: true,
                   loading: _progress != null,
                   onPressed: online && _progress == null

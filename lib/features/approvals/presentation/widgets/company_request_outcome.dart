@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,12 +14,13 @@ import '../../../../core/utils/format.dart';
 import '../../application/approvals_providers.dart';
 import '../../data/approval_models.dart';
 
-/// Şirket içi sipariş talebinin sonucu (karar sonrası; tasarım v2 §7.13): bölüm başlığı "Talep
-/// sonucu", bir özet cümlesi ("1 sipariş oluşturuldu, 1 satır oluşturulamadı"), satır satır
-/// ledger (ürün ve litre; lamba: oluşan sipariş numarası, "Oluşturulamadı" ya da "Bekliyor"),
-/// siparişe dokunarak geçiş ve "Başarısız satırları yeni siparişe aktar"
-/// (`/orders/new?fromRequest={id}`). Talep okunamazsa (yetki yok) sunucu özetinin kalemleri
-/// gösterilir.
+/// Şirket içi sipariş talebinin sonucu (karar sonrası; tasarım v3 §7.13): bölüm başlığı "Talep
+/// sonucu", sonucun anı — tonlu kuyuda özet cümlesi ("1 sipariş oluşturuldu, 1 satır
+/// oluşturulamadı"); tamamı oluştuysa onay çizilir ve parçacıklar saçılır, eksik varsa uyarı
+/// işareti yaylanıp bir kez sarsılır —, satır satır beyaz kart (ürün ve litre; lamba: oluşan
+/// sipariş numarası, "Oluşturulamadı" ya da "Bekliyor"), siparişe dokunarak geçiş ve "Başarısız
+/// satırları yeni siparişe aktar" (`/orders/new?fromRequest={id}`). Talep okunamazsa (yetki yok)
+/// sunucu özetinin kalemleri gösterilir.
 class CompanyRequestOutcome extends ConsumerWidget {
   const CompanyRequestOutcome({super.key, required this.detail});
 
@@ -109,7 +112,7 @@ class CompanyRequestOutcome extends ConsumerWidget {
   }
 }
 
-/// "Talep sonucu" bölümü: başlık, özet cümlesi ve içerik (kutu yok; satırlar tam genişlik).
+/// "Talep sonucu" bölümü: başlık, sonucun anı ve içerik (satırlar sayfa düzeyinde beyaz kart).
 class _Section extends StatelessWidget {
   const _Section({required this.summary, required this.children});
 
@@ -124,7 +127,7 @@ class _Section extends StatelessWidget {
       const SectionHeader(title: 'Talep sonucu'),
       if (summary != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
           child: summary,
         ),
       ...children,
@@ -132,7 +135,9 @@ class _Section extends StatelessWidget {
   );
 }
 
-/// Özet cümlesi: tonun simgesi (tamamı oluştu: yeşil onay; eksik var: koyu sarı uyarı) + metin.
+/// Sonucun anı (tasarım v3 §5): tonun yumuşak kuyusunda (r20, ton çizgisi) işaret ve özet cümlesi.
+/// Tamamı oluştuysa onay çizilir, parçacıklar saçılır; eksik varsa uyarı işareti yaylanıp bir kez
+/// sarsılır; bekleyende saat. Hareket azaltılınca son kare.
 class _Summary extends StatelessWidget {
   const _Summary({required this.text, required this.tone});
 
@@ -143,26 +148,92 @@ class _Summary extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final icon = switch (tone) {
-      AknTone.ok => Icons.check_circle_rounded,
-      AknTone.warn => Icons.error_rounded,
-      _ => Icons.schedule_outlined,
+    final quiet = tone == AknTone.neutral;
+    final tc = c.tone(tone);
+    final Widget mark = switch (tone) {
+      AknTone.ok => const SuccessCheck(
+        size: 44,
+        haptic: false,
+        semanticLabel: null,
+      ),
+      AknTone.warn => _ShakeOnce(
+        child: SizedBox.square(
+          dimension: 44,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.isDark ? c.surfaceRaised : c.surface,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              PhosphorIconsFill.warningCircle,
+              size: 26,
+              color: tc.fg,
+            ),
+          ),
+        ),
+      ),
+      _ => SizedBox.square(
+        dimension: 44,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: c.isDark ? c.surfaceRaised : c.surface,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(PhosphorIconsRegular.clock, size: 22, color: c.dim),
+        ),
+      ),
     };
-    final color = tone == AknTone.neutral ? c.dim : c.tone(tone).fg;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: ExcludeSemantics(child: Icon(icon, size: 20, color: color)),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(text, style: t.body.copyWith(color: c.ink)),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: quiet ? c.surfaceAlt : tc.bg,
+        borderRadius: AknRadius.card,
+        border: Border.all(color: quiet ? c.line : tc.line),
+      ),
+      child: Row(
+        children: [
+          ExcludeSemantics(child: mark),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: t.bodyStrong.copyWith(
+                color: c.ink,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+/// Uyarı işaretinin anı: yaylanarak büyür, sonra bir kez sarsılır (sonlu; hareket azaltılınca
+/// durgun).
+class _ShakeOnce extends StatelessWidget {
+  const _ShakeOnce({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween<double>(begin: 0, end: 1),
+    duration: AknMotion.of(context, const Duration(milliseconds: 900)),
+    child: child,
+    builder: (context, v, child) {
+      // İlk %40: yaylanarak büyür; sonra üç sönümlü sarsıntı.
+      final grow = AknMotion.pop.transform((v / 0.4).clamp(0.0, 1.0));
+      final s = v <= 0.4 ? 0.0 : (v - 0.4) / 0.6;
+      final dx = s <= 0 || s >= 1
+          ? 0.0
+          : math.sin(s * math.pi * 6) * 5 * (1 - s);
+      return Transform.translate(
+        offset: Offset(dx, 0),
+        child: Transform.scale(scale: 0.6 + 0.4 * grow, child: child),
+      );
+    },
+  );
 }
 
 /// Talep satırı: "Motorin, 8.000 L" / nokta ve gün; lamba: oluşan sipariş (yeşil), oluşturulamadı
@@ -235,7 +306,7 @@ class _ReorderButton extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
     child: AknButton.secondary(
       label: 'Başarısız satırları yeni siparişe aktar',
-      icon: Icons.replay_rounded,
+      icon: PhosphorIconsRegular.arrowCounterClockwise,
       expand: true,
       onPressed: onTap,
     ),

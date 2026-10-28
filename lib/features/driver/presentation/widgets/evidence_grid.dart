@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/media/attachment_gallery.dart';
 import '../../../../core/models/models.dart';
 import '../../../../core/ui/ui.dart';
+import 'entrance.dart';
 
-/// Teslim kanıtı ekleri (fotoğraf, imza, itiraz fotoğrafı): küçük resim + altında tür etiketi;
-/// dokununca tam ekran görüntüleyici (yakınlaştırma, paylaş).
+/// Teslim kanıtı ekleri (fotoğraf, imza, itiraz fotoğrafı; tasarım v3): r16 küçük resim + altında
+/// tür etiketi; kareler sırayla yükselerek belirir, basınca küçülür; dokununca tam ekran
+/// görüntüleyici (yakınlaştırma, paylaş).
 class EvidenceGrid extends StatelessWidget {
   const EvidenceGrid({super.key, required this.attachments});
 
@@ -27,17 +29,21 @@ class EvidenceGrid extends StatelessWidget {
             for (var i = 0; i < attachments.length; i++)
               SizedBox(
                 width: size,
-                child: _EvidenceTile(
-                  attachment: attachments[i],
-                  size: size,
-                  onTap: () => Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute<void>(
-                      fullscreenDialog: true,
-                      builder: (_) => AttachmentViewerPage(
-                        attachments: attachments,
-                        initialIndex: i,
-                      ),
-                    ),
+                child: DriverStaggerItem(
+                  index: i,
+                  child: _EvidenceTile(
+                    attachment: attachments[i],
+                    size: size,
+                    onTap: () =>
+                        Navigator.of(context, rootNavigator: true).push(
+                          MaterialPageRoute<void>(
+                            fullscreenDialog: true,
+                            builder: (_) => AttachmentViewerPage(
+                              attachments: attachments,
+                              initialIndex: i,
+                            ),
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -79,16 +85,15 @@ class _EvidenceTile extends ConsumerWidget {
               cacheWidth: 360,
               gaplessPlayback: true,
               errorBuilder: (_, _, _) =>
-                  Icon(Icons.broken_image_outlined, color: c.dim),
+                  Icon(PhosphorIconsRegular.imageBroken, color: c.dim),
             ),
             loading: () => const Center(child: ChevronSpinner(size: 18)),
-            error: (_, _) => Icon(Icons.broken_image_outlined, color: c.dim),
+            error: (_, _) =>
+                Icon(PhosphorIconsRegular.imageBroken, color: c.dim),
           );
     } else {
       content = Icon(
-        a.isPdf
-            ? Icons.picture_as_pdf_rounded
-            : Icons.insert_drive_file_rounded,
+        a.isPdf ? PhosphorIconsRegular.filePdf : PhosphorIconsRegular.file,
         color: c.ink,
         size: 28,
       );
@@ -104,27 +109,37 @@ class _EvidenceTile extends ConsumerWidget {
         children: [
           SizedBox.square(
             dimension: size,
-            child: Material(
-              color: a.kind == AttachmentKind.deliverySignature
-                  ? AknColors.light.surface
-                  : c.surfaceAlt,
-              shape: RoundedRectangleBorder(
-                borderRadius: AknRadius.card,
-                side: BorderSide(color: c.line),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onTap,
-                child: a.isImage
-                    ? SizedBox.expand(child: content)
-                    : Center(child: content),
+            child: PressScale(
+              child: Material(
+                color: a.kind == AttachmentKind.deliverySignature
+                    ? AknColors.light.surface
+                    : c.surfaceAlt,
+                shape: RoundedRectangleBorder(
+                  borderRadius: const BorderRadius.all(Radius.circular(16)),
+                  side: BorderSide(color: c.line),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () {
+                    AknHaptics.selection();
+                    onTap();
+                  },
+                  splashFactory: NoSplash.splashFactory,
+                  highlightColor: c.ink.withValues(alpha: 0.06),
+                  child: a.isImage
+                      ? SizedBox.expand(child: content)
+                      : Center(child: content),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             a.kindLabel,
-            style: t.caption,
+            style: t.caption.copyWith(
+              color: c.dim,
+              fontWeight: FontWeight.w600,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),

@@ -7,9 +7,11 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../copy.dart';
 import '../../data/order_models.dart';
+import 'common.dart';
 import 'order_parts.dart';
 
-/// Teklif plakası (tasarım v2 §5.2, §7.8; pano ekran 5): ekranın tek turuncu levhası.
+/// Teklif kartı (tasarım v3 §4 AknPlate; pano ekran 5): ekranın tek kahraman kartı — üstte sıcak
+/// turuncu bir ışıkla beyaz kart, yuvarlanarak gelen tablo rakamlı toplam ve okumalar.
 ///
 /// ```
 /// [teklif] Demir Petrol teklifi                     bugün 10:05
@@ -46,7 +48,7 @@ class QuotePlate extends StatelessWidget {
     final period = [if (q.version > 1) 'v${q.version}', ?moment].join(', ');
     final plate = AknPlate(
       head: PlateHead(
-        icon: Icons.request_quote_outlined,
+        icon: PhosphorIconsRegular.invoice,
         title: title,
         period: period.isEmpty ? null : period,
       ),
@@ -94,7 +96,7 @@ class EstimatePlate extends StatelessWidget {
     final amount = d.estimatedAmount ?? 0;
     return AknPlate(
       head: const PlateHead(
-        icon: Icons.calculate_outlined,
+        icon: PhosphorIconsRegular.calculator,
         title: 'Tahmini tutar',
       ),
       figure: PlateFigure(
@@ -196,11 +198,12 @@ class PriceComparison extends StatelessWidget {
             spacing: 12,
             runSpacing: 2,
             children: [
-              Text(
-                'Son alımlarınızla kıyas',
-                style: t.label.copyWith(
-                  color: c.ink,
-                  fontWeight: FontWeight.w600,
+              // Sayfanın diğer kart başlıklarıyla aynı hiyerarşi (18/24 800).
+              Semantics(
+                header: true,
+                child: Text(
+                  'Son alımlarınızla kıyas',
+                  style: a2SectionTitle(t, c),
                 ),
               ),
               Text('litre başına', style: t.bodySmall.copyWith(color: c.dim)),
@@ -320,16 +323,23 @@ class _DotPlot extends StatelessWidget {
                 right: 0,
                 top: topH,
                 height: plotH,
-                child: CustomPaint(
-                  painter: _DotPlotPainter(
-                    xs: [for (final p in prices) x(p)],
-                    avgX: ax,
-                    offerX: ox,
-                    track: c.chartTrack,
-                    context: c.chartContext,
-                    ink: c.ink,
-                    highlight: c.chartHighlight,
-                    ring: c.bg,
+                // İlk görünüşte teklif noktası ortalamadan kendi yerine kayar ve fark parçası
+                // onunla birlikte uzar (v3 §5).
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: 1),
+                  duration: AknMotion.of(context, AknMotion.emphasized),
+                  curve: AknMotion.emphasizedCurve,
+                  builder: (context, p, _) => CustomPaint(
+                    painter: _DotPlotPainter(
+                      xs: [for (final p in prices) x(p)],
+                      avgX: ax,
+                      offerX: ax + (ox - ax) * p,
+                      track: c.chartTrack,
+                      context: c.chartContext,
+                      ink: c.ink,
+                      highlight: c.chartHighlight,
+                      ring: c.surface,
+                    ),
                   ),
                 ),
               ),
@@ -429,6 +439,7 @@ class QuoteVersions extends StatelessWidget {
               : '${delta > 0 ? '+' : '−'}${Fmt.unitPrice(delta.abs())} önceki sürüme göre';
           return AknListTile(
             dense: true,
+            padding: a2RowPadding,
             title: 'Sürüm ${v.version}',
             subtitle: [
               if (v.createdAt != null) relativeMoment(v.createdAt),

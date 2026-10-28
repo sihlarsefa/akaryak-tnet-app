@@ -9,12 +9,15 @@ import '../../utils/tr_time.dart';
 import '../../utils/turkish_text.dart';
 import '../ui.dart';
 
-/// Living style guide for design language v2 "Turuncu Plaka"
-/// (`/dev/gallery`, dev environment only).
+/// Living style guide for design language v3 "Akış" (`/dev/gallery`, dev
+/// environment only).
 ///
-/// Every component of `work/akn-design-v2.md` §5–§6, §8, §11 in light and
-/// dark, at 100 / 130 / 200 % text and with reduce motion — the toggles in
-/// the app bar apply to the gallery only. Copy is real Turkish product copy
+/// Every token, component, drawing and motion piece of the v3 spec (§1–§6):
+/// Plus Jakarta Sans with tabular figures, the graphite + orange palette,
+/// floating white cards, Phosphor icons and the lively motion vocabulary
+/// (cascades, springs, ambient life, draw-ins, bursts) — in light and dark,
+/// at 100 / 130 / 200 % text and with reduce motion; the toggles in the app
+/// bar apply to the gallery only. Copy is real Turkish product copy
 /// (sentence case, no "A · B" strings), so the pages double as a copy
 /// reference for the screen teams.
 class DesignGalleryPage extends StatefulWidget {
@@ -59,13 +62,13 @@ class _DesignGalleryPageState extends State<DesignGalleryPage> {
           child: Builder(
             builder: (context) => AppScaffold(
               title: 'Galeri',
-              subtitle: 'Turuncu Plaka, yalnızca geliştirme ortamı',
+              subtitle: 'Akış, yalnızca geliştirme ortamı',
               showBell: false,
               actions: [
                 AknIconButton(
                   icon: brightness == Brightness.dark
-                      ? Icons.light_mode_outlined
-                      : Icons.dark_mode_outlined,
+                      ? PhosphorIconsRegular.sun
+                      : PhosphorIconsRegular.moon,
                   semanticLabel: brightness == Brightness.dark
                       ? 'Açık temaya geç'
                       : 'Koyu temaya geç',
@@ -76,7 +79,7 @@ class _DesignGalleryPageState extends State<DesignGalleryPage> {
                   ),
                 ),
                 AknIconButton(
-                  icon: Icons.format_size_rounded,
+                  icon: PhosphorIconsRegular.textAa,
                   semanticLabel: 'Yazı boyutu ${(_scale * 100).round()}',
                   onPressed: () => setState(
                     () => _scale = _scale == 1
@@ -88,8 +91,8 @@ class _DesignGalleryPageState extends State<DesignGalleryPage> {
                 ),
                 AknIconButton(
                   icon: _reduce
-                      ? Icons.motion_photos_off_outlined
-                      : Icons.motion_photos_on_outlined,
+                      ? PhosphorIconsRegular.pauseCircle
+                      : PhosphorIconsRegular.playCircle,
                   semanticLabel: _reduce ? 'Hareketi aç' : 'Hareketi azalt',
                   onPressed: () => setState(() => _reduce = !_reduce),
                 ),
@@ -178,24 +181,54 @@ class _ColorsTab extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final named = <(String, String, Color)>[
-      ('Plaka kartı', 'plate', c.plate),
-      ('Plaka mürekkebi (ink)', 'onPlate', c.onPlate),
-      ('Asfalt', 'ink', c.ink),
-      ('Kâğıt', 'bg', c.bg),
-      ('Yüzey', 'surface', c.surface),
-      ('Beton', 'surfaceAlt', c.surfaceAlt),
-      ('Çelik', 'dim', c.dim),
-      ('Pas', 'brandInk', c.brandInk),
-      ('Şerit', 'lineStrong', c.lineStrong),
+      ('Logo turuncusu', 'brand', c.brand),
+      ('Turuncu metin', 'brandInk', c.brandInk),
+      ('Yumuşak turuncu', 'brandSoft', c.brandSoft),
+      ('Bant ışığı', 'heroGlow', c.heroGlow),
+      ('Mürekkep', 'ink', c.ink),
+      ('İkincil metin', 'dim', c.dim),
+      ('Sayfa', 'bg', c.bg),
+      ('Kart', 'surface', c.surface),
+      ('Kuyu', 'surfaceAlt', c.surfaceAlt),
+      ('Kontrol çizgisi', 'lineStrong', c.lineStrong),
       ('Kıl çizgi', 'line', c.line),
       ('Ters', 'inverse', c.inverse),
+      ('Plaka kartı', 'plate', c.plate),
       ('Silme onayı', 'dangerFill', c.dangerFill),
+      ('İskelet', 'skeleton', c.skeleton),
+      ('İskelet ışığı', 'skeletonHighlight', c.skeletonHighlight),
     ];
     String hex(Color col) =>
         '#${(col.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0').asciiUpper}';
 
+    Widget label(String name, String token, [String? value]) => Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            name,
+            style: t.captionStrong.copyWith(color: c.ink),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (value != null)
+            Text(
+              value,
+              style: t.caption.copyWith(fontFeatures: AknNumerals.tabular),
+            ),
+          Text(
+            token,
+            style: t.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+
     Widget swatch(String name, String token, Color col) => SizedBox(
-      width: 108,
+      width: 104,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -203,32 +236,110 @@ class _ColorsTab extends StatelessWidget {
             height: 64,
             decoration: BoxDecoration(
               color: col,
-              borderRadius: AknRadius.card,
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
               border: Border.all(color: c.line),
+              boxShadow: AknShadows.card(c),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            name,
-            style: t.captionStrong.copyWith(color: c.ink),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(hex(col), style: t.caption),
-          Text(token, style: t.caption),
+          label(name, token, hex(col)),
         ],
       ),
     );
+
+    Widget blend(String name, String token, Gradient g) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 72,
+          decoration: BoxDecoration(
+            gradient: g,
+            borderRadius: AknRadius.card,
+            boxShadow: AknShadows.card(c),
+          ),
+        ),
+        label(name, token),
+      ],
+    );
+
     return _Page(
       children: [
         const _H(
           'Adlandırılmış palet',
-          'Turuncu bir rütbedir: plaka, logo, birincil düğme ve işaretler.',
+          'Grafit taban, sayfada yüzen beyaz kartlar; turuncu yalnızca marka '
+              'anlarında: bant, birincil düğme, seçili olan ve ilerleme.',
         ),
         Wrap(
           spacing: 12,
           runSpacing: 16,
           children: [for (final (n, k, col) in named) swatch(n, k, col)],
+        ),
+        const _H(
+          'Geçişler',
+          'Bant 135° üç duraklı ve ışıklı; birincil düğme beyaz etiketli.',
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: blend('Üst bant', 'bandGradient', c.bandGradient)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: blend(
+                'Birincil düğme',
+                'buttonGradient',
+                c.buttonGradient,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: blend('Plaka kartı', 'plateGradient', c.plateGradient),
+            ),
+          ],
+        ),
+        const _H(
+          'Ton kuyuları',
+          'Durumlar yumuşak tonlu kuyularda; mavi yok, bilgi mürekkeptir.',
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (text, tone) in const [
+              ('Kararınızı bekliyor', AknTone.brand),
+              ('Teslim alındı', AknTone.ok),
+              ('Müdür onayı', AknTone.warn),
+              ('İtirazlı', AknTone.danger),
+              ('Yolda', AknTone.info),
+              ('İptal', AknTone.neutral),
+            ])
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: c.tone(tone).bg,
+                  borderRadius: AknRadius.pillAll,
+                  border: Border.all(color: c.tone(tone).line),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: c.tone(tone).solid,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        text,
+                        style: t.captionStrong.copyWith(color: c.tone(tone).fg),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
         const _H('Durum lambaları', 'Durum her zaman nokta ve sözcüktür.'),
         const Wrap(
@@ -243,40 +354,75 @@ class _ColorsTab extends StatelessWidget {
             AknLamp(label: 'İptal', tone: AknTone.neutral),
           ],
         ),
-        const _H('Grafik', 'Tek seri vurgu: bu ay turuncu, gerisi Şerit.'),
+        const _H(
+          'Grafik',
+          'Tek seri vurgu: bu ay turuncu, gerisi gri; ilerleme turuncudur.',
+        ),
         SizedBox(
-          height: 72,
+          height: 84,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               for (final (i, h) in [36.0, 44, 52, 40, 60, 30].indexed) ...[
-                if (i > 0) const SizedBox(width: 20),
+                if (i > 0) const SizedBox(width: 12),
                 Container(
-                  width: 16,
+                  width: 18,
                   height: h.toDouble(),
                   decoration: BoxDecoration(
-                    color: i == 5 ? c.chartHighlight : c.chartContext,
+                    color: i == 5 ? null : c.chartContext,
+                    gradient: i == 5
+                        ? LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [c.heroStart, c.brandFill],
+                          )
+                        : null,
                     borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(4),
+                      top: Radius.circular(8),
                     ),
+                    boxShadow: i == 5 ? AknShadows.glow(c.brand) : null,
                   ),
                 ),
               ],
               const SizedBox(width: 20),
               Expanded(
-                child: Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: c.chartTrack,
-                    borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(4),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    ProgressRing(
+                      value: 0.62,
+                      size: 52,
+                      strokeWidth: 6,
+                      animateFromZero: true,
+                      child: Text(
+                        '%62',
+                        style: t.captionStrong.copyWith(
+                          color: c.ink,
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
                     ),
-                  ),
-                  alignment: AlignmentDirectional.centerStart,
-                  child: FractionallySizedBox(
-                    widthFactor: 0.62,
-                    child: Container(color: c.ink),
-                  ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: c.chartTrack,
+                        borderRadius: AknRadius.pillAll,
+                      ),
+                      alignment: AlignmentDirectional.centerStart,
+                      child: FractionallySizedBox(
+                        widthFactor: 0.62,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [c.brandFillStart, c.brand],
+                            ),
+                            borderRadius: AknRadius.pillAll,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -288,7 +434,7 @@ class _ColorsTab extends StatelessWidget {
         ),
         AknPlate(
           head: const PlateHead(
-            icon: Icons.palette_outlined,
+            icon: PhosphorIconsRegular.palette,
             title: 'plateInk()',
             period: 'mürekkep, 15,99:1',
           ),
@@ -338,60 +484,166 @@ class _TypeTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
+    // A specimen line: the sample, then its style name and metrics.
+    Widget spec(String name, String metrics, Widget sample) => Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          sample,
+          const SizedBox(height: 2),
+          Text(
+            '$name, $metrics',
+            style: t.caption.copyWith(fontFeatures: AknNumerals.tabular),
+          ),
+        ],
+      ),
+    );
     return _Page(
       children: [
-        const _H('Defter sesi', 'Mona Sans: sözcükler.'),
-        Text('Siparişlerim', style: t.display),
-        Text('Kararınızı bekliyor', style: t.title),
-        Text('Demir Petrol teklifi', style: t.headline),
-        Text(
-          'Teklif onaylandı. Bayi sevkiyatı planlayacak. İĞDIR ığdır Şş Çç '
-          'Öö Üü Ğğ İi Iı',
-          style: t.body,
+        const _H(
+          'Sözcükler',
+          'Plus Jakarta Sans, tek aile (400–800); hiyerarşi boyut ve '
+              'kalınlıktan gelir, renkten değil.',
         ),
-        Text('Motorin, 8.000 L', style: t.bodyStrong),
-        Text('Tuzla Şantiye, 22 Ekim Perşembe teslim', style: t.bodySmall),
-        Text('E-posta ya da kullanıcı adı', style: t.label),
-        Text('güncellendi 10:41', style: t.caption),
-        const _H('Sayaç sesi', 'Mona Sans Condensed: rakamlar.'),
-        Text.rich(
-          TextSpan(
+        spec('display', '28/34 800', Text('Siparişlerim', style: t.display)),
+        spec('title', '20/26 700', Text('Kararınızı bekliyor', style: t.title)),
+        spec(
+          'headline',
+          '17/22 700',
+          Text('Demir Petrol teklifi', style: t.headline),
+        ),
+        spec(
+          'body',
+          '15/22 400',
+          Text(
+            'Teklif onaylandı. Bayi sevkiyatı planlayacak. İĞDIR ığdır Şş Çç '
+            'Öö Üü Ğğ İi Iı',
+            style: t.body,
+          ),
+        ),
+        spec(
+          'bodyStrong',
+          '15/22 600',
+          Text('Motorin, 8.000 L', style: t.bodyStrong),
+        ),
+        spec(
+          'bodySmall',
+          '14/20 400',
+          Text('Tuzla Şantiye, 22 Ekim Perşembe teslim', style: t.bodySmall),
+        ),
+        spec(
+          'label',
+          '13/18 600',
+          Text('E-posta ya da kullanıcı adı', style: t.label),
+        ),
+        spec(
+          'caption',
+          '12/16 500',
+          Text('güncellendi 10:41', style: t.caption),
+        ),
+        const _H(
+          'Rakamlar',
+          'Her rakam sabit genişlikli (tnum): sütunlar hizalanır, sayarken '
+              'genişlik değişmez; uzun rakamlar küçülerek sığar.',
+        ),
+        spec(
+          'plateFigure + plateUnit',
+          '46/52 800',
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '1.524.380', style: t.plateFigure),
+                TextSpan(text: ' ₺', style: t.plateUnit),
+              ],
+            ),
+          ),
+        ),
+        spec(
+          'plateFigure + figureWord',
+          '46/52 800, 20/24 700',
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '%72', style: t.plateFigure),
+                TextSpan(text: '  dönüşüm', style: t.figureWord),
+              ],
+            ),
+          ),
+        ),
+        spec(
+          'numberLarge',
+          '32/38 800',
+          Text('12,4 mn ₺', style: t.numberLarge),
+        ),
+        spec(
+          'amountLarge',
+          '28/34 800',
+          Text('338.800,00 ₺', style: t.amountLarge),
+        ),
+        spec(
+          'number + readoutUnit',
+          '24/30 800',
+          Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: '42,35', style: t.number),
+                TextSpan(text: ' ₺/L', style: t.readoutUnit),
+              ],
+            ),
+          ),
+        ),
+        spec('amount', '17/22 700', Text('338.800,00 ₺', style: t.amount)),
+        AknCard(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Column(
             children: [
-              TextSpan(text: '1.524.380', style: t.plateFigure),
-              TextSpan(text: ' ₺', style: t.plateUnit),
+              for (final (label, value) in const [
+                ('Motorin, 30.000 L', '1.263.000,00 ₺'),
+                ('Kurşunsuz 95, 2.000 L', '89.700,00 ₺'),
+                ('Kalorifer yakıtı, 800 L', '30.280,00 ₺'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(label, style: t.bodySmall)),
+                      Text(value, style: t.amount),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: '%72', style: t.plateFigure),
-              TextSpan(text: '  dönüşüm', style: t.figureWord),
-            ],
-          ),
+        const _H(
+          'Logo',
+          'Logo değişmez; turuncu bantta beyaz karo, beyaz kartta turuncu.',
         ),
-        Text('12,4 mn ₺', style: t.numberLarge),
-        Text('338.800,00 ₺', style: t.amountLarge),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: '42,35', style: t.number),
-              TextSpan(text: ' ₺/L', style: t.readoutUnit),
-            ],
-          ),
-        ),
-        Text('338.800,00 ₺', style: t.amount),
-        const _H('Logo'),
         const Row(
           children: [
-            AknLogo(markSize: 40),
+            Flexible(child: AknLogo(markSize: 40)),
             SizedBox(width: 20),
             LogoMark(size: 32),
           ],
         ),
-        _gap(),
+        _gap(16),
+        ClipRRect(
+          borderRadius: AknRadius.card,
+          child: AknBand(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 22),
+            child: Row(
+              children: [
+                const Flexible(child: AknLogo(markSize: 40)),
+                const SizedBox(width: 12),
+                Icon(PhosphorIconsRegular.sparkle, color: c.onHero, size: 20),
+              ],
+            ),
+          ),
+        ),
+        _gap(16),
         const AknPlate(
-          head: PlateHead(title: 'Giriş bandı kilidi'),
+          head: PlateHead(title: 'Kart üstünde kilit'),
           child: Row(
             children: [
               LogoMark(size: 40),
@@ -430,7 +682,7 @@ class _PlateTabState extends State<_PlateTab> {
           plate: AknPlate(
             key: ValueKey('sales$_replay'),
             head: PlateHead(
-              icon: Icons.bar_chart_rounded,
+              icon: PhosphorIconsRegular.chartBar,
               title: 'Satış',
               period: '1–21 Ekim',
               onMore: () {},
@@ -492,7 +744,7 @@ class _PlateTabState extends State<_PlateTab> {
           alignment: AlignmentDirectional.centerStart,
           child: AknButton.secondary(
             label: 'Sayacı yeniden döndür',
-            icon: Icons.replay_rounded,
+            icon: PhosphorIconsRegular.arrowCounterClockwise,
             size: AknButtonSize.small,
             onPressed: () => setState(() => _replay++),
           ),
@@ -500,7 +752,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('Teklif'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.request_quote_outlined,
+            icon: PhosphorIconsRegular.invoice,
             title: 'Demir Petrol teklifi',
             period: 'bugün 10:05',
           ),
@@ -531,7 +783,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('Tahsilat'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.account_balance_wallet_outlined,
+            icon: PhosphorIconsRegular.wallet,
             title: 'Tahsilat',
             period: '1–21 Ekim',
           ),
@@ -552,7 +804,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('Sevkiyat'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.local_shipping_outlined,
+            icon: PhosphorIconsRegular.truck,
             title: 'Sevkiyat',
             period: '1–21 Ekim',
           ),
@@ -570,7 +822,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('Sipariş hunisi'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.filter_alt_outlined,
+            icon: PhosphorIconsRegular.funnel,
             title: 'Sipariş hunisi',
             period: '1–21 Ekim',
           ),
@@ -596,7 +848,7 @@ class _PlateTabState extends State<_PlateTab> {
         ),
         const _H('Limit riski'),
         const AknPlate(
-          head: PlateHead(icon: Icons.speed_rounded, title: 'Limit riski'),
+          head: PlateHead(icon: PhosphorIconsFill.gauge, title: 'Limit riski'),
           figure: PlateFigure(value: '1', word: 'cari limitine yakın'),
           chart: PlateMeter(value: 0.94, threshold: 0.8),
           below: PlateLedger(
@@ -613,7 +865,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('En çok alan cariler'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.groups_outlined,
+            icon: PhosphorIconsRegular.usersThree,
             title: 'En çok alan cariler',
             period: '1–21 Ekim',
           ),
@@ -641,7 +893,7 @@ class _PlateTabState extends State<_PlateTab> {
         const _H('Ortalama birim fiyat'),
         const AknPlate(
           head: PlateHead(
-            icon: Icons.sell_outlined,
+            icon: PhosphorIconsRegular.tag,
             title: 'Ortalama birim fiyat',
             period: '1–21 Ekim',
           ),
@@ -661,7 +913,7 @@ class _PlateTabState extends State<_PlateTab> {
         const AknPlate(
           compact: true,
           head: PlateHead(
-            icon: Icons.payments_outlined,
+            icon: PhosphorIconsRegular.money,
             title: 'Bu ay harcama',
             period: '1–21 Ekim',
           ),
@@ -697,8 +949,8 @@ class _PlateTabState extends State<_PlateTab> {
   }
 }
 
-/// The deck look: the plate on top of two paper slips (the statistics deck
-/// itself lives in `features/stats`).
+/// The deck look: the hero card on top of two cards behind it (the
+/// statistics deck itself lives in `features/stats`).
 class _Deck extends StatelessWidget {
   const _Deck({required this.plate});
 
@@ -716,15 +968,16 @@ class _Deck extends StatelessWidget {
         decoration: BoxDecoration(
           color: fill,
           borderRadius: AknRadius.plate,
-          border: Border.all(color: c.line),
+          border: Border.all(color: c.plateBorder),
+          boxShadow: AknShadows.plateBehind(c),
         ),
       ),
     );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 26),
       child: Stack(
         clipBehavior: Clip.none,
-        children: [slip(20, 16, c.surface), slip(10, 8, c.surfaceAlt), plate],
+        children: [slip(26, 26, c.plate), slip(13, 13, c.plate), plate],
       ),
     );
   }
@@ -885,11 +1138,14 @@ class _RowsTabState extends State<_RowsTab> {
           tone: AknTone.danger,
         ),
         const FactRow(
-          icon: Icons.door_front_door_outlined,
+          icon: PhosphorIconsRegular.door,
           label: 'Kapı notu',
           value: 'Ana kapıda güvenliğe plakayı bildirin; tank arka avluda.',
         ),
-        const _H('Kuyular', 'Beton zemin, tonlu simge, mürekkep metin.'),
+        const _H(
+          'Kuyular',
+          'Yumuşak tonlu zemin, tonlu simge, mürekkep metin.',
+        ),
         const AknBanner(
           tone: AknTone.info,
           message:
@@ -914,21 +1170,21 @@ class _RowsTabState extends State<_RowsTab> {
           child: Column(
             children: [
               AknListTile(
-                leadingIcon: Icons.person_outline_rounded,
+                leadingIcon: PhosphorIconsRegular.user,
                 title: 'Profil',
                 showChevron: true,
                 onTap: () {},
               ),
               const AknLedgerDivider(),
               AknListTile(
-                leadingIcon: Icons.notifications_none_rounded,
+                leadingIcon: PhosphorIconsRegular.bell,
                 title: 'Bildirim ayarları',
                 showChevron: true,
                 onTap: () {},
               ),
               const AknLedgerDivider(),
               AknListTile(
-                leadingIcon: Icons.campaign_outlined,
+                leadingIcon: PhosphorIconsRegular.megaphone,
                 title: 'Anlık bildirimler',
                 subtitle: 'Teklif, onay ve teslimat',
                 trailing: Switch(
@@ -1156,7 +1412,7 @@ class _ButtonsTabState extends State<_ButtonsTab> {
         _gap(10),
         AknButton.outline(
           label: 'Telefon numarasıyla giriş yap',
-          icon: Icons.smartphone_outlined,
+          icon: PhosphorIconsRegular.deviceMobile,
           expand: true,
           onPressed: () {},
         ),
@@ -1195,14 +1451,14 @@ class _ButtonsTabState extends State<_ButtonsTab> {
             AknButton(label: 'Giriş yap', onPressed: () {}),
           ],
         ),
-        const _H('Sürücü', '64 px, r14, 18/22 etiket.'),
+        const _H('Sürücü', '64 px, r18, 18/22 etiket, 64 px dokunma alanı.'),
         AknDriverScope(
           child: Row(
             children: [
               Expanded(
                 child: AknButton(
                   label: 'Yol tarifi',
-                  icon: Icons.directions_outlined,
+                  icon: PhosphorIconsRegular.navigationArrow,
                   expand: true,
                   onPressed: () {},
                 ),
@@ -1211,7 +1467,7 @@ class _ButtonsTabState extends State<_ButtonsTab> {
               Expanded(
                 child: AknButton.secondary(
                   label: 'Teslim et',
-                  icon: Icons.task_alt_rounded,
+                  icon: PhosphorIconsFill.checkCircle,
                   expand: true,
                   onPressed: () {},
                 ),
@@ -1229,7 +1485,7 @@ class _ButtonsTabState extends State<_ButtonsTab> {
         _gap(10),
         AknButton.secondary(
           label: 'Belge yükle',
-          icon: Icons.upload_file_outlined,
+          icon: PhosphorIconsRegular.fileArrowUp,
           loading: _loading,
           expand: true,
           onPressed: () async {
@@ -1250,24 +1506,24 @@ class _ButtonsTabState extends State<_ButtonsTab> {
         Row(
           children: [
             AknIconButton(
-              icon: Icons.notifications_none_rounded,
+              icon: PhosphorIconsRegular.bell,
               semanticLabel: 'Bildirimler',
               badgeCount: _badge,
               onPressed: () => setState(() => _badge++),
             ),
             AknIconButton(
-              icon: Icons.menu_rounded,
+              icon: PhosphorIconsRegular.list,
               semanticLabel: 'Diğer',
               showDot: true,
               onPressed: () {},
             ),
             AknIconButton(
-              icon: Icons.more_horiz_rounded,
+              icon: PhosphorIconsRegular.dotsThree,
               semanticLabel: 'Diğer seçenekler',
               onPressed: () => setState(() => _badge = 0),
             ),
             AknIconButton(
-              icon: Icons.ios_share_rounded,
+              icon: PhosphorIconsRegular.export,
               semanticLabel: 'Paylaş',
               onPressed: () {},
             ),
@@ -1405,10 +1661,10 @@ class _FormsTabState extends State<_FormsTab> {
             'wire',
             'Havale / EFT',
             'Peşin, vade yok',
-            Icons.account_balance_outlined,
+            PhosphorIconsRegular.bank,
           ),
-          ('cheque', 'Çek', '30 gün vade', Icons.money_outlined),
-          ('note', 'Senet', '60 gün vade', Icons.description_outlined),
+          ('cheque', 'Çek', '30 gün vade', PhosphorIconsRegular.money),
+          ('note', 'Senet', '60 gün vade', PhosphorIconsRegular.fileText),
         ])
           ChoiceCard(
             margin: const EdgeInsets.only(bottom: 8),
@@ -1421,7 +1677,7 @@ class _FormsTabState extends State<_FormsTab> {
         const ChoiceCard(
           title: 'Kredi kartı',
           subtitle: 'Bu bayide kapalı',
-          leadingIcon: Icons.credit_card_outlined,
+          leadingIcon: PhosphorIconsRegular.creditCard,
           selected: false,
           onTap: null,
         ),
@@ -1517,30 +1773,32 @@ class _FeedbackTabState extends State<_FeedbackTab> {
             ),
           ],
         ),
-        const _H('Alt sayfa'),
-        ClipRRect(
-          borderRadius: AknRadius.sheet,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
+        const _H('Alt sayfa', 'Üst köşeler 28, yükselmiş gölge, 360 ms kayar.'),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: AknRadius.dialog,
+            boxShadow: AknShadows.raised(c),
+          ),
+          child: ClipRRect(
+            borderRadius: AknRadius.dialog,
+            child: ColoredBox(
               color: c.surfaceRaised,
-              border: Border.all(color: c.line),
-              borderRadius: AknRadius.sheet,
-            ),
-            child: const AppSheet(
-              showClose: false,
-              scrollable: false,
-              child: ConfirmSheet(
-                title: 'Teklifi reddet',
-                message:
-                    'Bayi bilgilendirilir. Bu işlem geri alınamaz; yeni '
-                    'teklif için yeni sipariş gerekir.',
-                confirmLabel: 'Teklifi reddet',
-                destructive: true,
+              child: const AppSheet(
+                showClose: false,
+                scrollable: false,
+                child: ConfirmSheet(
+                  title: 'Teklifi reddet',
+                  message:
+                      'Bayi bilgilendirilir. Bu işlem geri alınamaz; yeni '
+                      'teklif için yeni sipariş gerekir.',
+                  confirmLabel: 'Teklifi reddet',
+                  destructive: true,
+                ),
               ),
             ),
           ),
         ),
-        _gap(10),
+        _gap(16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -1597,7 +1855,29 @@ class _FeedbackTabState extends State<_FeedbackTab> {
             onPressed: () => setState(() => _offline = !_offline),
           ),
         ),
-        const _H('Çizimler', '96 × 64, 2 px çizgi, tek turuncu ayrıntı.'),
+        const _H(
+          'İskelet',
+          'Kartları taklit eder; yumuşak çapraz bir ışık süzülür (1,4 sn, '
+              'yalnızca yüklenirken).',
+        ),
+        const _Bleed(SizedBox(height: 290, child: SkeletonList(itemCount: 3))),
+        const _H(
+          'Yükleniyor',
+          '» yükleyici süzülen bir dairede; yenilerken üstte ince turuncu '
+              'çubuk.',
+        ),
+        const SizedBox(
+          height: 150,
+          child: LoadingView(message: 'Siparişler getiriliyor'),
+        ),
+        const TopProgressBar(active: true),
+        _gap(10),
+        const TopProgressBar(active: true, value: 0.62),
+        const _H(
+          'Çizimler',
+          '96 × 64: beyaz gövde, 2 px grafit çizgi, yuvarlak uçlar ve '
+              'turuncu vurgu.',
+        ),
         Wrap(
           spacing: 12,
           runSpacing: 12,
@@ -1606,12 +1886,16 @@ class _FeedbackTabState extends State<_FeedbackTab> {
               Column(
                 children: [
                   EmptyIllustration(drawing: d),
+                  const SizedBox(height: 4),
                   Text(d.name, style: context.aknText.caption),
                 ],
               ),
           ],
         ),
-        const _H('Boş durum'),
+        const _H(
+          'Boş durum',
+          'Çizim yumuşak bir dairede süzülür; içerik basamaklı gelir.',
+        ),
         EmptyState(
           title: 'Açık siparişiniz yok',
           message: 'Yeni sipariş için Sipariş ver’e dokunun.',
@@ -1619,32 +1903,38 @@ class _FeedbackTabState extends State<_FeedbackTab> {
           actionLabel: 'Sipariş ver',
           onAction: () {},
         ),
-        const _H('Hata'),
+        const _H('Hata', 'Çizim belirirken bir kez sallanır.'),
         ErrorState(onRetry: () {}, traceId: '00-4bf92f3577b34da6'),
         ErrorState(offline: true, compact: true, onRetry: () {}),
-        const _H('Sonuç'),
+        const _H(
+          'Sonuç',
+          'Halka ve onay çizilir, işaret hafifçe zıplar, parçacıklar bir kez '
+              'saçılır.',
+        ),
         ResultView(
           title: 'Siparişiniz bayiye gönderildi',
           message: 'Teklif gelince bildirim göndereceğiz.',
-          details: const Column(
-            children: [
-              FactRow(label: 'Sipariş no', value: 'SIP-20261021-12002'),
-              FactRow(label: 'Tahmini tutar', value: '338.800 ₺'),
-            ],
+          details: const AknCard(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Column(
+              children: [
+                FactRow(label: 'Sipariş no', value: 'SIP-20261021-12002'),
+                FactRow(label: 'Tahmini tutar', value: '338.800 ₺'),
+              ],
+            ),
           ),
           primaryLabel: 'Siparişi aç',
           onPrimary: () {},
           secondaryLabel: 'Ana sayfaya dön',
           onSecondary: () {},
         ),
-        const _H('İskelet', 'Defter satırını taklit eder; parlama yok.'),
-        const _Bleed(SizedBox(height: 230, child: SkeletonList(itemCount: 3))),
-        const _H('Yükleniyor'),
-        const SizedBox(
-          height: 120,
-          child: LoadingView(message: 'Siparişler getiriliyor'),
+        ResultView(
+          tone: AknTone.danger,
+          title: 'Sipariş gönderilemedi',
+          message: 'Bağlantı koptu. Siparişiniz telefonda duruyor.',
+          primaryLabel: 'Tekrar gönder',
+          onPrimary: () {},
         ),
-        const TopProgressBar(active: true),
       ],
     );
   }
@@ -1687,7 +1977,7 @@ class _NavTabState extends State<_NavTab> {
           children: [
             Expanded(child: Text('Siparişlerim', style: t.display)),
             AknIconButton(
-              icon: Icons.tune_rounded,
+              icon: PhosphorIconsRegular.slidersHorizontal,
               semanticLabel: 'Filtrele',
               onPressed: () {},
             ),
@@ -1696,13 +1986,16 @@ class _NavTabState extends State<_NavTab> {
         const _H('Açılan sayfa başlığı'),
         Row(
           children: [
-            Icon(Icons.arrow_back_rounded, color: c.ink),
+            Icon(PhosphorIconsRegular.arrowLeft, color: c.ink),
             const SizedBox(width: 20),
             Expanded(child: Text('SIP-20261021-12002', style: t.headline)),
-            Icon(Icons.more_horiz_rounded, color: c.ink),
+            Icon(PhosphorIconsRegular.dotsThree, color: c.ink),
           ],
         ),
-        const _H('Alt çubuk', 'Bayi sahibi: beş öğe, iğne aktif sekmede.'),
+        const _H(
+          'Alt çubuk',
+          'Bayi sahibi: beş öğe; turuncu hap aktif öğeye yaylanarak kayar.',
+        ),
         _Bleed(
           _NoInset(
             child: AnimatedBottomBar(
@@ -1710,28 +2003,28 @@ class _NavTabState extends State<_NavTab> {
               onSelected: (i) => setState(() => _a = i),
               items: const [
                 AknNavItem(
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
+                  icon: PhosphorIconsRegular.house,
+                  selectedIcon: PhosphorIconsFill.house,
                   label: 'Ana sayfa',
                 ),
                 AknNavItem(
-                  icon: Icons.task_alt_outlined,
-                  selectedIcon: Icons.task_alt_rounded,
+                  icon: PhosphorIconsRegular.checkCircle,
+                  selectedIcon: PhosphorIconsFill.checkCircle,
                   label: 'Onaylarım',
                   badgeCount: 2,
                 ),
                 AknNavItem(
-                  icon: Icons.request_quote_outlined,
-                  selectedIcon: Icons.request_quote_rounded,
+                  icon: PhosphorIconsRegular.invoice,
+                  selectedIcon: PhosphorIconsFill.invoice,
                   label: 'Teklif masası',
                   badgeCount: 6,
                 ),
                 AknNavItem(
-                  icon: Icons.receipt_long_outlined,
-                  selectedIcon: Icons.receipt_long_rounded,
+                  icon: PhosphorIconsRegular.receipt,
+                  selectedIcon: PhosphorIconsFill.receipt,
                   label: 'Siparişler',
                 ),
-                AknNavItem(icon: Icons.menu_rounded, label: 'Diğer'),
+                AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
               ],
             ),
           ),
@@ -1743,28 +2036,28 @@ class _NavTabState extends State<_NavTab> {
               currentIndex: _b,
               onSelected: (i) => setState(() => _b = i),
               centerAction: AknCenterAction(
-                icon: Icons.add_rounded,
+                icon: PhosphorIconsRegular.plus,
                 label: 'Sipariş ver',
                 onPressed: () {},
               ),
               items: const [
                 AknNavItem(
-                  icon: Icons.home_outlined,
-                  selectedIcon: Icons.home_rounded,
+                  icon: PhosphorIconsRegular.house,
+                  selectedIcon: PhosphorIconsFill.house,
                   label: 'Ana sayfa',
                 ),
                 AknNavItem(
-                  icon: Icons.receipt_long_outlined,
-                  selectedIcon: Icons.receipt_long_rounded,
+                  icon: PhosphorIconsRegular.receipt,
+                  selectedIcon: PhosphorIconsFill.receipt,
                   label: 'Siparişlerim',
                 ),
                 AknNavItem(
-                  icon: Icons.task_alt_outlined,
-                  selectedIcon: Icons.task_alt_rounded,
+                  icon: PhosphorIconsRegular.checkCircle,
+                  selectedIcon: PhosphorIconsFill.checkCircle,
                   label: 'Onaylarım',
                   badgeCount: 1,
                 ),
-                AknNavItem(icon: Icons.menu_rounded, label: 'Diğer'),
+                AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
               ],
             ),
           ),
@@ -1778,24 +2071,24 @@ class _NavTabState extends State<_NavTab> {
                 onSelected: (i) => setState(() => _d = i),
                 items: const [
                   AknNavItem(
-                    icon: Icons.local_shipping_outlined,
-                    selectedIcon: Icons.local_shipping_rounded,
+                    icon: PhosphorIconsRegular.truck,
+                    selectedIcon: PhosphorIconsFill.truck,
                     label: 'Teslimatlarım',
                   ),
                   AknNavItem(
-                    icon: Icons.notifications_none_rounded,
-                    selectedIcon: Icons.notifications_rounded,
+                    icon: PhosphorIconsRegular.bell,
+                    selectedIcon: PhosphorIconsFill.bell,
                     label: 'Bildirimler',
                     badgeCount: 1,
                   ),
                   AknNavItem(
-                    icon: Icons.chat_bubble_outline_rounded,
-                    selectedIcon: Icons.chat_bubble_rounded,
+                    icon: PhosphorIconsRegular.chatCircle,
+                    selectedIcon: PhosphorIconsFill.chatCircle,
                     label: 'Asistan',
                   ),
                   AknNavItem(
-                    icon: Icons.person_outline_rounded,
-                    selectedIcon: Icons.person_rounded,
+                    icon: PhosphorIconsRegular.user,
+                    selectedIcon: PhosphorIconsFill.user,
                     label: 'Profil',
                   ),
                 ],
@@ -1853,6 +2146,8 @@ class _MotionTabState extends State<_MotionTab> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
     return _Page(
       children: [
         const _H(
@@ -1862,7 +2157,7 @@ class _MotionTabState extends State<_MotionTab> {
         AknPlate(
           key: ValueKey('roll$_replay'),
           head: const PlateHead(
-            icon: Icons.payments_outlined,
+            icon: PhosphorIconsRegular.money,
             title: 'Bu ay harcama',
             period: '1–21 Ekim',
           ),
@@ -1884,10 +2179,141 @@ class _MotionTabState extends State<_MotionTab> {
           alignment: AlignmentDirectional.centerStart,
           child: AknButton.secondary(
             label: 'Yeniden oynat',
-            icon: Icons.replay_rounded,
+            icon: PhosphorIconsRegular.arrowCounterClockwise,
             size: AknButtonSize.small,
             onPressed: () => setState(() => _replay++),
           ),
+        ),
+        const _H(
+          'Basamaklı giriş',
+          'Liste öğeleri 55 ms arayla yükselerek gelir; kaydırınca yenileri '
+              'de kayarak girer.',
+        ),
+        StaggerScope(
+          key: ValueKey('stagger$_replay'),
+          child: Column(
+            children: [
+              for (final (i, (title, amount)) in const [
+                ('Motorin, 30.000 L', '1.263.000 ₺'),
+                ('Kurşunsuz 95, 2.000 L', '89.700 ₺'),
+                ('Kalorifer yakıtı, 800 L', '30.280 ₺'),
+              ].indexed)
+                StaggerItem(
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: AknCard(
+                      onTap: () {},
+                      padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: c.surfaceAlt,
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(12),
+                              ),
+                            ),
+                            child: Icon(
+                              PhosphorIconsRegular.gasPump,
+                              size: 22,
+                              color: c.ink,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(title, style: t.bodyStrong)),
+                          Text(amount, style: t.amount),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const _H(
+          'Sayılar',
+          'Değerler ilk görünüşte sıfırdan sayar, değişince yenisine akar.',
+        ),
+        AnimatedNumber(
+          key: ValueKey('number$_replay'),
+          value: 1524380,
+          format: (v) => '${Fmt.number(v.round())} ₺',
+          style: t.numberLarge,
+        ),
+        const _H(
+          'Çizgiler ve halkalar',
+          'Eğilim çizgisi soldan çizilir, halka dolar, damla dalgalanır.',
+        ),
+        Row(
+          key: ValueKey('paint$_replay'),
+          children: [
+            const Expanded(
+              child: Sparkline(
+                values: [12, 14, 13, 17, 16, 21, 24],
+                height: 56,
+              ),
+            ),
+            const SizedBox(width: 16),
+            ProgressRing(
+              value: 0.72,
+              size: 56,
+              strokeWidth: 6,
+              animateFromZero: true,
+              child: Text(
+                '%72',
+                style: t.captionStrong.copyWith(
+                  color: c.ink,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            const FuelDrop(fill: 0.64, size: 52, flowing: true),
+          ],
+        ),
+        const _H(
+          'Ortam hareketi',
+          'Sıra sizdeyken lamba nefes alır; boş durum çizimleri süzülür. '
+              'Hareket azaltmada durur.',
+        ),
+        Row(
+          children: [
+            SizedBox.square(
+              dimension: 28,
+              child: AknAmbient(
+                period: AknMotion.breathe,
+                reverse: true,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: c.brand,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                builder: (context, v, child) => Container(
+                  width: 14 + 12 * v,
+                  height: 14 + 12 * v,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: c.brand.withValues(alpha: 0.22 * (1 - v) + 0.06),
+                    shape: BoxShape.circle,
+                  ),
+                  child: child,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Kararınızı bekliyor',
+                style: t.label.copyWith(color: c.brandInk),
+              ),
+            ),
+          ],
         ),
         const _H('Aşama kayar', 'Onaydan sonra halka bir durak ilerler.'),
         StageStrip(
@@ -1904,10 +2330,21 @@ class _MotionTabState extends State<_MotionTab> {
             onPressed: () => setState(() => _stage = (_stage + 1) % 7),
           ),
         ),
-        const _H('Araç kayar', 'Veri değişince 400 ms; döngü yok.'),
-        TruckRoute(progress: _route),
+        const _H(
+          'Araç kayar',
+          'İlk açılışta yola çıkar, veri değişince süzülür; yoldayken çevresinde '
+              'canlı bir halka nefes alır.',
+        ),
+        TruckRoute(
+          key: ValueKey('route$_replay'),
+          progress: _route,
+          moving: true,
+        ),
         Slider(value: _route, onChanged: (v) => setState(() => _route = v)),
-        const _H('Logo, başarı, yükleyici'),
+        const _H(
+          'Logo, başarı, yükleyici',
+          'Logo çizilerek gelir; başarı işareti parçacıklarla patlar.',
+        ),
         Row(
           key: ValueKey('marks$_replay'),
           children: const [

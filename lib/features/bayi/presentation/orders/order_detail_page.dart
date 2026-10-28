@@ -21,11 +21,12 @@ import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 import 'quote_sheet.dart';
 
-/// Sipariş ayrıntısı (bayi; tasarım v2 §7.8 "aynı sayfa"): itilen başlıkta sipariş numarası; nesne
-/// başlığı ("Motorin, 8.000 L"), cari ve teslim satırı; aşama şeridi; izleyiciye göre durum satırı;
-/// **plaka** = bayinin teklifi (teklif yoksa tahmini tutar); ödeme satırı; Teslimat, Cari, Sevkiyatlar,
-/// Teklif geçmişi ve Sipariş akışı bölümleri. Alt çubukta yetkiye göre Teklif ver / Teklifi güncelle,
-/// Sevkiyat planla, Tamamla (spec A.1).
+/// Sipariş ayrıntısı (bayi; tasarım v3 "Akış"): itilen başlıkta sipariş numarası; nesne başlığı
+/// ("Motorin, 8.000 L"), cari ve teslim satırı; durum kartı (aşama şeridi, izleyiciye göre durum çipi —
+/// durum değişince solup büyüyerek yenilenir — ve geri sayım, yoldaysa tır rota çizgisinde); **kahraman
+/// kart** = bayinin teklifi (teklif yoksa tahmini tutar; yükselerek gelir); ödeme kartı; Teslimat, Cari,
+/// Sevkiyatlar, Teklif geçmişi ve Sipariş akışı beyaz kartlarda, art arda yükselerek. Alt çubukta
+/// yetkiye göre Teklif ver / Teklifi güncelle, Sevkiyat planla, Tamamla (spec A.1).
 class BayiOrderDetailPage extends ConsumerWidget {
   const BayiOrderDetailPage({super.key, required this.orderId});
 
@@ -144,187 +145,283 @@ class _Body extends ConsumerWidget {
         expires.isAfter(DateTime.now().toUtc());
     final requested = o.requestedDeliveryDate;
 
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        // Nesne başlığı (§6.1): "Motorin, 8.000 L" + cari + nokta ve teslim günü.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Nesne başlığı büyük yazıda en çok 1,5× (kök başlıklar gibi); kalan metin ölçeklenir.
-              MediaQuery.withClampedTextScaling(
-                maxScaleFactor: 1.5,
-                child: Semantics(
-                  header: true,
-                  child: Text(
-                    keepUnits(
-                      '${o.productName}, ${Fmt.liters(o.quantityLiters)}',
+    // Kartlar art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
+    var n = 0;
+    Widget stagger(Widget child) => StaggerItem(index: n++, child: child);
+    return StaggerScope(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 28),
+        children: [
+          // Nesne başlığı (§6.1): "Motorin, 8.000 L" + cari + nokta ve teslim günü.
+          FadeUp(
+            offset: 10,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Nesne başlığı büyük yazıda en çok 1,5× (kök başlıklar gibi); kalan metin ölçeklenir.
+                  MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 1.5,
+                    child: Semantics(
+                      header: true,
+                      child: Text(
+                        keepUnits(
+                          '${o.productName}, ${Fmt.liters(o.quantityLiters)}',
+                        ),
+                        style: t.display.copyWith(
+                          color: c.ink,
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
                     ),
-                    style: t.display.copyWith(color: c.ink),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  Text(
+                    o.customerTitle,
+                    style: t.bodyStrong.copyWith(color: c.ink),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Icon(
+                          PhosphorIconsRegular.mapPin,
+                          size: 16,
+                          color: c.dim,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          [
+                            o.deliveryPointName,
+                            if (requested != null)
+                              '${dayMonthLong(requested)} ${Fmt.weekday(requested)} teslim',
+                          ].join(', '),
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              Text(o.customerTitle, style: t.bodyStrong.copyWith(color: c.ink)),
-              Text(
-                [
-                  o.deliveryPointName,
-                  if (requested != null)
-                    '${dayMonthLong(requested)} ${Fmt.weekday(requested)} teslim',
-                ].join(', '),
-                style: t.bodySmall.copyWith(color: c.dim),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: StageStrip(
-            stages: stages,
-            current: stageIndex,
-            yourMove: lamp.yourMove,
-            problem: lamp.problem ? StageProblem.rejected : null,
-            // Büyük yazıda tek satır özet ("Aşama 3 / 6: Karar"); geçmişin tamamı "Sipariş akışı"nda.
-            fallback: StageStripFallback.compact,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: AknStatusLine(
-            lamp: AknLamp.status(lamp),
-            trailing: showCountdown
-                ? CountdownBadge(
-                    deadline: expires,
-                    yourMove: lamp.yourMove,
-                    subject: 'Sipariş',
-                  )
-                : null,
-          ),
-        ),
-        if (lamp.stage == AknStage.yolda)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-            child: TruckRoute(
-              moving: true,
-              destinationLabel: o.deliveryPointName,
-              semanticLabel: 'Yolda. ${o.deliveryPointName}',
             ),
           ),
-        if (finance != OrderFinanceStatus.notRequired && !finance.isSettled)
-          PageWell(
-            top: 12,
-            tone: finance.statusStyle.tone,
-            icon: finance.statusStyle.icon,
-            title: finance.label,
-            message:
-                o.financeReasons ??
-                (finance.isAwaitingDecision
-                    ? 'Finans kararı gelene kadar teklif verilemez.'
-                    : 'Finans değerlendirmesi tamamlandı.'),
-            actionLabel: o.financeApprovalRequestId != null && g.viewApprovals
-                ? 'Onay talebini aç'
-                : null,
-            onAction: o.financeApprovalRequestId != null && g.viewApprovals
-                ? () => GoRouter.of(
+          // Durum kartı: aşama şeridi, durum çipi ve geri sayım, yoldaysa rota çizgisi.
+          stagger(
+            SectionCard(
+              margin: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  StageStrip(
+                    stages: stages,
+                    current: stageIndex,
+                    yourMove: lamp.yourMove,
+                    problem: lamp.problem ? StageProblem.rejected : null,
+                    // Büyük yazıda tek satır özet ("Aşama 3 / 6: Karar"); geçmişin tamamı "Sipariş
+                    // akışı"nda.
+                    fallback: StageStripFallback.compact,
+                  ),
+                  const SizedBox(height: 16),
+                  _StateSwap(
+                    child: AknStatusLine(
+                      key: ValueKey(lamp.label),
+                      lamp: AknLamp.status(lamp),
+                      trailing: showCountdown
+                          ? CountdownBadge(
+                              deadline: expires,
+                              yourMove: lamp.yourMove,
+                              subject: 'Sipariş',
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (lamp.stage == AknStage.yolda) ...[
+                    const SizedBox(height: 12),
+                    TruckRoute(
+                      moving: true,
+                      destinationLabel: o.deliveryPointName,
+                      semanticLabel: 'Yolda. ${o.deliveryPointName}',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (finance != OrderFinanceStatus.notRequired && !finance.isSettled)
+            PageWell(
+              top: 12,
+              tone: finance.statusStyle.tone,
+              icon: finance.statusStyle.icon,
+              title: finance.label,
+              message:
+                  o.financeReasons ??
+                  (finance.isAwaitingDecision
+                      ? 'Finans kararı gelene kadar teklif verilemez.'
+                      : 'Finans değerlendirmesi tamamlandı.'),
+              actionLabel: o.financeApprovalRequestId != null && g.viewApprovals
+                  ? 'Onay talebini aç'
+                  : null,
+              onAction: o.financeApprovalRequestId != null && g.viewApprovals
+                  ? () => GoRouter.of(
+                      context,
+                    ).push(AppRoutes.approval(o.financeApprovalRequestId!))
+                  : null,
+            ),
+          // Kahraman kart: bayinin teklifi, ilk açılışta yükselip büyüyerek gelir.
+          FadeUp(
+            offset: 24,
+            scale: 0.94,
+            duration: AknMotion.heroRise,
+            curve: AknMotion.emphasizedCurve,
+            child: _QuotePlate(order: o),
+          ),
+          if (q?.revisionNote != null)
+            PageWell(
+              top: 12,
+              tone: AknTone.info,
+              icon: PhosphorIconsRegular.chatCircle,
+              title: 'Carinin revize notu',
+              message: q!.revisionNote!,
+            ),
+          stagger(
+            SectionCard(
+              margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _PaymentLine(order: o, canOpen: g.viewPayments),
+                  if (finance.isSettled) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      child: Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: c.lineSoft,
+                      ),
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _GlyphTile(
+                          icon: PhosphorIconsRegular.shieldCheck,
+                          color: c.ok.fg,
+                          fill: c.ok.bg,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              '${finance.label}.${o.financeReasons == null ? '' : ' ${o.financeReasons}'}',
+                              style: t.body.copyWith(color: c.ink),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          if (o.quotes.length > 1)
+            stagger(
+              GroupCard(
+                title: 'Teklif geçmişi',
+                child: _Facts(
+                  children: [
+                    for (final v in [
+                      ...o.quotes,
+                    ]..sort((a, b) => b.version.compareTo(a.version)))
+                      FactRow(
+                        label: 'v${v.version}, ${whenShort(v.createdAt)}',
+                        value:
+                            '${Fmt.unitPrice(v.unitPriceTry)}${v.id == q?.id ? ' (güncel)' : ''}',
+                        valueStyle: const TextStyle(
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          stagger(
+            GroupCard(
+              title: 'Teslimat',
+              child: _Facts(
+                children: [
+                  FactRow(label: 'Nokta', value: o.deliveryPointName),
+                  if (o.deliveryAddress.isNotEmpty)
+                    FactRow(label: 'Adres', value: o.deliveryAddress),
+                  FactRow(
+                    label: 'İstenen teslim',
+                    value: Fmt.longDate(o.requestedDeliveryDate),
+                  ),
+                  if (q?.deliveryDate != null)
+                    FactRow(
+                      label: 'Teklif teslim günü',
+                      value: Fmt.longDate(q!.deliveryDate),
+                    ),
+                  FactRow(
+                    label: 'Oluşturuldu',
+                    value: Fmt.dateTime(o.createdAt),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (g.viewCustomers)
+            stagger(
+              GroupCard(
+                title: 'Cari',
+                padding: const EdgeInsets.only(bottom: 4),
+                child: AknListTile(
+                  leading: _GlyphTile(
+                    icon: PhosphorIconsRegular.buildings,
+                    color: c.ink,
+                    fill: c.surfaceAlt,
+                  ),
+                  title: o.customerTitle,
+                  subtitle: 'Cari kartı: limit, açık siparişler, notlar',
+                  showChevron: true,
+                  padding: const EdgeInsets.fromLTRB(18, 8, 14, 10),
+                  onTap: () => GoRouter.of(
                     context,
-                  ).push(AppRoutes.approval(o.financeApprovalRequestId!))
-                : null,
-          ),
-        _QuotePlate(order: o),
-        if (q?.revisionNote != null)
-          PageWell(
-            top: 12,
-            tone: AknTone.info,
-            icon: Icons.chat_bubble_outline_rounded,
-            title: 'Carinin revize notu',
-            message: q!.revisionNote!,
-          ),
-        _PaymentLine(order: o, canOpen: g.viewPayments),
-        if (finance.isSettled)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.verified_user_outlined, size: 20, color: c.ok.fg),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    '${finance.label}.${o.financeReasons == null ? '' : ' ${o.financeReasons}'}',
-                    style: t.body.copyWith(color: c.ink),
-                  ),
+                  ).push(AppRoutes.customer(o.customerId)),
                 ),
-              ],
-            ),
-          ),
-        if (o.quotes.length > 1) ...[
-          const SectionHeader(title: 'Teklif geçmişi'),
-          _Facts(
-            children: [
-              for (final v in [
-                ...o.quotes,
-              ]..sort((a, b) => b.version.compareTo(a.version)))
-                FactRow(
-                  label: 'v${v.version}, ${whenShort(v.createdAt)}',
-                  value:
-                      '${Fmt.unitPrice(v.unitPriceTry)}${v.id == q?.id ? ' (güncel)' : ''}',
-                ),
-            ],
-          ),
-        ],
-        const SectionHeader(title: 'Teslimat'),
-        _Facts(
-          children: [
-            FactRow(label: 'Nokta', value: o.deliveryPointName),
-            if (o.deliveryAddress.isNotEmpty)
-              FactRow(label: 'Adres', value: o.deliveryAddress),
-            FactRow(
-              label: 'İstenen teslim',
-              value: Fmt.longDate(o.requestedDeliveryDate),
-            ),
-            if (q?.deliveryDate != null)
-              FactRow(
-                label: 'Teklif teslim günü',
-                value: Fmt.longDate(q!.deliveryDate),
               ),
-            FactRow(label: 'Oluşturuldu', value: Fmt.dateTime(o.createdAt)),
-          ],
-        ),
-        if (g.viewCustomers) ...[
-          const SectionHeader(title: 'Cari'),
-          AknListTile(
-            leadingIcon: Icons.apartment_outlined,
-            title: o.customerTitle,
-            subtitle: 'Cari kartı: limit, açık siparişler, notlar',
-            showChevron: true,
-            onTap: () =>
-                GoRouter.of(context).push(AppRoutes.customer(o.customerId)),
-          ),
+            ),
+          stagger(_ShipmentsSection(bundle: bundle)),
+          if (bundle.timeline.isNotEmpty || bundle.timelineFailed)
+            stagger(
+              GroupCard(
+                title: 'Sipariş akışı',
+                padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
+                child: bundle.timelineFailed
+                    ? Text(
+                        'Sipariş akışı yüklenemedi. Sayfayı aşağı çekerek yenileyin.',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      )
+                    : StepTimeline(
+                        yourMove: lamp.yourMove,
+                        steps: _steps(
+                          o,
+                          bundle.timeline,
+                          large: isLargeText(context),
+                        ),
+                      ),
+              ),
+            ),
         ],
-        _ShipmentsSection(bundle: bundle),
-        if (bundle.timeline.isNotEmpty || bundle.timelineFailed) ...[
-          const SectionHeader(title: 'Sipariş akışı'),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-            child: bundle.timelineFailed
-                ? Text(
-                    'Sipariş akışı yüklenemedi. Sayfayı aşağı çekerek yenileyin.',
-                    style: t.bodySmall.copyWith(color: c.dim),
-                  )
-                : StepTimeline(
-                    yourMove: lamp.yourMove,
-                    steps: _steps(
-                      o,
-                      bundle.timeline,
-                      large: isLargeText(context),
-                    ),
-                  ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 
@@ -359,24 +456,77 @@ class _Body extends ConsumerWidget {
   }
 }
 
-/// Bölüm içi olgular: 20 px kenarda etiket / değer satırları, aralarında ince çizgi.
+/// Kart içi olgular: etiket / değer satırları, aralarında ince çizgi (`lineSoft`).
 class _Facts extends StatelessWidget {
   const _Facts({required this.children});
 
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 20),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) Divider(height: 1, thickness: 1, color: context.akn.line),
-          children[i],
-        ],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (var i = 0; i < children.length; i++) ...[
+        if (i > 0)
+          Divider(height: 1, thickness: 1, color: context.akn.lineSoft),
+        children[i],
       ],
+    ],
+  );
+}
+
+/// 36 px yuvarlak köşeli simge karosu (kart satırlarının önü).
+class _GlyphTile extends StatelessWidget {
+  const _GlyphTile({
+    required this.icon,
+    required this.color,
+    required this.fill,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color fill;
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(AknRadius.sm),
+      ),
+      child: Icon(icon, size: 19, color: color),
     ),
+  );
+}
+
+/// Durum değişiminde içerik solup büyüyerek yenilenir (v3 §5); hareket azaltmada doğrudan.
+class _StateSwap extends StatelessWidget {
+  const _StateSwap({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnimatedSwitcher(
+    duration: AknMotion.of(context, AknMotion.base),
+    switchInCurve: AknMotion.standard,
+    switchOutCurve: AknMotion.exit,
+    layoutBuilder: (current, previous) => Stack(
+      alignment: AlignmentDirectional.topStart,
+      children: [...previous, ?current],
+    ),
+    transitionBuilder: (child, animation) => FadeTransition(
+      opacity: animation,
+      child: ScaleTransition(
+        alignment: AlignmentDirectional.centerStart.resolve(
+          Directionality.of(context),
+        ),
+        scale: animation.drive(Tween<double>(begin: 0.92, end: 1)),
+        child: child,
+      ),
+    ),
+    child: child,
   );
 }
 
@@ -416,7 +566,7 @@ class _QuotePlate extends StatelessWidget {
       margin: margin,
       semanticLabel: spoken,
       head: PlateHead(
-        icon: Icons.request_quote_outlined,
+        icon: PhosphorIconsRegular.invoice,
         title: q == null ? 'Tahmini tutar' : 'Teklifiniz',
         period: q == null
             ? 'teklif bekleniyor'
@@ -460,7 +610,8 @@ class _QuotePlate extends StatelessWidget {
   }
 }
 
-/// Plakanın altındaki ödeme satırı (§7.8): yöntem, vade, durum; tahsilat kaydına bağlantı.
+/// Kahraman kartın altındaki ödeme kartı (tasarım v3): tonlu simge karosu, yöntem, vade, durum;
+/// tahsilat kaydına bağlantı.
 class _PaymentLine extends StatelessWidget {
   const _PaymentLine({required this.order, required this.canOpen});
 
@@ -489,40 +640,46 @@ class _PaymentLine extends StatelessWidget {
     final text =
         '$method${term > 0 ? ', $term gün vade' : ''}.${status.isEmpty ? '' : ' $status'}$due';
     final tone = o.paymentStatus.statusStyle.tone;
-    final (icon, color) = switch (o.paymentStatus) {
-      PaymentStatus.collected ||
-      PaymentStatus.documentUploaded => (Icons.check_circle_rounded, c.ok.fg),
-      PaymentStatus.bounced => (Icons.error_rounded, c.danger.fg),
-      _ => (Icons.payments_outlined, tone == AknTone.warn ? c.warn.fg : c.dim),
-    };
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Icon(icon, size: 20, color: color),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(text, style: t.body.copyWith(color: c.ink)),
-              ),
-            ],
-          ),
-          if (canOpen && o.paymentStatus != PaymentStatus.none)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: 30),
-              child: AknInlineLink(
-                label: 'Tahsilat kaydını aç',
-                onTap: () => GoRouter.of(context).push(AppRoutes.payment(o.id)),
-              ),
-            ),
-        ],
+    final (icon, color, fill) = switch (o.paymentStatus) {
+      PaymentStatus.collected || PaymentStatus.documentUploaded => (
+        PhosphorIconsFill.checkCircle,
+        c.ok.fg,
+        c.ok.bg,
       ),
+      PaymentStatus.bounced => (
+        PhosphorIconsFill.warningCircle,
+        c.danger.fg,
+        c.danger.bg,
+      ),
+      _ => (
+        PhosphorIconsRegular.money,
+        tone == AknTone.warn ? c.warn.fg : c.ink,
+        tone == AknTone.warn ? c.warn.bg : c.surfaceAlt,
+      ),
+    };
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _GlyphTile(icon: icon, color: color, fill: fill),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(text, style: t.body.copyWith(color: c.ink)),
+                if (canOpen && o.paymentStatus != PaymentStatus.none)
+                  AknInlineLink(
+                    label: 'Tahsilat kaydını aç',
+                    onTap: () =>
+                        GoRouter.of(context).push(AppRoutes.payment(o.id)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -553,73 +710,81 @@ class _ShipmentsSection extends ConsumerWidget {
     }
     final accepted = bundle.acceptedLiters;
     final ratio = o.quantityLiters <= 0 ? 0.0 : accepted / o.quantityLiters;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(title: 'Sevkiyatlar', count: f.shipments.length),
-        if (approved)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                BayiUsageBar(
-                  value: ratio,
-                  label: 'Teslim alınan',
-                  valueLabel:
-                      '${Fmt.liters(accepted)} / ${Fmt.liters(o.quantityLiters)}',
-                  tone: AknTone.info,
-                ),
-                if (o.status == OrderStatus.approved &&
-                    bundle.remainingLiters > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Planlanacak ${Fmt.liters(bundle.remainingLiters)}',
-                      style: t.bodySmall.copyWith(color: c.ink),
-                    ),
+    return GroupCard(
+      title: 'Sevkiyatlar',
+      count: f.shipments.length,
+      padding: EdgeInsets.only(bottom: f.shipments.isEmpty ? 14 : 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (approved)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 2, 18, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Teslim alınan pay bir ilerlemedir: turuncu dolgu, mürekkep değer (v3); uyarı /
+                  // tehlike eşiği yok (tamamı teslim alınınca kırmızıya dönmez).
+                  BayiUsageBar(
+                    value: ratio,
+                    label: 'Teslim alınan',
+                    valueLabel:
+                        '${Fmt.liters(accepted)} / ${Fmt.liters(o.quantityLiters)}',
+                    warnAt: double.infinity,
+                    dangerAt: double.infinity,
                   ),
-              ],
-            ),
-          ),
-        if (f.shipments.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-            child: Text(
-              approved
-                  ? 'Henüz sevkiyat planlanmadı.'
-                  : 'Sipariş onaylanınca sevkiyat planlanır.',
-              style: t.bodySmall.copyWith(color: c.dim),
-            ),
-          ),
-        AknLedger(
-          children: [
-            for (final s in f.shipments)
-              AknListTile(
-                title: keepUnits(
-                  '${s.code}, ${Fmt.liters(s.deliveredLiters ?? s.plannedLiters)}',
-                ),
-                subtitle: [
-                  whenShort(s.scheduledAt),
-                  if (s.vehiclePlate.isNotEmpty) Fmt.plate(s.vehiclePlate),
-                  if (s.driverName.isNotEmpty) s.driverName,
-                ].join(', '),
-                status: AknLamp.status(
-                  AknStatus.shipmentLamp(s.status, g.viewer),
-                ),
-                footer: s.status == ShipmentStatus.inTransit
-                    ? TruckRoute(
-                        moving: true,
-                        semanticLabel: 'Yolda. ${o.deliveryPointName}',
-                      )
-                    : null,
-                onTap: g.viewShipments
-                    ? () => showShipmentSheet(context, s.id, code: s.code)
-                    : null,
+                  if (o.status == OrderStatus.approved &&
+                      bundle.remainingLiters > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Planlanacak ${Fmt.liters(bundle.remainingLiters)}',
+                        style: t.bodySmall.copyWith(color: c.ink),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
-      ],
+            ),
+          if (f.shipments.isEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 0, 18, 0),
+              child: Text(
+                approved
+                    ? 'Henüz sevkiyat planlanmadı.'
+                    : 'Sipariş onaylanınca sevkiyat planlanır.',
+                style: t.bodySmall.copyWith(color: c.dim),
+              ),
+            ),
+          AknLedger(
+            children: [
+              for (final s in f.shipments)
+                AknListTile(
+                  padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+                  title: keepUnits(
+                    '${s.code}, ${Fmt.liters(s.deliveredLiters ?? s.plannedLiters)}',
+                  ),
+                  subtitle: [
+                    whenShort(s.scheduledAt),
+                    if (s.vehiclePlate.isNotEmpty) Fmt.plate(s.vehiclePlate),
+                    if (s.driverName.isNotEmpty) s.driverName,
+                  ].join(', '),
+                  status: AknLamp.status(
+                    AknStatus.shipmentLamp(s.status, g.viewer),
+                  ),
+                  footer: s.status == ShipmentStatus.inTransit
+                      ? TruckRoute(
+                          moving: true,
+                          semanticLabel: 'Yolda. ${o.deliveryPointName}',
+                        )
+                      : null,
+                  onTap: g.viewShipments
+                      ? () => showShipmentSheet(context, s.id, code: s.code)
+                      : null,
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -677,7 +842,7 @@ class _ActionsState extends ConsumerState<_Actions> {
       message:
           'Tüm litre teslim alındı. ${o.orderNumber} tamamlandı olarak işaretlenir.',
       confirmLabel: 'Tamamla',
-      icon: Icons.task_alt_rounded,
+      icon: PhosphorIconsFill.checkCircle,
       tone: AknTone.ok,
     );
     if (!ok || !mounted) return;

@@ -7,6 +7,7 @@ import '../../../../core/utils/turkish_text.dart';
 import '../../application/order_view_controller.dart';
 import '../../copy.dart';
 import '../../data/payment_models.dart';
+import 'common.dart';
 import 'order_parts.dart';
 
 String _methodName(String? code) => switch (code) {
@@ -80,9 +81,9 @@ String accusative(String noun) {
   return vowels.contains(last) ? '${w}n$suffix' : '$w$suffix';
 }
 
-/// Plakanın altındaki ödeme satırı (§7.8): "Çek ile, 30 gün vade. Çek görseli yüklendi." (yeşil
-/// onay). Zorunlu belge eksikse koyu sarı kuyu "Onaylamak için çek görselini yükleyin" + "Belge
-/// yükle".
+/// Plakanın altındaki ödeme satırı (§7.8): beyaz küçük kartta "Çek ile, 30 gün vade. Çek görseli
+/// yüklendi." (yeşil onay). Zorunlu belge eksikse koyu sarı kuyu "Onaylamak için çek görselini
+/// yükleyin" + "Belge yükle".
 class PaymentFactLine extends StatelessWidget {
   const PaymentFactLine({super.key, required this.view, this.onUpload});
 
@@ -98,7 +99,7 @@ class PaymentFactLine extends StatelessWidget {
       final label = accusative(TurkishText.lower(target.label));
       return AknBanner(
         tone: AknTone.warn,
-        icon: Icons.photo_camera_outlined,
+        icon: PhosphorIconsRegular.camera,
         title: 'Onaylamak için $label yükleyin',
         message: target.isUploadable
             ? sentence
@@ -110,14 +111,17 @@ class PaymentFactLine extends StatelessWidget {
         onAction: onUpload,
       );
     }
-    if (target != null && view.hasPaymentDocument) {
-      return FactLine(
-        icon: Icons.check_circle_rounded,
-        tone: AknTone.ok,
-        text: '$sentence ${target.label} yüklendi.',
-      );
-    }
-    return FactLine(icon: Icons.payments_outlined, text: sentence);
+    // Olgu cümlesi küçük beyaz bir kartta (sayfada yüzen kartların ritmi).
+    return A2Card(
+      padding: const EdgeInsets.all(14),
+      child: target != null && view.hasPaymentDocument
+          ? FactLine(
+              icon: PhosphorIconsFill.checkCircle,
+              tone: AknTone.ok,
+              text: '$sentence ${target.label} yüklendi.',
+            )
+          : FactLine(icon: PhosphorIconsRegular.money, text: sentence),
+    );
   }
 }
 

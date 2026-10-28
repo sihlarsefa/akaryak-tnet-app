@@ -31,12 +31,14 @@ import 'widgets/payment_document_flow.dart';
 import 'widgets/quote_decision_card.dart';
 import 'widgets/tracking_card.dart';
 
-/// Sipariş ayrıntısı (spec A.4; tasarım v2 §7.8, pano ekran 5).
+/// Sipariş ayrıntısı (spec A.4; tasarım v3 §4, pano ekran 5).
 ///
-/// Itilmiş çubuk "SIP-…" + ⋯ → "Motorin, 8.000 L" (display) ve nokta / teslim günü → aşama şeridi
-/// → durum satırı (lamba + geri sayım) → **teklif plakası** (ekranın tek plakası) → ödeme satırı
-/// → "Son alımlarınızla kıyas" → yolda / sevkiyatlar → "Sipariş akışı" → ödeme, bilgiler,
-/// belgeler. Karar sırası müşterideyse alt çubukta "Teklifi onayla" + "Revize iste" / "Reddet".
+/// İtilmiş çubuk "SIP-…" + ⋯ → "Motorin, 8.000 L" (display) ve nokta / teslim günü → aşama şeridi
+/// → durum satırı (lamba + geri sayım) → **teklif kartı** (ekranın tek kahraman kartı; karar
+/// müşterideyse nefes alan turuncu bir çerçevenin içinde) → ödeme satırı → "Son alımlarınızla
+/// kıyas" → yolda / sevkiyatlar → "Sipariş akışı" → ödeme, bilgiler, belgeler; bölümler beyaz
+/// kartlarda birbiri ardına yükselerek gelir, durum değişince içerik yumuşakça yer değiştirir.
+/// Karar sırası müşterideyse buzlu alt çubukta "Teklifi onayla" + "Revize iste" / "Reddet".
 ///
 /// Teklif / yoldaki araç beklenirken 30 sn'de bir yoklanır; çevrimdışıyken son kayıt gösterilir
 /// ve kararlar kapalıdır.
@@ -250,13 +252,20 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         children: [
           if (canCreate) ...[
             AknListTile(
-              leadingIcon: Icons.replay_rounded,
+              leading: const A2IconTile(
+                icon: PhosphorIconsRegular.arrowCounterClockwise,
+                tone: AknTone.brand,
+              ),
+              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
               title: OrdersCopy.reorder,
               subtitle: 'Aynı ürün ve noktayla yeni sipariş',
               onTap: () => Navigator.of(ctx).pop('reorder'),
             ),
             AknListTile(
-              leadingIcon: Icons.bookmark_add_outlined,
+              leading: const A2IconTile(
+                icon: PhosphorIconsRegular.bookmarkSimple,
+              ),
+              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
               title: OrdersCopy.makeTemplate,
               subtitle: 'Sonraki siparişlerde tek dokunuşla kullanın',
               onTap: () => Navigator.of(ctx).pop('template'),
@@ -264,7 +273,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           ],
           if (canDocs)
             AknListTile(
-              leadingIcon: Icons.folder_open_outlined,
+              leading: const A2IconTile(icon: PhosphorIconsRegular.folderOpen),
+              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
               title: 'Sipariş belgeleri',
               subtitle: 'Sipariş formu, teklif, teslim tutanağı',
               onTap: () => Navigator.of(ctx).pop('docs'),
@@ -328,7 +338,9 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
+          padding: EdgeInsets.only(
+            bottom: 32 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [ContentWidth(child: _content(context, v, s, canDocs))],
         ),
       );
@@ -347,7 +359,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         (v?.tracking?.canAcceptDeliveries ?? false)) {
       dock = AknButton(
         label: OrdersCopy.confirmDelivery,
-        icon: Icons.task_alt_rounded,
+        icon: PhosphorIconsFill.checkCircle,
         expand: true,
         // Sevkiyatta kabul / itiraz sonrası dönüşte sipariş yeniden okunur; dock ve izleme
         // eski kalmaz (QA C-03).
@@ -360,7 +372,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     } else if (closed && canCreate) {
       dock = AknButton(
         label: OrdersCopy.reorder,
-        icon: Icons.replay_rounded,
+        icon: PhosphorIconsRegular.arrowCounterClockwise,
         expand: true,
         semanticLabel: 'Bu siparişi tekrarla',
         onPressed: () => _reorder(v.detail),
@@ -375,7 +387,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       actions: [
         if (v != null && (canCreate || canDocs))
           AknIconButton(
-            icon: Icons.more_horiz_rounded,
+            icon: PhosphorIconsRegular.dotsThree,
             semanticLabel: 'Diğer seçenekler',
             onPressed: () =>
                 _openMenu(v, canCreate: canCreate, canDocs: canDocs),
@@ -460,143 +472,218 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final versions = v.quoteVersions;
     final comparison = tracking?.priceComparison;
 
-    Widget pad(Widget child, {double top = 12}) => Padding(
+    Widget pad(Widget child, {double top = 14, Key? key}) => Padding(
+      key: key,
       padding: EdgeInsets.fromLTRB(AknSpace.page, top, AknSpace.page, 0),
       child: child,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        LastUpdatedNote(updatedAt: s.updatedAt, fromCache: s.fromCache),
-        // Nesne başlığı.
+    final statusLine = AknStatusLine(
+      lamp: AknLamp.status(lamp),
+      trailing: showCountdown
+          ? CountdownBadge(
+              deadline: config.deviceDeadline(expires),
+              start: quote?.createdAt == null || !decision
+                  ? null
+                  : config.deviceDeadline(quote!.createdAt!),
+              yourMove: lamp.yourMove,
+              subject: decision ? 'Teklif' : 'Teklif süresi',
+            )
+          : null,
+    );
+    // Karar sırası müşterideyken durum satırı teklif plakasının çerçevesine taşınır (§7.8: karar
+    // kartı vurgulu); diğer durumlarda aşama şeridinin altında durur.
+    final framed = decision && quote != null && quoteTitle != null;
+
+    Widget? plate;
+    if (quote != null && quoteTitle != null) {
+      plate = QuotePlate(
+        quote: quote,
+        detail: d,
+        title: quoteTitle,
+        stamp: _stamp,
+      );
+      if (framed) {
+        plate = _DecisionFrame(
+          status: statusLine,
+          yourMove: lamp.yourMove,
+          child: plate,
+        );
+      }
+    } else if (awaitingQuote && d.estimatedAmount != null) {
+      plate = EstimatePlate(detail: d);
+    }
+
+    // Sayfanın blokları: açılışta sırayla yükselerek gelir, sonradan eklenen blok (uyarı, yeni
+    // bölüm) kendi yerinde belirir.
+    final blocks = <(String, Widget)>[
+      // Nesne başlığı.
+      (
+        'title',
         pad(
           top: 8,
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Büyük yazıda başlık ürün adından kırılır; litre birimiyle aynı satırda kalır.
               Semantics(
                 header: true,
-                child: Text(
+                child: A2UnitText(
                   orderTitle(d.productName, d.quantityLiters),
                   style: t.display.copyWith(color: c.ink),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                [
-                  ?pointName,
-                  if (d.requestedDeliveryDate != null)
-                    '${dayMonthWeekday(d.requestedDeliveryDate)} teslim',
-                ].join(', '),
-                style: t.bodySmall.copyWith(color: c.dim),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Icon(
+                      PhosphorIconsRegular.mapPinLine,
+                      size: 18,
+                      color: c.dim,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      [
+                        ?pointName,
+                        if (d.requestedDeliveryDate != null)
+                          '${dayMonthWeekday(d.requestedDeliveryDate)} teslim',
+                      ].join(', '),
+                      style: t.bodySmall.copyWith(color: c.dim),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+      ),
+      // Aşama şeridi sayfa genişliğinde (etiketler 340 px'ten dar alanda tek satır özete iner);
+      // karar müşterideyken durum satırı karar kartına taşınır.
+      (
+        'journey',
         pad(
-          top: 18,
-          StageStrip(
-            stages: [for (final st in AknStage.stops()) st.label],
-            current: strip.$1,
-            yourMove: lamp.yourMove,
-            problem: strip.$2,
-            // Büyük yazıda tek satır özet ("Aşama 3 / 6: Karar"); ayrıntılı akış aşağıda.
-            fallback: StageStripFallback.compact,
+          top: 20,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              StageStrip(
+                stages: [for (final st in AknStage.stops()) st.label],
+                current: strip.$1,
+                yourMove: lamp.yourMove,
+                problem: strip.$2,
+                // Büyük yazıda tek satır özet ("Aşama 3 / 6: Karar"); ayrıntılı akış aşağıda.
+                fallback: StageStripFallback.compact,
+              ),
+              if (!framed) ...[const SizedBox(height: 18), statusLine],
+            ],
           ),
         ),
-        pad(
-          top: 18,
-          AknStatusLine(
-            lamp: AknLamp.status(lamp),
-            trailing: showCountdown
-                ? CountdownBadge(
-                    deadline: config.deviceDeadline(expires),
-                    start: quote?.createdAt == null || !decision
-                        ? null
-                        : config.deviceDeadline(quote!.createdAt!),
-                    yourMove: lamp.yourMove,
-                    subject: decision ? 'Teklif' : 'Teklif süresi',
-                  )
-                : null,
+      ),
+      (
+        'alerts',
+        A2Swap(
+          child: _conflict != null
+              ? pad(
+                  key: const ValueKey('conflict'),
+                  AknBanner(
+                    tone: AknTone.warn,
+                    icon: PhosphorIconsRegular.cloudWarning,
+                    title: OrdersCopy.conflict,
+                    message: _conflict!,
+                    actionLabel: OrdersCopy.refresh,
+                    onAction: () {
+                      setState(() => _conflict = null);
+                      unawaited(_refresh());
+                    },
+                  ),
+                )
+              : _uncertain
+              ? pad(
+                  key: const ValueKey('uncertain'),
+                  AknBanner(
+                    tone: AknTone.warn,
+                    icon: PhosphorIconsRegular.clock,
+                    title: 'Kararınız doğrulanamadı',
+                    message:
+                        'Bağlantı gelince aynı kararı güvenle yeniden gönderebilirsiniz; '
+                        'iki kez işlenmez.',
+                    actionLabel: OrdersCopy.retry,
+                    onAction: () => setState(() => _uncertain = false),
+                  ),
+                )
+              : const SizedBox(key: ValueKey('calm'), width: double.infinity),
+        ),
+      ),
+      for (final (i, w) in _financeWells(context, d).indexed)
+        ('finance-$i', pad(w)),
+      for (final (i, w) in _statusWells(d).indexed) ('status-$i', pad(w)),
+      // Ekranın tek plakası: teklif; teklif yoksa tahmini tutar.
+      if (plate != null) ('plate', pad(top: framed ? 14 : 16, plate)),
+      if (deliveryDiffers)
+        (
+          'differs',
+          pad(
+            A2Card(
+              padding: const EdgeInsets.all(14),
+              child: FactLine(
+                icon: PhosphorIconsRegular.calendarX,
+                tone: AknTone.warn,
+                text:
+                    '${OrdersCopy.deliveryDiffers}: istediğiniz gün ${dayMonthWeekday(d.requestedDeliveryDate)}.',
+              ),
+            ),
           ),
         ),
-        if (_conflict != null)
-          pad(
-            AknBanner(
-              tone: AknTone.warn,
-              icon: Icons.sync_problem_rounded,
-              title: OrdersCopy.conflict,
-              message: _conflict!,
-              actionLabel: OrdersCopy.refresh,
-              onAction: () {
-                setState(() => _conflict = null);
-                unawaited(_refresh());
-              },
-            ),
-          ),
-        if (_uncertain)
-          pad(
-            AknBanner(
-              tone: AknTone.warn,
-              icon: Icons.schedule_rounded,
-              title: 'Kararınız doğrulanamadı',
-              message:
-                  'Bağlantı gelince aynı kararı güvenle yeniden gönderebilirsiniz; '
-                  'iki kez işlenmez.',
-              actionLabel: OrdersCopy.retry,
-              onAction: () => setState(() => _uncertain = false),
-            ),
-          ),
-        for (final w in _financeWells(context, d)) pad(w),
-        for (final w in _statusWells(d)) pad(w),
-        // Ekranın tek plakası: teklif; teklif yoksa tahmini tutar.
-        if (quote != null && quoteTitle != null)
-          pad(
-            QuotePlate(
-              quote: quote,
-              detail: d,
-              title: quoteTitle,
-              stamp: _stamp,
-            ),
-          )
-        else if (awaitingQuote && d.estimatedAmount != null)
-          pad(EstimatePlate(detail: d)),
-        if (deliveryDiffers)
-          pad(
-            FactLine(
-              icon: Icons.event_busy_outlined,
-              tone: AknTone.warn,
-              text:
-                  '${OrdersCopy.deliveryDiffers}: istediğiniz gün ${dayMonthWeekday(d.requestedDeliveryDate)}.',
-            ),
-          ),
-        if (decision && v.advanceInsufficient)
+      if (decision && v.advanceInsufficient)
+        (
+          'advance',
           pad(
             AknBanner(
               tone: AknTone.danger,
-              icon: Icons.account_balance_wallet_outlined,
+              icon: PhosphorIconsRegular.wallet,
               title: 'Ön ödemeli bakiye yetersiz',
               message:
                   'Kullanılabilir bakiye ${Fmt.money(v.advanceBalance)}, teklif tutarı '
                   '${Fmt.money(quote?.totalAmountTry)}. Bakiye yüklemek için bayinizle görüşün.',
             ),
           ),
-        if (d.paymentMethodCode != null && (decision || quote != null))
+        ),
+      if (d.paymentMethodCode != null && (decision || quote != null))
+        (
+          'payment-line',
           pad(
-            PaymentFactLine(
-              view: v,
-              onUpload: v.documentTarget?.isUploadable == true
-                  ? () => _upload(v)
-                  : null,
+            A2Swap(
+              child: PaymentFactLine(
+                key: ValueKey(v.paymentDocumentMissing),
+                view: v,
+                onUpload: v.documentTarget?.isUploadable == true
+                    ? () => _upload(v)
+                    : null,
+              ),
             ),
           ),
-        if (decision && quote != null && PriceComparison.shows(comparison))
+        ),
+      if (decision && quote != null && PriceComparison.shows(comparison))
+        (
+          'compare',
           pad(
-            top: 24,
-            PriceComparison(comparison: comparison!, offer: quote.unitPriceTry),
+            A2Card(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: PriceComparison(
+                comparison: comparison!,
+                offer: quote.unitPriceTry,
+              ),
+            ),
           ),
-        if (awaitingQuote && !d.financeStatus.isAwaitingDecision)
+        ),
+      if (awaitingQuote && !d.financeStatus.isAwaitingDecision)
+        (
+          'awaiting',
           OrderSection(
             title: d.status == OrderStatus.revisionRequested
                 ? 'Revize teklif bekleniyor'
@@ -614,7 +701,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
                   FactRow(label: 'Revize notunuz', value: quote!.revisionNote!),
                 ],
                 if (station != null) ...[
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   StationContactButtons(
                     station: station,
                     message:
@@ -624,7 +711,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               ],
             ),
           ),
-        if (active != null)
+        ),
+      if (active != null)
+        (
+          'active',
           ActiveShipmentSection(
             order: d,
             shipment: active,
@@ -632,7 +722,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
             station: awaitingQuote ? null : station,
             canAccept: tracking?.canAcceptDeliveries ?? false,
           ),
-        if (shipments.isNotEmpty)
+        ),
+      if (shipments.isNotEmpty)
+        (
+          'shipments',
           OrderSection(
             title: 'Sevkiyatlar',
             count: shipments.length,
@@ -643,7 +736,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
                 ShipmentRows(shipments: shipments, viewer: viewer),
                 if (cancelled > 0)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
                     child: Text(
                       '$cancelled sevkiyat planı iptal edildi.',
                       style: t.bodySmall.copyWith(color: c.dim),
@@ -652,7 +745,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               ],
             ),
           ),
-        if (tracking != null && tracking.steps.isNotEmpty)
+        ),
+      if (tracking != null && tracking.steps.isNotEmpty)
+        (
+          'flow',
           OrderSection(
             title: OrdersCopy.tracking,
             child: OrderFlowTimeline(
@@ -660,19 +756,28 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               yourMove: lamp.yourMove,
             ),
           ),
-        if (versions.length > 1)
+        ),
+      if (versions.length > 1)
+        (
+          'versions',
           OrderSection(
             title: OrdersCopy.versions,
             bleed: true,
             child: QuoteVersions(versions: versions),
           ),
-        if (d.paymentMethodCode != null)
+        ),
+      if (d.paymentMethodCode != null)
+        (
+          'payment',
           PaymentBlock(
             view: v,
             onUpload: v.documentTarget?.isUploadable == true
                 ? () => _upload(v)
                 : null,
           ),
+        ),
+      (
+        'info',
         OrderSection(
           title: 'Sipariş bilgileri',
           child: Column(
@@ -699,21 +804,40 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
             ],
           ),
         ),
-        if (canDocs)
+      ),
+      if (canDocs)
+        (
+          'docs',
           OrderSection(
             title: 'Belgeler',
             bleed: true,
             child: AknListTile(
-              leadingIcon: Icons.folder_open_outlined,
+              leading: const A2IconTile(icon: PhosphorIconsRegular.folderOpen),
+              padding: a2RowPadding,
               title: 'Sipariş belgeleri',
               subtitle: 'Sipariş formu, teklif, teslim tutanağı',
               showChevron: true,
-              onTap: () =>
-                  context.push('${AppRoutes.documents}?orderId=${d.id}'),
+              onTap: () {
+                AknHaptics.selection();
+                context.push('${AppRoutes.documents}?orderId=${d.id}');
+              },
             ),
           ),
-        if (canCreate && !decision) const SizedBox(height: 8),
-      ],
+        ),
+    ];
+
+    // Bloklar birbiri ardına yükselerek gelir; giriş bitince içerik yeniden kurulmaz (teklif
+    // kartının rakamları bir kez yuvarlanır).
+    return A2RiseScope(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          LastUpdatedNote(updatedAt: s.updatedAt, fromCache: s.fromCache),
+          for (final (i, (id, block)) in blocks.indexed)
+            A2Rise(key: ValueKey(id), index: i, child: block),
+          if (canCreate && !decision) const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 
@@ -736,7 +860,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         return [
           const AknBanner(
             tone: AknTone.info,
-            icon: Icons.account_balance_outlined,
+            icon: PhosphorIconsRegular.bank,
             title: 'Finans onayında',
             message:
                 'Bayinin finans ekibi siparişinizi inceliyor; onaylanınca bayi teklif verir.',
@@ -747,7 +871,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         return [
           AknBanner(
             tone: AknTone.warn,
-            icon: Icons.mark_email_unread_outlined,
+            icon: PhosphorIconsRegular.envelopeSimple,
             title: 'Finans ek bilgi istedi',
             message:
                 'Yanıtınız ve istenen belge gelene kadar teklif verilemez.',
@@ -761,7 +885,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         return [
           AknBanner(
             tone: AknTone.danger,
-            icon: Icons.block_rounded,
+            icon: PhosphorIconsRegular.prohibit,
             title: 'Finans reddetti',
             message:
                 d.financeReasons ??
@@ -772,7 +896,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         return [
           const AknBanner(
             tone: AknTone.ok,
-            icon: Icons.verified_outlined,
+            icon: PhosphorIconsRegular.sealCheck,
             title: 'Koşullu onaylandı',
             message: 'Finans, ödeme koşullarını güncelleyerek onayladı.',
           ),
@@ -786,7 +910,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     OrderStatus.expired => [
       const AknBanner(
         tone: AknTone.neutral,
-        icon: Icons.timer_off_outlined,
+        icon: PhosphorIconsRegular.hourglassLow,
         title: 'Süresi doldu',
         message:
             'Bu siparişin teklif süresi doldu. Aynı siparişi yeniden verebilirsiniz.',
@@ -795,13 +919,78 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     OrderStatus.rejected => [
       const AknBanner(
         tone: AknTone.neutral,
-        icon: Icons.do_not_disturb_on_outlined,
+        icon: PhosphorIconsRegular.minusCircle,
         title: 'Reddedildi',
         message: 'Bu sipariş kapandı.',
       ),
     ],
     _ => const [],
   };
+}
+
+/// Karar kartı (tasarım v3, §7.8 "sıra sizde"): teklif plakası yumuşak turuncu (`brandSoft`) bir
+/// çerçevenin içinde durur, çerçevenin başında durum satırı (lamba + geri sayım). Karar
+/// müşterideyken çerçevenin turuncu halesi yavaşça nefes alır ([AknAmbient]; testlerde ve hareket
+/// azaltıldığında durgun); karar yetkisi yoksa çerçeve sessiz kuyu rengindedir.
+class _DecisionFrame extends StatelessWidget {
+  const _DecisionFrame({
+    required this.status,
+    required this.child,
+    required this.yourMove,
+  });
+
+  final Widget status;
+  final Widget child;
+  final bool yourMove;
+
+  static const _radius = BorderRadius.all(
+    Radius.circular(AknRadius.plateRadius + 6),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final frame = DecoratedBox(
+      decoration: BoxDecoration(
+        color: yourMove ? c.brandSoft : c.surfaceAlt,
+        borderRadius: _radius,
+        border: Border.all(color: yourMove ? c.brandLine : c.line),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: status,
+            ),
+            child,
+          ],
+        ),
+      ),
+    );
+    if (!yourMove) return frame;
+    return AknAmbient(
+      period: AknMotion.breathe * 2,
+      reverse: true,
+      builder: (context, t, child) => DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: _radius,
+          boxShadow: [
+            BoxShadow(
+              color: c.brand.withValues(alpha: 0.10 + 0.14 * t),
+              offset: const Offset(0, 10),
+              blurRadius: 28,
+              spreadRadius: -6,
+            ),
+          ],
+        ),
+        child: child,
+      ),
+      child: RepaintBoundary(child: frame),
+    );
+  }
 }
 
 /// Karar çubuğu (§7.8): "Teklifi onayla" (tam genişlik; belge eksikse / avans yetmezse /
@@ -861,38 +1050,49 @@ class _DecisionDock extends StatelessWidget {
       loading: pending == QuoteAction.reject,
       onPressed: busy || !online ? null : () => onDecide(QuoteAction.reject),
     );
-    Widget note(IconData icon, String text, {Widget? lead}) => Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          lead ?? Icon(icon, size: 16, color: c.dim),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
+    Widget note(IconData icon, String text, {Widget? lead, Key? key}) =>
+        Padding(
+          key: key,
+          padding: const EdgeInsets.only(top: 6, bottom: 2),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              lead ?? Icon(icon, size: 16, color: c.dim),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         approve,
-        if (checking)
-          note(
-            Icons.sync_rounded,
-            OrdersCopy.decisionChecking,
-            lead: const SizedBox(
-              width: 16,
-              height: 16,
-              child: ChevronSpinner(size: 16),
-            ),
-          )
-        // Büyük yazıda neden çubukta tekrarlanmaz (sayfadaki uyarı ve düğmenin ekran okuyucu
-        // etiketi söyler); çevrimdışıyken üstteki çevrimdışı satırı söyler.
-        else if (blockedReason != null && !busy && !stacked)
-          note(Icons.info_outline_rounded, blockedReason),
+        // Not satırı durum değişince söner / belirir (v3 §5).
+        A2Swap(
+          child: checking
+              ? note(
+                  key: const ValueKey('checking'),
+                  PhosphorIconsRegular.arrowsClockwise,
+                  OrdersCopy.decisionChecking,
+                  lead: const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: ChevronSpinner(size: 16),
+                  ),
+                )
+              // Büyük yazıda neden çubukta tekrarlanmaz (sayfadaki uyarı ve düğmenin ekran
+              // okuyucu etiketi söyler); çevrimdışıyken üstteki çevrimdışı satırı söyler.
+              : blockedReason != null && !busy && !stacked
+              ? note(
+                  key: ValueKey(blockedReason),
+                  PhosphorIconsRegular.info,
+                  blockedReason,
+                )
+              : const SizedBox(key: ValueKey('none'), width: double.infinity),
+        ),
         const SizedBox(height: 10),
         if (stacked) ...[
           revise,

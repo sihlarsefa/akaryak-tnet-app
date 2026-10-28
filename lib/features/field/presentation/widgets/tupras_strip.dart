@@ -6,9 +6,11 @@ import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../application/tupras_prices.dart';
 
-/// "Tüpraş fiyatları" (tasarım v2 §6.18): bölüm başlığı + "bugün, ₺/L"; üç sütun, aralarında 1 px
-/// çizgi ve üstte bir çizgi. Sütun: ürün (13/18 soluk) üstte, fiyat (`number` 24/28) + önceki güne
-/// göre değişim (▲/▼ + 13/18 soluk, ya da "aynı"). Değişim yalnızca önceki günün fiyatı biliniyorsa.
+/// "Tüpraş fiyatları" (tasarım v3 §4): bölüm başlığı + "bugün, ₺/L"; altında `KpiRow` hücreleri —
+/// sayfada yüzen beyaz kartlar, bir kartın içinde (bayi ana sayfası) sakin kuyular. Hücre: ürün (13/18
+/// soluk) üstte, fiyat (`number` 24/30 800, tabular; ilk görünüşte rakamları sayaç gibi yerine oturur)
+/// + önceki güne göre değişim (▲/▼ + 13/18 soluk, ya da "aynı"). Değişim yalnızca önceki günün fiyatı
+/// biliniyorsa.
 ///
 /// Veri yoksa (yetki yok, uç yanıt vermedi ve kayıt yok) hiçbir şey çizmez. [missingToday] (kurulum
 /// kontrolü) ya da gelen fiyat eskiyse bir uyarı kuyusu "Bugünün Tüpraş fiyatı girilmedi." +
@@ -96,7 +98,11 @@ class _PriceCell extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final change = price.change;
-    final small = t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim);
+    final small = t.label.copyWith(
+      fontWeight: FontWeight.w600,
+      color: c.dim,
+      fontFeatures: AknNumerals.tabular,
+    );
     final rounded = change == null ? null : (change * 100).round() / 100;
     final Widget? delta = rounded == null
         ? null
@@ -140,7 +146,12 @@ class _PriceCell extends StatelessWidget {
             spacing: 5,
             crossAxisAlignment: WrapCrossAlignment.end,
             children: [
-              Text(value, style: t.number.copyWith(color: c.ink)),
+              RollingText(
+                TextSpan(
+                  text: value,
+                  style: t.number.copyWith(color: c.ink),
+                ),
+              ),
               ?delta,
             ],
           ),

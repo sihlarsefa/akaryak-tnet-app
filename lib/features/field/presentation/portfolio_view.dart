@@ -107,12 +107,9 @@ class _FieldPortfolioViewState extends ConsumerState<FieldPortfolioView> {
               );
             }
             final row = items[index];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (index > 0) const AknLedgerDivider(),
-                _PortfolioTile(row: row),
-              ],
+            return FieldStaggerItem(
+              index: index,
+              child: FieldListCard(child: _PortfolioTile(row: row)),
             );
           },
         ),
@@ -138,8 +135,8 @@ class _FieldPortfolioViewState extends ConsumerState<FieldPortfolioView> {
   }
 }
 
-/// Portföy defter satırı: cari ünvanı, kod ve il; dokununca cari kartı açılır. Saha formu
-/// açabilen temsilci için satır sonunda "Saha formu" simge düğmesi.
+/// Portföy satırı (tasarım v3 §4): baş harfli sıcak avatar, cari ünvanı, kod ve il; dokununca cari
+/// kartı açılır. Saha formu açabilen temsilci için satır sonunda "Saha formu" simge düğmesi.
 class _PortfolioTile extends ConsumerWidget {
   const _PortfolioTile({required this.row});
 
@@ -155,6 +152,9 @@ class _PortfolioTile extends ConsumerWidget {
     return AknListTile(
       title: row.customerTitle,
       subtitle: second.isEmpty ? null : second,
+      leading: ExcludeSemantics(
+        child: AknAvatar(name: row.customerTitle, size: 40),
+      ),
       semanticLabel: [
         row.customerTitle,
         if (row.customerCode.isNotEmpty) 'Kod ${row.customerCode}',
@@ -164,7 +164,7 @@ class _PortfolioTile extends ConsumerWidget {
       onTap: () => showFieldCustomerCard(context, row),
       trailing: access.canCreateForm
           ? AknIconButton(
-              icon: Icons.post_add_rounded,
+              icon: PhosphorIconsRegular.filePlus,
               semanticLabel: '${row.customerTitle} için saha formu',
               onPressed: () => context.push(_newFormPath(row)),
             )
@@ -240,15 +240,15 @@ class _CustomerCard extends ConsumerWidget {
                   label: s.financeLabel!,
                   tone: s.canOrder ? AknTone.ok : AknTone.warn,
                   icon: s.canOrder
-                      ? Icons.verified_outlined
-                      : Icons.hourglass_top_rounded,
+                      ? PhosphorIconsRegular.sealCheck
+                      : PhosphorIconsRegular.hourglassHigh,
                   size: StatusChipSize.small,
                 ),
               if (!s.isActive)
                 const StatusChip(
                   label: 'Pasif cari',
                   tone: AknTone.neutral,
-                  icon: Icons.block_rounded,
+                  icon: PhosphorIconsRegular.prohibit,
                   size: StatusChipSize.small,
                 ),
             ],
@@ -303,7 +303,7 @@ class _CustomerCard extends ConsumerWidget {
               trailing: p.phone == null
                   ? null
                   : AknIconButton(
-                      icon: Icons.call_rounded,
+                      icon: PhosphorIconsRegular.phone,
                       semanticLabel: '${p.name} kişisini ara',
                       onPressed: () =>
                           launchExternal(Uri(scheme: 'tel', path: p.phone)),
@@ -314,7 +314,7 @@ class _CustomerCard extends ConsumerWidget {
         if (access.canCreateForm)
           AknButton(
             label: 'Saha formu oluştur',
-            icon: Icons.post_add_rounded,
+            icon: PhosphorIconsRegular.filePlus,
             expand: true,
             onPressed: () => go(_newFormPath(row)),
           ),
@@ -378,7 +378,7 @@ class _OptionsBlock extends StatelessWidget {
             AknListTile(
               title: p.name,
               subtitle: p.place.isEmpty ? p.address : p.place,
-              leadingIcon: Icons.place_outlined,
+              leadingIcon: PhosphorIconsRegular.mapPin,
               dense: true,
               padding: const EdgeInsets.symmetric(vertical: 6),
             ),

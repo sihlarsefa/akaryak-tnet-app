@@ -5,11 +5,16 @@ import '../../application/bayi_runtime.dart';
 import '../../copy.dart';
 import 'bayi_widgets.dart';
 
-/// Liste tarifi (spec C.5, tasarım v2 §7.7): ilk yüklemede defter satırı iskeleti, aşağı çekerek
-/// yenileme, sonsuz kaydırma, boş / süzgeçli boş / hata durumları. [header] liste öğelerinden önce kayar
-/// (süzgeç özeti, uyarılar). Öğeler tam genişlik defter satırlarıdır: [divided] iken aralarına 20 px
-/// içeriden ince çizgi çizilir (ilkinin üstüne, sonuncunun altına değil). [footer] listenin sonunda,
-/// başka sayfa kalmadığında görünür (öğelerin nereye gittiğini söyleyen cümle).
+/// Liste tarifi (spec C.5, tasarım v3 "Akış"): ilk yüklemede kart iskeleti, aşağı çekerek yenileme,
+/// sonsuz kaydırma, boş / süzgeçli boş / hata durumları. [header] liste öğelerinden önce kayar (süzgeç
+/// özeti, uyarılar).
+///
+/// [cards] (varsayılan) her öğe sayfa zemininde süzülen beyaz bir karttır ([BayiCard]: 20 köşe, kart
+/// gölgesi, dokununca 0,97 ve yay); kartlar ilk açılışta art arda yükselerek gelir, sonra kaydırdıkça
+/// görünen her kart kayarak girer ([StaggerScope] + [StaggerItem]). [staggerKey] değişince (yeni
+/// süzgeç) giriş yeniden oynar. [cards] false iken eski tam genişlik defter satırları: [divided] iken
+/// aralarına 20 px içeriden ince çizgi. [footer] listenin sonunda, başka sayfa kalmadığında görünür
+/// (öğelerin nereye gittiğini söyleyen cümle).
 class PagedListBody<T> extends StatelessWidget {
   const PagedListBody({
     super.key,
@@ -26,6 +31,9 @@ class PagedListBody<T> extends StatelessWidget {
     this.controller,
     this.divided = true,
     this.footer,
+    this.cards = true,
+    this.pressableCards = true,
+    this.staggerKey,
   });
 
   final PagedList<T> list;
@@ -48,6 +56,24 @@ class PagedListBody<T> extends StatelessWidget {
   /// Liste sonu (tüm sayfalar yüklendiğinde).
   final Widget? footer;
 
+  /// Öğeler beyaz kartlarda (tasarım v3); false: tam genişlik defter satırları.
+  final bool cards;
+
+  /// Kartlar dokununca küçülür (satırın tamamı bir eylemse); satırında alan / onay kutusu olan
+  /// listelerde (teklif masası) false.
+  final bool pressableCards;
+
+  /// Değişince kartların giriş dizisi yeniden oynar (ör. süzgeç, sekme).
+  final Object? staggerKey;
+
+  /// Kartlar arası boşluk 12 (her kartın üstü ve altı 6), sayfa kenarı 20.
+  static const EdgeInsets cardMargin = EdgeInsets.fromLTRB(
+    AknSpace.page,
+    6,
+    AknSpace.page,
+    6,
+  );
+
   @override
   Widget build(BuildContext context) {
     final items = list.items;
@@ -58,11 +84,33 @@ class PagedListBody<T> extends StatelessWidget {
         padding: padding,
         children: [
           ...header,
-          SkeletonList(
-            itemCount: 5,
-            lines: skeletonLines.clamp(2, 3),
-            shrinkWrap: true,
-          ),
+          if (cards)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < 5; i++)
+                    BayiCard(
+                      margin: cardMargin,
+                      pressable: false,
+                      child: Shimmer(
+                        semanticLabel: i == 0 ? 'Yükleniyor' : null,
+                        child: SkeletonCard(
+                          lines: skeletonLines.clamp(2, 3),
+                          margin: kCardRowPadding,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            )
+          else
+            SkeletonList(
+              itemCount: 5,
+              lines: skeletonLines.clamp(2, 3),
+              shrinkWrap: true,
+            ),
         ],
       );
     }
@@ -87,7 +135,17 @@ class PagedListBody<T> extends StatelessWidget {
           controller: controller,
           physics: const AlwaysScrollableScrollPhysics(),
           padding: padding,
-          children: [...header, body],
+          children: [
+            ...header,
+            // Boş / hata durumu hafifçe yükselip büyüyerek gelir.
+            FadeUp(
+              key: ValueKey<Object?>(('empty', staggerKey, f != null)),
+              offset: 18,
+              scale: 0.96,
+              duration: AknMotion.slow,
+              child: body,
+            ),
+          ],
         ),
       );
     }
@@ -106,6 +164,7 @@ class PagedListBody<T> extends StatelessWidget {
           return false;
         },
         child: StaggerScope(
+          key: ValueKey<Object?>(staggerKey),
           child: ListView.builder(
             controller: controller,
             physics: const AlwaysScrollableScrollPhysics(),
@@ -129,16 +188,25 @@ class PagedListBody<T> extends StatelessWidget {
                 );
               }
               final row = itemBuilder(context, items[index], index);
-              return StaggerItem(
-                index: index,
-                child: divided && index > 0
+              final Widget item;
+              if (cards) {
+                item = BayiCard(
+                  margin: index == 0
+                      ? cardMargin.copyWith(top: 10)
+                      : cardMargin,
+                  pressable: pressableCards,
+                  child: row,
+                );
+              } else {
+                item = divided && index > 0
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         mainAxisSize: MainAxisSize.min,
                         children: [const AknLedgerDivider(), row],
                       )
-                    : row,
-              );
+                    : row;
+              }
+              return StaggerItem(index: index, child: item);
             },
           ),
         ),
@@ -147,7 +215,9 @@ class PagedListBody<T> extends StatelessWidget {
   }
 }
 
-/// Ayrıntı tarifi: ilk yüklemede iskelet, hata / kayıt yok durumu, sonra içerik.
+/// Ayrıntı tarifi: ilk yüklemede iskelet, hata / kayıt yok durumu, sonra içerik. Tasarım v3: iskelet
+/// içeriğe (ya da hataya) solup büyüyerek geçer ([FadeThroughSwitcher]); veri geldikten sonraki
+/// tazelemeler içeriği yerinde günceller.
 class LoadableBody<T> extends StatelessWidget {
   const LoadableBody({
     super.key,
@@ -165,14 +235,32 @@ class LoadableBody<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = state.data;
-    if (data != null) return builder(context, data);
     final f = state.error;
-    if (f != null) {
-      return ListView(
+    final Widget child;
+    if (data != null) {
+      child = KeyedSubtree(
+        key: const ValueKey('data'),
+        child: builder(context, data),
+      );
+    } else if (f != null) {
+      child = ListView(
+        key: const ValueKey('error'),
         padding: const EdgeInsets.only(top: 24),
-        children: [FailureView(failure: f, onRetry: onRetry)],
+        children: [
+          FadeUp(
+            offset: 18,
+            scale: 0.96,
+            duration: AknMotion.slow,
+            child: FailureView(failure: f, onRetry: onRetry),
+          ),
+        ],
+      );
+    } else {
+      child = KeyedSubtree(
+        key: const ValueKey('loading'),
+        child: skeleton ?? const SkeletonList(itemCount: 4, lines: 3),
       );
     }
-    return skeleton ?? const SkeletonList(itemCount: 4, lines: 3);
+    return FadeThroughSwitcher(child: child);
   }
 }

@@ -74,7 +74,11 @@ class _OptionalUpdateBody extends StatelessWidget {
         const SizedBox(height: 8),
         Align(
           alignment: AlignmentDirectional.centerStart,
-          child: Icon(Icons.system_update_outlined, size: 32, color: c.ink),
+          child: Icon(
+            PhosphorIconsRegular.downloadSimple,
+            size: 32,
+            color: c.ink,
+          ),
         ),
         const SizedBox(height: 16),
         Semantics(

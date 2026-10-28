@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../utils/debouncer.dart';
 import '../../utils/format.dart';
@@ -8,19 +12,25 @@ import '../../utils/tr_number.dart';
 import '../../utils/tr_time.dart';
 import '../../utils/turkish_text.dart';
 import '../../utils/validators.dart';
+import '../driver_mode.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
 import 'filters.dart';
 import 'plate_badge.dart';
 
-/// Text field in the v2 style (§6.10): the label sits **above** the field
-/// (13/18 500 ink, 6 px gap) with an optional right-aligned link in the
-/// label row ("Şifremi unuttum"); the field is 52 px, r12, white with a 1 px
-/// control border (3.14:1), value 16/22 ink, hint dim. Focus = 2 px orange
-/// border and caret; error = 2 px red border and a line under the field
-/// (`error_rounded` + a sentence that says what to do); disabled = Beton
-/// fill, hairline border, faint text.
+/// Text field in the v3 style (§4 Inputs): the label sits **above** the
+/// field (`label` 13/18 600 ink, 8 px gap) with an optional right-aligned
+/// link in the label row ("Şifremi unuttum"); the field is 52 px, white,
+/// r14 with a 1.5 px control border, value 16/22 ink, hint dim; the helper
+/// and the error line sit on the field's left edge under it. Driver mode:
+/// 64 px with 17/24 text.
+///
+/// Motion: focus blooms the border into 2 px orange with a soft 4 px glow
+/// around it (~170 ms) and the caret is orange; an error turns the border red
+/// and **shakes** the field (±6 px, three times) while the message fades in
+/// under it with a popping `warningCircle` (a sentence that says what to
+/// do); disabled = `surfaceAlt` fill, hairline border, faint text.
 ///
 /// A thin, typed wrapper over [TextFormField]; use it inside a [Form] for
 /// `validator`. Screen readers hear the label as the field's name.
@@ -91,8 +101,8 @@ class AknTextField extends StatelessWidget {
   final VoidCallback? onTap;
   final TextAlign textAlign;
 
-  /// Value style (defaults to 16/22 ink; number fields use the counter
-  /// voice).
+  /// Value style (defaults to 16/22 ink; number fields use the tabular
+  /// `number` figures).
   final TextStyle? style;
 
   /// Right-aligned link in the label row ("Şifremi unuttum"): ink 600 with
@@ -106,10 +116,18 @@ class AknTextField extends StatelessWidget {
     return i == TextInputType.number.index || i == TextInputType.phone.index;
   }
 
-  /// The v2 field decoration (border, fill, paddings, hint, helper, error
-  /// line) for a value of [lineHeight] logical px (22 for text, 28 for the
-  /// counter voice). Use it for custom fields that must look like
-  /// [AknTextField].
+  /// The value style: 16/22 (driver mode: `body` 17/24), uncoloured.
+  static TextStyle _valueStyle(BuildContext context) {
+    final t = context.aknText;
+    return context.isDriverMode
+        ? t.body
+        : t.body.copyWith(fontSize: 16, height: 22 / 16);
+  }
+
+  /// The v3 field decoration (borders with the focus glow, fill, paddings,
+  /// hint, helper, error line) for a value of [lineHeight] logical px (22
+  /// for text, 28 for the number figures): 52 px high, 64 in driver mode.
+  /// Use it for custom fields that must look like [AknTextField].
   static InputDecoration decoration(
     BuildContext context, {
     String? hint,
@@ -123,11 +141,15 @@ class AknTextField extends StatelessWidget {
   }) {
     final c = context.akn;
     final t = context.aknText;
-    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-      borderRadius: AknRadius.input,
-      borderSide: BorderSide(color: color, width: width),
-    );
-    final vertical = ((52 - lineHeight) / 2).clamp(4.0, 24.0);
+    final borders = AknTheme.inputBorders(c, snap: AknMotion.reduced(context));
+    final height = context.driverMode?.buttonHeight ?? 52;
+    final vertical = ((height - lineHeight) / 2).clamp(4.0, 24.0);
+    final value = _valueStyle(context);
+    Color iconColor(Set<WidgetState> s) => !enabled
+        ? c.faint
+        : s.contains(WidgetState.focused)
+        ? c.ink
+        : c.dim;
     return InputDecoration(
       filled: true,
       fillColor: enabled ? c.surface : c.surfaceAlt,
@@ -136,34 +158,28 @@ class AknTextField extends StatelessWidget {
       floatingLabelBehavior: FloatingLabelBehavior.never,
       // The decorator adds 4 px before the value: 12 + 4 = the 16 px inset.
       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: vertical),
-      border: border(c.lineStrong, 1),
-      enabledBorder: border(c.lineStrong, 1),
-      disabledBorder: border(c.line, 1),
-      focusedBorder: border(c.brand, 2),
-      errorBorder: border(c.danger.fg, 2),
-      focusedErrorBorder: border(c.danger.fg, 2),
+      border: borders.rest,
+      enabledBorder: borders.rest,
+      disabledBorder: borders.disabled,
+      focusedBorder: borders.focused,
+      errorBorder: borders.error,
+      focusedErrorBorder: borders.focusedError,
       hintText: hint,
-      hintStyle: t.body.copyWith(
-        fontSize: 16,
-        height: 22 / 16,
-        color: enabled ? c.dim : c.faint,
-      ),
+      hintStyle: value.copyWith(color: enabled ? c.dim : c.faint),
       hintMaxLines: 2,
-      helperText: helper,
-      helperStyle: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
+      // The helper sits on the field's left edge, like the label above and
+      // the error line that replaces it.
+      helper: helper == null ? null : _FieldHelper(helper, enabled: enabled),
+      helperStyle: t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim),
       helperMaxLines: 3,
       error: errorText == null ? null : AknFieldError(errorText),
       errorMaxLines: 3,
-      prefixIcon: prefixIcon == null
-          ? null
-          : Icon(prefixIcon, size: 20, color: enabled ? c.dim : c.faint),
+      prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 20),
       suffixIcon: suffixIcon,
-      suffixIconColor: c.dim,
-      prefixIconColor: c.dim,
+      suffixIconColor: WidgetStateColor.resolveWith(iconColor),
+      prefixIconColor: WidgetStateColor.resolveWith(iconColor),
       suffixText: suffixText,
-      suffixStyle: t.body.copyWith(
-        fontSize: 16,
-        height: 22 / 16,
+      suffixStyle: value.copyWith(
         fontWeight: FontWeight.w600,
         color: enabled ? c.dim : c.faint,
       ),
@@ -172,16 +188,11 @@ class AknTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
     final doneBar = _numericKeyboard && KeyboardDoneAccessory.isShown;
     final valueStyle =
         style ??
-        t.body.copyWith(
-          fontSize: 16,
-          height: 22 / 16,
-          color: enabled ? c.ink : c.faint,
-        );
+        _valueStyle(context).copyWith(color: enabled ? c.ink : c.faint);
     final lineHeight =
         (valueStyle.fontSize ?? 16) * (valueStyle.height ?? 1.375);
     final labelText = label == null
@@ -222,6 +233,8 @@ class AknTextField extends StatelessWidget {
       textAlign: textAlign,
       style: valueStyle,
       cursorColor: c.brand,
+      cursorWidth: 2,
+      cursorRadius: const Radius.circular(2),
       autovalidateMode: AutovalidateMode.onUserInteraction,
       // No "12/50" counter under the field.
       buildCounter:
@@ -241,6 +254,8 @@ class AknTextField extends StatelessWidget {
       ),
     );
     if (_numericKeyboard) field = KeyboardDoneAccessory(child: field);
+    // The field (not its label) shakes when an error appears.
+    field = _FieldShake(child: field);
     if (labelText == null) return field;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -253,7 +268,7 @@ class AknTextField extends StatelessWidget {
           onAction: onLabelAction,
         ),
         SizedBox(
-          height: labelActionText != null && onLabelAction != null ? 0 : 6,
+          height: labelActionText != null && onLabelAction != null ? 0 : 8,
         ),
         // The visible label is excluded from semantics; the field carries it
         // as its name (one node: "E-posta, metin alanı").
@@ -263,9 +278,10 @@ class AknTextField extends StatelessWidget {
   }
 }
 
-/// The label row above a field (§6.10): 13/18 500 ink, optional
-/// right-aligned link ("Şifremi unuttum", ink 600 + underline). The text is
-/// excluded from semantics; give the field itself the label.
+/// The label row above a field (§4 Inputs): `label` 13/18 600 ink (dim when
+/// disabled), optional right-aligned link ("Şifremi unuttum", ink 600 +
+/// underline). The text is excluded from semantics; give the field itself
+/// the label.
 class AknFieldLabel extends StatelessWidget {
   const AknFieldLabel({
     super.key,
@@ -308,9 +324,9 @@ class AknFieldLabel extends StatelessWidget {
   }
 }
 
-/// Inline text link (§6.5): ink 600 with an underline (offset 3) — never
-/// orange, never blue — and a 48 dp touch target ("Şifremi unuttum",
-/// "Tablo olarak göster", "Bayinizden davet isteyin").
+/// Inline text link (§4): ink 600 with an underline (offset 3) — never
+/// orange, never blue — a 48 dp touch target and a small press scale
+/// ("Şifremi unuttum", "Tablo olarak göster", "Bayinizden davet isteyin").
 class AknInlineLink extends StatelessWidget {
   const AknInlineLink({
     super.key,
@@ -346,13 +362,16 @@ class AknInlineLink extends StatelessWidget {
           child: Align(
             alignment: Alignment.centerLeft,
             widthFactor: 1,
-            child: Text(
-              label,
-              style: base.copyWith(
-                color: color,
-                decoration: TextDecoration.underline,
-                decorationColor: color,
-                decorationThickness: 1.4,
+            child: PressScale(
+              scale: 0.95,
+              child: Text(
+                label,
+                style: base.copyWith(
+                  color: color,
+                  decoration: TextDecoration.underline,
+                  decorationColor: color,
+                  decorationThickness: 1.4,
+                ),
               ),
             ),
           ),
@@ -362,10 +381,13 @@ class AknInlineLink extends StatelessWidget {
   }
 }
 
-/// The error line under a field (§6.10): `error_rounded` 16 + 13/18 500 in
-/// the danger colour, aligned with the field's left edge. The sentence says
-/// what to do ("Teslimat noktası seçmeden sipariş gönderilemez.").
-class AknFieldError extends StatelessWidget {
+/// The error line under a field (§4 Inputs): a `warningCircle` 16 that pops
+/// in + 13/18 600 in the danger colour, aligned with the field's left edge.
+/// The sentence says what to do ("Teslimat noktası seçmeden sipariş
+/// gönderilemez."). Inside an [AknTextField] (or [DateField]) a new error
+/// also shakes the field (±6 px, three times); an error that is there from
+/// the first frame does not.
+class AknFieldError extends StatefulWidget {
   const AknFieldError(this.message, {super.key, this.inset = 16});
 
   final String message;
@@ -375,33 +397,215 @@ class AknFieldError extends StatelessWidget {
   final double inset;
 
   @override
+  State<AknFieldError> createState() => _AknFieldErrorState();
+}
+
+class _AknFieldErrorState extends State<AknFieldError>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pop = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 360),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final scope = _FieldShake.maybeOf(context);
+    // An error shown with the field's first frame neither pops nor shakes.
+    if (scope != null && !scope.settled || AknMotion.reduced(context)) {
+      _pop.value = 1;
+    } else {
+      _announce();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AknFieldError old) {
+    super.didUpdateWidget(old);
+    if (old.message != widget.message && !AknMotion.reduced(context)) {
+      _announce();
+    }
+  }
+
+  void _announce() {
+    _pop.forward(from: 0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _FieldShake.maybeOf(context)?.shake();
+    });
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final t = context.aknText;
+    final style = context.aknText.label.copyWith(color: c.danger.fg);
+    // The icon grows with the text (16 → 22) and sits on the first line.
+    final scaler = MediaQuery.textScalerOf(context);
+    final lineHeight = scaler.scale(
+      (style.fontSize ?? 13) * (style.height ?? 18 / 13),
+    );
+    final iconSize = scaler.scale(16).clamp(16.0, 22.0);
     final line = Padding(
-      padding: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.only(top: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 1),
-            child: Icon(Icons.error_rounded, size: 16, color: c.danger.fg),
+            padding: EdgeInsets.only(
+              top: math.max(0, (lineHeight - iconSize) / 2),
+            ),
+            child: ScaleTransition(
+              scale: _pop.drive(
+                Tween<double>(
+                  begin: 0.3,
+                  end: 1,
+                ).chain(CurveTween(curve: AknMotion.pop)),
+              ),
+              child: Icon(
+                PhosphorIconsFill.warningCircle,
+                size: iconSize,
+                color: c.danger.fg,
+              ),
+            ),
           ),
           const SizedBox(width: 6),
-          Expanded(
-            child: Text(message, style: t.label.copyWith(color: c.danger.fg)),
-          ),
+          Expanded(child: Text(widget.message, style: style)),
         ],
       ),
     );
-    if (inset == 0) return line;
-    return Transform.translate(offset: Offset(-inset, 0), child: line);
+    return _OnFieldEdge(inset: widget.inset, child: line);
   }
+}
+
+/// Pulls a line under a field back by [inset] (the decorator's subtext
+/// indent) so it starts on the field's edge.
+class _OnFieldEdge extends StatelessWidget {
+  const _OnFieldEdge({required this.inset, required this.child});
+
+  final double inset;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (inset == 0) return child;
+    final rtl = Directionality.maybeOf(context) == TextDirection.rtl;
+    return Transform.translate(
+      offset: Offset(rtl ? inset : -inset, 0),
+      child: child,
+    );
+  }
+}
+
+/// The helper line under a field (§4 Inputs): 13/18 500 dim (faint when
+/// disabled), up to three lines, on the field's left edge — where the label
+/// starts above and the error line takes its place.
+class _FieldHelper extends StatelessWidget {
+  const _FieldHelper(this.text, {required this.enabled});
+
+  final String text;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return _OnFieldEdge(
+      inset: 16,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          text,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: context.aknText.label.copyWith(
+            fontWeight: FontWeight.w500,
+            color: enabled ? c.dim : c.faint,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shakes its field (±6 px, three times, 420 ms) when an [AknFieldError]
+/// appears or changes inside it (v3 §5: errors shake). Never on the field's
+/// first frame and never under reduce motion. The tree shape never changes,
+/// so the field keeps its state.
+class _FieldShake extends StatefulWidget {
+  const _FieldShake({required this.child});
+
+  final Widget child;
+
+  static _FieldShakeState? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_ShakeScope>()?.state;
+
+  @override
+  State<_FieldShake> createState() => _FieldShakeState();
+}
+
+class _FieldShakeState extends State<_FieldShake>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+
+  /// False during the first frame: errors present from the start are calm.
+  bool settled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => settled = true);
+  }
+
+  void shake() {
+    if (!mounted || AknMotion.reduced(context)) return;
+    _c.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      child: _ShakeScope(state: this, child: widget.child),
+      builder: (context, child) {
+        final t = _c.value;
+        final dx = t == 0 || t == 1
+            ? 0.0
+            : math.sin(t * math.pi * 6) * 6 * (1 - t);
+        return Transform.translate(offset: Offset(dx, 0), child: child);
+      },
+    );
+  }
+}
+
+class _ShakeScope extends InheritedWidget {
+  const _ShakeScope({required this.state, required super.child});
+
+  final _FieldShakeState state;
+
+  @override
+  bool updateShouldNotify(_ShakeScope old) => old.state != state;
 }
 
 /// iOS sayı / telefon klavyesinin üstünde "Bitti" çubuğu (spec D.7): bu klavyelerde Return tuşu
 /// olmadığı için kullanıcı klavyeyi kapatamaz. İçindeki alan odaklanınca kök katmana eklenir, odak
-/// gidince kalkar; Android'de (klavyede onay tuşu var) hiçbir şey eklemez.
+/// gidince kalkar; Android'de (klavyede onay tuşu var) hiçbir şey eklemez. v3: buzlu cam çubuk
+/// (yükseltilmiş yüzey %86 + bulanıklık), turuncu "Bitti"; çubuk kayarak belirir.
 class KeyboardDoneAccessory extends StatefulWidget {
   const KeyboardDoneAccessory({super.key, required this.child});
 
@@ -464,23 +668,54 @@ class _DoneBar extends StatelessWidget {
     final inset = MediaQuery.viewInsetsOf(context).bottom;
     if (inset <= 0) return const SizedBox.shrink();
     final c = context.akn;
+    final t = context.aknText;
     return Positioned(
       left: 0,
       right: 0,
       bottom: inset,
-      child: Material(
-        color: c.surfaceRaised,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: c.line)),
+      // Çubuk klavyeyle birlikte yukarı kayarak belirir.
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: AknMotion.of(context, AknMotion.base),
+        curve: AknMotion.emphasizedCurve,
+        builder: (context, v, child) => Opacity(
+          opacity: v.clamp(0.0, 1.0),
+          alwaysIncludeSemantics: true,
+          child: Transform.translate(
+            offset: Offset(0, 12 * (1 - v)),
+            child: child,
           ),
-          child: SizedBox(
-            height: KeyboardDoneAccessory.barHeight,
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => FocusManager.instance.primaryFocus?.unfocus(),
-                child: const Text(KeyboardDoneAccessory.label),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: ClipRect(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: c.surfaceRaised.withValues(alpha: 0.86),
+                  border: Border(
+                    top: BorderSide(color: c.line.withValues(alpha: 0.7)),
+                  ),
+                ),
+                child: SizedBox(
+                  height: KeyboardDoneAccessory.barHeight,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: c.brandInk,
+                          textStyle: t.button,
+                        ),
+                        onPressed: () =>
+                            FocusManager.instance.primaryFocus?.unfocus(),
+                        child: const Text(KeyboardDoneAccessory.label),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -590,7 +825,7 @@ class TrNumberInputFormatter extends TextInputFormatter {
   /// three digits after each dot mean thousands, otherwise the dot is the
   /// decimal point).
   static (String, String?)? _splitPasted(String raw) {
-    var s = raw.replaceAll(RegExp(r'[\s\u00a0₺Lm³/]'), '');
+    var s = raw.replaceAll(RegExp(r'[\s ₺Lm³/]'), '');
     if (s.startsWith('-')) s = s.substring(1);
     String ints;
     String? frac;
@@ -708,6 +943,15 @@ class _NumberFieldState extends State<_NumberField> {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
+    // The figures (v3 §1): Plus Jakarta Sans 800 with tabular digits, so a
+    // value never changes width as it is typed — 22/28 (driver mode 26/32).
+    // They are large already, so they stop growing at 1.5× text scale; the
+    // label, helper and error keep scaling.
+    final driver = context.isDriverMode;
+    final base = driver ? 26.0 : 22.0;
+    final line = driver ? 32.0 : 28.0;
+    final shown = MediaQuery.textScalerOf(context).scale(base);
+    final size = shown > base * 1.5 ? base * base * 1.5 / shown : base;
     return AknTextField(
       controller: _controller,
       label: widget.label,
@@ -722,8 +966,11 @@ class _NumberFieldState extends State<_NumberField> {
       ),
       inputFormatters: [TrNumberInputFormatter(decimals: widget.decimals)],
       suffixText: widget.unit,
-      // The counter voice: MonaSansCondensed 700 24/28.
-      style: t.number.copyWith(color: widget.enabled ? c.ink : c.faint),
+      style: t.number.copyWith(
+        fontSize: size,
+        height: line / base,
+        color: widget.enabled ? c.ink : c.faint,
+      ),
       validator: _validate,
       onChanged: (s) => widget.onChanged?.call(TrNumber.parse(s)),
     );
@@ -731,7 +978,7 @@ class _NumberFieldState extends State<_NumberField> {
 }
 
 /// Money input: Turkish separators while typing (`1.234,56`), `₺` suffix,
-/// numeric keypad, the value in the counter voice. [MoneyField.unitPrice]
+/// numeric keypad, the value in tabular figures. [MoneyField.unitPrice]
 /// takes up to 4 decimals in ₺/L.
 class MoneyField extends StatelessWidget {
   const MoneyField({
@@ -815,7 +1062,7 @@ class MoneyField extends StatelessWidget {
 }
 
 /// Litre input: thousands separators (`12.500`), up to 3 decimals, `L`
-/// suffix, numeric keypad, the value in the counter voice. With [max] (e.g.
+/// suffix, numeric keypad, the value in tabular figures. With [max] (e.g.
 /// planned litres) the helper reads "En fazla 12.500 L" and larger values
 /// are rejected.
 class LitersField extends StatelessWidget {
@@ -874,7 +1121,8 @@ class LitersField extends StatelessWidget {
 }
 
 /// Date field ("22 Ekim Perşembe", Türkiye calendar) in the field look, with
-/// the label above; opens the themed date picker. "Bugün / Yarın" quick
+/// the label above; a press scales it a touch and opens the themed (orange)
+/// date picker; a new date slides in over the old one. "Bugün / Yarın" quick
 /// picks sit under it as chips. Values are Türkiye-midnight instants
 /// (`TrTime.fromWall`).
 class DateField extends StatelessWidget {
@@ -932,6 +1180,7 @@ class DateField extends StatelessWidget {
     var initial = _localDay(value ?? firstDate ?? today);
     if (initial.isBefore(first)) initial = first;
     if (initial.isAfter(last)) initial = last;
+    AknHaptics.light();
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -953,12 +1202,12 @@ class DateField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
     final today = TrTime.todayStart();
     final tomorrow = TrTime.addDays(today, 1);
     final v = value;
     final labelText = requiredMark ? '$label *' : label;
+    final shown = v == null ? '' : display(v);
     bool isDay(DateTime d) => v != null && TrTime.isSameDay(v, d);
     bool allowed(DateTime d) {
       final f = firstDate;
@@ -973,63 +1222,92 @@ class DateField extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         AknFieldLabel(text: labelText, enabled: enabled),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Semantics(
           button: true,
           enabled: enabled,
           label: '$labelText: ${v == null ? 'seçilmedi' : display(v)}',
           excludeSemantics: true,
           onTap: enabled ? () => _pick(context) : null,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: enabled ? () => _pick(context) : null,
-            child: InputDecorator(
-              isEmpty: v == null,
-              decoration: AknTextField.decoration(
-                context,
-                hint: hint,
-                helper: helper,
-                errorText: errorText,
-                enabled: enabled,
-                suffixIcon: Icon(
-                  Icons.calendar_month_outlined,
-                  size: 20,
-                  color: enabled ? c.dim : c.faint,
-                ),
-              ),
-              child: Text(
-                v == null ? '' : display(v),
-                style: t.body.copyWith(
-                  fontSize: 16,
-                  height: 22 / 16,
-                  color: enabled ? c.ink : c.faint,
+          child: _FieldShake(
+            child: PressScale(
+              enabled: enabled,
+              scale: 0.98,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: enabled ? () => _pick(context) : null,
+                child: InputDecorator(
+                  isEmpty: v == null,
+                  decoration: AknTextField.decoration(
+                    context,
+                    hint: hint,
+                    helper: helper,
+                    errorText: errorText,
+                    enabled: enabled,
+                    suffixIcon: Icon(
+                      PhosphorIconsRegular.calendarDots,
+                      size: 20,
+                      color: enabled ? c.ink : c.faint,
+                    ),
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: AknMotion.of(context, AknMotion.base),
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: AlignmentDirectional.centerStart,
+                      children: [...previous, ?current],
+                    ),
+                    transitionBuilder: (child, a) => FadeTransition(
+                      opacity: a,
+                      child: SlideTransition(
+                        position: a.drive(
+                          Tween<Offset>(
+                            begin: const Offset(0, 0.35),
+                            end: Offset.zero,
+                          ).chain(CurveTween(curve: AknMotion.emphasizedCurve)),
+                        ),
+                        child: child,
+                      ),
+                    ),
+                    child: Text(
+                      shown,
+                      key: ValueKey(shown),
+                      style: AknTextField._valueStyle(context).copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: enabled ? c.ink : c.faint,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
         if (quickPicks && enabled)
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final (d, l) in [(today, 'Bugün'), (tomorrow, 'Yarın')])
-                if (allowed(d))
-                  AknChip(
-                    label: l,
-                    selected: isDay(d),
-                    onTap: () => onChanged(d),
-                  ),
-            ],
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                for (final (d, l) in [(today, 'Bugün'), (tomorrow, 'Yarın')])
+                  if (allowed(d))
+                    AknChip(
+                      label: l,
+                      selected: isDay(d),
+                      onTap: () => onChanged(d),
+                    ),
+              ],
+            ),
           ),
       ],
     );
   }
 }
 
-/// Search well (§6.10): Beton, 44 high, r12, `search_rounded` 20 dim and a
-/// dim placeholder; on focus it turns white with a 2 px orange border
-/// (orange marks never sit on Beton). [onChanged] is debounced (300 ms); a
-/// clear button appears with text.
+/// Search well (§4 Inputs): a `surfaceAlt` pill, 48 high, a
+/// `magnifyingGlass` 20 and a dim placeholder. On focus it blooms white with
+/// a 2 px orange border and a soft orange glow (~180 ms) and the glass turns
+/// ink; the clear button pops in once there is text. [onChanged] is
+/// debounced (300 ms).
 class SearchField extends StatefulWidget {
   const SearchField({
     super.key,
@@ -1060,39 +1338,57 @@ class SearchField extends StatefulWidget {
   State<SearchField> createState() => _SearchFieldState();
 }
 
-class _SearchFieldState extends State<SearchField> {
+class _SearchFieldState extends State<SearchField>
+    with SingleTickerProviderStateMixin {
   late final TextEditingController _controller =
       widget.controller ?? TextEditingController();
   late final Debouncer _debouncer = Debouncer(widget.debounce);
+  late final AnimationController _focusT = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+  );
   FocusNode? _ownFocus;
+  bool _hasText = false;
 
   FocusNode get _focus => widget.focusNode ?? (_ownFocus ??= FocusNode());
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_onChange);
-    _focus.addListener(_onChange);
+    _hasText = _controller.text.isNotEmpty;
+    _focusT.value = _focus.hasFocus ? 1 : 0;
+    _controller.addListener(_onText);
+    _focus.addListener(_onFocus);
   }
 
   @override
   void didUpdateWidget(SearchField old) {
     super.didUpdateWidget(old);
     if (old.focusNode != widget.focusNode) {
-      (old.focusNode ?? _ownFocus)?.removeListener(_onChange);
-      _focus.addListener(_onChange);
+      (old.focusNode ?? _ownFocus)?.removeListener(_onFocus);
+      _focus.addListener(_onFocus);
+      _onFocus();
     }
   }
 
-  void _onChange() => setState(() {});
+  void _onText() {
+    final has = _controller.text.isNotEmpty;
+    if (has != _hasText) setState(() => _hasText = has);
+  }
+
+  void _onFocus() {
+    if (!mounted) return;
+    AknMotion.animateTo(context, _focusT, _focus.hasFocus ? 1 : 0);
+  }
 
   @override
   void dispose() {
-    _controller.removeListener(_onChange);
-    _focus.removeListener(_onChange);
+    _controller.removeListener(_onText);
+    _focus.removeListener(_onFocus);
     if (widget.controller == null) _controller.dispose();
     _ownFocus?.dispose();
     _debouncer.dispose();
+    _focusT.dispose();
     super.dispose();
   }
 
@@ -1102,59 +1398,120 @@ class _SearchFieldState extends State<SearchField> {
     _debouncer(() => cb(s.trim()));
   }
 
+  void _clear() {
+    AknHaptics.selection();
+    _controller.clear();
+    _debouncer.cancel();
+    widget.onChanged?.call('');
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final focused = _focus.hasFocus;
     final text = t.body.copyWith(height: 20 / 15, color: c.ink);
-    OutlineInputBorder border(BorderSide side) =>
-        OutlineInputBorder(borderRadius: AknRadius.input, borderSide: side);
+    final glow = AknTheme.focusGlow(c);
+    final clear = AnimatedSwitcher(
+      duration: AknMotion.of(context, AknMotion.base),
+      transitionBuilder: (child, a) => FadeTransition(
+        opacity: a,
+        alwaysIncludeSemantics: true,
+        child: ScaleTransition(
+          scale: a.drive(
+            Tween<double>(
+              begin: 0.3,
+              end: 1,
+            ).chain(CurveTween(curve: AknMotion.pop)),
+          ),
+          child: child,
+        ),
+      ),
+      child: _hasText
+          ? IconButton(
+              key: const ValueKey('clear'),
+              tooltip: 'Temizle',
+              icon: Icon(PhosphorIconsRegular.x, color: c.dim, size: 20),
+              onPressed: _clear,
+            )
+          : const SizedBox(key: ValueKey('rest'), width: 16),
+    );
+    final well = AnimatedBuilder(
+      animation: _focusT,
+      builder: (context, child) {
+        final f = _focusT.value;
+        return DecoratedBox(
+          decoration: ShapeDecoration(
+            color: Color.lerp(c.surfaceAlt, c.surface, f),
+            shape: StadiumBorder(
+              side: BorderSide(color: c.brand.withValues(alpha: f), width: 2),
+            ),
+            shadows: [
+              BoxShadow(
+                color: glow.withValues(alpha: glow.a * f),
+                spreadRadius: 4 * f,
+              ),
+            ],
+          ),
+          child: IconTheme.merge(
+            data: IconThemeData(color: Color.lerp(c.dim, c.ink, f)),
+            child: child!,
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 46,
+            child: Icon(PhosphorIconsRegular.magnifyingGlass, size: 20),
+          ),
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              focusNode: _focus,
+              autofocus: widget.autofocus,
+              textInputAction: TextInputAction.search,
+              onChanged: _changed,
+              onSubmitted: (s) {
+                _debouncer.cancel();
+                widget.onChanged?.call(s.trim());
+                widget.onSubmitted?.call(s.trim());
+              },
+              onTapOutside: (_) => _focus.unfocus(),
+              style: text,
+              cursorColor: c.brand,
+              cursorWidth: 2,
+              cursorRadius: const Radius.circular(2),
+              decoration: InputDecoration(
+                hintText: widget.hint,
+                hintStyle: text.copyWith(color: c.dim),
+                hintMaxLines: 1,
+                isDense: true,
+                filled: false,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+              ),
+            ),
+          ),
+          AknAnimatedSize(
+            duration: AknMotion.fast,
+            alignment: AlignmentDirectional.centerStart,
+            child: clear,
+          ),
+        ],
+      ),
+    );
     return Row(
       children: [
         Expanded(
-          child: TextField(
-            controller: _controller,
-            focusNode: _focus,
-            autofocus: widget.autofocus,
-            textInputAction: TextInputAction.search,
-            onChanged: _changed,
-            onSubmitted: (s) {
-              _debouncer.cancel();
-              widget.onChanged?.call(s.trim());
-              widget.onSubmitted?.call(s.trim());
-            },
-            onTapOutside: (_) => _focus.unfocus(),
-            style: text,
-            cursorColor: c.brand,
-            decoration: InputDecoration(
-              hintText: widget.hint,
-              hintStyle: text.copyWith(color: c.dim),
-              isDense: true,
-              filled: true,
-              fillColor: focused ? c.surface : c.surfaceAlt,
-              hoverColor: Colors.transparent,
-              contentPadding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-              prefixIcon: Icon(Icons.search_rounded, color: c.dim, size: 20),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 44,
-                minHeight: 44,
-              ),
-              suffixIcon: _controller.text.isEmpty
-                  ? null
-                  : IconButton(
-                      tooltip: 'Temizle',
-                      icon: Icon(Icons.close_rounded, color: c.dim, size: 20),
-                      onPressed: () {
-                        _controller.clear();
-                        _debouncer.cancel();
-                        widget.onChanged?.call('');
-                      },
-                    ),
-              border: border(BorderSide.none),
-              enabledBorder: border(BorderSide.none),
-              focusedBorder: border(BorderSide(color: c.brand, width: 2)),
-            ),
+          // A tap on the glass (or the well's edge) focuses the field. Screen
+          // readers use the text field's own node (labelled by the hint).
+          child: GestureDetector(
+            onTap: _focus.requestFocus,
+            excludeFromSemantics: true,
+            child: well,
           ),
         ),
         if (widget.trailing != null) ...[
@@ -1167,7 +1524,7 @@ class _SearchFieldState extends State<SearchField> {
 }
 
 /// Turkish licence plate input: upper case, spaced as `34 ABC 123` once
-/// valid, with a live [PlateBadge] preview.
+/// valid, with a live [PlateBadge] preview that pops in under the field.
 class PlateField extends StatefulWidget {
   const PlateField({
     super.key,
@@ -1213,6 +1570,7 @@ class _PlateFieldState extends State<PlateField> {
 
   @override
   Widget build(BuildContext context) {
+    final valid = _valid;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1247,12 +1605,38 @@ class _PlateFieldState extends State<PlateField> {
         ),
         if (widget.showPreview)
           AknAnimatedSize(
-            child: _valid
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: PlateBadge(plate: Fmt.plate(_controller.text)),
-                  )
-                : const SizedBox(width: double.infinity),
+            alignment: Alignment.topLeft,
+            child: AnimatedSwitcher(
+              duration: AknMotion.of(context, AknMotion.base),
+              layoutBuilder: (current, previous) => Stack(
+                alignment: Alignment.topLeft,
+                children: [...previous, ?current],
+              ),
+              transitionBuilder: (child, a) => FadeTransition(
+                opacity: a,
+                alwaysIncludeSemantics: true,
+                child: ScaleTransition(
+                  alignment: Alignment.centerLeft,
+                  scale: a.drive(
+                    Tween<double>(
+                      begin: 0.8,
+                      end: 1,
+                    ).chain(CurveTween(curve: AknMotion.pop)),
+                  ),
+                  child: child,
+                ),
+              ),
+              child: valid
+                  ? Padding(
+                      key: const ValueKey('plate'),
+                      padding: const EdgeInsets.only(top: 10),
+                      child: PlateBadge(plate: Fmt.plate(_controller.text)),
+                    )
+                  : const SizedBox(
+                      key: ValueKey('none'),
+                      width: double.infinity,
+                    ),
+            ),
           ),
       ],
     );
@@ -1270,9 +1654,10 @@ class _UpperCaseFormatter extends TextInputFormatter {
 }
 
 /// The "Göster / Gizle" control inside a password field (board, login):
-/// `visibility_outlined` 20 + "Göster" 14/20 600 in ink, 16 px from the
-/// field's right edge, a 48 dp target. Use it as `AknTextField.suffixIcon`
-/// (or take [AknPasswordField], which wires it up).
+/// an `eye` 20 + "Göster" 14/20 600 in ink, 16 px from the field's right
+/// edge, a 48 dp target. Toggling turns the eye into `eyeSlash` with a small
+/// spin-and-pop (the word cross-fades); a press scales it a touch. Use it as
+/// `AknTextField.suffixIcon` (or take [AknPasswordField], which wires it up).
 class AknFieldRevealToggle extends StatelessWidget {
   const AknFieldRevealToggle({
     super.key,
@@ -1293,6 +1678,7 @@ class AknFieldRevealToggle extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final label = revealed ? hideLabel : showLabel;
+    final swap = AknMotion.of(context, AknMotion.iconSwap);
     return Semantics(
       button: true,
       label: revealed ? 'Şifreyi gizle' : 'Şifreyi göster',
@@ -1300,7 +1686,10 @@ class AknFieldRevealToggle extends StatelessWidget {
       onTap: onToggle,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onToggle,
+        onTap: () {
+          AknHaptics.selection();
+          onToggle();
+        },
         child: ConstrainedBox(
           constraints: const BoxConstraints(
             minHeight: AknSpace.minTap,
@@ -1308,25 +1697,59 @@ class AknFieldRevealToggle extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsetsDirectional.only(start: 8, end: 16),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  revealed
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 20,
-                  color: c.ink,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: t.bodySmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: c.ink,
+            child: PressScale(
+              scale: 0.94,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: swap,
+                    transitionBuilder: (child, a) => FadeTransition(
+                      opacity: a,
+                      child: RotationTransition(
+                        turns: a.drive(Tween<double>(begin: -0.12, end: 0)),
+                        child: ScaleTransition(
+                          scale: a.drive(
+                            Tween<double>(
+                              begin: 0.5,
+                              end: 1,
+                            ).chain(CurveTween(curve: AknMotion.pop)),
+                          ),
+                          child: child,
+                        ),
+                      ),
+                    ),
+                    child: Icon(
+                      revealed
+                          ? PhosphorIconsRegular.eyeSlash
+                          : PhosphorIconsRegular.eye,
+                      key: ValueKey(revealed),
+                      size: 20,
+                      color: c.ink,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  AknAnimatedSize(
+                    duration: swap,
+                    alignment: AlignmentDirectional.centerStart,
+                    child: AnimatedSwitcher(
+                      duration: swap,
+                      layoutBuilder: (current, previous) => Stack(
+                        alignment: AlignmentDirectional.centerStart,
+                        children: [...previous, ?current],
+                      ),
+                      child: Text(
+                        label,
+                        key: ValueKey(label),
+                        style: t.bodySmall.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: c.ink,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1335,7 +1758,7 @@ class AknFieldRevealToggle extends StatelessWidget {
   }
 }
 
-/// A password field (§6.10, board login): [AknTextField] with the
+/// A password field (§4 Inputs, board login): [AknTextField] with the
 /// "Göster / Gizle" control on the right and an optional label link
 /// ("Şifremi unuttum").
 class AknPasswordField extends StatefulWidget {

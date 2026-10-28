@@ -39,21 +39,42 @@ Future<void> openGeneratedDocument(
       context: context,
       useRootNavigator: true,
       barrierDismissible: false,
-      builder: (_) => PopScope(
+      // Bekleme penceresi (tasarım v3 §4 Dialogs): r28, yükseltilmiş gölge, 0,9'dan büyüyerek gelir.
+      builder: (ctx) => PopScope(
         canPop: false,
         child: Center(
-          child: AknCard(
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-            child: Semantics(
-              liveRegion: true,
-              label: '${request.label} hazırlanıyor',
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const ChevronSpinner(size: 28),
-                  const SizedBox(height: 12),
-                  Text('${request.label} hazırlanıyor…'),
-                ],
+          child: FadeUp(
+            offset: 0,
+            scale: 0.9,
+            duration: AknMotion.dialog,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: ctx.akn.surfaceRaised,
+                borderRadius: AknRadius.dialog,
+                boxShadow: AknShadows.raised(ctx.akn),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 24,
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  label: '${request.label} hazırlanıyor',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const ChevronSpinner(size: 28),
+                      const SizedBox(height: 14),
+                      Text(
+                        '${request.label} hazırlanıyor…',
+                        style: ctx.aknText.bodyStrong.copyWith(
+                          color: ctx.akn.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -92,19 +113,19 @@ class DocumentTile extends ConsumerWidget {
   final DocRequest request;
   final VoidCallback onTap;
 
-  /// Satır dolgusu (alt sayfada kenar boşluğu sayfadan gelir); varsayılan ledger satırı.
+  /// Satır dolgusu (alt sayfada kenar boşluğu sayfadan gelir); varsayılan kart satırı.
   final EdgeInsetsGeometry? padding;
 
   static IconData iconOf(DocKind k) => switch (k) {
-    DocKind.order => Icons.description_outlined,
-    DocKind.quote => Icons.request_quote_outlined,
-    DocKind.reconciliation => Icons.fact_check_outlined,
-    DocKind.receipt => Icons.assignment_turned_in_outlined,
-    DocKind.waybill => Icons.local_shipping_outlined,
+    DocKind.order => PhosphorIconsRegular.fileText,
+    DocKind.quote => PhosphorIconsRegular.invoice,
+    DocKind.reconciliation => PhosphorIconsRegular.listChecks,
+    DocKind.receipt => PhosphorIconsRegular.clipboardText,
+    DocKind.waybill => PhosphorIconsRegular.truck,
   };
 
-  /// Belge satırı (tasarım v2 §6.27): 24 px soluk simge, ad ve durum ("PDF oluşturulur" ya da
-  /// "Cihazda kayıtlı, 21.10.2026 14:20"); kenardan kenara ledger satırı.
+  /// Belge satırı (tasarım v3 §4): 40 px simge karosu, ad ve durum ("PDF oluşturulur" ya da
+  /// "Cihazda kayıtlı, 21.10.2026 14:20"); kartın ya da sayfanın içinde satır.
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cached = ref.watch(cachedDocProvider(request)).valueOrNull;
@@ -112,12 +133,16 @@ class DocumentTile extends ConsumerWidget {
         ? 'PDF olarak oluşturulur'
         : '${CmCopy.savedOnDevice}, ${Fmt.dateTime(cached.savedAt)}';
     return AknListTile(
-      leadingIcon: iconOf(request.kind),
+      leading: CmIconTile(icon: iconOf(request.kind)),
+      titleStyle: cmRowTitle(context),
       title: request.label,
       subtitle: sub,
       meta: 'PDF',
       padding: padding,
-      onTap: onTap,
+      onTap: () {
+        AknHaptics.selection();
+        onTap();
+      },
       semanticLabel: '${request.label}, $sub',
     );
   }
@@ -137,17 +162,17 @@ class DocumentViewerPage extends StatelessWidget {
       showBell: false,
       leading: IconButton(
         tooltip: 'Kapat',
-        icon: const Icon(Icons.close_rounded),
+        icon: const Icon(PhosphorIconsRegular.x),
         onPressed: () => Navigator.of(context).maybePop(),
       ),
       actions: [
         AknIconButton(
-          icon: Icons.ios_share_rounded,
+          icon: PhosphorIconsRegular.export,
           semanticLabel: 'Paylaş',
           onPressed: () => AknPdf.share(doc.bytes, doc.fileName),
         ),
         AknIconButton(
-          icon: Icons.print_rounded,
+          icon: PhosphorIconsRegular.printer,
           semanticLabel: 'Yazdır',
           onPressed: () => AknPdf.printDocument(doc.bytes, doc.fileName),
         ),

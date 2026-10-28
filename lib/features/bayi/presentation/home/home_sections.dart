@@ -10,15 +10,18 @@ import '../../../../core/utils/tr_time.dart';
 import '../../application/bayi_grants.dart';
 import '../../data/home_models.dart';
 import '../dispatch/shipment_sheet.dart';
-import '../widgets/bayi_widgets.dart' show openDestination, openPortal;
+import '../widgets/bayi_widgets.dart'
+    show BayiUsageBar, openDestination, openPortal;
 import 'home_atoms.dart';
 
-/// Bayi ana sayfasının bölümleri (tasarım v2 §7.5–7.6): her bölüm bir başlık ([SectionHeader]) ve
-/// beyaz defter satırları; kart, renkli şerit, renkli simge kutusu yok. Sayılar sağda (`number`),
-/// tutarlar sağda (`amount`), durum lamba + kelime.
+/// Bayi ana sayfasının bölümleri (tasarım v3 "Akış" §4): her bölüm sayfa zemininde süzülen beyaz bir
+/// kart ([HomeSectionCard], 22 köşe, kart gölgesi); kartın içinde başlık ([SectionHeader]; sayı hapı,
+/// "Tümü" bağlantısı) ve içeriden ince çizgiyle ayrılmış satırlar. Sayaç satırlarının önünde 40 px
+/// simge karosu, sayılar sağda (`number`, tablo rakamları, sayarak gelir), tutarlar sağda (`amount`),
+/// durum lamba + kelime. Bölümler ana sayfada art arda yükselerek gelir.
 
-/// Okuma satırı (eski iki sütunlu KPI ızgarası): tasarım v2 §6.9 okuma şeridi. Geniş ekranda tek
-/// satır, dar ekranda ve büyük yazıda ikişer sütun.
+/// Okuma satırı (eski iki sütunlu KPI ızgarası): okuma şeridi. Geniş ekranda tek satır, dar ekranda
+/// ve büyük yazıda ikişer sütun; değerler sayarak gelir.
 class KpiGrid extends StatelessWidget {
   const KpiGrid({super.key, required this.tiles});
 
@@ -31,8 +34,38 @@ class KpiGrid extends StatelessWidget {
   );
 }
 
+/// Bölüm kartının içindeki başlık ([HomeCardHeader]).
+Widget _header(
+  String title, {
+  int? count,
+  String? subtitle,
+  String? actionLabel,
+  VoidCallback? onAction,
+  String? caption,
+}) => HomeCardHeader(
+  title: title,
+  count: count,
+  subtitle: subtitle,
+  actionLabel: actionLabel,
+  onAction: onAction,
+  caption: caption,
+);
+
+/// Satırlarla biten bölüm kartı: son satır kendi boşluğunu verir.
+Widget _ledgerCard({required Widget header, required List<Widget> rows}) =>
+    HomeSectionCard(
+      bottom: 6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          AknLedger(children: rows),
+        ],
+      ),
+    );
+
 /// Teklif masası bölümleri (sipariş masası ana sayfası): finans bekleyen bilgisi, süresi yaklaşanlar
-/// (geri sayım Pas, 30 dk altında kırmızı) ve en eski teklif bekleyenler.
+/// (geri sayım Pas, 30 dk altında kırmızı) ve en eski teklif bekleyenler — her biri ayrı kart.
 class DeskSectionView extends ConsumerWidget {
   const DeskSectionView({super.key, required this.desk});
 
@@ -61,20 +94,20 @@ class DeskSectionView extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: AknBanner(
               tone: AknTone.info,
-              icon: Icons.account_balance_outlined,
+              icon: PhosphorIconsRegular.bank,
               message:
                   '${desk.financeHeld} sipariş finans onayında; finans onaylayınca masaya düşer.',
             ),
           ),
-        if (expiring.isNotEmpty) ...[
-          SectionHeader(
-            title: 'Süresi yaklaşanlar',
-            count: desk.expiringSoon ?? expiring.length,
-            actionLabel: g.viewDesk ? 'Teklif masası' : null,
-            onAction: g.viewDesk ? openDesk : null,
-          ),
-          AknLedger(
-            children: [
+        if (expiring.isNotEmpty)
+          _ledgerCard(
+            header: _header(
+              'Süresi yaklaşanlar',
+              count: desk.expiringSoon ?? expiring.length,
+              actionLabel: g.viewDesk ? 'Teklif masası' : null,
+              onAction: g.viewDesk ? openDesk : null,
+            ),
+            rows: [
               for (final o in expiring)
                 HomeOrderRow(
                   row: o,
@@ -83,17 +116,16 @@ class DeskSectionView extends ConsumerWidget {
                 ),
             ],
           ),
-        ],
-        if (oldest.isNotEmpty) ...[
-          SectionHeader(
-            title: 'En eski teklif bekleyenler',
-            actionLabel: expiring.isEmpty && g.viewDesk
-                ? 'Teklif masası'
-                : null,
-            onAction: expiring.isEmpty && g.viewDesk ? openDesk : null,
-          ),
-          AknLedger(
-            children: [
+        if (oldest.isNotEmpty)
+          _ledgerCard(
+            header: _header(
+              'En eski teklif bekleyenler',
+              actionLabel: expiring.isEmpty && g.viewDesk
+                  ? 'Teklif masası'
+                  : null,
+              onAction: expiring.isEmpty && g.viewDesk ? openDesk : null,
+            ),
+            rows: [
               for (final o in oldest)
                 HomeOrderRow(
                   row: o,
@@ -102,7 +134,6 @@ class DeskSectionView extends ConsumerWidget {
                 ),
             ],
           ),
-        ],
       ],
     );
   }
@@ -165,9 +196,9 @@ class HomeOrderRow extends StatelessWidget {
   }
 }
 
-/// Sevkiyatlar (§7.5): şoförsüz plan uyarısı, açık itirazlar (kırmızı lamba) ve bugünün satırları.
-/// [dispatcher] (sevkiyat / depo ana sayfası, §7.6): "Sürücü bekleyenler" satırlarında "Sürücü ata",
-/// "Yolda" satırlarında güzergâh çizgisi, ardından "Açık itirazlar".
+/// Sevkiyatlar (§7.5): şoförsüz plan uyarısı, açık itirazlar (kırmızı lamba) ve bugünün satırları,
+/// tek kartta. [dispatcher] (sevkiyat / depo ana sayfası, §7.6): "Sürücü bekleyenler" satırlarında
+/// "Sürücü ata", "Yolda" satırlarında güzergâh çizgisi, ardından "Açık itirazlar" — her biri ayrı kart.
 class ShipmentsSectionView extends ConsumerWidget {
   const ShipmentsSectionView({
     super.key,
@@ -200,105 +231,115 @@ class ShipmentsSectionView extends ConsumerWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (waiting.isNotEmpty || s.unassignedDriver > 0) ...[
-            SectionHeader(
-              title: 'Sürücü bekleyenler',
-              count: s.unassignedDriver > 0
-                  ? s.unassignedDriver
-                  : waiting.length,
-              actionLabel: canBoard ? 'Sevkiyat' : null,
-              onAction: canBoard ? openBoard : null,
-            ),
-            if (waiting.isEmpty)
-              _UnassignedWell(
-                count: s.unassignedDriver,
-                onOpen: canBoard ? openBoard : null,
-              )
-            else
-              AknLedger(
+          if (waiting.isNotEmpty || s.unassignedDriver > 0)
+            HomeSectionCard(
+              bottom: waiting.isEmpty ? 8 : 6,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final r in waiting)
-                    ShipmentLine(
-                      row: r,
-                      adr: true,
-                      action: g.assignDriver ? 'Sürücü ata' : null,
+                  _header(
+                    'Sürücü bekleyenler',
+                    count: s.unassignedDriver > 0
+                        ? s.unassignedDriver
+                        : waiting.length,
+                    actionLabel: canBoard ? 'Sevkiyat' : null,
+                    onAction: canBoard ? openBoard : null,
+                  ),
+                  if (waiting.isEmpty)
+                    _UnassignedWell(
+                      count: s.unassignedDriver,
+                      onOpen: canBoard ? openBoard : null,
+                    )
+                  else
+                    AknLedger(
+                      children: [
+                        for (final r in waiting)
+                          ShipmentLine(
+                            row: r,
+                            adr: true,
+                            action: g.assignDriver ? 'Sürücü ata' : null,
+                          ),
+                      ],
                     ),
                 ],
               ),
-          ],
-          if (moving.isNotEmpty) ...[
-            SectionHeader(title: 'Yolda', count: moving.length),
-            AknLedger(
-              children: [
+            ),
+          if (moving.isNotEmpty)
+            _ledgerCard(
+              header: _header('Yolda', count: moving.length),
+              rows: [
                 for (final r in moving)
                   ShipmentLine(row: r, route: true, adr: true),
               ],
             ),
-          ],
-          if (s.disputeList.isNotEmpty) ...[
-            SectionHeader(title: 'Açık itirazlar', count: s.disputes),
-            AknLedger(
-              children: [
+          if (s.disputeList.isNotEmpty)
+            _ledgerCard(
+              header: _header('Açık itirazlar', count: s.disputes),
+              rows: [
                 for (final r in s.disputeList) ShipmentLine(row: r, adr: true),
               ],
             ),
-          ],
-          if (rest.isNotEmpty) ...[
-            SectionHeader(
-              title: 'Bugün',
-              actionLabel:
-                  canBoard && waiting.isEmpty && s.unassignedDriver == 0
-                  ? 'Sevkiyat'
-                  : null,
-              onAction: canBoard ? openBoard : null,
+          if (rest.isNotEmpty)
+            _ledgerCard(
+              header: _header(
+                'Bugün',
+                actionLabel:
+                    canBoard && waiting.isEmpty && s.unassignedDriver == 0
+                    ? 'Sevkiyat'
+                    : null,
+                onAction: canBoard ? openBoard : null,
+              ),
+              rows: [for (final r in rest) ShipmentLine(row: r, adr: true)],
             ),
-            AknLedger(
-              children: [for (final r in rest) ShipmentLine(row: r, adr: true)],
-            ),
-          ],
           if (s.today.isEmpty &&
               s.disputeList.isEmpty &&
               s.unassignedDriver == 0)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
-              child: _QuietLine(text: 'Bugün planlı sevkiyat yok.'),
+            const HomeSectionCard(
+              child: _QuietLine(
+                icon: PhosphorIconsRegular.truck,
+                text: 'Bugün planlı sevkiyat yok.',
+                top: 14,
+              ),
             ),
         ],
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          title: 'Sevkiyatlar',
-          actionLabel: canBoard ? 'Tümü' : null,
-          onAction: canBoard ? openBoard : null,
-        ),
-        if (s.unassignedDriver > 0)
-          _UnassignedWell(
-            count: s.unassignedDriver,
-            onOpen: canBoard ? openBoard : null,
+    return HomeSectionCard(
+      bottom: s.today.isEmpty && s.disputeList.isEmpty ? 16 : 6,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _header(
+            'Sevkiyatlar',
+            actionLabel: canBoard ? 'Tümü' : null,
+            onAction: canBoard ? openBoard : null,
           ),
-        if (s.disputeList.isNotEmpty) ...[
-          _SubHeader(text: 'Açık itirazlar', count: s.disputes),
-          AknLedger(
-            children: [for (final r in s.disputeList) ShipmentLine(row: r)],
-          ),
-        ],
-        if (s.today.isNotEmpty) ...[
-          _SubHeader(text: 'Bugün', count: s.today.length),
-          AknLedger(children: [for (final r in s.today) ShipmentLine(row: r)]),
-        ],
-        if (s.today.isEmpty && s.disputeList.isEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-            child: _QuietLine(
+          if (s.unassignedDriver > 0)
+            _UnassignedWell(
+              count: s.unassignedDriver,
+              onOpen: canBoard ? openBoard : null,
+            ),
+          if (s.disputeList.isNotEmpty) ...[
+            _SubHeader(text: 'Açık itirazlar', count: s.disputes),
+            AknLedger(
+              children: [for (final r in s.disputeList) ShipmentLine(row: r)],
+            ),
+          ],
+          if (s.today.isNotEmpty) ...[
+            _SubHeader(text: 'Bugün', count: s.today.length),
+            AknLedger(
+              children: [for (final r in s.today) ShipmentLine(row: r)],
+            ),
+          ],
+          if (s.today.isEmpty && s.disputeList.isEmpty)
+            _QuietLine(
+              icon: PhosphorIconsRegular.truck,
               text: s.planned > 0
                   ? 'Bugün planlı sevkiyat yok; toplam ${Fmt.integer(s.planned)} planlı sevkiyat var.'
                   : 'Bugün planlı sevkiyat yok.',
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -314,7 +355,7 @@ class _UnassignedWell extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
     child: AknBanner(
       tone: AknTone.warn,
-      icon: Icons.person_search_outlined,
+      icon: PhosphorIconsRegular.userFocus,
       message:
           '$count planlı sevkiyatta uygulama şoförü atanmamış; bu teslimatlar şoför uygulamasında görünmez.',
       actionLabel: onOpen == null ? null : 'Sürücü ata',
@@ -323,7 +364,8 @@ class _UnassignedWell extends StatelessWidget {
   );
 }
 
-/// Bölüm içi alt başlık (`label` 13/18 600 soluk): "Bugün", "Açık itirazlar".
+/// Bölüm içi alt başlık (tasarım v3): `label` 13/18 700 mürekkep ve yanında Beton sayı hapı (tablo
+/// rakamları): "Bugün 3", "Açık itirazlar 1".
 class _SubHeader extends StatelessWidget {
   const _SubHeader({required this.text, this.count});
 
@@ -334,29 +376,81 @@ class _SubHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
+    final n = count;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
       child: Semantics(
         header: true,
-        child: Text(
-          count == null ? text : '$text ${Fmt.integer(count)}',
-          style: t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim),
+        label: n == null ? text : '$text ${Fmt.integer(n)}',
+        excludeSemantics: true,
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              text,
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w700,
+                color: c.ink,
+              ),
+            ),
+            if (n != null)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: c.surfaceAlt,
+                  borderRadius: AknRadius.pillAll,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 1,
+                  ),
+                  child: Text(
+                    Fmt.integer(n),
+                    style: t.captionStrong.copyWith(
+                      color: c.ink,
+                      fontFeatures: AknNumerals.tabular,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
+/// Bölümde gösterilecek satır yokken: simge karosu ve soluk tek cümle.
 class _QuietLine extends StatelessWidget {
-  const _QuietLine({required this.text});
+  const _QuietLine({required this.text, this.icon, this.top = 4});
 
   final String text;
+  final IconData? icon;
+  final double top;
 
   @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
-  );
+  Widget build(BuildContext context) {
+    final glyph = icon;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, top, 20, 0),
+      child: Row(
+        children: [
+          if (glyph != null) ...[
+            HomeIconTile(icon: glyph, size: 36),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              text,
+              style: context.aknText.bodySmall.copyWith(color: context.akn.dim),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Sevkiyat satırı (§7.15): cari ve litre (sağda), sevkiyat no + saat + sürücü, lamba ve TR plakası;
@@ -404,7 +498,7 @@ class ShipmentLine extends StatelessWidget {
           'Gecikti',
           style: t.bodySmall.copyWith(
             color: c.warn.fg,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ?plate,
@@ -457,6 +551,7 @@ class ShipmentLine extends StatelessWidget {
               alignment: AlignmentDirectional.centerStart,
               child: AknButton.secondary(
                 label: action!,
+                icon: PhosphorIconsRegular.userPlus,
                 size: AknButtonSize.small,
                 onPressed: open,
               ),
@@ -478,40 +573,31 @@ class ApprovalsSectionView extends StatelessWidget {
     final s = section;
     final c = context.akn;
     void open() => openDestination(context, AppRoutes.approvals);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(title: 'Onaylarım', actionLabel: 'Tümü', onAction: open),
-        AknLedger(
-          children: [
-            HomeCountRow(
-              label: 'Kararınızı bekleyen',
-              count: s.toMe,
-              highlight: s.toMe > 0 ? c.brandInk : null,
-              lamp: s.toMe > 0
-                  ? const AknLamp(
-                      label: 'Onayınızı bekliyor',
-                      tone: AknTone.brand,
-                    )
-                  : const AknLamp(
-                      label: 'Bekleyen onay yok',
-                      tone: AknTone.neutral,
-                    ),
-              onTap: open,
-            ),
-            if (s.overdue > 0)
-              HomeCountRow(
-                label: 'Süresi geçen',
-                count: s.overdue,
-                highlight: c.danger.fg,
-                lamp: const AknLamp(
-                  label: 'Süresi geçti',
-                  tone: AknTone.danger,
+    return _ledgerCard(
+      header: _header('Onaylarım', actionLabel: 'Tümü', onAction: open),
+      rows: [
+        HomeCountRow(
+          icon: PhosphorIconsRegular.sealCheck,
+          label: 'Kararınızı bekleyen',
+          count: s.toMe,
+          highlight: s.toMe > 0 ? c.brandInk : null,
+          lamp: s.toMe > 0
+              ? const AknLamp(label: 'Onayınızı bekliyor', tone: AknTone.brand)
+              : const AknLamp(
+                  label: 'Bekleyen onay yok',
+                  tone: AknTone.neutral,
                 ),
-                onTap: open,
-              ),
-          ],
+          onTap: open,
         ),
+        if (s.overdue > 0)
+          HomeCountRow(
+            icon: PhosphorIconsRegular.alarm,
+            label: 'Süresi geçen',
+            count: s.overdue,
+            highlight: c.danger.fg,
+            lamp: const AknLamp(label: 'Süresi geçti', tone: AknTone.danger),
+            onTap: open,
+          ),
       ],
     );
   }
@@ -520,7 +606,7 @@ class ApprovalsSectionView extends StatelessWidget {
 /// Tahsilat (§7.5): vadesi geçen ödemeler kırmızı lamba satırında ("Vadesi geçen 2 ödeme",
 /// 184.000 ₺, "En eskisi 6 gün gecikmede"), ardından belge kontrolü, vadesi yaklaşan çek / senet ve
 /// karşılıksızlar. [detailed] (finans, muhasebe; §7.6): vadesi geçen ödemeler tek tek (en eskisi
-/// önce) ve vadesi yaklaşan çek / senetler satır satır.
+/// önce) ve vadesi yaklaşan çek / senetler ayrı kartta satır satır.
 class CollectionsSectionView extends StatelessWidget {
   const CollectionsSectionView({
     super.key,
@@ -539,6 +625,7 @@ class CollectionsSectionView extends StatelessWidget {
     final oldest = _oldestDays(s.overdue);
     final overdueRow = s.overdueCount > 0
         ? HomeLampAmountRow(
+            icon: PhosphorIconsRegular.receipt,
             label: 'Vadesi geçen ${Fmt.integer(s.overdueCount)} ödeme',
             tone: AknTone.danger,
             amount: Fmt.moneyWhole(s.overdueAmount),
@@ -556,13 +643,13 @@ class CollectionsSectionView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          title: 'Tahsilat',
-          actionLabel: 'Tümü',
-          onAction: openPayments,
-        ),
-        AknLedger(
-          children: [
+        _ledgerCard(
+          header: _header(
+            'Tahsilat',
+            actionLabel: 'Tümü',
+            onAction: openPayments,
+          ),
+          rows: [
             if (!detailed || s.overdue.isEmpty) overdueRow,
             if (detailed)
               for (final p in _byDue(s.overdue))
@@ -585,6 +672,7 @@ class CollectionsSectionView extends StatelessWidget {
                 ),
             if (s.documentsAwaitingCheck > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.fileMagnifyingGlass,
                 label: 'Kontrol bekleyen belge',
                 count: s.documentsAwaitingCheck,
                 lamp: const AknLamp(
@@ -595,6 +683,9 @@ class CollectionsSectionView extends StatelessWidget {
               ),
             if (!detailed && s.instrumentsDueSoonCount > 0)
               AknListTile(
+                leading: const HomeIconTile(
+                  icon: PhosphorIconsRegular.calendarCheck,
+                ),
                 title:
                     'Vadesi yaklaşan ${Fmt.integer(s.instrumentsDueSoonCount)} çek / senet',
                 subtitle: '${s.dueSoonDays} gün içinde',
@@ -606,6 +697,7 @@ class CollectionsSectionView extends StatelessWidget {
               ),
             if (s.bounced30d > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.warningOctagon,
                 label: 'Karşılıksız (30 gün)',
                 count: s.bounced30d,
                 highlight: c.danger.fg,
@@ -614,15 +706,15 @@ class CollectionsSectionView extends StatelessWidget {
               ),
           ],
         ),
-        if (detailed && s.instrumentsDueSoon.isNotEmpty) ...[
-          SectionHeader(
-            title: 'Vadesi yaklaşan çek / senetler',
-            count: s.instrumentsDueSoonCount,
-            subtitle:
-                '${s.dueSoonDays} gün içinde, toplam ${Fmt.moneyWhole(s.instrumentsDueSoonAmount)}',
-          ),
-          AknLedger(
-            children: [
+        if (detailed && s.instrumentsDueSoon.isNotEmpty)
+          _ledgerCard(
+            header: _header(
+              'Vadesi yaklaşan çek / senetler',
+              count: s.instrumentsDueSoonCount,
+              subtitle:
+                  '${s.dueSoonDays} gün içinde, toplam ${Fmt.moneyWhole(s.instrumentsDueSoonAmount)}',
+            ),
+            rows: [
               for (final i in s.instrumentsDueSoon)
                 AknListTile(
                   title: i.customerTitle,
@@ -640,7 +732,6 @@ class CollectionsSectionView extends StatelessWidget {
                 ),
             ],
           ),
-        ],
       ],
     );
   }
@@ -689,14 +780,15 @@ class FinanceSectionView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          title: 'Finans kartları',
-          actionLabel: 'Finans',
-          onAction: open,
-        ),
-        AknLedger(
-          children: [
+        _ledgerCard(
+          header: _header(
+            'Finans kartları',
+            actionLabel: 'Finans',
+            onAction: open,
+          ),
+          rows: [
             HomeCountRow(
+              icon: PhosphorIconsRegular.identificationCard,
               label: 'İnceleme bekleyen',
               count: s.pending,
               highlight: s.pending > 0 ? c.brandInk : null,
@@ -710,6 +802,7 @@ class FinanceSectionView extends StatelessWidget {
             ),
             if (s.infoRequested > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.chatCircleDots,
                 label: 'Ek bilgi beklenen',
                 count: s.infoRequested,
                 lamp: const AknLamp(label: 'Müşteride', tone: AknTone.info),
@@ -717,6 +810,7 @@ class FinanceSectionView extends StatelessWidget {
               ),
             if (s.reviewOverdue > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.calendarX,
                 label: 'Gözden geçirme tarihi geçen',
                 count: s.reviewOverdue,
                 lamp: const AknLamp(label: 'Tarihi geçti', tone: AknTone.warn),
@@ -724,6 +818,7 @@ class FinanceSectionView extends StatelessWidget {
               ),
             if (s.flagged > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.shieldWarning,
                 label: 'Karşılıksız / protestolu',
                 count: s.flagged,
                 highlight: c.danger.fg,
@@ -732,10 +827,10 @@ class FinanceSectionView extends StatelessWidget {
               ),
           ],
         ),
-        if (s.attention.isNotEmpty) ...[
-          const SectionHeader(title: 'İlgi bekleyen kartlar'),
-          AknLedger(
-            children: [
+        if (s.attention.isNotEmpty)
+          _ledgerCard(
+            header: _header('İlgi bekleyen kartlar'),
+            rows: [
               for (final a in s.attention)
                 AknListTile(
                   title: a.customerTitle,
@@ -766,13 +861,12 @@ class FinanceSectionView extends StatelessWidget {
                 ),
             ],
           ),
-        ],
       ],
     );
   }
 }
 
-/// Ön kayıtlar (dönem özeti): okuma şeridi.
+/// Ön kayıtlar (dönem özeti): okuma şeridi, sayılar sayarak gelir.
 class LeadsSectionView extends StatelessWidget {
   const LeadsSectionView({super.key, required this.section});
 
@@ -782,33 +876,35 @@ class LeadsSectionView extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = section.stats;
     final rate = s.conversionRatePercent;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(
-          title: 'Ön kayıtlar',
-          subtitle: section.periodLabel.isEmpty ? null : section.periodLabel,
-          actionLabel: 'Saha',
-          onAction: () => openDestination(context, AppRoutes.field),
-        ),
-        KpiGrid(
-          tiles: [
-            KpiTile(label: 'Toplam', value: s.total),
-            KpiTile(label: 'Finansta', value: s.inFinance + s.submitted),
-            KpiTile(
-              label: 'Cariye dönüşen',
-              value: s.converted,
-              caption: rate == null ? null : 'Dönüşüm ${Fmt.percent(rate)}',
-            ),
-          ],
-        ),
-      ],
+    return HomeSectionCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _header(
+            'Ön kayıtlar',
+            subtitle: section.periodLabel.isEmpty ? null : section.periodLabel,
+            actionLabel: 'Saha',
+            onAction: () => openDestination(context, AppRoutes.field),
+          ),
+          KpiGrid(
+            tiles: [
+              KpiTile(label: 'Toplam', value: s.total),
+              KpiTile(label: 'Finansta', value: s.inFinance + s.submitted),
+              KpiTile(
+                label: 'Cariye dönüşen',
+                value: s.converted,
+                caption: rate == null ? null : 'Dönüşüm ${Fmt.percent(rate)}',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
 /// Saha formları (yönetici görünümü, §7.6 satış müdürü): kararınızı bekleyenler önce, sonra onay
-/// bekleyen, taslak, dönüşen ve reddedilen sayıları; son formlar satır satır.
+/// bekleyen, taslak, dönüşen ve reddedilen sayıları; son formlar ayrı kartta satır satır.
 class FieldSectionView extends ConsumerWidget {
   const FieldSectionView({super.key, required this.section});
 
@@ -823,15 +919,16 @@ class FieldSectionView extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SectionHeader(
-          title: 'Saha formları',
-          actionLabel: 'Saha',
-          onAction: openField,
-        ),
-        AknLedger(
-          children: [
+        _ledgerCard(
+          header: _header(
+            'Saha formları',
+            actionLabel: 'Saha',
+            onAction: openField,
+          ),
+          rows: [
             if (s.approvalsToMe > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.sealCheck,
                 label: 'Kararınızı bekleyen',
                 count: s.approvalsToMe,
                 highlight: c.brandInk,
@@ -844,20 +941,28 @@ class FieldSectionView extends ConsumerWidget {
                     : null,
               ),
             HomeCountRow(
+              icon: PhosphorIconsRegular.hourglassHigh,
               label: 'Onay bekleyen',
               count: s.pending,
               onTap: openField,
             ),
             HomeCountRow(
+              icon: PhosphorIconsRegular.checks,
               label: 'Siparişe dönüşen',
               meta: 'Son 30 gün',
               count: s.converted,
               onTap: openField,
             ),
             if (s.drafts > 0)
-              HomeCountRow(label: 'Taslak', count: s.drafts, onTap: openField),
+              HomeCountRow(
+                icon: PhosphorIconsRegular.notepad,
+                label: 'Taslak',
+                count: s.drafts,
+                onTap: openField,
+              ),
             if (s.rejected > 0)
               HomeCountRow(
+                icon: PhosphorIconsRegular.fileX,
                 label: 'Reddedilen',
                 meta: 'Son 30 gün',
                 count: s.rejected,
@@ -866,10 +971,10 @@ class FieldSectionView extends ConsumerWidget {
               ),
           ],
         ),
-        if (s.recent.isNotEmpty) ...[
-          const SectionHeader(title: 'Son formlar'),
-          AknLedger(
-            children: [
+        if (s.recent.isNotEmpty)
+          _ledgerCard(
+            header: _header('Son formlar'),
+            rows: [
               for (final f in s.recent)
                 AknListTile(
                   title: f.customerTitle ?? f.formNumber,
@@ -889,14 +994,14 @@ class FieldSectionView extends ConsumerWidget {
                 ),
             ],
           ),
-        ],
       ],
     );
   }
 }
 
 /// Satış özeti (son N gün okuma şeridi + günlük litre çizgisi), en çok alan cariler ve limitine
-/// yaklaşanlar (§7.6 satış müdürü). [summary] false iken yalnızca cariler ve limitler.
+/// yaklaşanlar (§7.6 satış müdürü) — her biri ayrı kart; limit çubukları dolarak gelir. [summary]
+/// false iken yalnızca cariler ve limitler.
 class SalesSectionView extends ConsumerWidget {
   const SalesSectionView({
     super.key,
@@ -922,52 +1027,69 @@ class SalesSectionView extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (summary) ...[
-          SectionHeader(title: 'Son ${s.windowDays} gün'),
-          KpiGrid(
-            tiles: [
-              KpiTile(label: 'Sipariş', value: s.windowOrders),
-              KpiTile(label: 'Litre', value: s.windowLiters, unit: 'L'),
-              KpiTile(
-                label: 'Tutar',
-                value: s.windowAmount,
-                format: Fmt.moneyCompact,
-              ),
-            ],
-          ),
-          if (values.length > 1)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Sparkline(
-                    values: values,
-                    height: 44,
-                    semanticLabel:
-                        'Son ${s.windowDays} gün litre, ${trendUp ? 'artışta' : 'düşüşte'}; bugün ${Fmt.liters(values.last)}',
+        if (summary)
+          HomeSectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _header('Son ${s.windowDays} gün'),
+                KpiGrid(
+                  tiles: [
+                    KpiTile(label: 'Sipariş', value: s.windowOrders),
+                    KpiTile(label: 'Litre', value: s.windowLiters, unit: 'L'),
+                    KpiTile(
+                      label: 'Tutar',
+                      value: s.windowAmount,
+                      format: Fmt.moneyCompact,
+                    ),
+                  ],
+                ),
+                if (values.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FadeUp(
+                          offset: 10,
+                          duration: AknMotion.slow,
+                          child: Sparkline(
+                            values: values,
+                            height: 48,
+                            semanticLabel:
+                                'Son ${s.windowDays} gün litre, ${trendUp ? 'artışta' : 'düşüşte'}; bugün ${Fmt.liters(values.last)}',
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Text(
+                              Fmt.dayMonth(s.days.first.day),
+                              style: t.caption.copyWith(color: c.dim),
+                            ),
+                            const Spacer(),
+                            Text(
+                              'bugün',
+                              style: t.caption.copyWith(
+                                color: c.ink,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        Fmt.dayMonth(s.days.first.day),
-                        style: t.caption.copyWith(color: c.dim),
-                      ),
-                      const Spacer(),
-                      Text('bugün', style: t.caption.copyWith(color: c.dim)),
-                    ],
-                  ),
-                ],
-              ),
+              ],
             ),
-        ],
-        if (s.topCustomers.isNotEmpty) ...[
-          const SectionHeader(title: 'En çok alan cariler'),
-          AknLedger(
-            children: [
-              for (final cu in s.topCustomers.take(5))
+          ),
+        if (s.topCustomers.isNotEmpty)
+          _ledgerCard(
+            header: _header('En çok alan cariler'),
+            rows: [
+              for (final (i, cu) in s.topCustomers.take(5).indexed)
                 AknListTile(
+                  leading: _Rank(index: i),
                   title: cu.customerTitle,
                   subtitle:
                       '${Fmt.integer(cu.orders)} sipariş, ${Fmt.liters(cu.liters)}',
@@ -976,19 +1098,18 @@ class SalesSectionView extends ConsumerWidget {
                 ),
             ],
           ),
-        ],
-        if (s.nearLimit.isNotEmpty) ...[
-          SectionHeader(title: 'Limitine yaklaşanlar', count: s.nearLimitTotal),
-          AknLedger(
-            children: [
+        if (s.nearLimit.isNotEmpty)
+          _ledgerCard(
+            header: _header('Limitine yaklaşanlar', count: s.nearLimitTotal),
+            rows: [
               for (final l in s.nearLimit)
                 AknListTile(
                   title: l.customerTitle,
                   amount: Fmt.percent(l.usedPercent),
                   amountMeta: l.periodLabel.isEmpty ? null : l.periodLabel,
-                  footer: UsageBar(
-                    value: l.usedPercent / 100,
-                    valueLabel: Fmt.percent(l.usedPercent),
+                  // Oran sağ üstte yazılı; çubuk yalnızca dolar (aynı yüzde iki kez yazılmaz).
+                  footer: ExcludeSemantics(
+                    child: BayiUsageBar(value: l.usedPercent / 100),
                   ),
                   semanticLabel:
                       '${l.customerTitle}, limitin ${Fmt.percent(l.usedPercent)} kullanıldı',
@@ -996,14 +1117,46 @@ class SalesSectionView extends ConsumerWidget {
                 ),
             ],
           ),
-        ],
       ],
     );
   }
 }
 
-/// Kurulum uyarıları (§7.5): her açık kontrol bir uyarı kuyusu; düzeltme web portalında
-/// ("Portalda düzelt").
+/// En çok alan carilerin sırası: 28 px yuvarlak; ilk üç turuncu yumuşak zeminde.
+class _Rank extends StatelessWidget {
+  const _Rank({required this.index});
+
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final top = index < 3;
+    return ExcludeSemantics(
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: top ? c.brandSoft : c.surfaceAlt,
+        ),
+        child: Text(
+          '${index + 1}',
+          style: t.label.copyWith(
+            fontWeight: FontWeight.w800,
+            color: top ? c.brandInk : c.dim,
+            fontFeatures: AknNumerals.tabular,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Kurulum uyarıları (§7.5): her açık kontrol tonun yumuşak kuyusunda bir uyarı; düzeltme web
+/// portalında ("Portalda düzelt").
 class SetupSectionView extends ConsumerWidget {
   const SetupSectionView({super.key, required this.section});
 
@@ -1015,32 +1168,35 @@ class SetupSectionView extends ConsumerWidget {
         .where((c) => c.isOpen || c.state != SetupCheckState.ok)
         .toList();
     if (open.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SectionHeader(title: 'Kurulum uyarıları', count: open.length),
-        for (final c in open)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-            child: HomeWell(
-              tone: c.state == SetupCheckState.missing
-                  ? AknTone.danger
-                  : AknTone.warn,
-              icon: c.state == SetupCheckState.missing
-                  ? Icons.error_outline_rounded
-                  : Icons.warning_amber_rounded,
-              title: c.title,
-              message: [
-                if (c.summary.isNotEmpty) c.summary,
-                if (c.hint != null) c.hint!,
-              ].join(' '),
-              actionLabel: c.portalPath == null ? null : 'Portalda düzelt',
-              onAction: c.portalPath == null
-                  ? null
-                  : () => openPortal(context, ref, c.portalPath!),
+    return HomeSectionCard(
+      bottom: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _header('Kurulum uyarıları', count: open.length),
+          for (final c in open)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: HomeWell(
+                tone: c.state == SetupCheckState.missing
+                    ? AknTone.danger
+                    : AknTone.warn,
+                icon: c.state == SetupCheckState.missing
+                    ? PhosphorIconsRegular.warningCircle
+                    : PhosphorIconsFill.warning,
+                title: c.title,
+                message: [
+                  if (c.summary.isNotEmpty) c.summary,
+                  if (c.hint != null) c.hint!,
+                ].join(' '),
+                actionLabel: c.portalPath == null ? null : 'Portalda düzelt',
+                onAction: c.portalPath == null
+                    ? null
+                    : () => openPortal(context, ref, c.portalPath!),
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

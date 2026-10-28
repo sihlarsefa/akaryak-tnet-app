@@ -1,21 +1,26 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../utils/format.dart';
 import '../../utils/tr_time.dart';
 import '../../utils/turkish_text.dart';
+import '../motion.dart';
 import '../status.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
 import 'lamp.dart';
 
 export 'lamp.dart';
 
 enum StatusChipSize { small, medium }
 
-/// A status, rendered as a lamp and a word ([AknLamp], design v2 §6.12) —
-/// no pill, no tint, no icon (the [icon] stays in the data for semantics).
+/// A status as a tinted pill ([AknLamp], design v3 §4): the tone's soft
+/// well, a 12/16 700 label in the tone's colour and a leading dot with a
+/// halo — the "your move" (brand) dot breathes. The [icon] stays in the data
+/// for semantics; the pill draws the dot.
 ///
 /// ```dart
 /// StatusChip.style(order.status.statusStyle.withLabel(order.statusLabel))
@@ -44,12 +49,12 @@ class StatusChip extends StatelessWidget {
   final String label;
   final AknTone tone;
 
-  /// Kept for semantics and API stability; lamps draw no icon.
+  /// Kept for semantics and API stability; the pill draws a dot.
   final IconData? icon;
   final bool solid;
   final StatusChipSize size;
 
-  /// Ignored in v2 (lamps draw no icon).
+  /// Ignored (the pill draws a dot, never an icon).
   final bool showIcon;
 
   @override
@@ -62,20 +67,21 @@ class StatusChip extends StatelessWidget {
   );
 }
 
-/// The expiry countdown (design v2 §6.13): `timer_outlined` 17 and
-/// "2 sa 57 dk kaldı" (14/20).
+/// The expiry countdown (design v3 §4): a timer icon and "2 sa 57 dk kaldı"
+/// (14/20, tabular figures).
 ///
-/// * Dim 500 by default; Pas 600 when it is the viewer's turn ([yourMove]);
-///   under [dangerBefore] (30 min) danger 600 with the filled
-///   `timer_rounded`. Expired: "Süresi doldu", dim.
+/// * Dim 500 by default; Pas 700 when it is the viewer's turn ([yourMove]);
+///   under [dangerBefore] (30 min) danger 700 with the filled timer, which
+///   breathes on a soft danger halo (ambient: off in tests and under reduce
+///   motion). Expired: "Süresi doldu", dim, with an hourglass.
 /// * The text sits in a fixed-width box measured once per magnitude ("88 sa
 ///   88 dk kaldı"), right-aligned, so it never jitters while it ticks — once
-///   a minute (every second in the last minute).
+///   a minute (every second in the last minute). A new state cross-fades.
 /// * Screen readers hear "Teklif 2 saat 57 dakika içinde sona eriyor"
 ///   ([subject] + the time left).
 ///
-/// [start], [showRing] and [warnBefore] are kept for API stability (v2 has
-/// no ring and no warn stage). A [prefix] other than "Kalan" replaces the
+/// [start], [showRing] and [warnBefore] are kept for API stability (there
+/// is no ring and no warn stage). A [prefix] other than "Kalan" replaces the
 /// "kaldı" form ("Ödeme 2 sa 57 dk").
 class CountdownBadge extends StatefulWidget {
   const CountdownBadge({
@@ -95,21 +101,21 @@ class CountdownBadge extends StatefulWidget {
   /// Expiry instant (UTC `DateTime` per `TrTime`).
   final DateTime deadline;
 
-  /// Kept for API stability (no ring in v2).
+  /// Kept for API stability (no ring).
   final DateTime? start;
 
   /// Text before the time; "Kalan" (or null) uses "… kaldı".
   final String? prefix;
 
-  /// Kept for API stability (no ring in v2).
+  /// Kept for API stability (no ring).
   final bool showRing;
 
-  /// Kept for API stability (v2: dim → Pas → danger).
+  /// Kept for API stability (dim → Pas → danger, no warn stage).
   final Duration warnBefore;
   final Duration dangerBefore;
   final VoidCallback? onExpired;
 
-  /// The viewer has to act: Pas 600.
+  /// The viewer has to act: Pas 700.
   final bool yourMove;
 
   /// What expires, for screen readers ("Teklif", "Onay").
@@ -217,6 +223,13 @@ class _CountdownBadgeState extends State<CountdownBadge> {
     final left = widget.deadline.difference(TrTime.now());
     final expired = left.inSeconds <= 0;
     final urgent = !expired && left <= widget.dangerBefore;
+    final phase = expired
+        ? 'expired'
+        : urgent
+        ? 'urgent'
+        : widget.yourMove
+        ? 'yourMove'
+        : 'calm';
     final color = expired
         ? c.dim
         : urgent
@@ -225,9 +238,13 @@ class _CountdownBadgeState extends State<CountdownBadge> {
         ? c.brandInk
         : c.dim;
     final weight = !expired && (urgent || widget.yourMove)
-        ? FontWeight.w600
+        ? FontWeight.w700
         : FontWeight.w500;
-    final style = t.bodySmall.copyWith(color: color, fontWeight: weight);
+    final style = t.bodySmall.copyWith(
+      color: color,
+      fontWeight: weight,
+      fontFeatures: AknNumerals.tabular,
+    );
     final text = expired ? widget.expiredLabel : _text(left);
     final scaler = MediaQuery.textScalerOf(context);
     final iconSize = scaler.scale(17).clamp(17.0, 34.0);
@@ -236,15 +253,38 @@ class _CountdownBadgeState extends State<CountdownBadge> {
         ? '${subject == null ? '' : '$subject, '}${widget.expiredLabel}'
         : '${subject == null ? '' : '$subject '}'
               '${CountdownBadge.spoken(left)} içinde sona eriyor';
-    final icon = Icon(
+    Widget icon = Icon(
       expired
-          ? Icons.timer_off_outlined
+          ? PhosphorIconsRegular.hourglassLow
           : urgent
-          ? Icons.timer_rounded
-          : Icons.timer_outlined,
+          ? PhosphorIconsFill.timer
+          : PhosphorIconsRegular.timer,
       size: iconSize,
       color: color,
     );
+    if (urgent) {
+      // Under 30 minutes the timer breathes on a soft danger halo.
+      final halo = c.danger.bg;
+      icon = RepaintBoundary(
+        child: AknAmbient(
+          period: AknMotion.breathe,
+          reverse: true,
+          child: icon,
+          builder: (context, b, child) => DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: halo.withValues(alpha: b),
+                  spreadRadius: 2 + 3 * b,
+                ),
+              ],
+            ),
+            child: Transform.scale(scale: 1 + 0.12 * b, child: child),
+          ),
+        ),
+      );
+    }
     return Semantics(
       label: spoken,
       excludeSemantics: true,
@@ -266,24 +306,31 @@ class _CountdownBadgeState extends State<CountdownBadge> {
           final min = constraints.hasBoundedWidth
               ? box.clamp(0.0, constraints.maxWidth)
               : box;
+          // A new phase (Pas → danger → expired) fades through with a
+          // small settle; the minutes tick in place.
           return ConstrainedBox(
             constraints: BoxConstraints(minWidth: min),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                icon,
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    text,
-                    style: style,
-                    textAlign: TextAlign.end,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            child: FadeThroughSwitcher(
+              duration: AknMotion.slow,
+              alignment: AlignmentDirectional.centerEnd,
+              child: Row(
+                key: ValueKey(phase),
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  icon,
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      text,
+                      style: style,
+                      textAlign: TextAlign.end,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         },
@@ -292,8 +339,10 @@ class _CountdownBadgeState extends State<CountdownBadge> {
   }
 }
 
-/// Initials avatar (§6.28): a Beton circle with ink initials 600 (no hue
-/// tints), or an image when given.
+/// Initials avatar (design v3 §4): a circle with a soft warm gradient
+/// (`brandSoft` → `plateIconFill`, a hairline `brandLine` ring) and the
+/// initials in Pas (`brandInk`) 800 — or an image when given. An explicit
+/// [tone] tints it with that tone's well instead.
 class AknAvatar extends StatelessWidget {
   const AknAvatar({
     super.key,
@@ -307,7 +356,8 @@ class AknAvatar extends StatelessWidget {
   final double size;
   final ImageProvider? image;
 
-  /// Kept for API stability (v2 avatars have no tints).
+  /// Tints the avatar with this tone's well and text colour (null: the warm
+  /// brand gradient).
   final AknTone? tone;
 
   static const _tints = [
@@ -318,7 +368,7 @@ class AknAvatar extends StatelessWidget {
     AknTone.neutral,
   ];
 
-  /// A stable tone per name (kept for API stability; v2 draws no tint).
+  /// A stable tone per name (pass it as [tone] for per-person tints).
   static AknTone toneFor(String name) {
     var h = 0;
     for (final r in TurkishText.searchKey(name).runes) {
@@ -331,6 +381,9 @@ class AknAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final initials = TurkishText.initials(name);
+    final tn = tone;
+    final tc = tn == null ? null : c.tone(tn);
+    final ink = tc?.fg ?? c.brandInk;
     return Semantics(
       label: name,
       image: true,
@@ -339,8 +392,17 @@ class AknAvatar extends StatelessWidget {
         width: size,
         height: size,
         decoration: BoxDecoration(
-          color: c.surfaceAlt,
           shape: BoxShape.circle,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: tc == null
+                ? [c.brandSoft, c.plateIconFill]
+                : [tc.bg, Color.lerp(tc.bg, tc.line, 0.6)!],
+          ),
+          border: Border.all(
+            color: (tc?.line ?? c.brandLine).withValues(alpha: 0.7),
+          ),
           image: image == null
               ? null
               : DecorationImage(image: image!, fit: BoxFit.cover),
@@ -352,11 +414,11 @@ class AknAvatar extends StatelessWidget {
                 initials,
                 textScaler: TextScaler.noScaling,
                 style: context.aknText.label.copyWith(
-                  color: c.ink,
+                  color: ink,
                   fontSize: size * 0.38,
                   height: 1,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.2,
                 ),
               ),
       ),

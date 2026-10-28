@@ -19,8 +19,10 @@ import 'form_wizard_steps.dart';
 import 'widgets/field_inputs.dart';
 
 /// Saha formu v2 sihirbazı (spec A.3 F2–F3; tam ekran, açık "Kapat"). Adımlar: Cari → Tedarik → Ödeme
-/// → Satırlar → Özet. Canlı önizleme alt şeritte; "Kaydet" çevrimdışı güvenli, "Onaya gönder" bağlantı
-/// ister.
+/// → Satırlar → Özet. Tasarım v3: adım şeridi kayarak ilerler, adımlar yatay ortak eksende (ileri
+/// sağdan, geri soldan) geçer ve alanlar sırayla belirir; alt çubukta "Geri" yana açılarak gelir,
+/// birincil düğme "İleri" ↔ "Onaya gönder" yaylanarak değişir. Canlı önizleme alt şeritte; "Kaydet"
+/// çevrimdışı güvenli, "Onaya gönder" bağlantı ister.
 class FieldFormWizardPage extends ConsumerStatefulWidget {
   const FieldFormWizardPage({super.key, required this.args});
 
@@ -91,7 +93,7 @@ class _FieldFormWizardPageState extends ConsumerState<FieldFormWizardPage> {
           showBell: false,
           automaticallyImplyLeading: false,
           leading: AknIconButton(
-            icon: Icons.close_rounded,
+            icon: PhosphorIconsRegular.x,
             semanticLabel: 'Kapat',
             onPressed: () => Navigator.of(context).pop(),
           ),
@@ -115,7 +117,7 @@ class _FieldFormWizardPageState extends ConsumerState<FieldFormWizardPage> {
         showBell: false,
         automaticallyImplyLeading: false,
         leading: AknIconButton(
-          icon: Icons.close_rounded,
+          icon: PhosphorIconsRegular.x,
           semanticLabel: 'Sihirbazı kapat',
           onPressed: _close,
         ),
@@ -192,70 +194,76 @@ class _BottomBar extends ConsumerWidget {
     final t = context.aknText;
     final showStrip =
         s.options != null && s.step != FieldWizardStep.customer && !last;
+    final left = last
+        ? AknButton.secondary(
+            label: 'Taslak kaydet',
+            expand: true,
+            loading: s.busy && s.busyLabel == 'Kaydediliyor',
+            onPressed: s.busy ? null : ctrl.saveDraft,
+          )
+        : s.step.index > 0
+        ? AknButton.secondary(
+            label: 'Geri',
+            expand: true,
+            onPressed: s.busy ? null : ctrl.back,
+          )
+        : null;
+    final primary = last
+        ? AknButton(
+            label: 'Onaya gönder',
+            icon: PhosphorIconsRegular.paperPlaneRight,
+            expand: true,
+            loading: s.busy && s.busyLabel != 'Kaydediliyor',
+            onPressed: s.busy || !online ? null : onSubmit,
+          )
+        : AknButton(
+            label: 'İleri',
+            trailingIcon: PhosphorIconsRegular.arrowRight,
+            expand: true,
+            onPressed: s.busy ? null : () => ctrl.next(),
+          );
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (showStrip) FieldPreviewStrip(args: args),
-        if (s.busy && s.busyLabel != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Semantics(
-              liveRegion: true,
-              child: Text(
-                s.busyLabel!,
-                style: t.caption,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-        if (last && !online)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Çevrimdışısınız: taslağı kaydedebilirsiniz; göndermek için bağlantı gerekir.',
-              style: t.caption,
-              textAlign: TextAlign.center,
-            ),
-          ),
-        Row(
-          children: [
-            if (s.step.index > 0 && !last)
-              Expanded(
-                child: AknButton.secondary(
-                  label: 'Geri',
-                  expand: true,
-                  onPressed: s.busy ? null : ctrl.back,
-                ),
-              ),
-            if (last)
-              Expanded(
-                child: AknButton.secondary(
-                  label: 'Taslak kaydet',
-                  expand: true,
-                  loading: s.busy && s.busyLabel == 'Kaydediliyor',
-                  onPressed: s.busy ? null : ctrl.saveDraft,
-                ),
-              ),
-            if (s.step.index > 0 || last) const SizedBox(width: 12),
-            Expanded(
-              child: last
-                  ? AknButton(
-                      label: 'Onaya gönder',
-                      icon: Icons.send_rounded,
-                      expand: true,
-                      loading: s.busy && s.busyLabel != 'Kaydediliyor',
-                      onPressed: s.busy || !online ? null : onSubmit,
-                    )
-                  : AknButton(
-                      label: 'İleri',
-                      trailingIcon: Icons.arrow_forward_rounded,
-                      expand: true,
-                      onPressed: s.busy ? null : () => ctrl.next(),
-                    ),
-            ),
-          ],
+        AknAnimatedSize(
+          alignment: Alignment.bottomCenter,
+          child: showStrip
+              ? FieldPreviewStrip(args: args)
+              : const SizedBox(width: double.infinity),
         ),
+        AknAnimatedSize(
+          alignment: Alignment.bottomCenter,
+          child: !(s.busy && s.busyLabel != null) && !(last && !online)
+              ? const SizedBox(width: double.infinity)
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (s.busy && s.busyLabel != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            s.busyLabel!,
+                            style: t.caption,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    if (last && !online)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'Çevrimdışısınız: taslağı kaydedebilirsiniz; göndermek için bağlantı gerekir.',
+                          style: t.caption,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        FieldWizardButtons(stepKey: last, left: left, primary: primary),
       ],
     );
   }
@@ -349,7 +357,7 @@ class _QueuedOutcome extends ConsumerWidget {
         title: 'Taslak gönderilemedi',
         message: op.lastError ?? 'Sunucu taslağı kabul etmedi.',
         tone: AknTone.danger,
-        icon: Icons.error_outline_rounded,
+        icon: PhosphorIconsRegular.warningCircle,
         primaryLabel: 'Düzelt',
         onPrimary: () =>
             context.pushReplacement('${AppRoutes.fieldFormNew}?op=$opId'),
@@ -363,7 +371,7 @@ class _QueuedOutcome extends ConsumerWidget {
           ? '${FieldCopy.queuedFormMessage} Onaya göndermek için bağlantı gelince formu açın.'
           : FieldCopy.queuedFormMessage,
       tone: AknTone.warn,
-      icon: Icons.schedule_rounded,
+      icon: PhosphorIconsRegular.clock,
       primaryLabel: 'Tamam',
       onPrimary: close,
     );
@@ -392,7 +400,7 @@ class _SubmittedOutcome extends StatelessWidget {
       FieldOrderFormStatus.rejected => (
         'Form reddedildi',
         AknTone.danger,
-        Icons.cancel_rounded,
+        PhosphorIconsFill.xCircle,
         result.message.isNotEmpty
             ? result.message
             : 'Form kârlılık kuralı gereği otomatik reddedildi.',
@@ -400,13 +408,13 @@ class _SubmittedOutcome extends StatelessWidget {
       FieldOrderFormStatus.approved => (
         'Kârlılık onayı tamam',
         AknTone.info,
-        Icons.account_balance_outlined,
+        PhosphorIconsRegular.bank,
         'Finans onayı bekleniyor. Finans onaylayınca siparişler otomatik açılır.',
       ),
       _ => (
         'Onaya gönderildi',
         AknTone.info,
-        Icons.hourglass_top_rounded,
+        PhosphorIconsRegular.hourglassHigh,
         [
           FieldLevels.waitingText(result.requiredApprovalLevel),
           if (result.financeStatus.isAwaitingDecision)

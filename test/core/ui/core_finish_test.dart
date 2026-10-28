@@ -1,7 +1,8 @@
-// Design v2 core finish (work/akn-design-v2.md §5.1, §6.4, §6.6–§6.13, §6.22, §6.28): plate readout
-// columns like the board's CSS grid, the countdown's icon hugging its text, section actions on the
-// right edge, top tabs on the 20 px edge, fact rows that reflow, full-width row footers, the password
-// field's "Göster" control, the static toast card and absolute deltas on readout tiles.
+// Design v3 "Akış" core finish (§4 components): plate readout columns like the board's CSS grid,
+// the countdown's icon hugging its text, section actions on the right edge, top tabs on the 20 px
+// edge with count pills, fact rows that reflow, full-width row footers, the password field's
+// "Göster" control, the inverse toast card, absolute deltas on readout tiles and the bottom bar's
+// pill under the active item.
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:flutter/material.dart';
@@ -83,7 +84,7 @@ void main() {
       ),
       size: const Size(390, 300),
     );
-    final icon = tester.getRect(find.byIcon(Icons.timer_outlined));
+    final icon = tester.getRect(find.byIcon(PhosphorIconsRegular.timer));
     final text = tester.getRect(find.textContaining('dk kaldı'));
     expect(text.left - icon.right, closeTo(5, 0.5));
     expect(text.right, closeTo(390, 0.5));
@@ -101,7 +102,9 @@ void main() {
       ),
       size: const Size(390, 300),
     );
-    final chevron = tester.getRect(find.byIcon(Icons.chevron_right_rounded));
+    final chevron = tester.getRect(
+      find.byIcon(PhosphorIconsRegular.caretRight),
+    );
     // Padding right 12: the chevron box ends 12 from the edge.
     expect(chevron.right, closeTo(390 - 12, 0.5));
   });
@@ -122,7 +125,7 @@ void main() {
     expect(text.textScaler.scale(20), 32);
   });
 
-  testWidgets('top tabs: the first label on the 20 px edge, counts in 500', (
+  testWidgets('top tabs: the first label on the 20 px edge, counts in pills', (
     tester,
   ) async {
     await pumpUi(
@@ -142,6 +145,26 @@ void main() {
       size: const Size(390, 300),
     );
     expect(tester.getTopLeft(find.byType(AknTab).first).dx, closeTo(20, 0.5));
+    // v3 §4 Tabs: the count follows the label in a `surfaceAlt` pill, in
+    // tabular figures.
+    final pill = tester.widget<DecoratedBox>(
+      find
+          .ancestor(of: find.text('4'), matching: find.byType(DecoratedBox))
+          .first,
+    );
+    expect(
+      (pill.decoration as BoxDecoration).color,
+      AknColors.light.surfaceAlt,
+    );
+    expect((pill.decoration as BoxDecoration).borderRadius, AknRadius.pillAll);
+    expect(
+      tester.widget<Text>(find.text('4')).style!.fontFeatures,
+      contains(const FontFeature.tabularFigures()),
+    );
+    expect(
+      tester.getTopLeft(find.text('4')).dx,
+      greaterThan(tester.getTopRight(find.text('Aktif')).dx),
+    );
     final handle = tester.ensureSemantics();
     await tester.pump();
     expect(find.bySemanticsLabel(RegExp('Aktif, 4')), findsOneWidget);
@@ -165,7 +188,7 @@ void main() {
       await pumpUi(
         tester,
         const FactRow(
-          icon: Icons.door_front_door_outlined,
+          icon: PhosphorIconsRegular.door,
           label: 'Kapı notu',
           value: 'Ana kapıda güvenliğe plakayı bildirin; tank arka avluda.',
         ),
@@ -258,7 +281,7 @@ void main() {
       find.text('Teklif onaylandı. Bayi sevkiyatı planlayacak.'),
     );
     expect(text.style!.color, c.onInverse);
-    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsFill.checkCircle), findsOneWidget);
   });
 
   testWidgets('readout tile: an absolute change ("▲ 0,38") and "aynı"', (
@@ -295,7 +318,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('bottom bar: 6 px side inset, the needle over the active item', (
+  testWidgets('bottom bar: 6 px side inset, the pill under the active item', (
     tester,
   ) async {
     await pumpUi(
@@ -306,11 +329,14 @@ void main() {
           currentIndex: 4,
           onSelected: (_) {},
           items: const [
-            AknNavItem(icon: Icons.home_outlined, label: 'Ana sayfa'),
-            AknNavItem(icon: Icons.task_alt_outlined, label: 'Onaylarım'),
-            AknNavItem(icon: Icons.request_quote_outlined, label: 'Teklif'),
-            AknNavItem(icon: Icons.receipt_long_outlined, label: 'Siparişler'),
-            AknNavItem(icon: Icons.menu_rounded, label: 'Diğer'),
+            AknNavItem(icon: PhosphorIconsRegular.house, label: 'Ana sayfa'),
+            AknNavItem(
+              icon: PhosphorIconsRegular.checkCircle,
+              label: 'Onaylarım',
+            ),
+            AknNavItem(icon: PhosphorIconsRegular.invoice, label: 'Teklif'),
+            AknNavItem(icon: PhosphorIconsRegular.receipt, label: 'Siparişler'),
+            AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
           ],
         ),
       ),
@@ -320,14 +346,26 @@ void main() {
     // Five slots over 390 − 12: the first label centres at 6 + 75.6 / 2.
     final first = tester.getCenter(find.text('Ana sayfa')).dx;
     expect(first, closeTo(6 + (390 - 12) / 10, 0.5));
-    final needle = find.byWidgetPredicate(
-      (w) =>
-          w is DecoratedBox &&
-          w.decoration is BoxDecoration &&
-          (w.decoration as BoxDecoration).color == AknColors.light.logo,
+    // v3 §4: the 56 × 32 `brandSoft` pill sits behind the active item
+    // ("Diğer", the fifth slot), 10 px under the top.
+    final pill = find.descendant(
+      of: find.byType(AnimatedBottomBar),
+      matching: find.byType(CustomPaint),
+    );
+    const slot = (390 - 12) / 5;
+    expect(
+      pill,
+      paints..rrect(
+        rrect: RRect.fromRectAndRadius(
+          const Rect.fromLTWH(slot * 4.5 - 28, 10, 56, 32),
+          const Radius.circular(16),
+        ),
+        color: AknColors.light.brandSoft,
+      ),
     );
     final diger = tester.getCenter(find.text('Diğer')).dx;
-    expect((tester.getCenter(needle).dx - diger).abs(), lessThan(0.5));
+    final centre = tester.getTopLeft(pill).dx + slot * 4.5;
+    expect((centre - diger).abs(), lessThan(0.5));
   });
 
   testWidgets('plate head: the ⋯ button is a 48 dp target', (tester) async {
@@ -337,7 +375,7 @@ void main() {
         padding: const EdgeInsets.all(20),
         child: AknPlate(
           head: PlateHead(
-            icon: Icons.bar_chart_rounded,
+            icon: PhosphorIconsRegular.chartBar,
             title: 'Satış',
             period: '1–21 Ekim',
             onMore: () {},

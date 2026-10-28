@@ -27,10 +27,11 @@ bool canChangeInstruments(AccessPolicy p) =>
     (p.hasCap(Caps.paymentInstrumentManage) ||
         p.hasCap(Caps.paymentStatusUpdate));
 
-/// Tahsilat (spec A.4 A5; tasarım v2 §7.7, §7.14): kök başlık, "Ödemeler" ve "Çek / senet"
-/// sekmeleri, arama kuyusu, tek satır süzgeç çipleri ve ledger satırları. Ödemeler: geciken, cari ve
-/// durum süzgeçleri; portföy: durum ve tür süzgeçleri, vadeleriyle. Satıra dokununca ödeme ayrıntısı
-/// ya da belge sayfası açılır.
+/// Tahsilat (spec A.4 A5; tasarım v3 "Akış"): kök başlık, "Ödemeler" ve "Çek / senet" sekmeleri
+/// (sekme değişince içerik solarak geçer), arama kuyusu, tek satır süzgeç çipleri ve beyaz kartlar
+/// (art arda yükselerek gelir, süzgeç değişince yeniden). Ödemeler: geciken, cari ve durum
+/// süzgeçleri; portföy: durum ve tür süzgeçleri, vadeleriyle. Karta dokununca ödeme ayrıntısı ya da
+/// belge sayfası açılır.
 class PaymentsPage extends ConsumerStatefulWidget {
   const PaymentsPage({super.key, this.initialTab = PaymentsTab.payments});
 
@@ -90,7 +91,10 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
           if (count != null)
             TextSpan(
               text: ' $count',
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontFeatures: AknNumerals.tabular,
+              ),
             ),
         ],
       ),
@@ -153,7 +157,7 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
     String hint,
     ValueChanged<String> on,
   ) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
     child: SearchField(controller: ctrl, hint: hint, onChanged: on),
   );
 
@@ -172,8 +176,8 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
       staggerKey: q,
       onRefresh: ctrl.refresh,
       onLoadMore: () => unawaited(ctrl.loadMore()),
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
-      itemSpacing: 0,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+      itemSpacing: 12,
       header: [
         _search(
           _paySearch,
@@ -187,7 +191,7 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
               label: customer == null
                   ? PaymentsCopy.allCustomers
                   : 'Cari: ${customer.title}',
-              icon: Icons.unfold_more_rounded,
+              icon: PhosphorIconsRegular.caretUpDown,
               selected: customer != null,
               semanticLabel: customer == null
                   ? 'Cari süzgeci: tüm cariler. Cari seçmek için dokunun.'
@@ -251,8 +255,8 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
       staggerKey: q,
       onRefresh: ctrl.refresh,
       onLoadMore: () => unawaited(ctrl.loadMore()),
-      padding: const EdgeInsets.only(top: 4, bottom: 8),
-      itemSpacing: 0,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 8),
+      itemSpacing: 12,
       header: [
         _search(
           _insSearch,

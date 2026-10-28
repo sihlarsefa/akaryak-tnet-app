@@ -19,12 +19,12 @@ class WeatherCondition {
       return isDay
           ? const WeatherCondition(
               'Açık',
-              Icons.wb_sunny_rounded,
+              PhosphorIconsRegular.sun,
               AknTone.brand,
             )
           : const WeatherCondition(
               'Açık',
-              Icons.nightlight_round,
+              PhosphorIconsRegular.moon,
               AknTone.neutral,
             );
     }
@@ -32,98 +32,102 @@ class WeatherCondition {
       return isDay
           ? const WeatherCondition(
               'Az bulutlu',
-              Icons.wb_sunny_rounded,
+              PhosphorIconsRegular.sun,
               AknTone.brand,
             )
           : const WeatherCondition(
               'Az bulutlu',
-              Icons.nightlight_round,
+              PhosphorIconsRegular.moon,
               AknTone.neutral,
             );
     }
     if (code == 2) {
       return const WeatherCondition(
         'Parçalı bulutlu',
-        Icons.wb_cloudy_rounded,
+        PhosphorIconsRegular.cloudSun,
         AknTone.neutral,
       );
     }
     if (code == 3) {
       return const WeatherCondition(
         'Kapalı',
-        Icons.cloud_rounded,
+        PhosphorIconsRegular.cloud,
         AknTone.neutral,
       );
     }
     if (code == 45 || code == 48) {
-      return const WeatherCondition('Sisli', Icons.foggy, AknTone.neutral);
+      return const WeatherCondition(
+        'Sisli',
+        PhosphorIconsRegular.cloudFog,
+        AknTone.neutral,
+      );
     }
     if (code >= 51 && code <= 55) {
       return const WeatherCondition(
         'Çiseleme',
-        Icons.grain_rounded,
+        PhosphorIconsRegular.cloudRain,
         AknTone.info,
       );
     }
     if (code == 56 || code == 57 || code == 66 || code == 67) {
       return const WeatherCondition(
         'Dondurucu yağmur',
-        Icons.ac_unit_rounded,
+        PhosphorIconsRegular.snowflake,
         AknTone.info,
       );
     }
     if (code == 61) {
       return const WeatherCondition(
         'Hafif yağmur',
-        Icons.water_drop_rounded,
+        PhosphorIconsRegular.cloudRain,
         AknTone.info,
       );
     }
     if (code == 63) {
       return const WeatherCondition(
         'Yağmurlu',
-        Icons.water_drop_rounded,
+        PhosphorIconsRegular.cloudRain,
         AknTone.info,
       );
     }
     if (code == 65) {
       return const WeatherCondition(
         'Kuvvetli yağmur',
-        Icons.water_drop_rounded,
+        PhosphorIconsRegular.cloudRain,
         AknTone.info,
       );
     }
     if (code >= 71 && code <= 77) {
       return const WeatherCondition(
         'Karlı',
-        Icons.ac_unit_rounded,
+        PhosphorIconsRegular.snowflake,
         AknTone.info,
       );
     }
     if (code >= 80 && code <= 82) {
       return const WeatherCondition(
         'Sağanak',
-        Icons.water_drop_rounded,
+        PhosphorIconsRegular.cloudRain,
         AknTone.info,
       );
     }
     if (code == 85 || code == 86) {
       return const WeatherCondition(
         'Kar sağanağı',
-        Icons.ac_unit_rounded,
+        PhosphorIconsRegular.snowflake,
         AknTone.info,
       );
     }
     if (code >= 95) {
       return const WeatherCondition(
         'Gök gürültülü',
-        Icons.thunderstorm_rounded,
+        PhosphorIconsRegular.cloudLightning,
         AknTone.warn,
       );
     }
     return const WeatherCondition(
       'Bulutlu',
-      Icons.cloud_rounded,
+      PhosphorIconsRegular.cloud,
       AknTone.neutral,
     );
   }

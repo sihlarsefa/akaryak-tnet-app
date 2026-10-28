@@ -23,6 +23,14 @@ void main() {
     ValueKey('order-row-${env.world.orders.firstWhere(test)['id']}'),
   );
 
+  /// Kart başlığı. Başlık satıra sığmayınca sayı ile birim arasındaki boşluk bölünmez boşluk
+  /// (U+00A0) olur ("Motorin," / "8.000 L" kırılır, `keepUnits`); görünüm aynı olduğundan iki
+  /// boşluk da eşleşir.
+  Finder titleText(String text) => find.byWidgetPredicate(
+    (w) => w is Text && w.data?.replaceAll('\u00A0', ' ') == text,
+    description: 'başlık "$text" (U+00A0 boşluk sayılır)',
+  );
+
   Future<ProviderContainer> open(
     WidgetTester tester, {
     String location = '/orders?segment=decision',
@@ -84,13 +92,13 @@ void main() {
   );
 
   testWidgets(
-    'ledger satırı (v2): ürün + litre başlık, izleyiciye göre lamba, geri sayım; sekme sayısı ve dip cümlesi',
+    'sipariş kartı (v3): ürün + litre başlık, izleyiciye göre lamba, geri sayım; sekme sayısı ve dip cümlesi',
     (tester) async {
       final decision = rowOf((o) => o['status'] == 2);
       await open(tester, waitFor: decision);
       final row = find.descendant(of: decision, matching: find.byType(Text));
       expect(
-        find.descendant(of: decision, matching: find.text('Motorin, 8.000 L')),
+        find.descendant(of: decision, matching: titleText('Motorin, 8.000 L')),
         findsOneWidget,
       );
       expect(row, findsWidgets);
@@ -137,6 +145,16 @@ void main() {
         find.descendant(of: transit, matching: find.byType(TruckRoute)),
         findsOneWidget,
         reason: 'yoldaki siparişte rota çizgisi',
+      );
+      // v3 kartları daha yüksek: dip cümlesi listenin sonunda, ilk ekranın altında kalır.
+      final list = find
+          .ancestor(of: transit, matching: find.byType(Scrollable))
+          .evaluate()
+          .first;
+      await tester.scrollUntilVisible(
+        find.text(OrdersCopy.activeFooter),
+        200,
+        scrollable: find.byElementPredicate((e) => identical(e, list)),
       );
       expect(find.text(OrdersCopy.activeFooter), findsOneWidget);
       await tearDownUi(tester);

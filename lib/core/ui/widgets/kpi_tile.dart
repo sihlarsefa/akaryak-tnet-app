@@ -1,23 +1,29 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../utils/format.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
+import 'animated_number.dart';
+import 'cards.dart';
 import 'skeletons.dart';
-import 'triangle_glyph.dart';
 
-/// A readout (design v2 §6.9): label 13/16 500 dim over the value in
-/// `number` (Condensed 24/28 700), with an optional delta after it (a drawn
-/// ▲ / ▼ and 13/18 500 text). No card, no icon box, no shadow, no count-up —
-/// the final value renders at once (only the plate rolls).
+/// A KPI tile (design v3 §4 "KPI tiles"): a white card (radius 20, the soft
+/// card shadow) with the label in `caption` dim over the value in `number`
+/// (24/30 800, tabular) that counts up when it appears ([AnimatedNumber]),
+/// an optional unit (`readoutUnit`) and a delta chip under it (a drawn ▲ /
+/// ▼ and the change, 12/16 700) that pops in after the count.
 ///
-/// The delta takes the ok / danger colour only when it is known whether a
-/// rise is good for the viewer ([positiveIsGood] set); otherwise it is dim.
-/// The value scales down in its column instead of wrapping mid-number.
+/// The delta takes the ok / danger colours only when it is known whether a
+/// rise is good for the viewer ([positiveIsGood] set); otherwise it is a
+/// neutral chip. On a card, a sheet or the hero card the tile is a quiet
+/// well instead of a card; inside a [KpiRow] the row draws the cell. The
+/// value scales down in its column instead of wrapping mid-number.
 ///
-/// [icon] and [tone] are kept for API stability and ignored (no icon boxes
-/// in v2).
+/// [icon] and [tone] are kept for API stability and ignored.
 class KpiTile extends StatelessWidget {
   const KpiTile({
     super.key,
@@ -46,10 +52,10 @@ class KpiTile extends StatelessWidget {
   /// `Fmt.moneyCompact`, `Fmt.liters`.
   final String Function(num value)? format;
 
-  /// Ignored in v2 (no icon boxes).
+  /// Ignored (no icon boxes on KPI tiles).
   final IconData? icon;
 
-  /// Ignored in v2 (readouts carry no tint).
+  /// Ignored (KPI tiles carry no tint).
   final AknTone? tone;
 
   /// Change in percent (12.5 = +%12,5).
@@ -58,17 +64,17 @@ class KpiTile extends StatelessWidget {
   /// Text after the delta ("geçen aya göre"); also the caption line.
   final String? trendLabel;
 
-  /// Whether a rise is good for the viewer; null = unknown (dim delta).
+  /// Whether a rise is good for the viewer; null = unknown (neutral delta).
   final bool? positiveIsGood;
   final String? caption;
   final VoidCallback? onTap;
   final bool loading;
   final String? semanticLabel;
 
-  /// A unit after the value in `readoutUnit` (16/28): "L", "₺/L".
+  /// A unit after the value in `readoutUnit` (14/30 700): "L", "₺/L".
   final String? unit;
 
-  /// Formats the absolute [trend] next to the value; defaults to a percent
+  /// Formats the absolute [trend] in the delta chip; defaults to a percent
   /// ("%12,5"). The Tüpraş strip shows lira: `(v) => Fmt.number(v,
   /// minFraction: 2, maxFraction: 2)` → "▲ 0,38". A zero change reads
   /// "aynı".
@@ -83,65 +89,90 @@ class KpiTile extends StatelessWidget {
     final v = value;
     final display = v == null ? Fmt.dash : _fmt(v);
     final trendValue = trend;
-    final labelStyle = t.label.copyWith(height: 16 / 13, color: c.dim);
+    final inRow = _KpiCellScope.isOn(context);
+    final well = inRow
+        ? _KpiCellScope.wellOf(context)
+        : AknCardScope.onSurface(context);
+    final labelStyle = t.caption.copyWith(color: c.dim);
     final valueStyle = t.number.copyWith(color: c.ink);
-    final unitStyle = t.readoutUnit.copyWith(color: c.ink);
+    final unitStyle = t.readoutUnit.copyWith(
+      height: 1.2,
+      color: c.dim,
+      fontWeight: FontWeight.w700,
+    );
     Widget? delta;
     if (trendValue != null) {
       final up = trendValue > 0;
       final flat = trendValue == 0;
       final good = flat || positiveIsGood == null ? null : up == positiveIsGood;
-      final color = good == null
-          ? c.dim
+      final onPlate = OnHero.isOn(context);
+      final (Color bg, Color fg) = good == null
+          ? onPlate
+                ? (c.plateIconFill, c.brandInk)
+                : (well ? c.surface : c.surfaceAlt, flat ? c.dim : c.ink)
           : good
-          ? c.ok.fg
-          : c.danger.fg;
-      final style = t.label.copyWith(color: color);
-      delta = Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (!flat) ...[
-            TriangleGlyph.small(down: !up, color: color),
-            const SizedBox(width: 3),
-          ],
-          Text(
-            flat ? 'aynı' : (trendFormat ?? Fmt.percent)(trendValue.abs()),
-            style: style,
-            maxLines: 1,
-            softWrap: false,
+          ? (c.ok.bg, c.ok.fg)
+          : (c.danger.bg, c.danger.fg);
+      final style = t.captionStrong.copyWith(
+        color: fg,
+        fontFeatures: AknNumerals.tabular,
+      );
+      delta = _PopIn(
+        delay: AknMotion.count * 0.6,
+        handoff: ('KpiTile.delta', label, trendValue),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 2, 7, 2),
+          decoration: BoxDecoration(color: bg, borderRadius: AknRadius.tag),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!flat) ...[
+                TriangleGlyph.small(down: !up, color: fg),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  flat
+                      ? 'aynı'
+                      : (trendFormat ?? Fmt.percent)(trendValue.abs()),
+                  style: style,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.fade,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       );
     }
+    final hasUnit = v != null && unit != null && unit!.isNotEmpty;
     final valueLine = FittedBox(
       fit: BoxFit.scaleDown,
       alignment: AlignmentDirectional.centerStart,
-      // The change sits at the foot of the value ("41,92 ▲ 0,38"); bottom
-      // alignment puts both baselines within a pixel (Mona's metrics) and,
-      // unlike baseline alignment, works inside the row's IntrinsicHeight.
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.baseline,
+        textBaseline: TextBaseline.alphabetic,
         children: [
-          Text.rich(
-            TextSpan(
-              text: display,
+          if (v == null)
+            Text(display, style: valueStyle, maxLines: 1, softWrap: false)
+          else
+            AnimatedNumber(
+              value: v,
+              format: _fmt,
               style: valueStyle,
-              children: [
-                if (unit != null && unit!.isNotEmpty)
-                  TextSpan(text: ' $unit', style: unitStyle),
-              ],
+              semanticsLabel: display,
             ),
-            maxLines: 1,
-            softWrap: false,
-          ),
-          if (delta != null) ...[const SizedBox(width: 5), delta],
+          if (hasUnit) ...[
+            const SizedBox(width: AknNumerals.readoutUnitGap),
+            Text(unit!, style: unitStyle, maxLines: 1, softWrap: false),
+          ],
         ],
       ),
     );
     final note = trendLabel ?? caption;
-    final Widget body = Column(
+    Widget body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -151,19 +182,24 @@ class KpiTile extends StatelessWidget {
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 2),
-        if (loading) const SkeletonBox(width: 96, height: 28) else valueLine,
+        const SizedBox(height: 6),
+        if (loading)
+          const SkeletonBox(width: 72, height: 28, radius: 8)
+        else
+          valueLine,
+        if (delta != null && !loading) ...[const SizedBox(height: 8), delta],
         if (note != null && note.isNotEmpty) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
             note,
-            style: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
+            style: t.caption.copyWith(color: c.dim),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
         ],
       ],
     );
+    if (!inRow) body = _KpiCell(well: well, child: body);
     final trendText = trendValue == null
         ? ''
         : trendValue == 0
@@ -195,12 +231,16 @@ class KpiTile extends StatelessWidget {
   }
 }
 
-/// A row of readouts (design v2 §6.9) on the Tüpraş-strip model: a top
-/// hairline, then equal columns separated by 1 px vertical hairlines, 12 px
-/// inner padding (no padding before the first column). Two columns per line
-/// below 340 px or at text scale ≥ 1.3; at ≥ 1.6× one per line when a column
-/// would be narrower than [minTileWidth], so labels wrap at word boundaries
-/// instead of breaking mid-word (WCAG 1.4.10).
+/// A row of KPI tiles (design v3 §4): equal columns [spacing] (12) apart,
+/// each cell a white card (radius 20, the soft card shadow; dark: a 1 px
+/// `line`) — or, on a card, a sheet or the hero card, a quiet well
+/// (`surfaceAlt`, radius 16) — with equal heights per line. Two cells per
+/// line below 340 px or at text scale ≥ 1.3 (with more than two); at ≥ 1.6×
+/// one per line when a cell would be narrower than [minTileWidth], so
+/// labels wrap at word boundaries instead of breaking mid-word (WCAG
+/// 1.4.10).
+///
+/// Any widget can be a cell; [KpiTile]s inside draw no card of their own.
 class KpiRow extends StatelessWidget {
   const KpiRow({
     super.key,
@@ -212,19 +252,19 @@ class KpiRow extends StatelessWidget {
 
   final List<Widget> children;
 
-  /// Inner padding after each hairline.
+  /// The gap between two cells (and two lines).
   final double spacing;
 
-  /// Below this column width at very large text, one column per line.
+  /// Below this cell width at very large text, one cell per line.
   final double minTileWidth;
 
-  /// The hairline on top of the row (the strip's edge).
+  /// Ignored (the cells are cards; there is no strip edge any more).
   final bool topLine;
 
   @override
   Widget build(BuildContext context) {
-    final c = context.akn;
     final scale = MediaQuery.textScalerOf(context).scale(10) / 10;
+    final well = AknCardScope.onSurface(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final n = children.length;
@@ -242,43 +282,27 @@ class KpiRow extends StatelessWidget {
           final end = (start + perLine).clamp(0, n);
           final cells = <Widget>[];
           for (var i = start; i < start + perLine; i++) {
-            final first = i == start;
+            if (i > start) cells.add(SizedBox(width: spacing));
             cells.add(
               Expanded(
-                child: Container(
-                  padding: EdgeInsetsDirectional.only(
-                    start: first ? 0 : spacing,
-                    top: 8,
-                    end: 4,
-                  ),
-                  decoration: first
-                      ? null
-                      : BoxDecoration(
-                          border: BorderDirectional(
-                            start: BorderSide(color: c.line),
-                          ),
-                        ),
-                  child: i < end ? children[i] : const SizedBox.shrink(),
-                ),
+                child: i < end
+                    ? _KpiCellScope(
+                        well: well,
+                        child: _KpiCell(well: well, child: children[i]),
+                      )
+                    : const SizedBox.shrink(),
               ),
             );
           }
+          if (start > 0) lines.add(SizedBox(height: spacing));
           lines.add(
-            Container(
-              decoration: topLine || start > 0
-                  ? BoxDecoration(
-                      border: Border(top: BorderSide(color: c.line)),
-                    )
-                  : null,
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: cells,
-                ),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: cells,
               ),
             ),
           );
-          if (start + perLine < n) lines.add(const SizedBox(height: 8));
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -288,4 +312,136 @@ class KpiRow extends StatelessWidget {
       },
     );
   }
+}
+
+/// Tells a [KpiTile] that its [KpiRow] draws the cell.
+class _KpiCellScope extends InheritedWidget {
+  const _KpiCellScope({required this.well, required super.child});
+
+  final bool well;
+
+  static bool isOn(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_KpiCellScope>() != null;
+
+  static bool wellOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_KpiCellScope>()?.well ?? false;
+
+  @override
+  bool updateShouldNotify(_KpiCellScope old) => old.well != well;
+}
+
+/// One KPI cell: a white card on the page, a quiet well on a surface.
+class _KpiCell extends StatelessWidget {
+  const _KpiCell({required this.well, required this.child});
+
+  final bool well;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return DecoratedBox(
+      decoration: well
+          ? BoxDecoration(
+              color: c.surfaceAlt,
+              borderRadius: const BorderRadius.all(Radius.circular(16)),
+            )
+          : BoxDecoration(
+              color: c.surface,
+              borderRadius: AknRadius.card,
+              border: c.isDark ? Border.all(color: c.line) : null,
+              boxShadow: AknShadows.card(c),
+            ),
+      child: AknCardScope(
+        child: Padding(
+          padding: well
+              ? const EdgeInsets.fromLTRB(12, 10, 10, 12)
+              : const EdgeInsets.fromLTRB(14, 12, 12, 14),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Pops its child in once (fade + scale from 0.6 on the pop curve) after
+/// [delay]; static under reduce motion. The structure never changes, so
+/// the child keeps its state.
+class _PopIn extends StatefulWidget {
+  const _PopIn({
+    required this.child,
+    required this.handoff,
+    this.delay = Duration.zero,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  /// Names the content for [AknEntranceHandoff].
+  final Object handoff;
+
+  @override
+  State<_PopIn> createState() => _PopInState();
+}
+
+class _PopInState extends State<_PopIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final handed = AknEntranceHandoff.take(widget.handoff);
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+    } else if (handed != null && handed > 0) {
+      _c.value = handed;
+      if (handed < 1) _c.forward();
+    } else if (widget.delay == Duration.zero) {
+      _c.forward();
+    } else {
+      _timer = Timer(widget.delay, () {
+        if (mounted) _c.forward();
+      });
+    }
+  }
+
+  @override
+  void deactivate() {
+    AknEntranceHandoff.put(widget.handoff, _c.value);
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    child: widget.child,
+    builder: (context, child) {
+      final v = _c.value;
+      final s = 0.6 + 0.4 * AknMotion.pop.transform(v);
+      return Opacity(
+        opacity: Curves.easeOut.transform(v),
+        child: Transform.scale(
+          scale: s,
+          alignment: AlignmentDirectional.centerStart.resolve(
+            Directionality.of(context),
+          ),
+          child: child,
+        ),
+      );
+    },
+  );
 }

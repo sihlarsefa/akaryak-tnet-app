@@ -64,7 +64,9 @@ Widget _salesPlate({
 }) => AknPlate(
   compact: compact,
   head: PlateHead(
-    icon: icon == 'sales' ? Icons.bar_chart_rounded : Icons.payments_outlined,
+    icon: icon == 'sales'
+        ? PhosphorIconsRegular.chartBar
+        : PhosphorIconsRegular.money,
     title: title,
     period: '1–21 Ekim',
     onMore: () {},
@@ -130,28 +132,28 @@ Widget _ownerBar() => AnimatedBottomBar(
   onSelected: (_) {},
   items: const [
     AknNavItem(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home_rounded,
+      icon: PhosphorIconsRegular.house,
+      selectedIcon: PhosphorIconsFill.house,
       label: 'Ana sayfa',
     ),
     AknNavItem(
-      icon: Icons.task_alt_outlined,
-      selectedIcon: Icons.task_alt_rounded,
+      icon: PhosphorIconsRegular.checkCircle,
+      selectedIcon: PhosphorIconsFill.checkCircle,
       label: 'Onaylarım',
       badgeCount: 2,
     ),
     AknNavItem(
-      icon: Icons.request_quote_outlined,
-      selectedIcon: Icons.request_quote_rounded,
+      icon: PhosphorIconsRegular.invoice,
+      selectedIcon: PhosphorIconsFill.invoice,
       label: 'Teklif masası',
       badgeCount: 6,
     ),
     AknNavItem(
-      icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long_rounded,
+      icon: PhosphorIconsRegular.receipt,
+      selectedIcon: PhosphorIconsFill.receipt,
       label: 'Siparişler',
     ),
-    AknNavItem(icon: Icons.menu_rounded, label: 'Diğer'),
+    AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
   ],
 );
 
@@ -159,28 +161,28 @@ Widget _customerBar(int index) => AnimatedBottomBar(
   currentIndex: index,
   onSelected: (_) {},
   centerAction: AknCenterAction(
-    icon: Icons.add_rounded,
+    icon: PhosphorIconsRegular.plus,
     label: 'Sipariş ver',
     onPressed: () {},
   ),
   items: const [
     AknNavItem(
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home_rounded,
+      icon: PhosphorIconsRegular.house,
+      selectedIcon: PhosphorIconsFill.house,
       label: 'Ana sayfa',
     ),
     AknNavItem(
-      icon: Icons.receipt_long_outlined,
-      selectedIcon: Icons.receipt_long_rounded,
+      icon: PhosphorIconsRegular.receipt,
+      selectedIcon: PhosphorIconsFill.receipt,
       label: 'Siparişlerim',
     ),
     AknNavItem(
-      icon: Icons.task_alt_outlined,
-      selectedIcon: Icons.task_alt_rounded,
+      icon: PhosphorIconsRegular.checkCircle,
+      selectedIcon: PhosphorIconsFill.checkCircle,
       label: 'Onaylarım',
       badgeCount: 1,
     ),
-    AknNavItem(icon: Icons.menu_rounded, label: 'Diğer'),
+    AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
   ],
 );
 
@@ -406,7 +408,7 @@ class _Orders extends StatelessWidget {
           showBell: false,
           actions: [
             AknIconButton(
-              icon: Icons.tune_rounded,
+              icon: PhosphorIconsRegular.slidersHorizontal,
               semanticLabel: 'Filtrele',
               onPressed: () {},
             ),
@@ -526,7 +528,7 @@ class _OrderDetail extends StatelessWidget {
       leading: const BackButton(),
       actions: [
         AknIconButton(
-          icon: Icons.more_horiz_rounded,
+          icon: PhosphorIconsRegular.dotsThree,
           semanticLabel: 'Diğer seçenekler',
           onPressed: () {},
         ),
@@ -594,7 +596,7 @@ class _OrderDetail extends StatelessWidget {
           const SizedBox(height: 12),
           const AknPlate(
             head: PlateHead(
-              icon: Icons.request_quote_outlined,
+              icon: PhosphorIconsRegular.invoice,
               title: 'Demir Petrol teklifi',
               period: 'bugün 10:05',
             ),
@@ -610,7 +612,7 @@ class _OrderDetail extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.check_circle_rounded, size: 20, color: c.ok.fg),
+              Icon(PhosphorIconsFill.checkCircle, size: 20, color: c.ok.fg),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -663,24 +665,24 @@ class _DriverToday extends StatelessWidget {
               onSelected: (_) {},
               items: const [
                 AknNavItem(
-                  icon: Icons.local_shipping_outlined,
-                  selectedIcon: Icons.local_shipping_rounded,
+                  icon: PhosphorIconsRegular.truck,
+                  selectedIcon: PhosphorIconsFill.truck,
                   label: 'Teslimatlarım',
                 ),
                 AknNavItem(
-                  icon: Icons.notifications_none_rounded,
-                  selectedIcon: Icons.notifications_rounded,
+                  icon: PhosphorIconsRegular.bell,
+                  selectedIcon: PhosphorIconsFill.bell,
                   label: 'Bildirimler',
                   badgeCount: 1,
                 ),
                 AknNavItem(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  selectedIcon: Icons.chat_bubble_rounded,
+                  icon: PhosphorIconsRegular.chatCircle,
+                  selectedIcon: PhosphorIconsFill.chatCircle,
                   label: 'Asistan',
                 ),
                 AknNavItem(
-                  icon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
+                  icon: PhosphorIconsRegular.user,
+                  selectedIcon: PhosphorIconsFill.user,
                   label: 'Profil',
                 ),
               ],
@@ -694,7 +696,7 @@ class _DriverToday extends StatelessWidget {
                   Expanded(
                     child: AknButton(
                       label: 'Yol tarifi',
-                      icon: Icons.directions_outlined,
+                      icon: PhosphorIconsRegular.navigationArrow,
                       expand: true,
                       onPressed: () {},
                     ),
@@ -703,7 +705,7 @@ class _DriverToday extends StatelessWidget {
                   Expanded(
                     child: AknButton.secondary(
                       label: 'Teslim et',
-                      icon: Icons.task_alt_rounded,
+                      icon: PhosphorIconsFill.checkCircle,
                       expand: true,
                       onPressed: () {},
                     ),
@@ -761,7 +763,7 @@ class _DriverToday extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   const FactRow(
-                    icon: Icons.door_front_door_outlined,
+                    icon: PhosphorIconsRegular.door,
                     label: 'Kapı notu',
                     value:
                         'Ana kapıda güvenliğe plakayı bildirin; tank arka avluda.',
@@ -839,7 +841,7 @@ void main() {
               padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: AknPlate(
                 head: PlateHead(
-                  icon: Icons.payments_outlined,
+                  icon: PhosphorIconsRegular.money,
                   title: 'Bu ay harcama',
                   period: '1–21 Ekim',
                 ),

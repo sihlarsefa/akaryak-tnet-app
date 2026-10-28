@@ -6,8 +6,10 @@ import '../motion.dart';
 import '../tokens.dart';
 
 /// A fuel drop that fills by [fill] (delivered / planned litres) on the chart
-/// track. The level rises smoothly when [fill] changes. Design v2 uses it in
-/// the splash at most; [flowing] is ignored (no looping animations, §8.3).
+/// track (design v3): the liquid is an orange gradient (light at the
+/// surface, deep at the bottom) behind a small glint. The level rises on the
+/// emphasized curve when [fill] changes; with [flowing] the surface waves
+/// gently — ambient motion, so it is still in tests and under reduce motion.
 ///
 /// Ported from F2GO's `_DolanDamlaBoyayici`, recoloured to the brand.
 class FuelDrop extends StatefulWidget {
@@ -52,9 +54,14 @@ class _FuelDropState extends State<FuelDrop>
     _sync();
   }
 
+  bool get _waving => widget.flowing && AknMotion.ambientOf(context);
+
   void _sync() {
-    // v2: no idle loops (§8.3); the surface stays still.
-    if (_wave.isAnimating) _wave.stop();
+    if (_waving) {
+      if (!_wave.isAnimating) _wave.repeat();
+    } else if (_wave.isAnimating) {
+      _wave.stop();
+    }
   }
 
   @override
@@ -67,8 +74,12 @@ class _FuelDropState extends State<FuelDrop>
   Widget build(BuildContext context) {
     final c = Theme.of(context).extension<AknColors>() ?? AknColors.light;
     final color = widget.color ?? c.brandBright;
+    final top = widget.color == null
+        ? c.heroStart
+        : Color.lerp(color, const Color(0xFFFFFFFF), 0.3)!;
     final f = widget.fill.isNaN ? 0.0 : widget.fill.clamp(0.0, 1.0);
     final size = Size(widget.size * 0.8, widget.size);
+    final waving = _waving;
     return Semantics(
       label: widget.semanticLabel,
       value: '%${(f * 100).round()}',
@@ -83,7 +94,9 @@ class _FuelDropState extends State<FuelDrop>
             painter: FuelDropPainter(
               fill: level,
               color: color,
+              wavePhase: waving ? _wave.value : null,
               track: c.chartTrack,
+              highlight: top,
             ),
           ),
         ),
@@ -98,6 +111,7 @@ class FuelDropPainter extends CustomPainter {
     required this.color,
     this.wavePhase,
     this.track,
+    this.highlight,
   });
 
   final double fill;
@@ -106,6 +120,10 @@ class FuelDropPainter extends CustomPainter {
 
   /// The empty part of the drop (defaults to a 12 % tint of [color]).
   final Color? track;
+
+  /// The liquid's surface colour; the liquid deepens to [color] at the
+  /// bottom (null: solid [color]).
+  final Color? highlight;
 
   static Path dropPath(Size size) {
     final w = size.width;
@@ -152,7 +170,18 @@ class FuelDropPainter extends CustomPainter {
       surface
         ..lineTo(w, h)
         ..close();
-      canvas.drawPath(surface, Paint()..color = color);
+      final top = highlight;
+      final liquid = Paint();
+      if (top == null) {
+        liquid.color = color;
+      } else {
+        liquid.shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [top, color],
+        ).createShader(Rect.fromLTRB(0, level - 2, w, h));
+      }
+      canvas.drawPath(surface, liquid);
       canvas.restore();
     }
     canvas.drawPath(
@@ -162,6 +191,19 @@ class FuelDropPainter extends CustomPainter {
         ..strokeWidth = math.max(1.2, h * 0.035)
         ..color = color,
     );
+    // A small glint on the upper left of the drop.
+    if (h >= 20) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(w * 0.3, h * 0.5)
+          ..quadraticBezierTo(w * 0.24, h * 0.62, w * 0.3, h * 0.74),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.2, h * 0.04)
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.6),
+      );
+    }
   }
 
   @override
@@ -169,5 +211,6 @@ class FuelDropPainter extends CustomPainter {
       old.fill != fill ||
       old.color != color ||
       old.wavePhase != wavePhase ||
-      old.track != track;
+      old.track != track ||
+      old.highlight != highlight;
 }

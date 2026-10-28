@@ -173,52 +173,58 @@ class _List extends ConsumerWidget {
         onRefresh: () => ctrl.load(refresh: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: [child],
+          children: [FadeUp(offset: 16, scale: 0.97, child: child)],
         ),
       );
     }
-    return PullToRefresh(
-      onRefresh: () => ctrl.load(refresh: true),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n.metrics.extentAfter < 400) ctrl.loadMore();
-          return false;
-        },
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 4, bottom: 16),
-          itemCount: p.items.length + 2,
-          itemBuilder: (context, i) {
-            if (i == p.items.length) {
-              return LoadMoreFooter(
-                loading: p.loadingMore,
-                error: p.loadMoreError,
-                onRetry: ctrl.loadMore,
-              );
-            }
-            if (i == p.items.length + 1) return const _FooterNote();
-            final row = p.items[i];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (i > 0) const AknLedgerDivider(),
-                ArchiveRowCard(
-                  row: row,
-                  policy: policy,
-                  onOpenAll: () => showOrderDocumentsSheet(
-                    context,
-                    orderId: row.orderId,
-                    rows: [
-                      for (final r in p.items)
-                        if (r.orderId == row.orderId) r,
-                    ],
-                  ),
-                  onOpen: (req) => openGeneratedDocument(context, ref, req),
-                ),
-              ],
-            );
+    // Kartlar sırayla yükselerek gelir; süzgeç değişince akış yeniden başlar.
+    return StaggerScope(
+      key: ValueKey(state.query),
+      child: PullToRefresh(
+        onRefresh: () => ctrl.load(refresh: true),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n.metrics.extentAfter < 400) ctrl.loadMore();
+            return false;
           },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              top: 4,
+              bottom: 16 + MediaQuery.paddingOf(context).bottom,
+            ),
+            itemCount: p.items.length + 2,
+            itemBuilder: (context, i) {
+              if (i == p.items.length) {
+                return LoadMoreFooter(
+                  loading: p.loadingMore,
+                  error: p.loadMoreError,
+                  onRetry: ctrl.loadMore,
+                );
+              }
+              if (i == p.items.length + 1) return const _FooterNote();
+              final row = p.items[i];
+              return StaggerItem(
+                index: i,
+                child: Padding(
+                  padding: CmCard.listMargin,
+                  child: ArchiveRowCard(
+                    row: row,
+                    policy: policy,
+                    onOpenAll: () => showOrderDocumentsSheet(
+                      context,
+                      orderId: row.orderId,
+                      rows: [
+                        for (final r in p.items)
+                          if (r.orderId == row.orderId) r,
+                      ],
+                    ),
+                    onOpen: (req) => openGeneratedDocument(context, ref, req),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -233,11 +239,11 @@ class _FooterNote extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 16, color: c.dim),
+          Icon(PhosphorIconsRegular.info, size: 16, color: c.dim),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -251,8 +257,9 @@ class _FooterNote extends StatelessWidget {
   }
 }
 
-/// Arşiv satırı (tasarım v2 §6.8, ledger): ürün ve litre, sipariş no / tarih / bayi / nokta, sağda
-/// tutar; durum lambası ve sevkiyat; altında hızlı belge çipleri. Dokununca siparişin tüm belgeleri.
+/// Arşiv kartı (tasarım v3 §4): beyaz r20 kart; başta belge karosu, ürün ve litre, sipariş no /
+/// tarih / bayi / nokta, sağda tutar; ince çizginin altında durum lambası ve sevkiyat, en altta hızlı
+/// belge hapları (sessiz kuyu, simge + ad). Dokununca siparişin tüm belgeleri.
 class ArchiveRowCard extends StatelessWidget {
   const ArchiveRowCard({
     super.key,
@@ -301,40 +308,87 @@ class ArchiveRowCard extends StatelessWidget {
         : (r.deliveredAt != null
               ? '${r.shipmentCode}, teslim ${Fmt.dayMonth(r.deliveredAt)}'
               : '${r.shipmentCode}, plan ${Fmt.dayMonth(r.scheduledAt)}');
-    return AknListTile(
-      title: title,
-      subtitle: subtitle,
-      amount: r.totalAmountTry == null ? null : Fmt.money(r.totalAmountTry),
-      status: AknStatusLine(
-        lamp: AknLamp.status(lamp),
-        trailing: shipNote == null
-            ? null
-            : Text(shipNote, style: t.bodySmall.copyWith(color: c.dim)),
-      ),
-      semanticLabel:
-          '$title, ${r.orderNumber}, ${lamp.label}'
-          '${r.hasShipment ? ', ${r.shipmentCode}, ${ship?.label ?? ''}' : ', sevkiyat yok'}'
-          ', ${quick.length} belge, tüm belgeleri açar',
-      onTap: onOpenAll,
-      footer: quick.isEmpty
-          ? null
-          : Wrap(
-              spacing: 8,
-              runSpacing: 0,
+    // Belge hapları kendi basışını yapar: hap varken kart basılmaz, satır vurgulanır.
+    final amount = r.totalAmountTry == null
+        ? null
+        : Fmt.money(r.totalAmountTry);
+    return CmCard(
+      pressable: quick.isEmpty,
+      // Tutar başlığın yanına sığmazsa alt satıra iner.
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final beside = cmAmountBeside(
+            context,
+            width: box.maxWidth - CmCard.rowPadding.horizontal - 56,
+            title: title,
+            amount: amount,
+          );
+          return AknListTile(
+            leading: const CmIconTile(icon: PhosphorIconsRegular.folderOpen),
+            padding: CmCard.rowPadding,
+            titleStyle: cmRowTitle(context),
+            title: cmKeepUnits(title),
+            subtitle: subtitle,
+            amount: beside ? amount : null,
+            status: beside || amount == null
+                ? null
+                : CmAmountLine(amount: amount),
+            semanticLabel:
+                '$title, ${r.orderNumber}, ${lamp.label}'
+                '${r.hasShipment ? ', ${r.shipmentCode}, ${ship?.label ?? ''}' : ', sevkiyat yok'}'
+                ', ${quick.length} belge, tüm belgeleri açar',
+            onTap: () {
+              AknHaptics.selection();
+              onOpenAll();
+            },
+            footer: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final req in quick)
-                  ActionChip(
-                    avatar: Icon(
-                      DocumentTile.iconOf(req.kind),
-                      size: 16,
-                      color: c.ink,
-                    ),
-                    label: Text(_shortLabel(req)),
-                    tooltip: '${req.label} PDF',
-                    onPressed: () => onOpen(req),
+                Divider(height: 1, thickness: 1, color: c.lineSoft),
+                const SizedBox(height: 10),
+                AknStatusLine(
+                  lamp: AknLamp.status(lamp),
+                  trailing: shipNote == null
+                      ? null
+                      : Text(
+                          shipNote,
+                          style: t.bodySmall.copyWith(color: c.dim),
+                        ),
+                ),
+                if (quick.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 0,
+                    children: [
+                      for (final req in quick)
+                        ActionChip(
+                          avatar: Icon(
+                            DocumentTile.iconOf(req.kind),
+                            size: 16,
+                            color: c.ink,
+                          ),
+                          label: Text(_shortLabel(req)),
+                          labelStyle: t.label.copyWith(color: c.ink),
+                          backgroundColor: c.surfaceAlt,
+                          side: BorderSide.none,
+                          shape: const StadiumBorder(),
+                          pressElevation: 0,
+                          tooltip: '${req.label} PDF',
+                          onPressed: () {
+                            AknHaptics.selection();
+                            onOpen(req);
+                          },
+                        ),
+                    ],
                   ),
+                ],
               ],
             ),
+          );
+        },
+      ),
     );
   }
 

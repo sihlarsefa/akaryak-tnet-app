@@ -49,13 +49,13 @@ abstract final class NotificationCategory {
   };
 
   static IconData icon(String category) => switch (category) {
-    orders => Icons.receipt_long_rounded,
-    quotes => Icons.request_quote_rounded,
-    shipments => Icons.local_shipping_rounded,
-    payments => Icons.payments_rounded,
-    approvals => Icons.task_alt_rounded,
-    field => Icons.storefront_rounded,
-    _ => Icons.notifications_rounded,
+    orders => PhosphorIconsFill.receipt,
+    quotes => PhosphorIconsFill.invoice,
+    shipments => PhosphorIconsFill.truck,
+    payments => PhosphorIconsRegular.money,
+    approvals => PhosphorIconsFill.checkCircle,
+    field => PhosphorIconsRegular.storefront,
+    _ => PhosphorIconsFill.bell,
   };
 }
 

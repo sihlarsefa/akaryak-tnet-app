@@ -46,51 +46,72 @@ class FinanceInfoPage extends ConsumerWidget {
         loading: () => const SkeletonList(itemCount: 3, lines: 3),
         error: (e, _) =>
             CmFailureView(failure: AppFailure.from(e), onRetry: refresh),
-        data: (info) => PullToRefresh(
-          onRefresh: refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(top: 4, bottom: 24),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-                child: Text(
-                  CmCopy.financeIntro,
-                  style: context.aknText.bodySmall.copyWith(
-                    color: context.akn.dim,
-                  ),
+        data: (info) {
+          // Bayiler ve siparişler beyaz kartlarda; kartlar sırayla yükselerek gelir.
+          final blocks = <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+              child: Text(
+                CmCopy.financeIntro,
+                style: context.aknText.bodySmall.copyWith(
+                  color: context.akn.dim,
                 ),
               ),
-              if (info.links.isEmpty)
-                const EmptyState(
-                  title: CmCopy.financeNoLinks,
-                  message: CmCopy.financeNoLinksMessage,
-                  illustration: AknIllustration.payments,
-                )
-              else ...[
-                if (info.pendingReplies == 0)
-                  const AknBanner(
-                    margin: EdgeInsets.fromLTRB(20, 12, 20, 0),
-                    tone: AknTone.ok,
-                    message: CmCopy.financeAllClear,
-                  ),
-                SectionHeader(title: 'Bayiler', count: info.links.length),
-                AknLedger(
-                  children: [for (final l in info.links) _LinkCard(link: l)],
+            ),
+            if (info.links.isEmpty)
+              const EmptyState(
+                title: CmCopy.financeNoLinks,
+                message: CmCopy.financeNoLinksMessage,
+                illustration: AknIllustration.payments,
+              )
+            else ...[
+              if (info.pendingReplies == 0)
+                const AknBanner(
+                  margin: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  tone: AknTone.ok,
+                  message: CmCopy.financeAllClear,
                 ),
-              ],
-              if (info.orders.isNotEmpty) ...[
-                SectionHeader(
-                  title: 'Siparişler için istenen bilgiler',
-                  count: info.orders.length,
+              SectionHeader(
+                title: 'Bayiler',
+                count: info.links.length,
+                padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
+              ),
+              for (final l in info.links)
+                CmCard(
+                  margin: CmCard.listMargin,
+                  child: _LinkCard(link: l),
                 ),
-                AknLedger(
-                  children: [for (final o in info.orders) _OrderCard(order: o)],
-                ),
-              ],
             ],
-          ),
-        ),
+            if (info.orders.isNotEmpty) ...[
+              SectionHeader(
+                title: 'Siparişler için istenen bilgiler',
+                count: info.orders.length,
+                padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
+              ),
+              for (final o in info.orders)
+                CmCard(
+                  margin: CmCard.listMargin,
+                  child: _OrderCard(order: o),
+                ),
+            ],
+          ];
+          return PullToRefresh(
+            onRefresh: refresh,
+            child: StaggerScope(
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.only(
+                  top: 4,
+                  bottom: 24 + MediaQuery.paddingOf(context).bottom,
+                ),
+                children: [
+                  for (final (i, b) in blocks.indexed)
+                    StaggerItem(index: i, child: b),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -117,17 +138,30 @@ class _LinkCard extends StatelessWidget {
                     : ('Sipariş verilemiyor', AknTone.danger)));
     final requestId = l.requestId ?? l.status.openApprovalRequestId;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.stationTitle, style: t.headline.copyWith(color: c.ink)),
-          if (l.status.profileStatus != null)
-            Text(
-              'Finans kartı: ${TurkishText.lower(l.status.profileStatus!.label)}',
-              style: t.bodySmall.copyWith(color: c.dim),
-            ),
-          const SizedBox(height: 8),
+          Row(
+            children: [
+              CmIconTile(icon: PhosphorIconsRegular.storefront, tone: tone),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l.stationTitle, style: cmRowTitle(context)),
+                    if (l.status.profileStatus != null)
+                      Text(
+                        'Finans kartı: ${TurkishText.lower(l.status.profileStatus!.label)}',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           AknLamp(label: label, tone: tone),
           if (!l.status.canOrder && l.status.blockReason != null) ...[
             const SizedBox(height: 6),
@@ -183,14 +217,33 @@ class _OrderCard extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(o.orderNumber, style: t.headline.copyWith(color: c.ink)),
-          if (o.stationTitle.isNotEmpty)
-            Text(o.stationTitle, style: t.bodySmall.copyWith(color: c.dim)),
-          const SizedBox(height: 8),
+          Row(
+            children: [
+              const CmIconTile(
+                icon: PhosphorIconsRegular.invoice,
+                tone: AknTone.brand,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(o.orderNumber, style: cmRowTitle(context)),
+                    if (o.stationTitle.isNotEmpty)
+                      Text(
+                        o.stationTitle,
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           const AknLamp(label: 'Ek bilgi istendi', tone: AknTone.brand),
           const SizedBox(height: 10),
           _InfoRequestBox(
@@ -266,7 +319,7 @@ class _InfoRequestBox extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                Icon(Icons.attach_file_rounded, size: 16, color: c.dim),
+                Icon(PhosphorIconsRegular.paperclip, size: 16, color: c.dim),
                 const SizedBox(width: 4),
                 Expanded(
                   child: Text(

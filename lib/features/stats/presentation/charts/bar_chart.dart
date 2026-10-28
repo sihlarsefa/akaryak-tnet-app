@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
+import '../widgets/stats_atoms.dart';
 
 /// Bir sütun: kısa etiket ("Eki"), uzun ad ("Ekim 2026") ve değer.
 @immutable
@@ -20,12 +22,18 @@ class ChartBar {
   final double value;
 }
 
-/// Aylık sütun grafiği (tasarım v2 §6.20; beyaz sayfa). Tek seri, vurgu biçimi: geçmiş aylar
-/// `chartContext`, bu ay `chartHighlight`. Sütunlar ≤ 16 geniş (12 ayda 12), üstte 4 px yuvarlak,
-/// 1 px taban çizgisinde köşesiz; kılavuz çizgisi ve eksen sayısı yok. Doğrudan etiket yalnızca bu
-/// aya ("bu ay" + "8,43 mn", sütunun sağında) ve en yüksek aya ("13,1", üstünde); diğerleri dokununca
-/// küçük ters baloncukta (2 sn). Ay sonu tahmini 1,5 px kesikli mürekkep çerçeve. Her sütun ekran
-/// okuyucuya "Ekim 2026 satış 8,43 milyon lira" der ve dokunulabilir.
+/// Aylık sütun grafiği (tasarım v3 §4–5, kartın içinde). Tek seri, vurgu biçimi: her ayın arkasında
+/// tam boy yumuşak bir iz kapsülü (`chartTrack`), geçmiş aylar `chartContext`, bu ay turuncu dikey
+/// degrade (açık turuncu → `chartHighlight`) ve altında küçük bir ışıma. Sütunlar ≤ 16 geniş (12 ayda
+/// 12), üstte tam yuvarlak, tabanda hafif yuvarlak; kılavuz çizgisi ve eksen sayısı yok. Doğrudan
+/// etiket yalnızca bu aya ("bu ay" + "8,43 mn", sütunun sağında) ve en yüksek aya ("13,1",
+/// üstünde); diğerleri dokununca "pop" ile açılan küçük ters baloncukta (2 sn). Ay sonu tahmini
+/// 1,5 px kesikli mürekkep çerçeve, çubuklardan sonra kendini çizer.
+///
+/// Hareket: ilk görünüşte sütunlar soldan sağa sırayla, yaylanarak (hafifçe aşıp) yükselir; değerler
+/// değişince (yenileme) eski boylarından yenilerine kayar; etiketler çubuklar oturunca belirir.
+/// Hareket azaltmada son hâli çizilir. Her sütun ekran okuyucuya "Ekim 2026 satış 8,43 milyon lira"
+/// der ve dokunulabilir.
 class StatsBarChart extends StatefulWidget {
   const StatsBarChart({
     super.key,
@@ -92,19 +100,80 @@ class StatsBarChart extends StatefulWidget {
   State<StatsBarChart> createState() => _StatsBarChartState();
 }
 
-class _StatsBarChartState extends State<StatsBarChart> {
+class _StatsBarChartState extends State<StatsBarChart>
+    with SingleTickerProviderStateMixin {
   int? _bubble;
   Timer? _timer;
+
+  /// Sütunların yükselişi (0–1; her sütun kendi dilimini kullanır).
+  late final AnimationController _rise = AnimationController(vsync: this);
+
+  /// Etiketler çubuklar oturunca belirir.
+  late final CurvedAnimation _labels = CurvedAnimation(
+    parent: _rise,
+    curve: const Interval(0.55, 1, curve: Curves.easeOut),
+  );
+
+  /// Yükselişin başladığı boylar (ilk görünüşte sıfır; yenilemede eski değerler).
+  List<double>? _from;
+  bool _started = false;
+
+  static const int _growMs = 560;
+  static const int _stepMs = 45;
+
+  List<double> get _values => [for (final b in widget.bars) b.value];
+
+  Duration _duration(int n) =>
+      Duration(milliseconds: _growMs + _stepMs * math.max(0, n - 1));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    _rise.duration = _duration(widget.bars.length);
+    if (AknMotion.reduced(context)) {
+      _rise.value = 1;
+    } else {
+      unawaited(_rise.forward());
+    }
+  }
 
   @override
   void didUpdateWidget(StatsBarChart old) {
     super.didUpdateWidget(old);
-    if (old.bars.length != widget.bars.length) _bubble = null;
+    final before = [for (final b in old.bars) b.value];
+    if (old.bars.length != widget.bars.length) {
+      _bubble = null;
+      _from = null;
+    } else if (!listEquals(before, _values)) {
+      // Yenileme: çubuklar şu anki boylarından yeni değerlere kayar.
+      _from = [
+        for (var i = 0; i < before.length; i++)
+          _BarsPainter.lerpAt(
+            _from?[i] ?? 0,
+            before[i],
+            _rise.value,
+            i,
+            before.length,
+          ),
+      ];
+    } else {
+      return;
+    }
+    _rise.duration = _duration(widget.bars.length);
+    if (AknMotion.reduced(context)) {
+      _rise.value = 1;
+    } else {
+      unawaited(_rise.forward(from: 0));
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _labels.dispose();
+    _rise.dispose();
     super.dispose();
   }
 
@@ -134,15 +203,17 @@ class _StatsBarChartState extends State<StatsBarChart> {
     final small = t.caption.copyWith(
       fontSize: 11,
       height: 14 / 11,
-      fontWeight: FontWeight.w500,
+      fontWeight: FontWeight.w600,
       letterSpacing: 0,
       color: c.dim,
+      fontFeatures: AknNumerals.tabular,
     );
     final strong = t.label.copyWith(
       fontSize: 13,
       height: 16 / 13,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w800,
       color: c.ink,
+      fontFeatures: AknNumerals.tabular,
     );
     final month = t.caption.copyWith(
       fontSize: 12,
@@ -188,6 +259,7 @@ class _StatsBarChartState extends State<StatsBarChart> {
     for (final b in bars) {
       labelW = math.max(labelW, measure(b.label, month));
     }
+    final (highlightTop, highlight) = statsAccentRamp(c);
 
     return LayoutBuilder(
       builder: (context, cons) {
@@ -218,29 +290,36 @@ class _StatsBarChartState extends State<StatsBarChart> {
         }
         final boxH = math.max(baseline + 4 + monthH, captionTop + captionH);
         final bubble = _bubble;
+        Widget label(Widget child) =>
+            FadeTransition(opacity: _labels, child: child);
         return SizedBox(
           height: boxH,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               Positioned.fill(
-                child: CustomPaint(
-                  painter: _BarsPainter(
-                    values: [for (final b in bars) b.value],
-                    current: current,
-                    selected: bubble,
-                    projection: projText == null ? null : proj,
-                    top: top,
-                    topPad: topPad,
-                    area: area,
-                    plotW: plotW,
-                    barW: barW,
-                    empty: empty,
-                    contextColor: c.chartContext,
-                    highlight: c.chartHighlight,
-                    track: c.chartTrack,
-                    outline: c.ink,
-                    baseline: c.line,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _BarsPainter(
+                      rise: _rise,
+                      from: _from,
+                      values: _values,
+                      current: current,
+                      selected: bubble,
+                      projection: projText == null ? null : proj,
+                      top: top,
+                      topPad: topPad,
+                      area: area,
+                      plotW: plotW,
+                      barW: barW,
+                      empty: empty,
+                      contextColor: c.chartContext,
+                      highlight: highlight,
+                      highlightTop: highlightTop,
+                      track: c.chartTrack,
+                      outline: c.ink,
+                      baseline: c.line,
+                    ),
                   ),
                 ),
               ),
@@ -250,13 +329,15 @@ class _StatsBarChartState extends State<StatsBarChart> {
                   width: 80,
                   top: y(bars[extreme].value) - smallH - 4,
                   child: ExcludeSemantics(
-                    child: Text(
-                      (widget.extremeLabel ?? widget.valueLabel)(
-                        bars[extreme].value,
+                    child: label(
+                      Text(
+                        (widget.extremeLabel ?? widget.valueLabel)(
+                          bars[extreme].value,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        style: small,
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      style: small,
                     ),
                   ),
                 ),
@@ -265,12 +346,18 @@ class _StatsBarChartState extends State<StatsBarChart> {
                   left: cx(current) + barW / 2 + 8,
                   top: captionTop,
                   child: ExcludeSemantics(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.currentCaption, style: small, maxLines: 1),
-                        Text(curValue!, style: strong, maxLines: 1),
-                      ],
+                    child: label(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.currentCaption,
+                            style: small,
+                            maxLines: 1,
+                          ),
+                          Text(curValue!, style: strong, maxLines: 1),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -279,7 +366,7 @@ class _StatsBarChartState extends State<StatsBarChart> {
                     left: cx(current) + barW / 2 + 8,
                     top: projTop,
                     child: ExcludeSemantics(
-                      child: Text(projText, style: small, maxLines: 1),
+                      child: label(Text(projText, style: small, maxLines: 1)),
                     ),
                   ),
               ],
@@ -299,7 +386,7 @@ class _StatsBarChartState extends State<StatsBarChart> {
                         style: i == current && !empty
                             ? month.copyWith(
                                 color: c.ink,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w800,
                               )
                             : month.copyWith(color: c.dim),
                       ),
@@ -340,8 +427,9 @@ class _StatsBarChartState extends State<StatsBarChart> {
                 ),
               if (bubble != null && !empty && bubble < n)
                 _Bubble(
+                  key: ValueKey(bubble),
                   centerX: cx(bubble),
-                  bottom: y(bars[bubble].value) - 6,
+                  bottom: y(bars[bubble].value) - 8,
                   maxWidth: w,
                   text:
                       widget.bubbleLabel?.call(bars[bubble]) ??
@@ -358,6 +446,8 @@ class _StatsBarChartState extends State<StatsBarChart> {
 
 class _BarsPainter extends CustomPainter {
   _BarsPainter({
+    required this.rise,
+    required this.from,
     required this.values,
     required this.current,
     required this.selected,
@@ -370,11 +460,14 @@ class _BarsPainter extends CustomPainter {
     required this.empty,
     required this.contextColor,
     required this.highlight,
+    required this.highlightTop,
     required this.track,
     required this.outline,
     required this.baseline,
-  });
+  }) : super(repaint: rise);
 
+  final Animation<double> rise;
+  final List<double>? from;
   final List<double> values;
   final int current;
   final int? selected;
@@ -387,43 +480,99 @@ class _BarsPainter extends CustomPainter {
   final bool empty;
   final Color contextColor;
   final Color highlight;
+  final Color highlightTop;
   final Color track;
   final Color outline;
   final Color baseline;
+
+  /// [i]. sütunun yükselişteki payı (0–1; sırayla başlar).
+  static double barProgress(double t, int i, int n) {
+    final total =
+        _StatsBarChartState._growMs +
+        _StatsBarChartState._stepMs * math.max(0, n - 1);
+    final start = _StatsBarChartState._stepMs * i / total;
+    final end =
+        (_StatsBarChartState._stepMs * i + _StatsBarChartState._growMs) / total;
+    return ((t - start) / (end - start)).clamp(0.0, 1.0);
+  }
+
+  /// [i]. sütunun [t] anındaki değeri ([a] → [b], yaylanarak).
+  static double lerpAt(double a, double b, double t, int i, int n) {
+    final k = AknMotion.spring.transform(barProgress(t, i, n));
+    return a + (b - a) * k;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     final n = values.length;
     if (n == 0) return;
+    final t = rise.value;
     final step = plotW / n;
     final base = topPad + area;
     canvas.drawRect(
       Rect.fromLTWH(0, base, plotW, 1),
       Paint()..color = baseline,
     );
+    final topR = Radius.circular(math.min(barW / 2, 8));
+    const bottomR = Radius.circular(3);
     for (var i = 0; i < n; i++) {
-      final h = empty
-          ? area * (0.14 + 0.06 * (i % 3))
-          : (top <= 0 ? 0.0 : values[i].clamp(0, top) / top * area);
-      if (h <= 0) continue;
       final cx = step * i + step / 2;
-      final r = math.min(4.0, h);
+      // Arkadaki iz kapsülü (alanın tam boyu).
       canvas.drawRRect(
         RRect.fromRectAndCorners(
-          Rect.fromLTWH(cx - barW / 2, base - h, barW, h),
-          topLeft: Radius.circular(r),
-          topRight: Radius.circular(r),
+          Rect.fromLTWH(cx - barW / 2, topPad, barW, area),
+          topLeft: topR,
+          topRight: topR,
+          bottomLeft: bottomR,
+          bottomRight: bottomR,
         ),
-        Paint()
-          ..color = empty
-              ? track
-              : i == current || i == selected
-              ? highlight
-              : contextColor,
+        Paint()..color = track,
       );
+      if (empty) continue;
+      final value = lerpAt(from?[i] ?? 0, values[i], t, i, n);
+      // Yay biraz aşar; çizim alanın üstünde etiket payını taşmaz.
+      final h = top <= 0
+          ? 0.0
+          : (value.clamp(0, top * 1.08) / top * area).clamp(
+              0.0,
+              area + topPad * 0.5,
+            );
+      if (h <= 0.5) continue;
+      final rect = Rect.fromLTWH(cx - barW / 2, base - h, barW, h);
+      final r = RRect.fromRectAndCorners(
+        rect,
+        topLeft: Radius.circular(math.min(topR.x, h / 2)),
+        topRight: Radius.circular(math.min(topR.x, h / 2)),
+        bottomLeft: Radius.circular(math.min(bottomR.x, h / 2)),
+        bottomRight: Radius.circular(math.min(bottomR.x, h / 2)),
+      );
+      final hot = i == current || i == selected;
+      if (hot) {
+        // Vurgu sütunu: altında küçük bir ışıma, dikey turuncu degrade.
+        canvas.drawRRect(
+          r.shift(const Offset(0, 3)),
+          Paint()
+            ..color = highlight.withValues(alpha: 0.30)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        );
+        canvas.drawRRect(
+          r,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [highlightTop, highlight],
+            ).createShader(rect),
+        );
+      } else {
+        canvas.drawRRect(r, Paint()..color = contextColor);
+      }
     }
     final p = projection;
     if (p != null && !empty && top > 0) {
+      // Tahmin çerçevesi, bu ayın sütunu oturunca kendini çizer.
+      final k = ((barProgress(t, current, n) - 0.75) / 0.25).clamp(0.0, 1.0);
+      if (k <= 0) return;
       final cx = step * current + step / 2;
       final mtd = values[current].clamp(0, top) / top * area;
       final pt = base - p.clamp(0, top) / top * area;
@@ -431,7 +580,7 @@ class _BarsPainter extends CustomPainter {
       if (bottom - pt > 1) {
         final l = cx - barW / 2 + 0.75;
         final r = cx + barW / 2 - 0.75;
-        const rad = 4.0;
+        final rad = math.min(topR.x, (r - l) / 2);
         final path = Path()
           ..moveTo(l, bottom)
           ..lineTo(l, pt + rad)
@@ -439,14 +588,24 @@ class _BarsPainter extends CustomPainter {
           ..lineTo(r - rad, pt)
           ..quadraticBezierTo(r, pt, r, pt + rad)
           ..lineTo(r, bottom);
-        drawDashedPath(canvas, path, outline, width: 1.5, on: 3, off: 2.5);
+        drawDashedPath(
+          canvas,
+          path,
+          outline,
+          width: 1.5,
+          on: 3,
+          off: 2.5,
+          progress: k,
+        );
       }
     }
   }
 
   @override
   bool shouldRepaint(_BarsPainter old) =>
-      old.values != values ||
+      old.rise != rise ||
+      old.from != from ||
+      !listEquals(old.values, values) ||
       old.current != current ||
       old.selected != selected ||
       old.projection != projection ||
@@ -456,10 +615,14 @@ class _BarsPainter extends CustomPainter {
       old.empty != empty ||
       old.contextColor != contextColor ||
       old.highlight != highlight ||
-      old.outline != outline;
+      old.highlightTop != highlightTop ||
+      old.track != track ||
+      old.outline != outline ||
+      old.baseline != baseline;
 }
 
-/// [path]'i kesikli çizer ([on] / [off] px).
+/// [path]'i kesikli çizer ([on] / [off] px); [progress] < 1 ise yolun yalnızca o kadarını (çizerek
+/// belirme).
 void drawDashedPath(
   Canvas canvas,
   Path path,
@@ -467,15 +630,18 @@ void drawDashedPath(
   double width = 1.5,
   double on = 3,
   double off = 2.5,
+  double progress = 1,
 }) {
   final paint = Paint()
     ..color = color
     ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
     ..strokeWidth = width;
   for (final metric in path.computeMetrics()) {
+    final end = metric.length * progress.clamp(0.0, 1.0);
     var d = 0.0;
-    while (d < metric.length) {
-      final next = math.min(d + on, metric.length);
+    while (d < end) {
+      final next = math.min(d + on, end);
       canvas.drawPath(metric.extractPath(d, next), paint);
       d += on + off;
     }
@@ -508,7 +674,7 @@ class _SwatchPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final r = RRect.fromRectAndRadius(
       (Offset.zero & size).deflate(0.75),
-      const Radius.circular(2),
+      const Radius.circular(3),
     );
     drawDashedPath(canvas, Path()..addRRect(r), color, on: 2.2, off: 1.6);
   }
@@ -517,9 +683,10 @@ class _SwatchPainter extends CustomPainter {
   bool shouldRepaint(_SwatchPainter old) => old.color != color;
 }
 
-/// Dokunulan sütunun üstündeki küçük ters baloncuk.
+/// Dokunulan sütunun üstündeki küçük ters baloncuk (`inverse`, r10): sütundan "pop" ile çıkar.
 class _Bubble extends StatelessWidget {
   const _Bubble({
+    super.key,
     required this.centerX,
     required this.bottom,
     required this.text,
@@ -538,6 +705,7 @@ class _Bubble extends StatelessWidget {
     final style = t.captionStrong.copyWith(
       color: c.onInverse,
       letterSpacing: 0,
+      fontFeatures: AknNumerals.tabular,
     );
     final tp = TextPainter(
       text: TextSpan(text: text, style: style),
@@ -545,25 +713,45 @@ class _Bubble extends StatelessWidget {
       textScaler: MediaQuery.textScalerOf(context),
       maxLines: 1,
     )..layout();
-    final w = tp.width + 16;
-    final h = tp.height + 8;
+    final w = tp.width + 20;
+    final h = tp.height + 10;
     tp.dispose();
     final left = (centerX - w / 2)
         .clamp(0.0, math.max(0.0, maxWidth - w))
         .toDouble();
+    // Baloncuğun büyüme noktası: sütunun hizası.
+    final anchor = w <= 0 ? 0.5 : ((centerX - left) / w).clamp(0.0, 1.0);
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: c.inverse,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: AknShadows.raised(c),
+      ),
+      child: Text(text, style: style, maxLines: 1, softWrap: false),
+    );
+    final d = AknMotion.of(context, const Duration(milliseconds: 260));
     return Positioned(
       left: left,
       top: math.max(0.0, bottom - h),
       child: Semantics(
         liveRegion: true,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: c.inverse,
-            borderRadius: AknRadius.tag,
-          ),
-          child: Text(text, style: style, maxLines: 1, softWrap: false),
-        ),
+        child: d == Duration.zero
+            ? bubble
+            : TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: d,
+                curve: AknMotion.pop,
+                child: bubble,
+                builder: (context, v, child) => Opacity(
+                  opacity: v.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: 0.7 + 0.3 * v,
+                    alignment: Alignment(anchor * 2 - 1, 1),
+                    child: child,
+                  ),
+                ),
+              ),
       ),
     );
   }

@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
 
+import 'theme.dart';
 import 'tokens.dart';
 import 'typography.dart';
 
-/// Driver mode — design v2 §6.30 and §3.4: the cab version of the app for
-/// gloved hands, sunlight and a phone on a dashboard mount.
+/// Driver mode — design v3 (from v2 §6.30 and §3.4): the cab version of the
+/// app for gloved hands, sunlight and a phone on a dashboard mount.
 ///
 /// Applied by the driver shell (driver-only users) and by the driver flow
 /// pages for anyone, through [AknDriverScope] (or [AknDriverMode.theme]):
 ///
 /// * type one step larger: display 34/40, title 22/28, headline 20/26 (stop
 ///   name 24/30, [stopName]), body 17/24, bodySmall 15/20, label 15/20,
-///   button 18/22, navLabel 12/15, plateFigure 64/62, plateUnit 34, number
+///   button 18/22, navLabel 12/15, plateFigure 56/60, plateUnit 28, number
 ///   28/32 (plate readouts 28/32 with 15/20 labels);
-/// * buttons 64 high, radius 14, icon 24; minimum touch target 64; bottom
-///   bar items 64 with 26 px icons; list rows at least 76 high; the TR plate
-///   badge 32 high.
+/// * buttons 64 high, superellipse radius 18, icon 24; minimum touch target
+///   64; bottom-bar items 64 with 26 px icons; list rows at least 76 high;
+///   the TR plate badge 32 high;
+/// * fields 64 high with 17/24 text (`AknTextField`; the money and litre
+///   figures 26/32), chips 44 high in a 64 target, the segmented track 48.
 ///
-/// "Cab night" (dark driver mode) uses the dark tokens as they are (plate
-/// and primary #E64800); nothing else turns orange.
+/// "Cab night" (dark driver mode) uses the dark tokens as they are: the
+/// primary keeps its orange gradient, white label and glow; nothing else
+/// turns orange. The press, selection and loading motion is the same as
+/// everywhere else (v3 §5), only bigger.
 ///
 /// Widgets read the numbers with [AknDriverMode.maybeOf] /
 /// `context.driverMode`; text styles arrive already enlarged through
@@ -45,7 +50,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
   /// Every button (primary, secondary, ghost) is this high (64).
   final double buttonHeight;
 
-  /// Button corner radius (14).
+  /// Button corner radius (18).
   final double buttonRadius;
 
   /// Button icon size (24).
@@ -95,8 +100,8 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       number: s(t.number, 28, 32),
       numberLarge: s(t.numberLarge, 36, 40),
       button: s(t.button, 18, 22),
-      plateFigure: s(t.plateFigure, 64, 62),
-      plateUnit: s(t.plateUnit, 34, 34),
+      plateFigure: s(t.plateFigure, 56, 60),
+      plateUnit: s(t.plateUnit, 28, 32),
       figureWord: s(t.figureWord, 22, 26),
       readoutUnit: s(t.readoutUnit, 17, 32),
       navLabel: s(t.navLabel, 12, 15),
@@ -108,31 +113,40 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       t.headline.copyWith(fontSize: 24, height: 30 / 24);
 
   /// [theme] in driver mode: the extension itself, the §3.4 text styles
-  /// (also as the Material text theme), 64 px buttons with radius 14, an
-  /// 18/22 label and 24 px icons, 64 px icon buttons, 64 px inputs, 76 px
-  /// list rows and 64 px navigation items. Idempotent.
+  /// (also as the Material text theme), 64 px superellipse buttons with
+  /// radius 18 ([buttonRadius]), an 18/22 w700 label and 24 px icons, 64 px
+  /// icon buttons, 64 px inputs, 76 px list rows, 44 px chips and 64 px
+  /// navigation items (the active one w700 on its soft orange pill).
+  /// Colours, shadows and motion stay those of the v3 theme. Idempotent.
   static ThemeData theme(ThemeData theme, {AknDriverMode mode = standard}) {
     if (theme.extension<AknDriverMode>() != null) return theme;
     final c = theme.extension<AknColors>() ?? AknColors.light;
     final t = textStyles(
       theme.extension<AknTextStyles>() ?? AknTextStyles.from(c),
     );
+    final radius = BorderRadius.all(Radius.circular(mode.buttonRadius));
     final shape = WidgetStatePropertyAll<OutlinedBorder>(
-      RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(mode.buttonRadius)),
-      ),
+      RoundedSuperellipseBorder(borderRadius: radius),
     );
-    ButtonStyle big(ButtonStyle? s, {double minWidth = 64}) =>
+    // The primary's gradient is painted inside its shape: give it the
+    // driver radius too.
+    final gradient = AknTheme.primaryButtonStyle(
+      c,
+      t,
+      radius: radius,
+    ).backgroundBuilder;
+    ButtonStyle big(ButtonStyle? s, {bool primary = false}) =>
         (s ?? const ButtonStyle()).copyWith(
           textStyle: WidgetStatePropertyAll<TextStyle>(t.button),
           minimumSize: WidgetStatePropertyAll<Size>(
-            Size(minWidth, mode.buttonHeight),
+            Size(64, mode.buttonHeight),
           ),
           iconSize: WidgetStatePropertyAll<double>(mode.buttonIconSize),
           padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
             EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           ),
           shape: shape,
+          backgroundBuilder: primary ? gradient : null,
         );
     final inputs = theme.inputDecorationTheme;
     return theme.copyWith(
@@ -141,10 +155,10 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
           .followedBy([t, mode]),
       textTheme: t.toTextTheme(),
       filledButtonTheme: FilledButtonThemeData(
-        style: big(theme.filledButtonTheme.style),
+        style: big(theme.filledButtonTheme.style, primary: true),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: big(theme.elevatedButtonTheme.style),
+        style: big(theme.elevatedButtonTheme.style, primary: true),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: big(theme.outlinedButtonTheme.style),
@@ -204,8 +218,8 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
           (s) => t.navLabel.copyWith(
             color: s.contains(WidgetState.selected) ? c.ink : c.navInactive,
             fontWeight: s.contains(WidgetState.selected)
-                ? FontWeight.w600
-                : FontWeight.w500,
+                ? FontWeight.w700
+                : FontWeight.w600,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith(

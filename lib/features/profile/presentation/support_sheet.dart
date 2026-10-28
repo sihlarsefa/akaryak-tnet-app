@@ -49,7 +49,7 @@ class _SupportBody extends ConsumerWidget {
       children: [
         if (phone != null)
           AknListTile(
-            leadingIcon: Icons.call_outlined,
+            leading: const _Tile(PhosphorIconsRegular.phone),
             showChevron: true,
             title: ProfileCopy.supportCall,
             subtitle: Fmt.phone(support.phone),
@@ -57,7 +57,7 @@ class _SupportBody extends ConsumerWidget {
           ),
         if (whatsapp != null)
           AknListTile(
-            leadingIcon: Icons.chat_outlined,
+            leading: const _Tile(PhosphorIconsRegular.chatText),
             showChevron: true,
             title: ProfileCopy.supportWhatsapp,
             subtitle: Fmt.phone(support.whatsapp),
@@ -65,20 +65,44 @@ class _SupportBody extends ConsumerWidget {
           ),
         if (email != null)
           AknListTile(
-            leadingIcon: Icons.mail_outline_rounded,
+            leading: const _Tile(PhosphorIconsRegular.envelopeSimple),
             showChevron: true,
             title: ProfileCopy.supportEmail,
             subtitle: support.email,
             onTap: () => unawaited(launch(email)),
           ),
         AknListTile(
-          leadingIcon: Icons.help_outline_rounded,
+          leading: const _Tile(PhosphorIconsRegular.question),
           showChevron: true,
           title: ProfileCopy.supportPage,
           subtitle: ProfileCopy.supportPageHint,
           onTap: () => unawaited(launch(page, external: false)),
         ),
       ],
+    );
+  }
+}
+
+/// Kanal simgesi (v3): 40 px, r12 yumuşak turuncu karo, turuncu (Pas) simge.
+class _Tile extends StatelessWidget {
+  const _Tile(this.icon);
+
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return ExcludeSemantics(
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: c.brandSoft,
+          borderRadius: AknRadius.buttonSmall,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 20, color: c.brandInk),
+      ),
     );
   }
 }

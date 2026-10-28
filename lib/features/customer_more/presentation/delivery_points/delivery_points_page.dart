@@ -38,6 +38,7 @@ class DeliveryPointsPage extends ConsumerWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             EmptyState(
+              key: const ValueKey('empty'),
               title: CmCopy.pointsEmpty,
               message: CmCopy.pointsEmptyMessage,
               illustration: AknIllustration.delivery,
@@ -50,24 +51,31 @@ class DeliveryPointsPage extends ConsumerWidget {
         ),
       );
     } else {
-      body = PullToRefresh(
-        onRefresh: () => ctrl.load(refresh: true),
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 4, bottom: 16),
-          itemCount: points.length,
-          itemBuilder: (context, i) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (i > 0) const AknLedgerDivider(),
-              DeliveryPointCard(
-                point: points[i],
-                onEdit: policy.cmPointEdit && points[i].isActive
-                    ? () => context.push('/delivery-points/${points[i].id}')
-                    : null,
+      // Kartlar sırayla yükselerek gelir; "Pasifleri göster" değişince akış yeniden başlar.
+      body = StaggerScope(
+        key: ValueKey(s.includeInactive),
+        child: PullToRefresh(
+          onRefresh: () => ctrl.load(refresh: true),
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              top: 4,
+              bottom: 16 + MediaQuery.paddingOf(context).bottom,
+            ),
+            itemCount: points.length,
+            itemBuilder: (context, i) => StaggerItem(
+              key: ValueKey(points[i].id),
+              index: i,
+              child: Padding(
+                padding: CmCard.listMargin,
+                child: DeliveryPointCard(
+                  point: points[i],
+                  onEdit: policy.cmPointEdit && points[i].isActive
+                      ? () => context.push('/delivery-points/${points[i].id}')
+                      : null,
+                ),
               ),
-            ],
+            ),
           ),
         ),
       );
@@ -80,7 +88,7 @@ class DeliveryPointsPage extends ConsumerWidget {
           ? cmBar(
               AknButton(
                 label: 'Yeni teslimat noktası',
-                icon: Icons.add_location_alt_outlined,
+                icon: PhosphorIconsRegular.mapPinPlus,
                 expand: true,
                 onPressed: online
                     ? () => context.push('/delivery-points/new')
@@ -112,9 +120,10 @@ class DeliveryPointsPage extends ConsumerWidget {
   }
 }
 
-/// Teslimat noktası satırı (tasarım v2 §6.8, ledger): ad, adres ve il / ilçe; kabul saati, tank,
-/// konum; sorumlu ve erişim notu; altta "Ara" ve "Haritada aç". Düzenlenebilirse satır düzenlemeyi
-/// açar (ok işareti). Pasif nokta soluk ve "Pasif" lambalı.
+/// Teslimat noktası kartı (tasarım v3 §4): beyaz r20 kart; başta iğne karosu, ad, adres ve il /
+/// ilçe; kabul saati, tank ve konum sessiz haplarda; sorumlu ve erişim notu; altta "Ara" ve
+/// "Haritada aç". Düzenlenebilirse kart düzenlemeyi açar (ok işareti, basınca 0,97). Pasif nokta
+/// soluk ve "Pasif" lambalı.
 class DeliveryPointCard extends StatelessWidget {
   const DeliveryPointCard({super.key, required this.point, this.onEdit});
 
@@ -130,29 +139,48 @@ class DeliveryPointCard extends StatelessWidget {
       p.contactName,
       p.contactPhone == null ? null : Fmt.phone(p.contactPhone),
     ].whereType<String>().join(', ');
-    final factStyle = t.bodySmall.copyWith(
+    final factStyle = t.label.copyWith(
       color: c.ink,
       fontWeight: FontWeight.w500,
     );
-    Widget info(IconData icon, String text) => Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: c.dim),
-        const SizedBox(width: 5),
-        Flexible(child: Text(text, style: factStyle)),
-      ],
+    Widget info(IconData icon, String text) => Container(
+      padding: const EdgeInsets.fromLTRB(9, 4, 11, 4),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: AknRadius.pillAll,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: c.dim),
+          const SizedBox(width: 5),
+          Flexible(child: Text(text, style: factStyle)),
+        ],
+      ),
     );
     final place = [
       p.address,
       p.cityDistrict,
     ].where((x) => x.isNotEmpty).join(', ');
+    final edit = onEdit;
     final tile = AknListTile(
+      leading: CmIconTile(
+        icon: PhosphorIconsRegular.mapPin,
+        tone: p.isActive ? AknTone.brand : AknTone.neutral,
+      ),
       title: p.name,
-      titleStyle: p.isActive ? null : t.headline.copyWith(color: c.dim),
+      titleStyle: p.isActive
+          ? cmRowTitle(context)
+          : cmRowTitle(context).copyWith(color: c.dim),
       subtitle: place.isEmpty ? null : place,
-      showChevron: onEdit != null,
-      onTap: onEdit,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      showChevron: edit != null,
+      onTap: edit == null
+          ? null
+          : () {
+              AknHaptics.selection();
+              edit();
+            },
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 12),
       semanticLabel: [
         p.name,
         if (!p.isActive) 'pasif',
@@ -164,7 +192,7 @@ class DeliveryPointCard extends StatelessWidget {
         if (contact.isNotEmpty) 'Sorumlu $contact',
         p.hasLocation ? 'konum kayıtlı' : 'konum yok',
         ?p.accessNotes,
-        if (onEdit != null) 'düzenle',
+        if (edit != null) 'düzenle',
       ].where((x) => x.isNotEmpty).join(', '),
       footer: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,29 +200,35 @@ class DeliveryPointCard extends StatelessWidget {
         children: [
           if (!p.isActive) ...[
             const AknLamp(label: 'Pasif', tone: AknTone.neutral),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
           ],
           Wrap(
-            spacing: 14,
+            spacing: 6,
             runSpacing: 6,
             children: [
-              if (p.window != null) info(Icons.schedule_outlined, p.window!),
+              if (p.window != null) info(PhosphorIconsRegular.clock, p.window!),
               if (p.tankCapacityLiters != null)
                 info(
-                  Icons.propane_tank_outlined,
+                  PhosphorIconsRegular.cylinder,
                   'Tank ${Fmt.liters(p.tankCapacityLiters)}',
                 ),
               info(
                 p.hasLocation
-                    ? Icons.place_outlined
-                    : Icons.location_off_outlined,
+                    ? PhosphorIconsRegular.mapPin
+                    : PhosphorIconsRegular.gpsSlash,
                 p.hasLocation ? 'Konum kayıtlı' : 'Konum yok',
               ),
             ],
           ),
           if (contact.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            info(Icons.person_outline_rounded, contact),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(PhosphorIconsRegular.user, size: 16, color: c.dim),
+                const SizedBox(width: 6),
+                Flexible(child: Text(contact, style: factStyle)),
+              ],
+            ),
           ],
           if (p.accessNotes != null) ...[
             const SizedBox(height: 6),
@@ -208,40 +242,43 @@ class DeliveryPointCard extends StatelessWidget {
         ],
       ),
     );
-    if (p.contactPhone == null && !p.hasLocation) {
-      return Padding(padding: const EdgeInsets.only(bottom: 4), child: tile);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        tile,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (p.contactPhone != null)
-                AknButton.secondary(
-                  label: 'Ara',
-                  icon: Icons.call_outlined,
-                  size: AknButtonSize.small,
-                  semanticLabel: '${p.contactName ?? 'Sorumlu'} kişiyi ara',
-                  onPressed: () => callPhone(p.contactPhone!),
-                ),
-              if (p.hasLocation)
-                AknButton.secondary(
-                  label: CmCopy.openInMaps,
-                  icon: Icons.map_outlined,
-                  size: AknButtonSize.small,
-                  onPressed: () =>
-                      openInMaps(p.latitude!, p.longitude!, label: p.name),
-                ),
-            ],
-          ),
-        ),
-      ],
+    final actions = p.contactPhone != null || p.hasLocation;
+    // Kartın içinde düğme varsa kart basılmaz (düğme kendi basışını yapar); satır vurgulanır.
+    return CmCard(
+      pressable: edit != null && !actions,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          tile,
+          if (actions)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (p.contactPhone != null)
+                    AknButton.secondary(
+                      label: 'Ara',
+                      icon: PhosphorIconsRegular.phone,
+                      size: AknButtonSize.small,
+                      semanticLabel: '${p.contactName ?? 'Sorumlu'} kişiyi ara',
+                      onPressed: () => callPhone(p.contactPhone!),
+                    ),
+                  if (p.hasLocation)
+                    AknButton.secondary(
+                      label: CmCopy.openInMaps,
+                      icon: PhosphorIconsRegular.mapTrifold,
+                      size: AknButtonSize.small,
+                      onPressed: () =>
+                          openInMaps(p.latitude!, p.longitude!, label: p.name),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

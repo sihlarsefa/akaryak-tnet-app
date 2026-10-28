@@ -75,7 +75,8 @@ double _seg(double t, double a, double b, [Curve curve = AknMotion.standard]) =>
 /// sayfası çizimi 0,9 ölçekte ve alana sığacak kadar küçülterek gösterir.
 const double kSceneWidth = 350;
 
-/// Basılan düğmenin kısa "basıldı" kareleri (0,98 ölçek) ve yerine gelen sonuç satırı.
+/// Basılan düğmenin kısa "basıldı" kareleri (0,97 ölçek, parıltı söner) ve yerine gelen sonuç satırı
+/// (onay simgesi "pop" ile büyür).
 class _PressThenResult extends StatelessWidget {
   const _PressThenResult({
     required this.t,
@@ -103,14 +104,17 @@ class _PressThenResult extends StatelessWidget {
           if (swap < 1)
             Opacity(
               opacity: 1 - swap,
-              child: Transform.scale(scale: 1 - 0.02 * press, child: button),
+              child: Transform.scale(scale: 1 - 0.03 * press, child: button),
             ),
           if (swap > 0)
             Opacity(
-              opacity: swap,
+              opacity: swap.clamp(0.0, 1.0),
               child: Transform.translate(
-                offset: Offset(0, 6 * (1 - swap)),
-                child: result,
+                offset: Offset(0, 8 * (1 - swap)),
+                child: _PopScope(
+                  value: _seg(t, pressAt + 0.12, pressAt + 0.3, AknMotion.pop),
+                  child: result,
+                ),
               ),
             ),
         ],
@@ -119,7 +123,21 @@ class _PressThenResult extends StatelessWidget {
   }
 }
 
-/// Çizimdeki düğme (gerçek birincil düğmenin görünüşü; dokunulmaz).
+/// Sonuç satırındaki onay simgesinin "pop" ilerlemesi (0 → 1, taşmalı eğri).
+class _PopScope extends InheritedWidget {
+  const _PopScope({required this.value, required super.child});
+
+  final double value;
+
+  static double of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_PopScope>()?.value ?? 1;
+
+  @override
+  bool updateShouldNotify(_PopScope old) => old.value != value;
+}
+
+/// Çizimdeki düğme (gerçek birincil düğmenin görünüşü; dokunulmaz): turuncu degrade, beyaz yazı, r16 ve
+/// altında sıcak parıltı (sahip kararı G, tasarım v3).
 class _FakeButton extends StatelessWidget {
   const _FakeButton({required this.label});
 
@@ -132,17 +150,25 @@ class _FakeButton extends StatelessWidget {
     return Container(
       height: 52,
       alignment: Alignment.center,
-      // Sahip kararı G: birincil düğme turuncu degrade, beyaz yazı.
       decoration: BoxDecoration(
         gradient: c.buttonGradient,
         borderRadius: AknRadius.button,
+        boxShadow: AknShadows.button(c),
       ),
-      child: Text(label, style: t.button.copyWith(color: c.onBrandFill)),
+      child: Text(
+        label,
+        style: t.button.copyWith(
+          fontSize: 17,
+          height: 22 / 17,
+          fontWeight: FontWeight.w700,
+          color: c.onBrandFill,
+        ),
+      ),
     );
   }
 }
 
-/// Sonuç satırı: yeşil onay + cümle (sonuç, düğmenin fiilini tekrar eder).
+/// Sonuç satırı: yeşil kuyuda onay (büyüyerek gelir) + cümle (sonuç, düğmenin fiilini tekrar eder).
 class _ResultLine extends StatelessWidget {
   const _ResultLine({required this.text});
 
@@ -152,10 +178,24 @@ class _ResultLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
+    final pop = _PopScope.of(context);
     return Row(
       children: [
-        Icon(Icons.check_circle_rounded, size: 24, color: c.ok.fg),
-        const SizedBox(width: 10),
+        Transform.scale(
+          scale: 0.5 + 0.5 * pop,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(color: c.ok.bg, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Icon(
+              PhosphorIconsFill.checkCircle,
+              size: 24,
+              color: c.ok.fg,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(text, style: t.bodyStrong.copyWith(color: c.ink)),
         ),
@@ -196,7 +236,7 @@ class OrderScene extends StatelessWidget {
           const SizedBox(height: 16),
           AknPlate(
             head: const PlateHead(
-              icon: Icons.local_gas_station_outlined,
+              icon: PhosphorIconsRegular.gasPump,
               title: OnboardingCopy.summaryTitle,
             ),
             figure: PlateFigure(
@@ -281,7 +321,7 @@ class QuoteScene extends StatelessWidget {
                       ),
               ),
               if (!approved) ...[
-                Icon(Icons.timer_outlined, size: 17, color: c.brandInk),
+                Icon(PhosphorIconsRegular.timer, size: 17, color: c.brandInk),
                 const SizedBox(width: 4),
                 Text(
                   OnboardingCopy.validFor,
@@ -298,7 +338,7 @@ class QuoteScene extends StatelessWidget {
             scale: scale,
             child: AknPlate(
               head: const PlateHead(
-                icon: Icons.request_quote_outlined,
+                icon: PhosphorIconsRegular.invoice,
                 title: OnboardingCopy.quoteFrom,
                 period: OnboardingCopy.quoteTime,
               ),
@@ -342,8 +382,9 @@ class QuoteScene extends StatelessWidget {
   }
 }
 
-/// Sahne 3 — Teslimat: defter satırı ("Motorin, 12.500 L", "Yolda", varış), » aracı rotada ilerler;
-/// altında "Planlandı, Yola çıktı, Teslim edildi" zaman çizelgesi.
+/// Sahne 3 — Teslimat: başlık ("Motorin, 12.500 L"), çıkış yeri ve plaka; altında yüzen beyaz sevkiyat
+/// kartında "Yolda" lambası ve varış, » aracı rotada ilerler, ince çizginin altında
+/// "Planlandı, Yola çıktı, Teslim edildi" zaman çizelgesi.
 class DeliveryScene extends StatelessWidget {
   const DeliveryScene({super.key, required this.t});
 
@@ -377,53 +418,81 @@ class DeliveryScene extends StatelessWidget {
               const PlateBadge(plate: OnboardingCopy.plate),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: AknLamp(
-                  label: dispatched
-                      ? OnboardingCopy.inTransit
-                      : OnboardingCopy.stepPlanned,
-                  tone: AknTone.info,
-                ),
+          const SizedBox(height: 16),
+          // Gerçek sevkiyat kartı gibi: yüzen beyaz kart (r22, kart gölgesi; koyu temada ince çizgi).
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: AknRadius.section,
+              border: c.isDark ? Border.all(color: c.line) : null,
+              boxShadow: AknShadows.card(c),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: AknLamp(
+                            label: dispatched
+                                ? OnboardingCopy.inTransit
+                                : OnboardingCopy.stepPlanned,
+                            tone: AknTone.info,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        OnboardingCopy.eta,
+                        style: tx.bodyStrong.copyWith(
+                          color: c.ink,
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  TruckRoute(
+                    progress: dispatched ? 0.62 : 0.08,
+                    moving: dispatched,
+                    originLabel: OnboardingCopy.origin,
+                    destinationLabel: OnboardingCopy.remaining,
+                    semanticLabel: OnboardingCopy.deliveryScene,
+                  ),
+                  const SizedBox(height: 14),
+                  Divider(height: 1, thickness: 1, color: c.lineSoft),
+                  const SizedBox(height: 12),
+                  StepTimeline(
+                    dense: true,
+                    steps: [
+                      const TimelineStep(
+                        title: OnboardingCopy.stepPlanned,
+                        time: '09:10',
+                        state: TimelineState.done,
+                      ),
+                      TimelineStep(
+                        title: OnboardingCopy.stepDispatched,
+                        time: dispatched ? '09:58' : null,
+                        state: dispatched
+                            ? TimelineState.done
+                            : TimelineState.current,
+                      ),
+                      TimelineStep(
+                        title: OnboardingCopy.stepDelivered,
+                        time: OnboardingCopy.etaShort,
+                        state: dispatched
+                            ? TimelineState.current
+                            : TimelineState.upcoming,
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              Text(
-                OnboardingCopy.eta,
-                style: tx.bodyStrong.copyWith(color: c.ink),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TruckRoute(
-            progress: dispatched ? 0.62 : 0.08,
-            moving: dispatched,
-            originLabel: OnboardingCopy.origin,
-            destinationLabel: OnboardingCopy.remaining,
-            semanticLabel: OnboardingCopy.deliveryScene,
-          ),
-          const SizedBox(height: 18),
-          StepTimeline(
-            dense: true,
-            steps: [
-              const TimelineStep(
-                title: OnboardingCopy.stepPlanned,
-                time: '09:10',
-                state: TimelineState.done,
-              ),
-              TimelineStep(
-                title: OnboardingCopy.stepDispatched,
-                time: dispatched ? '09:58' : null,
-                state: dispatched ? TimelineState.done : TimelineState.current,
-              ),
-              TimelineStep(
-                title: OnboardingCopy.stepDelivered,
-                time: OnboardingCopy.etaShort,
-                state: dispatched
-                    ? TimelineState.current
-                    : TimelineState.upcoming,
-              ),
-            ],
+            ),
           ),
         ],
       ),

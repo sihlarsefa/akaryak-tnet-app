@@ -11,6 +11,7 @@ import 'package:akaryakitnet/features/auth/api.dart';
 import 'package:akaryakitnet/features/profile/data/profile_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'a8_kit.dart';
 
@@ -371,7 +372,7 @@ void main() {
     await tester.enterText(fields.at(2), 'Yeni2026');
     await tester.pump();
     expect(
-      find.byIcon(Icons.check_circle_rounded),
+      find.byIcon(PhosphorIconsFill.checkCircle),
       findsNWidgets(4),
       reason: 'dört kural sağlandı',
     );

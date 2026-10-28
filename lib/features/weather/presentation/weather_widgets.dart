@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../core/ui/ui.dart';
@@ -13,7 +15,89 @@ String temp(double v) => '${v.round()}°';
 /// Saat etiketi: `16:00`.
 String hourLabel(DateTime instant) => Fmt.time(instant);
 
-/// Saatlik tahmin hücresi: saat, ikon, sıcaklık ve (%20 üstünde) yağış olasılığı.
+/// Simgenin dolu (Fill) eşi: büyük karoda dolu glif kullanılır.
+IconData _filled(IconData icon) {
+  if (icon == PhosphorIconsRegular.sun) return PhosphorIconsFill.sun;
+  if (icon == PhosphorIconsRegular.moon) return PhosphorIconsFill.moon;
+  if (icon == PhosphorIconsRegular.cloudSun) return PhosphorIconsFill.cloudSun;
+  if (icon == PhosphorIconsRegular.cloud) return PhosphorIconsFill.cloud;
+  if (icon == PhosphorIconsRegular.cloudFog) return PhosphorIconsFill.cloudFog;
+  if (icon == PhosphorIconsRegular.cloudRain) {
+    return PhosphorIconsFill.cloudRain;
+  }
+  if (icon == PhosphorIconsRegular.snowflake) {
+    return PhosphorIconsFill.snowflake;
+  }
+  if (icon == PhosphorIconsRegular.cloudLightning) {
+    return PhosphorIconsFill.cloudLightning;
+  }
+  if (icon == PhosphorIconsRegular.wind) return PhosphorIconsFill.wind;
+  return icon;
+}
+
+/// Durumun karo renkleri (tasarım v3: yalnız sıcak ve nötr; mavi yok): güneş sıcak turuncu (kahraman
+/// kartın karosu), fırtına koyu sarı, diğerleri grafit kuyu.
+(Color bg, Color fg) _tileColors(AknColors c, AknTone tone) => switch (tone) {
+  AknTone.brand => (c.plateIconFill, c.plateAccent),
+  AknTone.warn => (c.warn.bg, c.warn.fg),
+  AknTone.info => (c.surfaceAlt, c.ink),
+  _ => (c.surfaceAlt, c.dim),
+};
+
+/// Hava durumu karosu (tasarım v3): yuvarlak köşeli kare, durumun sıcak / nötr tonunda; içinde dolu
+/// Phosphor simgesi. Güneş çok yavaş döner, bulutlar hafifçe süzülür (ortam hareketi).
+class WeatherIconTile extends StatelessWidget {
+  const WeatherIconTile({super.key, required this.condition, this.size = 52});
+
+  final WeatherCondition condition;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final (bg, fg) = _tileColors(c, condition.tone);
+    final sun = condition.icon == PhosphorIconsRegular.sun;
+    final glyph = Icon(_filled(condition.icon), size: size * 0.54, color: fg);
+    return ExcludeSemantics(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(size * 0.31),
+          gradient: sun
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [c.plateTint, bg],
+                )
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: sun
+            ? AknAmbient(
+                period: const Duration(seconds: 24),
+                curve: Curves.linear,
+                builder: (context, t, child) =>
+                    Transform.rotate(angle: 2 * math.pi * t, child: child),
+                child: glyph,
+              )
+            : AknAmbient(
+                period: AknMotion.float,
+                reverse: true,
+                builder: (context, t, child) => Transform.translate(
+                  offset: Offset(2.5 * t - 1.25, 0),
+                  child: child,
+                ),
+                child: glyph,
+              ),
+      ),
+    );
+  }
+}
+
+/// Saatlik tahmin hücresi (tasarım v3): hap biçimli kuyu (`surfaceAlt`, r16) — saat, simge, sıcaklık
+/// (eş genişlikte rakamlar) ve (%20 üstünde) yağış olasılığı. Şimdiki saat yumuşak turuncu zeminde.
 class WeatherHourCell extends StatelessWidget {
   const WeatherHourCell({
     super.key,
@@ -37,41 +121,45 @@ class WeatherHourCell extends StatelessWidget {
     final rain = hour.precipitationProbability >= 20
         ? '%${hour.precipitationProbability}'
         : null;
+    final (_, accent) = _tileColors(c, cond.tone);
     return Semantics(
       label:
           '$time, ${temp(hour.temperature)}, ${cond.label}'
           '${rain == null ? '' : ', yağış olasılığı $rain'}',
       excludeSemantics: true,
-      // Renkli kutu yok (§4.4): saat, soluk simge, sıcaklık (sayaç sesi); şimdiki saat Beton zeminde.
       child: Container(
-        constraints: const BoxConstraints(minWidth: 52),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        constraints: const BoxConstraints(minWidth: 56),
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
         decoration: BoxDecoration(
-          color: highlight ? c.surfaceAlt : null,
-          borderRadius: AknRadius.chip,
+          color: highlight ? c.brandSoft : c.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: highlight ? Border.all(color: c.brandLine) : null,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               time,
-              style: (highlight ? t.captionStrong : t.caption).copyWith(
-                color: highlight ? c.ink : c.dim,
+              style: t.captionStrong.copyWith(
+                color: highlight ? c.brandInk : c.dim,
+                fontFeatures: AknNumerals.tabular,
               ),
             ),
             const SizedBox(height: 6),
-            Icon(cond.icon, size: 22, color: c.dim),
+            Icon(_filled(cond.icon), size: 22, color: accent),
             const SizedBox(height: 6),
             Text(
               temp(hour.temperature),
-              style: t.number.copyWith(
-                fontSize: 18,
-                height: 22 / 18,
-                color: c.ink,
-              ),
+              style: t.amount.copyWith(color: c.ink),
             ),
             if (rain != null)
-              Text(rain, style: t.captionStrong.copyWith(color: c.dim)),
+              Text(
+                rain,
+                style: t.captionStrong.copyWith(
+                  color: c.dim,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
           ],
         ),
       ),
@@ -79,7 +167,9 @@ class WeatherHourCell extends StatelessWidget {
   }
 }
 
-/// Sürüş durumu şeridi: uyarı (dikkat / tehlike) ya da "Sürüş için uygun hava".
+/// Sürüş durumu şeridi (tasarım v3): tonun kuyusu (yumuşak zemin + ince çizgi, r16), solda tonun dolu
+/// renginde 34 px disk ve beyaz simge, ink başlık ve öneri: uyarı (dikkat / tehlike) ya da "Sürüş için
+/// uygun hava".
 class DrivingStatusStrip extends StatelessWidget {
   const DrivingStatusStrip({super.key, required this.alert, this.now});
 
@@ -103,25 +193,31 @@ class DrivingStatusStrip extends StatelessWidget {
       container: true,
       label: '$title. $body',
       excludeSemantics: true,
-      // Kuyu (§4.5): Beton, r12; tonun simgesi + ink metin. Pastel zemin yok.
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
         decoration: BoxDecoration(
-          color: c.surfaceAlt,
-          borderRadius: AknRadius.card,
+          color: tc.bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: tc.line),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 1),
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: tc.solid,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
               child: Icon(
-                a?.icon ?? Icons.check_circle_rounded,
-                size: 20,
-                color: tc.fg,
+                a == null ? PhosphorIconsBold.check : _filled(a.icon),
+                size: 18,
+                color: tc.onSolid,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,7 +236,8 @@ class DrivingStatusStrip extends StatelessWidget {
   }
 }
 
-/// Şimdiki durum satırı (kart ve ayrıntı sayfası).
+/// Şimdiki durum satırı (kart ve ayrıntı sayfası): durum karosu, "Hava durumu" etiketi, sıcaklık
+/// (eş genişlikte, ilk görünüşte sayarak gelir) ve durum adı.
 class WeatherNowRow extends StatelessWidget {
   const WeatherNowRow({
     super.key,
@@ -159,9 +256,14 @@ class WeatherNowRow extends StatelessWidget {
     final t = context.aknText;
     final now = report.now;
     final cond = WeatherCondition.of(now.code, isDay: now.isDay);
+    final figure = (large ? t.numberLarge : t.number).copyWith(
+      fontSize: large ? 40 : 30,
+      height: large ? 44 / 40 : 34 / 30,
+      color: c.ink,
+    );
     return Row(
       children: [
-        Icon(cond.icon, size: large ? 40 : 32, color: c.dim),
+        WeatherIconTile(condition: cond, size: large ? 60 : 52),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -179,14 +281,13 @@ class WeatherNowRow extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.end,
                 spacing: 8,
                 children: [
-                  Text(
-                    temp(now.temperature),
-                    style: (large ? t.numberLarge : t.number).copyWith(
-                      color: c.ink,
-                    ),
+                  AnimatedNumber(
+                    value: now.temperature.round(),
+                    format: (v) => '${v.round()}°',
+                    style: figure,
                   ),
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 3),
+                    padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       cond.label,
                       style: t.bodyStrong.copyWith(color: c.ink),

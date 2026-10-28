@@ -12,11 +12,13 @@ import '../../data/deliver_draft.dart';
 import '../../data/driver_models.dart';
 import 'op_status.dart';
 
-/// Teslimatlarım satırı (tasarım v2 §6.8 ledger satırı, §7.11 "Sonraki duraklar"): güzergâh
-/// numarası (24 px halka), müşteri, nokta, sağda litre ve ürün; altında durum lambası ve saat. İtiraz
-/// edilmişse müşteri notu ve "Teslimatı düzelt"; bekleyen işlem varsa işlem lambası ("Gönderilmeyi
-/// bekliyor" / "Düzelt"); yarım kalan taslak varsa "Devam et". Kart değil satırdır: tam genişlik,
-/// ayırıcı çizgileri liste çizer. Sürücü kipinde en az 76 yüksek.
+/// Teslimatlarım kartı (tasarım v3 §4 liste kartı, §7.11 "Sonraki duraklar"): beyaz kart (r20,
+/// yumuşak kart gölgesi; koyu temada 1 px çizgi) sayfanın 20 px kenarında yüzer. Güzergâh numarası
+/// (32 px yumuşak daire; tamamlananda yeşil onay), müşteri, nokta, sağda litre (tablo rakamları) ve
+/// ürün; altında durum lambası ve saat. İtiraz edilmişse müşteri notu (kırmızı kuyu) ve "Teslimatı
+/// düzelt"; bekleyen işlem varsa işlem lambası ("Gönderilmeyi bekliyor" / "Düzelt"); yarım kalan
+/// taslak varsa "Devam et". Basınca kartın tamamı 0,97'ye küçülür, gölgesi sayfaya oturur ve zemini
+/// kuyu rengine döner (yaylı bırakış, seçim titreşimi). Sürücü kipinde en az 76 yüksek.
 class ShipmentCard extends StatelessWidget {
   const ShipmentCard({
     super.key,
@@ -114,128 +116,12 @@ class ShipmentCard extends StatelessWidget {
       if (op?.status == OutboxStatus.needsAttention) DriverCopy.opAttention,
     ].join(', ');
 
-    final indent = number == null ? 0.0 : 40.0;
+    final indent = number == null ? 0.0 : 48.0;
     final titleStyle = t.headline.copyWith(color: c.ink);
     final amountStyle = t.amount.copyWith(color: c.ink);
     final metaStyle = t.bodySmall.copyWith(color: c.dim);
+    final whenStyle = metaStyle.copyWith(fontFeatures: AknNumerals.tabular);
     final minHeight = AknDriverMode.maybeOf(context)?.rowMinHeight ?? 64;
-
-    final main = Semantics(
-      button: true,
-      label: summary,
-      onTap: onOpen,
-      excludeSemantics: true,
-      child: _Pressable(
-        onTap: onOpen,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(minHeight: minHeight),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (number != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: StopNumber(number: number!, done: _done),
-                  ),
-                  const SizedBox(width: 16),
-                ],
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, box) {
-                      final stack =
-                          box.maxWidth < 280 ||
-                          MediaQuery.textScalerOf(context).scale(10) >= 13;
-                      final title = Text(
-                        row.customerTitle ?? row.code,
-                        style: titleStyle,
-                        maxLines: stack ? 4 : 2,
-                        overflow: TextOverflow.ellipsis,
-                      );
-                      final sub = place.isEmpty
-                          ? null
-                          : Text(place.join(', '), style: metaStyle);
-                      final status = AknStatusLine(
-                        lamp: AknLamp(
-                          label: lamp.label,
-                          tone: lamp.tone,
-                          solid: lamp.solid,
-                        ),
-                        trailing: Text(when, style: metaStyle),
-                      );
-                      if (stack) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            title,
-                            const SizedBox(height: 2),
-                            Text.rich(
-                              TextSpan(
-                                text: litres,
-                                style: amountStyle,
-                                children: [
-                                  if (rightMeta != null)
-                                    TextSpan(
-                                      text: '  $rightMeta',
-                                      style: metaStyle,
-                                    ),
-                                ],
-                              ),
-                            ),
-                            if (sub != null) ...[
-                              const SizedBox(height: 2),
-                              sub,
-                            ],
-                            const SizedBox(height: 8),
-                            status,
-                          ],
-                        );
-                      }
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Expanded(child: title),
-                              const SizedBox(width: 12),
-                              Text(
-                                litres,
-                                style: amountStyle,
-                                maxLines: 1,
-                                softWrap: false,
-                              ),
-                            ],
-                          ),
-                          if (sub != null || rightMeta != null) ...[
-                            const SizedBox(height: 2),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Expanded(child: sub ?? const SizedBox()),
-                                if (rightMeta != null) ...[
-                                  const SizedBox(width: 12),
-                                  Text(rightMeta, style: metaStyle),
-                                ],
-                              ],
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          status,
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
 
     final extras = <Widget>[
       if (row.isDisputed)
@@ -248,17 +134,118 @@ class ShipmentCard extends StatelessWidget {
       if (op != null) _OpRow(op: op, onFix: onFixOp),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        main,
+    final main = ConstrainedBox(
+      constraints: BoxConstraints(minHeight: minHeight),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, extras.isEmpty ? 16 : 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (number != null) ...[
+              StopNumber(number: number!, done: _done),
+              const SizedBox(width: 16),
+            ],
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final stack =
+                      box.maxWidth < 280 ||
+                      MediaQuery.textScalerOf(context).scale(10) >= 13;
+                  final title = Text(
+                    row.customerTitle ?? row.code,
+                    style: titleStyle,
+                    maxLines: stack ? 4 : 2,
+                    overflow: TextOverflow.ellipsis,
+                  );
+                  final sub = place.isEmpty
+                      ? null
+                      : Text(place.join(', '), style: metaStyle);
+                  final status = AknStatusLine(
+                    lamp: AknLamp(
+                      label: lamp.label,
+                      tone: lamp.tone,
+                      solid: lamp.solid,
+                    ),
+                    trailing: Text(when, style: whenStyle),
+                  );
+                  if (stack) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        title,
+                        const SizedBox(height: 2),
+                        // Litre sayaç gibi yuvarlanarak gelir (değişince eski rakamdan döner).
+                        RollingText(
+                          TextSpan(
+                            text: litres,
+                            style: amountStyle,
+                            children: [
+                              if (rightMeta != null)
+                                TextSpan(
+                                  text: '  $rightMeta',
+                                  style: metaStyle,
+                                ),
+                            ],
+                          ),
+                          maxLines: null,
+                          softWrap: true,
+                        ),
+                        if (sub != null) ...[const SizedBox(height: 2), sub],
+                        const SizedBox(height: 10),
+                        status,
+                      ],
+                    );
+                  }
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(child: title),
+                          const SizedBox(width: 12),
+                          RollingText(
+                            TextSpan(text: litres, style: amountStyle),
+                          ),
+                        ],
+                      ),
+                      if (sub != null || rightMeta != null) ...[
+                        const SizedBox(height: 2),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Expanded(child: sub ?? const SizedBox()),
+                            if (rightMeta != null) ...[
+                              const SizedBox(width: 12),
+                              Text(rightMeta, style: metaStyle),
+                            ],
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      status,
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    return _StopCardSurface(
+      onTap: onOpen,
+      semanticLabel: summary,
+      main: main,
+      extras: [
         for (final e in extras)
           Padding(
-            padding: EdgeInsetsDirectional.fromSTEB(20 + indent, 0, 20, 0),
+            padding: EdgeInsetsDirectional.fromSTEB(16 + indent, 0, 16, 0),
             child: e,
           ),
-        if (extras.isNotEmpty) const SizedBox(height: 6),
       ],
     );
   }
@@ -267,8 +254,9 @@ class ShipmentCard extends StatelessWidget {
 /// Şoför satırının lambası: ton, Türkçe etiket, kalın mı.
 typedef DriverLamp = ({AknTone tone, String label, bool solid});
 
-/// Güzergâh sırası: 24 px halka içinde numara (Condensed 700). Tamamlanan durakta Beton dolgu ve
-/// soluk numara.
+/// Güzergâh sırası (tasarım v3): 32 px yumuşak daire içinde numara (800, tablo rakamları; yazıyla
+/// en çok 1,3× büyür). Tamamlanan durakta yeşil kuyu ve onay işareti; durum değişince işaret
+/// yaylanarak belirir.
 class StopNumber extends StatelessWidget {
   const StopNumber({super.key, required this.number, this.done = false});
 
@@ -279,74 +267,138 @@ class StopNumber extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.3);
-    final size = 24 * scale;
+    final size = 32 * scale;
+    final onCard = AknCardScope.onSurface(context) || !c.isDark;
     return ExcludeSemantics(
-      child: Container(
+      child: AnimatedContainer(
+        duration: AknMotion.of(context, AknMotion.base),
+        curve: AknMotion.standard,
         width: size,
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: done ? c.surfaceAlt : null,
+          color: done ? c.ok.bg : (onCard ? c.surfaceAlt : c.surfaceRaised),
           shape: BoxShape.circle,
-          border: done ? null : Border.all(color: c.ink, width: 1.5),
+          border: done ? Border.all(color: c.ok.line) : null,
         ),
-        child: Text(
-          '$number',
-          textScaler: TextScaler.noScaling,
-          style: TextStyle(
-            fontFamily: AknFonts.condensed,
-            fontSize: 13 * scale,
-            height: 1,
-            fontWeight: FontWeight.w700,
-            color: done ? c.dim : c.ink,
+        child: AnimatedSwitcher(
+          duration: AknMotion.of(context, AknMotion.iconSwap),
+          switchInCurve: AknMotion.pop,
+          transitionBuilder: (child, a) => ScaleTransition(
+            scale: a,
+            child: FadeTransition(opacity: a, child: child),
           ),
+          child: done
+              ? Icon(
+                  PhosphorIconsBold.check,
+                  key: const ValueKey('done'),
+                  size: 16 * scale,
+                  color: c.ok.fg,
+                )
+              : Text(
+                  '$number',
+                  key: const ValueKey('number'),
+                  textScaler: TextScaler.noScaling,
+                  style: context.aknText.label.copyWith(
+                    fontSize: 14 * scale,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: AknNumerals.tabular,
+                    color: c.ink,
+                  ),
+                ),
         ),
       ),
     );
   }
 }
 
-/// Satırın basılınca Beton zemin alan tıklanabilir alanı (90 ms).
-class _Pressable extends StatefulWidget {
-  const _Pressable({required this.onTap, required this.child});
+/// Kartın yüzeyi: beyaz, r20, kart gölgesi. Üst bölüm (müşteri, litre, durum) dokunulabilir
+/// alandır; basılınca kartın tamamı küçülür, gölge sayfaya oturur, zemin kuyu rengine döner (100 ms
+/// içeri, 260 ms yaylı geri). Alt eylemler (düzelt, devam et) kendi düğmeleridir.
+class _StopCardSurface extends StatefulWidget {
+  const _StopCardSurface({
+    required this.onTap,
+    required this.semanticLabel,
+    required this.main,
+    required this.extras,
+  });
 
   final VoidCallback onTap;
-  final Widget child;
+
+  /// Üst bölümün ekran okuyucu metni (tek düğüm: düğme + özet).
+  final String semanticLabel;
+  final Widget main;
+  final List<Widget> extras;
 
   @override
-  State<_Pressable> createState() => _PressableState();
+  State<_StopCardSurface> createState() => _StopCardSurfaceState();
 }
 
-class _PressableState extends State<_Pressable> {
+class _StopCardSurfaceState extends State<_StopCardSurface> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: widget.onTap,
-        splashFactory: NoSplash.splashFactory,
-        highlightColor: Colors.transparent,
-        hoverColor: Colors.transparent,
-        onHighlightChanged: (v) {
-          if (v != _pressed) setState(() => _pressed = v);
-        },
-        child: AnimatedContainer(
-          duration: AknMotion.of(
-            context,
-            _pressed ? AknMotion.press : AknMotion.pressOut,
+    final reduced = AknMotion.reduced(context);
+    final duration = _pressed ? AknMotion.press : AknMotion.pressOut;
+    final surface = AnimatedContainer(
+      duration: AknMotion.of(context, duration),
+      curve: AknMotion.standard,
+      decoration: BoxDecoration(
+        color: _pressed ? c.surfaceAlt : c.surface,
+        borderRadius: AknRadius.card,
+        border: c.isDark ? Border.all(color: c.line) : null,
+        boxShadow: _pressed ? AknShadows.pressed(c) : AknShadows.card(c),
+      ),
+      child: ClipRRect(
+        borderRadius: AknRadius.card,
+        child: AknCardScope(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Semantics(
+                button: true,
+                label: widget.semanticLabel,
+                onTap: widget.onTap,
+                excludeSemantics: true,
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: () {
+                      AknHaptics.selection();
+                      widget.onTap();
+                    },
+                    splashFactory: NoSplash.splashFactory,
+                    highlightColor: Colors.transparent,
+                    hoverColor: Colors.transparent,
+                    onHighlightChanged: (v) {
+                      if (v != _pressed) setState(() => _pressed = v);
+                    },
+                    child: widget.main,
+                  ),
+                ),
+              ),
+              ...widget.extras,
+              if (widget.extras.isNotEmpty) const SizedBox(height: 8),
+            ],
           ),
-          color: _pressed ? c.surfaceAlt : Colors.transparent,
-          child: widget.child,
         ),
       ),
+    );
+    return AnimatedScale(
+      scale: _pressed && !reduced ? AknMotion.pressScale : 1,
+      duration: duration,
+      curve: _pressed ? AknMotion.standard : AknMotion.spring,
+      child: surface,
     );
   }
 }
 
-/// Müşterinin itiraz notu (Beton kuyu, kırmızı simge + mürekkep yazı) ve "Teslimatı düzelt".
+/// Müşterinin itiraz notu (yumuşak kırmızı kuyu, kırmızı simge + mürekkep yazı) ve "Teslimatı
+/// düzelt".
 class _DisputeBox extends StatelessWidget {
   const _DisputeBox({required this.note, this.onCorrect});
 
@@ -363,15 +415,22 @@ class _DisputeBox extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
             decoration: BoxDecoration(
-              color: c.surfaceAlt,
-              borderRadius: AknRadius.card,
+              color: c.danger.bg,
+              borderRadius: const BorderRadius.all(
+                Radius.circular(AknRadius.md),
+              ),
+              border: Border.all(color: c.danger.line),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.report_outlined, size: 20, color: c.danger.fg),
+                Icon(
+                  PhosphorIconsRegular.warningOctagon,
+                  size: 20,
+                  color: c.danger.fg,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -383,10 +442,10 @@ class _DisputeBox extends StatelessWidget {
             ),
           ),
           if (onCorrect != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             AknButton.secondary(
               label: DriverCopy.actionFix,
-              icon: Icons.edit_note_rounded,
+              icon: PhosphorIconsRegular.notePencil,
               expand: true,
               onPressed: onCorrect,
             ),
@@ -444,13 +503,12 @@ class _OpRowState extends State<_OpRow> {
   @override
   Widget build(BuildContext context) {
     final op = widget.op;
-    if (op.status == OutboxStatus.done && !_celebrate) {
-      return const SizedBox.shrink();
-    }
+    final hidden = op.status == OutboxStatus.done && !_celebrate;
     final attention = op.status == OutboxStatus.needsAttention;
     final message = attention ? op.lastError : null;
     final t = context.aknText;
     final c = context.akn;
+    if (hidden) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -467,7 +525,7 @@ class _OpRowState extends State<_OpRow> {
               if (attention && widget.onFix != null)
                 AknButton.ghost(
                   label: DriverCopy.opFix,
-                  icon: Icons.edit_outlined,
+                  icon: PhosphorIconsRegular.pencilSimple,
                   size: AknButtonSize.small,
                   onPressed: () => widget.onFix!(op),
                 ),
@@ -475,7 +533,7 @@ class _OpRowState extends State<_OpRow> {
           ),
           if (message != null)
             Padding(
-              padding: const EdgeInsets.only(top: 2),
+              padding: const EdgeInsets.only(top: 4),
               child: Text(message, style: t.bodySmall.copyWith(color: c.ink)),
             ),
         ],
@@ -497,11 +555,17 @@ class _DraftRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: AknLamp(
-              label: DriverCopy.draftAt(DriverCopy.stepShort[draft.step.index]),
-              tone: AknTone.brand,
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AknLamp(
+                label: DriverCopy.draftAt(
+                  DriverCopy.stepShort[draft.step.index],
+                ),
+                tone: AknTone.brand,
+              ),
             ),
           ),
+          const SizedBox(width: 8),
           AknButton.ghost(
             label: DriverCopy.actionResume,
             size: AknButtonSize.small,

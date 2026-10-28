@@ -115,7 +115,7 @@ void main() {
       await pumpFor(tester, const Duration(milliseconds: 600));
       expect(startOp(id)?.status, OutboxStatus.pending);
       expect(find.text(DriverCopy.queuedTitle), findsOneWidget);
-      expect(find.byIcon(Icons.schedule_rounded), findsWidgets);
+      expect(find.byIcon(PhosphorIconsRegular.clock), findsWidgets);
       expect(
         find.byType(SuccessCheck),
         findsNothing,

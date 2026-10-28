@@ -28,8 +28,8 @@ import 'support/a2_support.dart';
 void main() {
   late A2Env env;
 
-  // Gerçek yüz (Mona Sans): plaka göstergeleri ve büyük yazı yerleşimi cihazdaki gibi ölçülür
-  // (tasarım v2 §14.1). Dosyalar yoksa test yazı tipiyle sürer.
+  // Gerçek yüz (Plus Jakarta Sans): plaka göstergeleri, KPI kutuları ve büyük yazı yerleşimi cihazdaki
+  // gibi ölçülür (tasarım v3 §1). Dosyalar yoksa test yazı tipiyle sürer.
   setUpAll(loadRealFonts);
 
   setUp(() async {
@@ -83,13 +83,24 @@ void main() {
     await tester.pump();
   }
 
-  /// Etiketi alanın üstünde duran (tasarım v2) metin alanı.
+  /// Etiketi alanın üstünde duran (tasarım v3 §4 "Inputs") metin alanı.
   Finder fieldLabelled(String label) => find.descendant(
     of: find.ancestor(
       of: find.text(label),
       matching: find.byType(AknTextField),
     ),
     matching: find.byType(TextField),
+  );
+
+  /// Satırın litre alanındaki değer. v3'te adımın altındaki "Toplam" KPI kutusu toplam litreyi
+  /// bilerek yineler (tek satırda aynı sayı), bu yüzden alan değeri litre alanıyla sınırlı aranır.
+  Finder litersValue(String text) =>
+      find.descendant(of: find.byType(LitersField), matching: find.text(text));
+
+  /// "Toplam" KPI kutusundaki litre.
+  Finder totalLiters(String text) => find.descendant(
+    of: find.widgetWithText(KpiTile, 'Toplam'),
+    matching: find.text(text),
   );
 
   Future<void> pumpUntilGone(WidgetTester tester, Finder finder) async {
@@ -210,7 +221,8 @@ void main() {
     await tester.tap(find.text('Benzin – Pendik'));
     await pumpUntil(tester, find.textContaining('şablonu yüklendi'));
     await pumpReal(tester);
-    expect(find.text('5.000'), findsOneWidget);
+    expect(litersValue('5.000'), findsOneWidget);
+    expect(totalLiters('5.000'), findsOneWidget);
     final card = tester.widget<ChoiceCard>(
       find.widgetWithText(ChoiceCard, 'Kurşunsuz Benzin 95'),
     );
@@ -453,7 +465,8 @@ void main() {
       waitFor: find.textContaining('Talep #$requestId'),
     );
     expect(find.textContaining('1 satır aktarıldı'), findsOneWidget);
-    expect(find.text('3.000'), findsOneWidget);
+    expect(litersValue('3.000'), findsOneWidget);
+    expect(totalLiters('3.000'), findsOneWidget);
     await tearDownUi(tester);
   });
 
@@ -477,7 +490,7 @@ void main() {
       unawaited(router.push('/orders/new'));
       await pumpUntil(tester, productsTitle);
       await pumpReal(tester);
-      expect(find.text('12.345'), findsOneWidget);
+      expect(litersValue('12.345'), findsOneWidget);
       await tearDownUi(tester);
     },
   );

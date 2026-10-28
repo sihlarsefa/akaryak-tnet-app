@@ -132,15 +132,15 @@ class _LockedPageState extends ConsumerState<LockedPage> {
     final message = unavailable
         ? AuthCopy.biometricUnavailable
         : _message(_last);
-    // Beyaz sayfa (tasarım v2 §7.2): 40 px logo karosu, `display` başlık, tek cümle; sonuç cümlesi
-    // bir kuyuda; eylemler altta (birincil kilit aç, ikincil şifreyle giriş).
+    // Durum sayfası (tasarım v3): ortada turuncu diskte biyometri simgesi, ortalı başlık ve tek cümle;
+    // sonuç cümlesi bir kuyuda; eylemler altta (birincil kilit aç, ikincil şifreyle giriş).
     return AppScaffold(
       appBar: false,
       showBell: false,
       showOfflineBanner: false,
       body: GateView(
         icon: biometricIcon(kind),
-        tone: AknTone.neutral,
+        tone: unavailable ? AknTone.warn : AknTone.brand,
         title: name == null
             ? AuthCopy.lockedScreenTitle
             : AuthCopy.welcomeBack(name),
@@ -153,7 +153,7 @@ class _LockedPageState extends ConsumerState<LockedPage> {
                 message: message,
                 tone: unavailable ? AknTone.warn : AknTone.neutral,
                 icon: unavailable
-                    ? Icons.no_encryption_gmailerrorred_outlined
+                    ? PhosphorIconsRegular.shieldSlash
                     : biometricIcon(kind),
               ),
         primary: unavailable
@@ -171,7 +171,7 @@ class _LockedPageState extends ConsumerState<LockedPage> {
         secondary: failed || unavailable
             ? AknButton.secondary(
                 label: AuthCopy.passwordFallback,
-                icon: Icons.password_rounded,
+                icon: PhosphorIconsRegular.password,
                 expand: true,
                 size: AknButtonSize.large,
                 loading: _signingOut,

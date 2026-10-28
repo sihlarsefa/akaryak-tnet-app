@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -278,7 +280,7 @@ class FieldPickerTile<T> extends StatelessWidget {
             errorText: error,
             enabled: enabled,
             prefixIcon: icon == null ? null : Icon(icon, size: 20),
-            suffixIcon: const Icon(Icons.unfold_more_rounded, size: 20),
+            suffixIcon: const Icon(PhosphorIconsRegular.caretUpDown, size: 20),
           ),
           child: selected == null
               ? const SizedBox(height: 22)
@@ -431,7 +433,7 @@ Future<WizardLeaveChoice> showWizardLeaveSheet(
           const SizedBox(height: 4),
           const Center(
             child: AknIconBox(
-              icon: Icons.edit_note_rounded,
+              icon: PhosphorIconsRegular.notePencil,
               tone: AknTone.warn,
               size: 56,
             ),
@@ -457,7 +459,7 @@ Future<WizardLeaveChoice> showWizardLeaveSheet(
           if (canSave) ...[
             AknButton(
               label: 'Taslak olarak sakla',
-              icon: Icons.save_outlined,
+              icon: PhosphorIconsRegular.floppyDisk,
               expand: true,
               onPressed: () => Navigator.of(ctx).pop(WizardLeaveChoice.save),
             ),
@@ -479,4 +481,66 @@ Future<WizardLeaveChoice> showWizardLeaveSheet(
     },
   );
   return choice ?? WizardLeaveChoice.stay;
+}
+
+/// Sihirbazın alt çubuğundaki düğme sırası (tasarım v3 §5): solda isteğe bağlı ikincil düğme ([left]:
+/// "Geri", "Taslak kaydet") yana açılarak gelir ve gider, birincil düğme kalan yeri doldurur; adım
+/// türü ([stepKey]) değişince ("İleri" ↔ "Onaya gönder") düğmeler solarak ve yaylanarak büyüyerek yer
+/// değiştirir. Hareket azaltmada anında.
+class FieldWizardButtons extends StatelessWidget {
+  const FieldWizardButtons({
+    super.key,
+    required this.stepKey,
+    required this.primary,
+    this.left,
+    this.gap = 12,
+  });
+
+  /// Düğmelerin türünü belirleyen değer (ör. son adım mı).
+  final Object stepKey;
+  final Widget primary;
+  final Widget? left;
+  final double gap;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = AknMotion.of(context, AknMotion.base);
+    Widget swap(Widget child, String slot) => AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: AknMotion.spring,
+      switchOutCurve: AknMotion.exit,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1).animate(animation),
+          child: child,
+        ),
+      ),
+      layoutBuilder: (current, previous) =>
+          Stack(alignment: Alignment.center, children: [...previous, ?current]),
+      child: KeyedSubtree(key: ValueKey('$slot-$stepKey'), child: child),
+    );
+    final l = left;
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final half = math.max(0.0, (cons.maxWidth - gap) / 2);
+        return Row(
+          children: [
+            AknAnimatedSize(
+              duration: AknMotion.slow,
+              curve: AknMotion.emphasizedCurve,
+              alignment: AlignmentDirectional.centerStart,
+              child: l == null
+                  ? const SizedBox(width: 0, height: 0)
+                  : Padding(
+                      padding: EdgeInsetsDirectional.only(end: gap),
+                      child: SizedBox(width: half, child: swap(l, 'left')),
+                    ),
+            ),
+            Expanded(child: swap(primary, 'primary')),
+          ],
+        );
+      },
+    );
+  }
 }

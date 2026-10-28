@@ -20,6 +20,7 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/network/idempotency.dart';
 import '../../../core/ui/ui.dart';
 import 'failure_view.dart';
+import 'layout.dart';
 
 /// Seçilmiş, yüklenmeye hazır görsel.
 @immutable
@@ -42,7 +43,8 @@ abstract interface class A5FileSource {
 }
 
 /// Cihaz kaynağı: "Fotoğraf çek" / "Galeriden seç" sayfası, ardından [ImageCapture] (çek / senette
-/// kırpma kılavuzu, EXIF silinir, uzun kenar ≤ 1600 px). Sayfa izin isteminden önce gerekçeyi söyler.
+/// kırpma kılavuzu, EXIF silinir, uzun kenar ≤ 1600 px). Sayfa izin isteminden önce gerekçeyi
+/// söyler.
 class DeviceFileSource implements A5FileSource {
   const DeviceFileSource();
 
@@ -58,19 +60,19 @@ class DeviceFileSource implements A5FileSource {
         mainAxisSize: MainAxisSize.min,
         children: [
           AknListTile(
-            leadingIcon: Icons.photo_camera_rounded,
+            leadingIcon: PhosphorIconsRegular.camera,
             leadingTone: AknTone.brand,
             title: 'Fotoğraf çek',
             subtitle: 'Belgeyi düz bir zemine koyup çekin',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.camera),
           ),
           AknListTile(
-            leadingIcon: Icons.photo_library_rounded,
+            leadingIcon: PhosphorIconsRegular.images,
             title: 'Galeriden seç',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.gallery),
           ),
           AknListTile(
-            leadingIcon: Icons.picture_as_pdf_rounded,
+            leadingIcon: PhosphorIconsRegular.filePdf,
             title: 'Dosya (PDF)',
             subtitle: 'Hazır belgeyi seçin',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.file),
@@ -191,7 +193,8 @@ class UploadsController
     return null;
   }
 
-  /// Dosyayı ekler ve yükler. Başarıda sunucudaki eki döner; hatada null (öğe "tekrar dene" bekler).
+  /// Dosyayı ekler ve yükler. Başarıda sunucudaki eki döner; hatada null (öğe "tekrar dene"
+  /// bekler).
   Future<Attachment?> add(
     PickedFile file,
     AttachmentKind kind, {
@@ -291,7 +294,8 @@ class UploadsController
   ];
 }
 
-/// Yükleme satırları (ilerleme halkası, tekrar dene, kaldır).
+/// Yükleme satırları (ilerleme halkası, tekrar dene, kaldır); yeni eklenen satır yumuşakça
+/// yükselerek belirir.
 class UploadTiles extends ConsumerWidget {
   const UploadTiles({super.key, required this.target});
 
@@ -307,38 +311,44 @@ class UploadTiles extends ConsumerWidget {
       children: [
         for (final i in items)
           Padding(
+            key: ValueKey(i.localId),
             padding: const EdgeInsets.only(top: 8),
-            child: AttachmentTile(
-              fileName: i.file.fileName,
-              kindLabel: i.kind.label,
-              sizeBytes: i.file.bytes.length,
-              contentType: i.file.contentType,
-              thumbnail: i.file.contentType.startsWith('image/')
-                  ? Image.memory(
-                      i.file.bytes,
-                      fit: BoxFit.cover,
-                      cacheWidth: 144,
-                      gaplessPlayback: true,
-                    )
-                  : null,
-              // Yüklenen dosya "Yüklendi" alt satırıyla durur; silinebiliyorsa kaldırılabilir.
-              subtitle: i.phase == UploadPhase.done ? 'Yüklendi' : null,
-              state: switch (i.phase) {
-                UploadPhase.uploading => AttachmentTileState.uploading,
-                UploadPhase.failed => AttachmentTileState.failed,
-                UploadPhase.done =>
-                  (i.attachment?.canDelete ?? false)
-                      ? AttachmentTileState.idle
-                      : AttachmentTileState.done,
-              },
-              progress: i.progress,
-              errorText: i.error,
-              onRetry: () => unawaited(ctrl.retry(i.localId)),
-              onDelete:
-                  i.phase == UploadPhase.done &&
-                      (i.attachment?.canDelete ?? false)
-                  ? () => unawaited(_remove(context, ctrl, i))
-                  : null,
+            child: A5FadeUp(
+              offset: 10,
+              duration: AknMotion.slow,
+              curve: AknMotion.emphasizedCurve,
+              child: AttachmentTile(
+                fileName: i.file.fileName,
+                kindLabel: i.kind.label,
+                sizeBytes: i.file.bytes.length,
+                contentType: i.file.contentType,
+                thumbnail: i.file.contentType.startsWith('image/')
+                    ? Image.memory(
+                        i.file.bytes,
+                        fit: BoxFit.cover,
+                        cacheWidth: 144,
+                        gaplessPlayback: true,
+                      )
+                    : null,
+                // Yüklenen dosya "Yüklendi" alt satırıyla durur; silinebiliyorsa kaldırılabilir.
+                subtitle: i.phase == UploadPhase.done ? 'Yüklendi' : null,
+                state: switch (i.phase) {
+                  UploadPhase.uploading => AttachmentTileState.uploading,
+                  UploadPhase.failed => AttachmentTileState.failed,
+                  UploadPhase.done =>
+                    (i.attachment?.canDelete ?? false)
+                        ? AttachmentTileState.idle
+                        : AttachmentTileState.done,
+                },
+                progress: i.progress,
+                errorText: i.error,
+                onRetry: () => unawaited(ctrl.retry(i.localId)),
+                onDelete:
+                    i.phase == UploadPhase.done &&
+                        (i.attachment?.canDelete ?? false)
+                    ? () => unawaited(_remove(context, ctrl, i))
+                    : null,
+              ),
             ),
           ),
       ],

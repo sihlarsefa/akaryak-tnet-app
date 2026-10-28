@@ -21,8 +21,9 @@ import '../data/notification_models.dart';
 import '../notifications_paths.dart';
 import 'widgets/notification_tile.dart';
 
-/// Bildirimler (spec A.4 A8; tasarım v2 §7.7, §7.17): güne göre gruplu defter satırları, okunmamış noktası, kaydırınca okundu, dokununca
-/// derin bağlantı (erişim yoksa burada kalır), "Tümü / Okunmamış", tümünü okundu say, ayarlar.
+/// Bildirimler (spec A.4 A8; tasarım v3): güne göre gruplu, yüzen beyaz kartlar (sırayla ve kaydırınca
+/// kayarak gelir), nefes alan okunmamış noktası, kaydırınca okundu, dokununca derin bağlantı (erişim yoksa
+/// burada kalır), "Tümü / Okunmamış", tümünü okundu say, ayarlar.
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
@@ -38,12 +39,12 @@ class NotificationsPage extends ConsumerWidget {
       refreshing: s.refreshing,
       actions: [
         AknIconButton(
-          icon: Icons.done_all_rounded,
+          icon: PhosphorIconsRegular.checks,
           semanticLabel: NotificationsCopy.markAll,
           onPressed: canMarkAll ? () => _markAll(context, ref) : null,
         ),
         AknIconButton(
-          icon: Icons.tune_rounded,
+          icon: PhosphorIconsRegular.slidersHorizontal,
           semanticLabel: NotificationsCopy.settings,
           onPressed: () => context.push(NotificationsPaths.settings),
         ),
@@ -71,7 +72,7 @@ class NotificationsPage extends ConsumerWidget {
           if (s.fromCache)
             AknBanner(
               tone: AknTone.neutral,
-              icon: Icons.cloud_off_outlined,
+              icon: PhosphorIconsRegular.cloudSlash,
               message:
                   '${NotificationsCopy.offlineCached} ${NotificationsCopy.lastUpdated} ${Fmt.time(s.loadedAt)}',
               margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -178,8 +179,11 @@ class _Body extends ConsumerWidget {
           key: ValueKey('inbox-${s.unreadOnly}'),
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.only(
-              bottom: 24 + MediaQuery.viewPaddingOf(context).bottom,
+            padding: EdgeInsets.fromLTRB(
+              AknSpace.page,
+              0,
+              AknSpace.page,
+              24 + MediaQuery.viewPaddingOf(context).bottom,
             ),
             itemCount: entries.length + (footer ? 1 : 0),
             itemBuilder: (context, i) {
@@ -193,18 +197,15 @@ class _Body extends ConsumerWidget {
               final e = entries[i];
               if (e.header != null) return _DayHeader(e.header!);
               final n = e.item!;
-              return StaggerItem(
-                index: i,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    NotificationTile(
-                      notification: n,
-                      onTap: () => _open(context, ref, n),
-                      onMarkRead: () => unawaited(_markRead(ref, n)),
-                    ),
-                    if (e.dividerAfter) const AknLedgerDivider(),
-                  ],
+              // v3: her bildirim kendi kartında; kartlar sırayla, kaydırınca da kayarak gelir
+              // (StaggerItem kartın içinde: giriş sürerken de sağa kaydırılabilir).
+              return Padding(
+                padding: EdgeInsets.only(bottom: e.dividerAfter ? 10 : 0),
+                child: NotificationTile(
+                  notification: n,
+                  revealIndex: i,
+                  onTap: () => _open(context, ref, n),
+                  onMarkRead: () => unawaited(_markRead(ref, n)),
                 ),
               );
             },
@@ -238,7 +239,8 @@ class _Body extends ConsumerWidget {
   }
 }
 
-/// Gün başlığı (tasarım v2 §7.7): "Bugün", "Dün", "18 Ekim" — `label` 13/18 600 dim, sola dayalı.
+/// Gün başlığı (tasarım v3): "Bugün", "Dün", "18 Ekim" — 15/20 800 ink, sola dayalı; kartlarla aynı
+/// hizada.
 class _DayHeader extends StatelessWidget {
   const _DayHeader(this.label);
 
@@ -249,12 +251,17 @@ class _DayHeader extends StatelessWidget {
     final t = context.aknText;
     final c = context.akn;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AknSpace.page, 20, AknSpace.page, 4),
+      padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
       child: Semantics(
         header: true,
         child: Text(
           label,
-          style: t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim),
+          style: t.bodyStrong.copyWith(
+            height: 20 / 15,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
+            color: c.ink,
+          ),
         ),
       ),
     );
@@ -325,7 +332,7 @@ class _Footer extends StatelessWidget {
             ),
             AknButton.ghost(
               label: NotificationsCopy.retry,
-              icon: Icons.refresh_rounded,
+              icon: PhosphorIconsRegular.arrowClockwise,
               onPressed: onRetry,
             ),
           ],
@@ -343,7 +350,7 @@ class _Footer extends StatelessWidget {
       child: Center(
         child: AknButton.ghost(
           label: NotificationsCopy.loadMore,
-          icon: Icons.expand_more_rounded,
+          icon: PhosphorIconsRegular.caretDown,
           onPressed: onRetry,
         ),
       ),

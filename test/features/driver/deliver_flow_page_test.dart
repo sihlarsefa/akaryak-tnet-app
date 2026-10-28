@@ -214,7 +214,7 @@ void main() {
       await pumpUntil(tester, () => deliverOp() != null);
       await pumpFor(tester, const Duration(milliseconds: 600));
       expect(find.text(DriverCopy.queuedDeliverTitle), findsOneWidget);
-      expect(find.byIcon(Icons.schedule_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.clock), findsOneWidget);
       expect(find.byType(SuccessCheck), findsNothing);
       expect(deliverOp()?.status.isWaiting, isTrue);
       expect(shipment()['status'], 1);

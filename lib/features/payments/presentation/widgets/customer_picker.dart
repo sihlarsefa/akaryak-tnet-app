@@ -74,12 +74,22 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
             ),
             data: (list) {
               const pad = EdgeInsets.symmetric(vertical: 10);
+              // Seçili cari: Pas onay işareti "pop" ile belirir.
               Widget check(bool on) => on
-                  ? Icon(Icons.check_circle_rounded, color: c.ink, size: 22)
+                  ? FadeUp(
+                      offset: 0,
+                      scale: 0.4,
+                      curve: AknMotion.pop,
+                      child: Icon(
+                        PhosphorIconsFill.checkCircle,
+                        color: c.brandInk,
+                        size: 22,
+                      ),
+                    )
                   : const SizedBox(width: 22);
               final rows = <Widget>[
                 AknListTile(
-                  leadingIcon: Icons.groups_outlined,
+                  leadingIcon: PhosphorIconsRegular.usersThree,
                   title: 'Tüm cariler',
                   padding: pad,
                   trailing: check(widget.current == null),
@@ -96,23 +106,33 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                     onTap: () => Navigator.of(context).pop(CustomerPicked(o)),
                   ),
               ];
-              return ListView(
-                shrinkWrap: true,
-                children: [
-                  for (var i = 0; i < rows.length; i++) ...[
-                    if (i > 0) const AknLedgerDivider(indent: 0),
-                    rows[i],
-                  ],
-                  if (list.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'Aramaya uyan cari yok. Ünvanın bir bölümünü yazmayı deneyin.',
-                        style: t.bodySmall.copyWith(color: c.dim),
-                        textAlign: TextAlign.center,
+              return StaggerScope(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (var i = 0; i < rows.length; i++)
+                      StaggerItem(
+                        index: i,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (i > 0) const AknLedgerDivider(indent: 0),
+                            rows[i],
+                          ],
+                        ),
                       ),
-                    ),
-                ],
+                    if (list.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'Aramaya uyan cari yok. Ünvanın bir bölümünü yazmayı deneyin.',
+                          style: t.bodySmall.copyWith(color: c.dim),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
               );
             },
           ),

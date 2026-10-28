@@ -69,7 +69,7 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
       message: ProfileCopy.deleteConfirmMessage,
       confirmLabel: ProfileCopy.deleteButton,
       cancelLabel: ProfileCopy.cancel,
-      icon: Icons.person_remove_rounded,
+      icon: PhosphorIconsRegular.userMinus,
       destructive: true,
     );
     if (!ok || !mounted) return;
@@ -115,7 +115,7 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
       actionBar: barOf(
         AknButton.danger(
           label: ProfileCopy.deleteButton,
-          icon: Icons.person_remove_rounded,
+          icon: PhosphorIconsRegular.userMinus,
           expand: true,
           showSuccess: false,
           onPressedAsync: _submit,
@@ -131,58 +131,81 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
             32,
           ),
           children: [
-            Text(ProfileCopy.deleteIntro, style: t.body),
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              AknBanner(tone: AknTone.danger, message: _error!),
-            ],
-            if (pending > 0) ...[
-              const SizedBox(height: 16),
-              AknBanner(
-                tone: AknTone.warn,
-                icon: Icons.cloud_upload_rounded,
-                message: ProfileCopy.deletePendingWarning(pending),
+            SettingsReveal(
+              index: 0,
+              child: Text(ProfileCopy.deleteIntro, style: t.body),
+            ),
+            // Uyarı bantları yerinde açılır (yapı sabit: alanlar yeniden kurulmaz).
+            AknAnimatedSize(
+              duration: AknMotion.slow,
+              curve: AknMotion.emphasizedCurve,
+              alignment: Alignment.topCenter,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: AknBanner(tone: AknTone.danger, message: _error!),
+                    ),
+                  if (pending > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: AknBanner(
+                        tone: AknTone.warn,
+                        icon: PhosphorIconsRegular.cloudArrowUp,
+                        message: ProfileCopy.deletePendingWarning(pending),
+                      ),
+                    ),
+                ],
               ),
-            ],
+            ),
             const SizedBox(height: 16),
-            const _ListCard(
-              title: ProfileCopy.deletedTitle,
-              icon: Icons.delete_outline_rounded,
-              tone: AknTone.danger,
-              items: ProfileCopy.deletedItems,
+            const SettingsReveal(
+              index: 1,
+              child: _ListCard(
+                title: ProfileCopy.deletedTitle,
+                icon: PhosphorIconsRegular.trash,
+                tone: AknTone.danger,
+                items: ProfileCopy.deletedItems,
+              ),
             ),
             const SizedBox(height: 12),
-            const _ListCard(
-              title: ProfileCopy.keptTitle,
-              icon: Icons.inventory_2_outlined,
-              tone: AknTone.info,
-              items: ProfileCopy.keptItems,
-              note: ProfileCopy.keptNote,
+            const SettingsReveal(
+              index: 2,
+              child: _ListCard(
+                title: ProfileCopy.keptTitle,
+                icon: PhosphorIconsRegular.archive,
+                tone: AknTone.info,
+                items: ProfileCopy.keptItems,
+                note: ProfileCopy.keptNote,
+              ),
             ),
             const SectionHeader(
               title: ProfileCopy.timelineTitle,
               padding: EdgeInsets.fromLTRB(0, 24, 0, 8),
             ),
             const AknCard(
+              radius: 20,
               child: StepTimeline(
                 steps: [
                   TimelineStep(
                     title: ProfileCopy.timelineToday,
                     subtitle: ProfileCopy.timelineTodayBody,
                     state: TimelineState.warning,
-                    icon: Icons.lock_rounded,
+                    icon: PhosphorIconsRegular.lock,
                   ),
                   TimelineStep(
                     title: ProfileCopy.timeline14,
                     subtitle: ProfileCopy.timeline14Body,
                     state: TimelineState.upcoming,
-                    icon: Icons.hourglass_bottom_rounded,
+                    icon: PhosphorIconsRegular.hourglassLow,
                   ),
                   TimelineStep(
                     title: ProfileCopy.timelineAfter,
                     subtitle: ProfileCopy.timelineAfterBody,
                     state: TimelineState.upcoming,
-                    icon: Icons.auto_delete_outlined,
+                    icon: PhosphorIconsRegular.trash,
                   ),
                 ],
               ),
@@ -196,10 +219,11 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
               runSpacing: 8,
               children: [
                 for (final r in ProfileCopy.reasons)
-                  ChoiceChip(
-                    label: Text(r),
+                  _ReasonChip(
+                    label: r,
                     selected: _reason == r,
-                    onSelected: (v) => setState(() => _reason = v ? r : null),
+                    onTap: () =>
+                        setState(() => _reason = _reason == r ? null : r),
                   ),
               ],
             ),
@@ -232,8 +256,8 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
                 onPressed: () => setState(() => _showPassword = !_showPassword),
                 icon: Icon(
                   _showPassword
-                      ? Icons.visibility_off_rounded
-                      : Icons.visibility_rounded,
+                      ? PhosphorIconsRegular.eyeSlash
+                      : PhosphorIconsRegular.eye,
                 ),
               ),
               validator: (v) => v == null || v.isEmpty
@@ -264,7 +288,7 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
               alignment: AlignmentDirectional.centerStart,
               child: TextButton.icon(
                 onPressed: () => unawaited(_openInfo()),
-                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                icon: const Icon(PhosphorIconsRegular.arrowSquareOut, size: 18),
                 label: const Text(ProfileCopy.deletionInfoLink),
               ),
             ),
@@ -281,6 +305,101 @@ class _DeleteAccountPageState extends ConsumerState<DeleteAccountPage> {
         ref.read(legalUrisProvider).accountDeletion;
     final ok = await ref.read(profileLinkOpenerProvider)(uri);
     if (!ok) AppToast.error(ProfileCopy.linkFailed);
+  }
+}
+
+/// Neden çipi (tasarım v3): hap biçimli, 40 px görünür (48 dp hedef); dinlenirken beyaz zemin ve ince
+/// çizgi, seçilince ink dolgu ve beyaz yazı; onay simgesi küçükten büyüyerek kayar gelir. Basınca içe
+/// çöker.
+class _ReasonChip extends StatelessWidget {
+  const _ReasonChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final duration = AknMotion.of(context, AknMotion.base);
+    final fg = selected ? c.onInverse : c.ink;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: PressScale(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            AknHaptics.selection();
+            onTap();
+          },
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+            child: Center(
+              widthFactor: 1,
+              child: AnimatedContainer(
+                duration: duration,
+                curve: AknMotion.standard,
+                constraints: const BoxConstraints(minHeight: 40),
+                padding: EdgeInsetsDirectional.fromSTEB(
+                  selected ? 10 : 14,
+                  8,
+                  14,
+                  8,
+                ),
+                decoration: BoxDecoration(
+                  color: selected ? c.ink : c.surface,
+                  borderRadius: AknRadius.pillAll,
+                  border: Border.all(color: selected ? c.ink : c.line),
+                ),
+                child: AknAnimatedSize(
+                  duration: duration,
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (selected) ...[
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: duration,
+                          curve: AknMotion.pop,
+                          builder: (context, v, child) =>
+                              Transform.scale(scale: v, child: child),
+                          child: Icon(
+                            PhosphorIconsBold.check,
+                            size: 16,
+                            color: fg,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: t.label.copyWith(
+                            fontSize: 14,
+                            height: 20 / 14,
+                            color: fg,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -304,13 +423,14 @@ class _ListCard extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     return AknCard(
+      radius: 20,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              AknIconBox(icon: icon, tone: tone, size: 32),
-              const SizedBox(width: 10),
+              SettingsIconTile(icon: icon, tone: tone),
+              const SizedBox(width: 12),
               Expanded(
                 child: Semantics(
                   header: true,
@@ -327,7 +447,7 @@ class _ListCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.only(top: 7, right: 10, left: 4),
+                    padding: const EdgeInsets.only(top: 8, right: 12, left: 14),
                     child: Container(
                       width: 6,
                       height: 6,

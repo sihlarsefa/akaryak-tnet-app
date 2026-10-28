@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -328,8 +327,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
-  /// Tahta ekran 1: turuncu bant, "Giriş yapın", etiketi üstte iki alan, birincil "Giriş yap", ikincil
-  /// "Telefon numarasıyla giriş yap", "Hesabınız yok mu? Bayinizden davet isteyin" ve alt bilgi.
+  /// Giriş (tasarım v3 "Akış"): ışıklı turuncu bant (süzülen logo, yazı markası, başlık), üstüne binen
+  /// beyaz sayfa (r28) ve içinde sırayla beliren bölümler: "Hoş geldiniz", demo kartları (demo
+  /// derlemesi), "Şifre ile / Numara ile" anahtarı, etiketi üstte alanlar, birincil "Giriş yap" ve
+  /// "Hesabınız yok mu? Bayinizden davet isteyin".
   Widget _form(BuildContext context) {
     // Derleme zamanı koruması: canlı derlemede `kFakeApiCompiled` sabit false; demo bölümü ve
     // personalar derlemeye girmez.
@@ -339,179 +340,246 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final t = context.aknText;
     final c = context.akn;
     final large = MediaQuery.textScalerOf(context).scale(16) > 22;
+    final compact = large || demo;
     final notices = _notices(context, mode);
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      excludeFromSemantics: true,
-      onTap: () => FocusScope.of(context).unfocus(),
-      // Tek sütun, hepsi kurulur (tembel liste değil): demo bölümüyle form ilk ekranın altında kalsa
-      // da alanlar hazırdır (parola yöneticisi, kilit ekranından gelince şifreye odak).
-      child: SingleChildScrollView(
-        // Alt bilgi ekranın altından 30 px yukarıda (tahta): ev çubuğu payının bir kısmı bağlantıların
-        // 48 px dokunma alanına girer.
-        padding: EdgeInsets.only(
-          bottom: math.max(0.0, MediaQuery.viewPaddingOf(context).bottom - 18),
+    final headerHeight = AuthHeader.layoutHeight(context, compact: compact);
+    final noticeBlock = AknAnimatedSize(
+      alignment: Alignment.topCenter,
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: notices,
+      ),
+    );
+    return Stack(
+      children: [
+        // Kenarda esneyince (iOS) üstte bandın rengi, altta sayfanın rengi görünür.
+        Positioned.fill(
+          child: Column(
+            children: [
+              Expanded(child: ColoredBox(color: c.heroStart)),
+              Expanded(child: ColoredBox(color: c.surface)),
+            ],
+          ),
         ),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Büyük yazıda ve demo derlemesinde üst alan daralır; altındaki içerik ilk ekrana yaklaşır.
-            AuthHeader(compact: large || demo),
-            // Demo kişileri, form ve alt bilgi yumuşak üst alana binen beyaz sayfada.
-            LoginSheet(
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          excludeFromSemantics: true,
+          onTap: () => FocusScope.of(context).unfocus(),
+          // Tek sütun, hepsi kurulur (tembel liste değil): demo bölümüyle form ilk ekranın altında kalsa
+          // da alanlar hazırdır (parola yöneticisi, kilit ekranından gelince şifreye odak).
+          child: LayoutBuilder(
+            builder: (context, viewport) => SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Karşılama (F2GO düzeni: beyaz sayfanın başında kısa başlık ve tek cümle).
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AknSpace.page,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            demo ? AuthCopy.welcome : AuthCopy.loginTitle,
-                            style: t.title.copyWith(
-                              fontSize: 24,
-                              height: 30 / 24,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.4,
-                              color: c.ink,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          demo ? AuthCopy.welcomeLine : AuthCopy.loginSubtitle,
-                          style: t.body.copyWith(color: c.dim),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // QA SC-03: demo derlemesinde uyarılar (oturum kapandı, hata, bekleme, çevrimdışı) demo
-                  // kartlarının üstünde, ilk ekranda görünür.
-                  if (demo && notices.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        AknSpace.page,
-                        16,
-                        AknSpace.page,
-                        0,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: notices,
+                  // Büyük yazıda ve demo derlemesinde bant daralır; altındaki içerik ilk ekrana yaklaşır.
+                  AuthHeader(compact: compact),
+                  // Beyaz sayfa ekranın altına kadar iner (kısa içerikte de boşluk yok).
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: math.max(
+                        0.0,
+                        viewport.maxHeight - headerHeight,
                       ),
                     ),
-                  if (demo) ...[
-                    Padding(
-                      key: _demoKey,
-                      padding: const EdgeInsets.only(top: 20),
-                      child: DemoAccountsSection(
-                        onSelected: _loginAsDemo,
-                        onSeeAll: () => _pickDemo(context),
-                        busyKey: _demoBusy,
-                        enabled: !_busy,
-                        singleRow: true,
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AknSpace.page,
-                        10,
-                        AknSpace.page,
-                        0,
-                      ),
-                      child: OwnAccountDivider(),
-                    ),
-                  ],
-                  Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
+                    child: LoginSheet(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          AknSpace.page,
-                          18,
-                          AknSpace.page,
-                          0,
+                        // Alt bilgi yok (sahip kararı); ev çubuğu payının bir kısmı son bağlantının
+                        // 48 px dokunma alanına girer.
+                        padding: EdgeInsets.only(
+                          bottom:
+                              28 +
+                              math.max(
+                                0.0,
+                                MediaQuery.viewPaddingOf(context).bottom - 18,
+                              ),
                         ),
-                        child: AutofillGroup(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (!demo) ...notices,
-                              // Şifre ile / Numara ile: kayan anahtar, alanlar yatay geçişle değişir.
-                              if (otpEnabled) ...[
-                                ModeSwitch<LoginMode>(
-                                  semanticLabel: AuthCopy.loginTitle,
-                                  value: mode,
-                                  onChanged: (m) {
-                                    if (_busy || m == mode) return;
-                                    HapticFeedback.selectionClick();
-                                    _setMode(m);
-                                  },
-                                  options: const [
-                                    (
-                                      value: LoginMode.password,
-                                      label: AuthCopy.modePassword,
-                                      icon: Icons.lock_outline_rounded,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            AuthReveal(
+                              index: 0,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AknSpace.page,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Semantics(
+                                      header: true,
+                                      child: Text(
+                                        demo
+                                            ? AuthCopy.welcome
+                                            : AuthCopy.loginTitle,
+                                        style: t.display.copyWith(color: c.ink),
+                                      ),
                                     ),
-                                    (
-                                      value: LoginMode.phone,
-                                      label: AuthCopy.modePhone,
-                                      icon: Icons.smartphone_outlined,
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      demo
+                                          ? AuthCopy.welcomeLine
+                                          : AuthCopy.loginSubtitle,
+                                      style: t.body.copyWith(color: c.dim),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 18),
-                              ],
-                              SharedAxisSwitcher(
-                                reverse: mode == LoginMode.password,
-                                child: mode == LoginMode.password
-                                    ? KeyedSubtree(
-                                        key: const ValueKey('password'),
-                                        child: _passwordFields(),
-                                      )
-                                    : KeyedSubtree(
-                                        key: const ValueKey('phone'),
-                                        child: _phoneFields(),
-                                      ),
                               ),
-                              const SizedBox(height: 16),
-                              HoldAwareButton(
-                                scope: mode == LoginMode.password
-                                    ? ThrottleScope.password
-                                    : ThrottleScope.otp,
-                                label: mode == LoginMode.password
-                                    ? AuthCopy.loginButton
-                                    : AuthCopy.sendCode,
-                                busyLabel: mode == LoginMode.password
-                                    ? AuthCopy.loggingIn
-                                    : AuthCopy.sendingCode,
-                                busy: _busy && _demoBusy == null,
-                                onPressed: _busy ? null : _submit,
+                            ),
+                            // QA SC-03: demo derlemesinde uyarılar (oturum kapandı, hata, bekleme,
+                            // çevrimdışı) demo kartlarının üstünde, ilk ekranda görünür.
+                            if (demo)
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  AknSpace.page,
+                                  notices.isEmpty ? 0 : 16,
+                                  AknSpace.page,
+                                  0,
+                                ),
+                                child: noticeBlock,
                               ),
-                              _NoAccountLine(
-                                onTap: () => showNoAccountSheet(context),
+                            if (demo) ...[
+                              AuthReveal(
+                                index: 1,
+                                child: Padding(
+                                  key: _demoKey,
+                                  padding: const EdgeInsets.only(top: 18),
+                                  child: DemoAccountsSection(
+                                    onSelected: _loginAsDemo,
+                                    onSeeAll: () => _pickDemo(context),
+                                    busyKey: _demoBusy,
+                                    enabled: !_busy,
+                                    singleRow: true,
+                                  ),
+                                ),
+                              ),
+                              const AuthReveal(
+                                index: 2,
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AknSpace.page,
+                                    2,
+                                    AknSpace.page,
+                                    0,
+                                  ),
+                                  child: OwnAccountDivider(),
+                                ),
                               ),
                             ],
-                          ),
+                            Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 520,
+                                ),
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    AknSpace.page,
+                                    demo ? 16 : 22,
+                                    AknSpace.page,
+                                    0,
+                                  ),
+                                  child: AutofillGroup(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        if (!demo) noticeBlock,
+                                        // Şifre ile / Numara ile: akan başparmaklı anahtar, alanlar yatay
+                                        // geçişle değişir.
+                                        if (otpEnabled) ...[
+                                          AuthReveal(
+                                            index: 3,
+                                            child: ModeSwitch<LoginMode>(
+                                              semanticLabel:
+                                                  AuthCopy.loginTitle,
+                                              value: mode,
+                                              onChanged: (m) {
+                                                if (_busy || m == mode) return;
+                                                _setMode(m);
+                                              },
+                                              options: const [
+                                                (
+                                                  value: LoginMode.password,
+                                                  label: AuthCopy.modePassword,
+                                                  icon:
+                                                      PhosphorIconsRegular.lock,
+                                                ),
+                                                (
+                                                  value: LoginMode.phone,
+                                                  label: AuthCopy.modePhone,
+                                                  icon: PhosphorIconsRegular
+                                                      .deviceMobile,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 18),
+                                        ],
+                                        AuthReveal(
+                                          index: 4,
+                                          child: SharedAxisSwitcher(
+                                            reverse: mode == LoginMode.password,
+                                            child: mode == LoginMode.password
+                                                ? KeyedSubtree(
+                                                    key: const ValueKey(
+                                                      'password',
+                                                    ),
+                                                    child: _passwordFields(),
+                                                  )
+                                                : KeyedSubtree(
+                                                    key: const ValueKey(
+                                                      'phone',
+                                                    ),
+                                                    child: _phoneFields(),
+                                                  ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        AuthReveal(
+                                          index: 5,
+                                          child: HoldAwareButton(
+                                            scope: mode == LoginMode.password
+                                                ? ThrottleScope.password
+                                                : ThrottleScope.otp,
+                                            label: mode == LoginMode.password
+                                                ? AuthCopy.loginButton
+                                                : AuthCopy.sendCode,
+                                            busyLabel:
+                                                mode == LoginMode.password
+                                                ? AuthCopy.loggingIn
+                                                : AuthCopy.sendingCode,
+                                            busy: _busy && _demoBusy == null,
+                                            onPressed: _busy ? null : _submit,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        AuthReveal(
+                                          index: 6,
+                                          child: _NoAccountLine(
+                                            onTap: () =>
+                                                showNoAccountSheet(context),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  // Sahip kararı: girişte alt bilgi (yasal bağlantılar, sürüm) yok; Profil'de duruyor.
-                  const SizedBox(height: 28),
                 ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -577,7 +645,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: AknBanner(
             message: AuthCopy.offlineNotice,
             tone: AknTone.neutral,
-            icon: Icons.cloud_off_outlined,
+            icon: PhosphorIconsRegular.cloudSlash,
           ),
         ),
       if (update && error == null && !active)
@@ -587,7 +655,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             title: AuthCopy.updateBannerTitle,
             message: AuthCopy.updateBannerBody,
             tone: AknTone.info,
-            icon: Icons.system_update_outlined,
+            icon: PhosphorIconsRegular.downloadSimple,
             actionLabel: AuthCopy.updateAction,
             onAction: () => openStore(ref),
           ),
@@ -666,7 +734,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 }
 
-/// Şifre alanının sağındaki "Göster / Gizle" (tasarım v2 §6.10): göz simgesi + ink 14/20 600, 48 dp hedef.
+/// Şifre alanının sağındaki "Göster / Gizle" (tasarım v3): göz simgesi + ink 14/20 600, 48 dp hedef. Simge
+/// değişirken küçülüp büyüyerek döner (göz → kapalı göz); basınca hafifçe içe çöker.
 class _RevealButton extends StatelessWidget {
   const _RevealButton({required this.obscured, required this.onPressed});
 
@@ -678,6 +747,7 @@ class _RevealButton extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final label = obscured ? AuthCopy.show : AuthCopy.hide;
+    final duration = AknMotion.of(context, AknMotion.iconSwap);
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: 4),
       child: Tooltip(
@@ -688,37 +758,62 @@ class _RevealButton extends StatelessWidget {
           label: obscured ? AuthCopy.showPassword : AuthCopy.hidePassword,
           excludeSemantics: true,
           onTap: onPressed,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: AknRadius.buttonSmall,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                minHeight: AknSpace.minTap,
-                minWidth: AknSpace.minTap,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      obscured
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 20,
-                      color: c.ink,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: t.label.copyWith(
-                        fontSize: 14,
-                        height: 20 / 14,
-                        fontWeight: FontWeight.w600,
-                        color: c.ink,
+          child: PressScale(
+            child: InkWell(
+              onTap: () {
+                AknHaptics.selection();
+                onPressed();
+              },
+              borderRadius: AknRadius.buttonSmall,
+              splashFactory: NoSplash.splashFactory,
+              highlightColor: c.surfaceAlt,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: AknSpace.minTap,
+                  minWidth: AknSpace.minTap,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedSwitcher(
+                        duration: duration,
+                        switchInCurve: AknMotion.pop,
+                        switchOutCurve: AknMotion.exit,
+                        transitionBuilder: (child, a) => FadeTransition(
+                          opacity: a,
+                          child: ScaleTransition(
+                            scale: Tween<double>(begin: 0.6, end: 1).animate(a),
+                            child: RotationTransition(
+                              turns: Tween<double>(
+                                begin: -0.08,
+                                end: 0,
+                              ).animate(a),
+                              child: child,
+                            ),
+                          ),
+                        ),
+                        child: Icon(
+                          obscured
+                              ? PhosphorIconsRegular.eye
+                              : PhosphorIconsRegular.eyeSlash,
+                          key: ValueKey(obscured),
+                          size: 20,
+                          color: c.ink,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        style: t.label.copyWith(
+                          fontSize: 14,
+                          height: 20 / 14,
+                          color: c.ink,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -729,7 +824,7 @@ class _RevealButton extends StatelessWidget {
   }
 }
 
-/// "Hesabınız yok mu? Bayinizden davet isteyin" (ortalı; bağlantı ink + alt çizgi).
+/// "Hesabınız yok mu? Bayinizden davet isteyin" (ortalı; bağlantı ink 600 + alt çizgi).
 class _NoAccountLine extends StatelessWidget {
   const _NoAccountLine({required this.onTap});
 
@@ -751,7 +846,7 @@ class _NoAccountLine extends StatelessWidget {
         AknInlineLink(
           label: AuthCopy.noAccountLink,
           onTap: onTap,
-          style: style.copyWith(fontWeight: FontWeight.w600),
+          style: style.copyWith(fontWeight: FontWeight.w700, color: c.link),
         ),
       ],
     );

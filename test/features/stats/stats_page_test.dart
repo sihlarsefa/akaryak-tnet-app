@@ -73,7 +73,7 @@ void main() {
       expect(probe.bayi, ['month']);
       // Tek plaka; paylaş düğmesi.
       expect(find.byType(AknPlate), findsOneWidget);
-      expect(find.byIcon(Icons.ios_share_rounded), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.export), findsOneWidget);
       for (final kpi in [
         StatsCopy.kpiSales,
         StatsCopy.kpiLiters,

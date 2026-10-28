@@ -137,7 +137,7 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
           label('Cari'),
           AknListTile(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            leadingIcon: Icons.apartment_outlined,
+            leadingIcon: PhosphorIconsRegular.buildings,
             showChevron: _f.customerId == null,
             title:
                 _f.customerTitle ??
@@ -149,7 +149,7 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
             trailing: _f.customerId == null
                 ? null
                 : AknIconButton(
-                    icon: Icons.close_rounded,
+                    icon: PhosphorIconsRegular.x,
                     semanticLabel: 'Cari süzgecini kaldır',
                     onPressed: () => setState(
                       () => _f = _f.copyWith(

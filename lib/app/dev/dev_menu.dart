@@ -18,6 +18,9 @@ import '../../core/ui/ui.dart';
 
 /// Geliştirici menüsü (yalnızca sahte kip / geliştirme ortamı; `/dev`): demo hesabı değiştirme, hata
 /// enjeksiyonu, gecikme, belirteç düşürme, sahte verileri sıfırlama, tasarım galerisi.
+///
+/// Tasarım v3: her grup 20 px kenar boşluğunda beyaz, gölgeli bir kart (satırlar arasında içeriden
+/// ince çizgi); bölümler sırayla yükselerek gelir; seçili hata kipinin işareti zıplayarak değişir.
 class DevMenuPage extends ConsumerStatefulWidget {
   const DevMenuPage({super.key});
 
@@ -51,109 +54,200 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
     final FakeServer? server = kFakeApiCompiled && env.isFake
         ? ref.watch(fakeServerProvider)
         : null;
+    const rowPadding = EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     return AppScaffold(
       title: 'Geliştirici menüsü',
       subtitle: env.badge,
       showBell: false,
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: AknCard(
-              child: Column(
+      body: StaggerScope(
+        child: ListView(
+          padding: const EdgeInsets.only(top: 8, bottom: 32),
+          children: staggered([
+            _Group(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              children: [
+                FactRow(label: 'Ortam', value: env.env.label),
+                FactRow(
+                  label: 'API',
+                  value: env.isFake ? 'Sahte (uygulama içi)' : env.apiBaseUrl,
+                ),
+                FactRow(label: 'Portal', value: env.portalBaseUrl),
+                FactRow(label: 'Sürüm', value: info.versionLabel),
+                FactRow(
+                  label: 'Cihaz',
+                  value: '${info.platform}, ${info.model ?? '—'}',
+                ),
+              ],
+            ),
+            if (server != null) ...[
+              const SectionHeader(title: 'Sahte sunucu'),
+              _Group(
                 children: [
-                  FactRow(label: 'Ortam', value: env.env.label),
-                  FactRow(
-                    label: 'API',
-                    value: env.isFake ? 'Sahte (uygulama içi)' : env.apiBaseUrl,
+                  SwitchListTile.adaptive(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    title: const Text('Ağ gecikmesi (300–800 ms)'),
+                    value: server.latencyEnabled,
+                    onChanged: (v) => setState(() => server.latencyEnabled = v),
                   ),
-                  FactRow(label: 'Portal', value: env.portalBaseUrl),
-                  FactRow(label: 'Sürüm', value: info.versionLabel),
-                  FactRow(
-                    label: 'Cihaz',
-                    value: '${info.platform}, ${info.model ?? '—'}',
+                ],
+              ),
+              const SectionHeader(title: 'Hata enjeksiyonu'),
+              _Group(
+                children: [
+                  for (final mode in FakeFailureMode.values)
+                    AknListTile(
+                      title: mode.label,
+                      dense: true,
+                      trailing: _Picked(picked: server.failureMode == mode),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      onTap: () => setState(() => server.failureMode = mode),
+                    ),
+                  AknListTile(
+                    leadingIcon: PhosphorIconsRegular.hourglassLow,
+                    title: 'Erişim belirtecini düşür',
+                    subtitle: 'Sonraki istek yenileme akışını dener',
+                    padding: rowPadding,
+                    onTap: () {
+                      server.auth.expireAllAccessTokens();
+                      AppToast.info('Erişim belirteçlerinin süresi doldu.');
+                    },
                   ),
+                  AknListTile(
+                    leadingIcon: PhosphorIconsRegular.arrowCounterClockwise,
+                    title: 'Sahte verileri sıfırla',
+                    subtitle:
+                        'Siparişler, sevkiyatlar, onaylar baştan yüklenir',
+                    padding: rowPadding,
+                    onTap: () {
+                      server.resetWorld();
+                      ref.read(unreadCountProvider.notifier).refresh();
+                      AppToast.success('Sahte veriler sıfırlandı.');
+                    },
+                  ),
+                ],
+              ),
+              const SectionHeader(
+                title: 'Demo hesapları',
+                subtitle:
+                    'Şifre ${FakeAuth.password}, SMS kodu ${FakeAuth.code}',
+              ),
+              _Group(
+                children: [
+                  for (final p in fakePersonas)
+                    AknListTile(
+                      leading: AknAvatar(name: p.displayName),
+                      title: p.displayName,
+                      subtitle: p.summary,
+                      meta: p.userId == current ? 'açık' : p.key,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 6,
+                      ),
+                      onTap: p.userId == current ? null : () => _switchTo(p),
+                    ),
+                ],
+              ),
+            ],
+            const SectionHeader(title: 'Tasarım'),
+            _Group(
+              children: [
+                AknListTile(
+                  leadingIcon: PhosphorIconsRegular.palette,
+                  title: 'Tasarım galerisi',
+                  subtitle: 'Bileşenler, renkler, hareket',
+                  padding: rowPadding,
+                  onTap: () => context.push(kDesignGalleryPath),
+                ),
+              ],
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bir grup: 20 px kenar boşluğunda beyaz kart (r20, kart gölgesi; koyu temada 1 px çizgi), satırlar
+/// arasında içeriden ince çizgi.
+class _Group extends StatelessWidget {
+  const _Group({required this.children, this.padding = EdgeInsets.zero});
+
+  final List<Widget> children;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return Padding(
+      padding: AknSpace.pagePadding,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: c.surface,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: AknRadius.card,
+            side: c.isDark ? BorderSide(color: c.line) : BorderSide.none,
+          ),
+          shadows: AknShadows.card(c),
+        ),
+        child: ClipRSuperellipse(
+          borderRadius: AknRadius.card,
+          child: Material(
+            type: MaterialType.transparency,
+            child: Padding(
+              padding: padding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < children.length; i++) ...[
+                    if (i > 0)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: SizedBox(
+                          height: 1,
+                          width: double.infinity,
+                          child: ColoredBox(color: c.lineSoft),
+                        ),
+                      ),
+                    children[i],
+                  ],
                 ],
               ),
             ),
           ),
-          if (server != null) ...[
-            const SectionHeader(title: 'Sahte sunucu'),
-            SwitchListTile.adaptive(
-              title: const Text('Ağ gecikmesi (300–800 ms)'),
-              value: server.latencyEnabled,
-              onChanged: (v) => setState(() => server.latencyEnabled = v),
-            ),
-            const SectionHeader(
-              title: 'Hata enjeksiyonu',
-              padding: EdgeInsets.fromLTRB(16, 12, 8, 4),
-            ),
-            for (final mode in FakeFailureMode.values)
-              AknListTile(
-                title: mode.label,
-                dense: true,
-                trailing: server.failureMode == mode
-                    ? Icon(
-                        Icons.check_circle_rounded,
-                        color: context.akn.brand,
-                        semanticLabel: 'Seçili',
-                      )
-                    : null,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                onTap: () => setState(() => server.failureMode = mode),
-              ),
-            AknListTile(
-              leadingIcon: Icons.timer_off_outlined,
-              title: 'Erişim belirtecini düşür',
-              subtitle: 'Sonraki istek yenileme akışını dener',
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              onTap: () {
-                server.auth.expireAllAccessTokens();
-                AppToast.info('Erişim belirteçlerinin süresi doldu.');
-              },
-            ),
-            AknListTile(
-              leadingIcon: Icons.restart_alt_rounded,
-              title: 'Sahte verileri sıfırla',
-              subtitle: 'Siparişler, sevkiyatlar, onaylar baştan yüklenir',
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              onTap: () {
-                server.resetWorld();
-                ref.read(unreadCountProvider.notifier).refresh();
-                AppToast.success('Sahte veriler sıfırlandı.');
-              },
-            ),
-            const SectionHeader(
-              title: 'Demo hesapları',
-              subtitle: 'Şifre ${FakeAuth.password}, SMS kodu ${FakeAuth.code}',
-            ),
-            for (final p in fakePersonas)
-              AknListTile(
-                leading: AknAvatar(name: p.displayName),
-                title: p.displayName,
-                subtitle: p.summary,
-                meta: p.userId == current ? 'açık' : p.key,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                onTap: p.userId == current ? null : () => _switchTo(p),
-              ),
-          ],
-          const SectionHeader(title: 'Tasarım'),
-          AknListTile(
-            leadingIcon: Icons.palette_outlined,
-            title: 'Tasarım galerisi',
-            subtitle: 'Bileşenler, renkler, hareket',
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            onTap: () => context.push(kDesignGalleryPath),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+/// Seçili hata kipinin işareti: turuncu dolu onay, gelirken zıplar (pop), giderken küçülür.
+class _Picked extends StatelessWidget {
+  const _Picked({required this.picked});
+
+  final bool picked;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: AknMotion.of(context, AknMotion.base),
+      switchInCurve: AknMotion.pop,
+      switchOutCurve: AknMotion.exit,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(scale: animation, child: child),
+      ),
+      child: picked
+          ? Icon(
+              PhosphorIconsFill.checkCircle,
+              key: const ValueKey('picked'),
+              color: context.akn.brand,
+              semanticLabel: 'Seçili',
+            )
+          : const SizedBox.square(key: ValueKey('none'), dimension: 24),
     );
   }
 }

@@ -49,7 +49,7 @@ Future<void> confirmAndSignOut(
       message: allDevices ? ProfileCopy.signOutAllMessage : null,
       confirmLabel: allDevices ? ProfileCopy.signOutAll : ProfileCopy.signOut,
       cancelLabel: ProfileCopy.cancel,
-      icon: Icons.logout_rounded,
+      icon: PhosphorIconsRegular.signOut,
       destructive: true,
     );
     if (ok) await session.signOut(allDevices: allDevices);
@@ -134,7 +134,11 @@ class _PendingOpsSheetState extends ConsumerState<_PendingOpsSheet> {
             width: 56,
             height: 56,
             decoration: BoxDecoration(color: c.warn.bg, shape: BoxShape.circle),
-            child: Icon(Icons.cloud_upload_rounded, color: c.warn.fg, size: 28),
+            child: Icon(
+              PhosphorIconsRegular.cloudArrowUp,
+              color: c.warn.fg,
+              size: 28,
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -161,8 +165,8 @@ class _PendingOpsSheetState extends ConsumerState<_PendingOpsSheet> {
                 children: [
                   Icon(
                     o.status == OutboxStatus.needsAttention
-                        ? Icons.error_outline_rounded
-                        : Icons.schedule_rounded,
+                        ? PhosphorIconsRegular.warningCircle
+                        : PhosphorIconsRegular.clock,
                     size: 18,
                     color: c.dim,
                   ),
@@ -184,7 +188,9 @@ class _PendingOpsSheetState extends ConsumerState<_PendingOpsSheet> {
         const SizedBox(height: 20),
         AknButton(
           label: ProfileCopy.sendNow,
-          icon: online ? Icons.cloud_upload_rounded : Icons.cloud_off_rounded,
+          icon: online
+              ? PhosphorIconsRegular.cloudArrowUp
+              : PhosphorIconsRegular.cloudSlash,
           expand: true,
           showSuccess: false,
           onPressedAsync: _sendNow,

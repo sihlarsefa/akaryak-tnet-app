@@ -19,8 +19,10 @@ import '../data/field_models.dart';
 import '../data/field_pdf.dart';
 import 'widgets/field_widgets.dart';
 
-/// Saha formu ayrıntısı (spec A.4 A6 "Formlarım"): durum, onay kademesi, finans, dönüşüm sonucu; dış /
-/// iç belge (PDF paylaş, yazdır), e-posta, "Finans ek bilgi istedi → Yanıtla", "Dönüşümü yeniden dene".
+/// Saha formu ayrıntısı (spec A.4 A6 "Formlarım"; tasarım v3): başlıkta cari ve durum lambaları,
+/// ekranın tek plakası (form tutarı yükselerek gelir, rakam döner), ardından gruplanmış bilgi
+/// kartları (Satırlar, Kârlılık, Not, Ödeme ve tedarik, Onay izi, Belgeler) sırayla belirir. Dış / iç
+/// belge (PDF paylaş, yazdır), e-posta, "Finans ek bilgi istedi → Yanıtla", "Dönüşümü yeniden dene".
 class FieldFormDetailPage extends ConsumerWidget {
   const FieldFormDetailPage({super.key, required this.id});
 
@@ -45,7 +47,7 @@ class FieldFormDetailPage extends ConsumerWidget {
       refreshing: async.isRefreshing,
       actions: [
         AknIconButton(
-          icon: Icons.ios_share_rounded,
+          icon: PhosphorIconsRegular.export,
           semanticLabel: 'Sipariş formunu paylaş',
           onPressed: () => _showDocuments(context, ref, form, access),
         ),
@@ -53,7 +55,7 @@ class FieldFormDetailPage extends ConsumerWidget {
       body: PullToRefresh(
         onRefresh: () =>
             ref.read(fieldFormDetailProvider(id).notifier).refresh(),
-        child: ListView(
+        child: FieldStaggeredList(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 24),
           children: [
@@ -67,7 +69,7 @@ class FieldFormDetailPage extends ConsumerWidget {
             if (form.note != null)
               FieldSectionCard(
                 title: 'Not',
-                icon: Icons.sticky_note_2_outlined,
+                icon: PhosphorIconsRegular.note,
                 child: Text(form.note!, style: context.aknText.body),
               ),
             _PaymentCard(form: form),
@@ -113,7 +115,7 @@ class FieldFormDetailPage extends ConsumerWidget {
           AknBanner(
             margin: m,
             tone: AknTone.warn,
-            icon: Icons.hourglass_top_rounded,
+            icon: PhosphorIconsRegular.hourglassHigh,
             title: 'Onay bekliyor',
             message: [
               FieldLevels.waitingText(
@@ -153,7 +155,7 @@ class FieldFormDetailPage extends ConsumerWidget {
         AknBanner(
           margin: m,
           tone: AknTone.warn,
-          icon: Icons.account_balance_outlined,
+          icon: PhosphorIconsRegular.bank,
           title: f.financeStatusLabel ?? f.financeStatus.label,
           message:
               'Kârlılık onayı tamam; finans onayı bekleniyor. Finans onaylayınca siparişler otomatik açılır.'
@@ -166,7 +168,7 @@ class FieldFormDetailPage extends ConsumerWidget {
         AknBanner(
           margin: m,
           tone: AknTone.warn,
-          icon: Icons.contact_support_outlined,
+          icon: PhosphorIconsRegular.chatCircleDots,
           title: 'Finans ek bilgi istedi',
           message:
               'Onaylarım’daki talebe not ve istenen belgeyle yanıt verin; yanıt gelince finans incelemesi sürer.',
@@ -185,7 +187,7 @@ class FieldFormDetailPage extends ConsumerWidget {
         AknBanner(
           margin: m,
           tone: AknTone.danger,
-          icon: Icons.sync_problem_rounded,
+          icon: PhosphorIconsRegular.cloudWarning,
           title: 'Bazı satırlar siparişe dönüşemedi',
           message: access.canRetryConversion
               ? conversion
@@ -209,7 +211,7 @@ class FieldFormDetailPage extends ConsumerWidget {
       message:
           'Açılmış siparişler korunur; kalan satırlar siparişe çevrilir ve teklifleri gönderilir.',
       confirmLabel: 'Yeniden dene',
-      icon: Icons.sync_rounded,
+      icon: PhosphorIconsRegular.arrowsClockwise,
     );
     if (!ok || !context.mounted) return;
     try {
@@ -272,7 +274,7 @@ class _ActionBar extends ConsumerWidget {
         message:
             'Gönderilen form düzenlenemez. Kârlılık kuralı uygunsa form doğrudan siparişe dönüşür.',
         confirmLabel: 'Onaya gönder',
-        icon: Icons.send_rounded,
+        icon: PhosphorIconsRegular.paperPlaneRight,
       );
       if (!ok || !context.mounted) return;
       try {
@@ -307,7 +309,7 @@ class _ActionBar extends ConsumerWidget {
       children: [
         if (cancel)
           AknIconButton(
-            icon: Icons.block_rounded,
+            icon: PhosphorIconsRegular.prohibit,
             semanticLabel: 'Formu iptal et',
             onPressed: online ? doCancel : null,
           ),
@@ -315,7 +317,7 @@ class _ActionBar extends ConsumerWidget {
           Expanded(
             child: AknButton.secondary(
               label: 'Düzenle',
-              icon: Icons.edit_outlined,
+              icon: PhosphorIconsRegular.pencilSimple,
               expand: true,
               onPressed: () => context.push('${AppRoutes.fieldForm(id)}/edit'),
             ),
@@ -325,7 +327,7 @@ class _ActionBar extends ConsumerWidget {
           Expanded(
             child: AknButton(
               label: 'Onaya gönder',
-              icon: Icons.send_rounded,
+              icon: PhosphorIconsRegular.paperPlaneRight,
               expand: true,
               onPressedAsync: online ? doSubmit : null,
               showSuccess: false,
@@ -398,7 +400,7 @@ class _DocumentsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FieldSectionCard(
     title: 'Belgeler',
-    icon: Icons.picture_as_pdf_outlined,
+    icon: PhosphorIconsRegular.filePdf,
     child: _DocumentActions(form: form, access: access),
   );
 }
@@ -481,7 +483,7 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
             const SizedBox(height: 16),
             AknButton(
               label: 'Gönder',
-              icon: Icons.send_rounded,
+              icon: PhosphorIconsRegular.paperPlaneRight,
               expand: true,
               onPressed: () {
                 final v = controller.text.trim();
@@ -525,13 +527,13 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
         AknListTile(
           title: 'Sipariş formu (PDF)',
           subtitle: 'Paylaş: WhatsApp, e-posta, Dosyalar',
-          leadingIcon: Icons.ios_share_rounded,
+          leadingIcon: PhosphorIconsRegular.export,
           padding: const EdgeInsets.symmetric(vertical: 8),
           onTap: () => _pdf(internal: false, print: false),
         ),
         AknListTile(
           title: 'Yazdır',
-          leadingIcon: Icons.print_outlined,
+          leadingIcon: PhosphorIconsRegular.printer,
           padding: const EdgeInsets.symmetric(vertical: 8),
           onTap: () => _pdf(internal: false, print: true),
         ),
@@ -539,14 +541,14 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
           AknListTile(
             title: 'İç sipariş formu',
             subtitle: 'Maliyet, kâr ve barem içerir; müşteriye verilmez',
-            leadingIcon: Icons.lock_outline_rounded,
+            leadingIcon: PhosphorIconsRegular.lock,
             padding: const EdgeInsets.symmetric(vertical: 8),
             onTap: () => _pdf(internal: true, print: false),
           ),
         if (_canEmail)
           AknListTile(
             title: 'E-posta ile gönder',
-            leadingIcon: Icons.mail_outline_rounded,
+            leadingIcon: PhosphorIconsRegular.envelopeSimple,
             padding: const EdgeInsets.symmetric(vertical: 8),
             onTap: _email,
           ),
@@ -555,9 +557,9 @@ class _DocumentActionsState extends ConsumerState<_DocumentActions> {
   }
 }
 
-/// Sayfanın başı (tasarım v2 §5.2 "field form detail"): `display` başlıkta cari, altında form no,
-/// bayi ve temsilci; durum lambaları; ardından ekranın tek plakası: form tutarı, kural, Toplam / Vade /
-/// Satır okumaları.
+/// Sayfanın başı (tasarım v3 §4): `display` başlıkta cari, altında form no, bayi ve temsilci; durum
+/// lambaları; ardından ekranın tek plakası (beyaz, sıcak tonlu hero kartı): form tutarı (rakam döner),
+/// kural, Toplam / Vade / Satır okumaları (sayaç gibi yerine oturur).
 class _Hero extends StatelessWidget {
   const _Hero({required this.form});
 
@@ -607,8 +609,8 @@ class _Hero extends StatelessWidget {
                 ].join(', '),
                 style: t.bodySmall.copyWith(color: c.dim),
               ),
-              const SizedBox(height: 10),
-              Wrap(spacing: 16, runSpacing: 6, children: lamps),
+              const SizedBox(height: 12),
+              Wrap(spacing: 12, runSpacing: 8, children: lamps),
             ],
           ),
         ),
@@ -617,7 +619,7 @@ class _Hero extends StatelessWidget {
           semanticLabel:
               'Form tutarı ${Fmt.money(form.totalAmount)}, toplam ${Fmt.liters(form.totalLiters)}, ${form.paymentTermDays == 0 ? 'peşin' : '${form.paymentTermDays} gün vade'}, ${form.lines.length} satır',
           head: PlateHead(
-            icon: Icons.request_quote_outlined,
+            icon: PhosphorIconsRegular.invoice,
             title: 'Form tutarı',
             period: form.createdAt == null
                 ? null
@@ -663,15 +665,23 @@ class _LinesCard extends StatelessWidget {
     final form = detail.form;
     return FieldSectionCard(
       title: 'Satırlar',
-      icon: Icons.list_alt_rounded,
+      icon: PhosphorIconsRegular.listBullets,
       trailing: Text(
         '${form.lines.length} satır',
-        style: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
+        style: t.caption.copyWith(color: c.dim),
       ),
       child: Column(
         children: [
           for (var i = 0; i < form.lines.length; i++) ...[
-            if (i > 0) Divider(color: c.line, height: 24),
+            if (i > 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: SizedBox(
+                  height: 1,
+                  width: double.infinity,
+                  child: ColoredBox(color: c.lineSoft),
+                ),
+              ),
             _LineRow(
               no: i + 1,
               line: form.lines[i],
@@ -711,7 +721,10 @@ class _LineRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FieldTitleRow(
-          title: Text('$no. ${line.productName}', style: t.headline),
+          title: Text(
+            '$no. ${line.productName}',
+            style: t.bodyStrong.copyWith(color: c.ink),
+          ),
           trailing: AmountText(Fmt.money(line.amount)),
         ),
         const SizedBox(height: 2),
@@ -749,7 +762,7 @@ class _LineRow extends StatelessWidget {
               if (canOpenOrder && orderId != null)
                 TextButton.icon(
                   onPressed: () => context.push(AppRoutes.bayiOrder(orderId)),
-                  icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                  icon: const Icon(PhosphorIconsRegular.receipt, size: 18),
                   label: Text('Sipariş $orderNumber'),
                 )
               else
@@ -775,7 +788,7 @@ class _CostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FieldSectionCard(
     title: 'Kârlılık (yalnızca bayi içi)',
-    icon: Icons.lock_outline_rounded,
+    icon: PhosphorIconsRegular.lock,
     child: FieldFacts(
       facts: [
         (
@@ -805,7 +818,7 @@ class _PaymentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => FieldSectionCard(
     title: 'Ödeme ve tedarik',
-    icon: Icons.payments_outlined,
+    icon: PhosphorIconsRegular.money,
     child: FieldFacts(
       facts: [
         ('Ödeme yöntemi', form.paymentMethodName ?? 'Belirtilmemiş'),
@@ -853,7 +866,7 @@ class _TrailCard extends StatelessWidget {
         subtitle: form.createdByName,
         time: form.createdAt == null ? null : Fmt.dateTime(form.createdAt),
         state: TimelineState.done,
-        icon: Icons.edit_note_rounded,
+        icon: PhosphorIconsRegular.notePencil,
       ),
       if (form.submittedAt != null)
         TimelineStep(
@@ -863,7 +876,7 @@ class _TrailCard extends StatelessWidget {
               : 'Gereken: ${FieldLevels.label(form.requiredApprovalLevel)}',
           time: Fmt.dateTime(form.submittedAt),
           state: TimelineState.done,
-          icon: Icons.send_rounded,
+          icon: PhosphorIconsRegular.paperPlaneRight,
         ),
       if (form.submittedAt != null && form.financeVisible)
         TimelineStep(
@@ -877,7 +890,7 @@ class _TrailCard extends StatelessWidget {
             OrderFinanceStatus.infoRequested => TimelineState.warning,
             _ => TimelineState.current,
           },
-          icon: Icons.account_balance_outlined,
+          icon: PhosphorIconsRegular.bank,
         ),
       for (final a in form.approvals)
         TimelineStep(
@@ -886,15 +899,15 @@ class _TrailCard extends StatelessWidget {
           time: a.decidedAt == null ? null : Fmt.dateTime(a.decidedAt),
           state: a.isRejection ? TimelineState.failed : TimelineState.done,
           icon: a.isRejection
-              ? Icons.cancel_rounded
-              : Icons.check_circle_rounded,
+              ? PhosphorIconsFill.xCircle
+              : PhosphorIconsFill.checkCircle,
         ),
       if (form.status == FieldOrderFormStatus.pendingApproval)
         TimelineStep(
           title: 'Onay bekleniyor',
           subtitle: FieldLevels.label(form.requiredApprovalLevel),
           state: TimelineState.current,
-          icon: Icons.hourglass_top_rounded,
+          icon: PhosphorIconsRegular.hourglassHigh,
         ),
       if (form.status == FieldOrderFormStatus.cancelled)
         TimelineStep(
@@ -902,19 +915,19 @@ class _TrailCard extends StatelessWidget {
           subtitle: form.decidedByName,
           time: form.decidedAt == null ? null : Fmt.dateTime(form.decidedAt),
           state: TimelineState.failed,
-          icon: Icons.block_rounded,
+          icon: PhosphorIconsRegular.prohibit,
         ),
       if (form.status == FieldOrderFormStatus.converted)
         TimelineStep(
           title: 'Siparişe dönüştü',
           subtitle: '${form.convertedOrderIds.length} sipariş',
           state: TimelineState.done,
-          icon: Icons.task_alt_rounded,
+          icon: PhosphorIconsFill.checkCircle,
         ),
     ];
     return FieldSectionCard(
       title: 'Onay izi',
-      icon: Icons.timeline_rounded,
+      icon: PhosphorIconsRegular.lineSegments,
       child: StepTimeline(
         steps: fieldLargeText(context) ? _timeInSubtitle(steps) : steps,
         dense: true,

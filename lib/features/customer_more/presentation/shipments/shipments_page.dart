@@ -83,7 +83,7 @@ class ShipmentsPage extends ConsumerWidget {
                   ? AknBanner(
                       margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                       tone: AknTone.brand,
-                      icon: Icons.fact_check_outlined,
+                      icon: PhosphorIconsRegular.listChecks,
                       title: '$awaiting ${CmCopy.awaitingBanner}',
                       message:
                           'Teslim edilen miktarı ve kanıtları kontrol edip onaylayın ya da itiraz edin.',
@@ -138,53 +138,64 @@ class _ShipmentList extends ConsumerWidget {
         onRefresh: () => ctrl.load(refresh: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: [?leading, child],
+          children: [
+            ?leading,
+            FadeUp(offset: 16, scale: 0.97, child: child),
+          ],
         ),
       );
     }
-    return PullToRefresh(
-      onRefresh: () => ctrl.load(refresh: true),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (n) {
-          if (n.metrics.extentAfter < 400) ctrl.loadMore();
-          return false;
-        },
-        child: ListView.builder(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(top: 4, bottom: 16),
-          itemCount: p.items.length + 1 + (leading == null ? 0 : 1),
-          itemBuilder: (context, index) {
-            final lead = leading;
-            if (lead != null && index == 0) return lead;
-            final i = lead == null ? index : index - 1;
-            if (i == p.items.length) {
-              return LoadMoreFooter(
-                loading: p.loadingMore,
-                error: p.loadMoreError,
-                onRetry: ctrl.loadMore,
-              );
-            }
-            final item = p.items[i];
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (i > 0) const AknLedgerDivider(),
-                ShipmentCard(
-                  item: item,
-                  onTap: () => context.push(AppRoutes.shipment(item.id)),
-                ),
-              ],
-            );
+    // Kartlar sırayla yükselerek gelir; süzgeç ya da arama değişince akış yeniden başlar.
+    return StaggerScope(
+      key: ValueKey((state.segment, state.status, state.search)),
+      child: PullToRefresh(
+        onRefresh: () => ctrl.load(refresh: true),
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (n) {
+            if (n.metrics.extentAfter < 400) ctrl.loadMore();
+            return false;
           },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.only(
+              top: 4,
+              bottom: 16 + MediaQuery.paddingOf(context).bottom,
+            ),
+            itemCount: p.items.length + 1 + (leading == null ? 0 : 1),
+            itemBuilder: (context, index) {
+              final lead = leading;
+              if (lead != null && index == 0) return lead;
+              final i = lead == null ? index : index - 1;
+              if (i == p.items.length) {
+                return LoadMoreFooter(
+                  loading: p.loadingMore,
+                  error: p.loadMoreError,
+                  onRetry: ctrl.loadMore,
+                );
+              }
+              final item = p.items[i];
+              return StaggerItem(
+                key: ValueKey(item.id),
+                index: i,
+                child: Padding(
+                  padding: CmCard.listMargin,
+                  child: ShipmentCard(
+                    item: item,
+                    onTap: () => context.push(AppRoutes.shipment(item.id)),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-/// Teslimat satırı (tasarım v2 §6.8, ledger): ürün ve litre, nokta ve gün, durum lambası (müşterinin
-/// gözünden: "Teslimatı onaylayın" sıra sizde) ve sağda saat; yoldaysa rota çizgisi, itirazlıysa not.
+/// Teslimat kartı (tasarım v3 §4): beyaz r20 kart; başta durumun simge karosu, ürün ve litre, nokta
+/// ve gün, sağda plaka; ince çizginin altında durum lambası (müşterinin gözünden: "Teslimatı
+/// onaylayın" sıra sizde) ve saat; yoldaysa rota çizgisi, itirazlıysa not. Basınca 0,97'ye iner.
 class ShipmentCard extends StatelessWidget {
   const ShipmentCard({super.key, required this.item, this.onTap});
 
@@ -235,34 +246,69 @@ class ShipmentCard extends StatelessWidget {
       'sipariş ${item.orderNumber}',
       if (disputed && item.disputeNote != null) 'itiraz: ${item.disputeNote}',
     ].join(', ');
-    return AknListTile(
-      title: title,
-      subtitle: place.isEmpty ? item.code : place,
-      meta: plate,
-      status: AknStatusLine(
-        lamp: AknLamp.status(lamp),
-        trailing: time == null
-            ? null
-            : Text(
-                time,
-                style: t.bodySmall.copyWith(
-                  color: reported ? c.brandInk : c.ink,
-                  fontWeight: FontWeight.w500,
-                ),
+    final tap = onTap;
+    return CmCard(
+      pressable: tap != null,
+      child: AknListTile(
+        leading: CmIconTile(icon: _statusIcon(item.status), tone: lamp.tone),
+        padding: CmCard.rowPadding,
+        titleStyle: cmRowTitle(context),
+        title: cmKeepUnits(title),
+        subtitle: place.isEmpty ? item.code : place,
+        meta: plate,
+        footer: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Divider(height: 1, thickness: 1, color: c.lineSoft),
+            const SizedBox(height: 10),
+            AknStatusLine(
+              lamp: AknLamp.status(lamp),
+              trailing: time == null
+                  ? null
+                  : Text(
+                      time,
+                      style: t.bodySmall.copyWith(
+                        color: reported ? c.brandInk : c.ink,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: AknNumerals.tabular,
+                      ),
+                    ),
+            ),
+            if (inTransit) ...[
+              const SizedBox(height: 12),
+              const TruckRoute(moving: true, height: 22),
+            ] else if (disputed && item.disputeNote != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'İtiraz: ${item.disputeNote}',
+                style: t.bodySmall.copyWith(color: c.danger.fg),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
+            ],
+          ],
+        ),
+        semanticLabel: label,
+        onTap: tap == null
+            ? null
+            : () {
+                AknHaptics.selection();
+                tap();
+              },
       ),
-      footer: inTransit
-          ? const TruckRoute(moving: true, height: 22)
-          : (disputed && item.disputeNote != null
-                ? Text(
-                    'İtiraz: ${item.disputeNote}',
-                    style: t.bodySmall.copyWith(color: c.danger.fg),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                : null),
-      semanticLabel: label,
-      onTap: onTap,
     );
   }
+
+  /// Kartın baş simgesi: planlandı (takvim), yolda (tır), teslim (kontrol listesi), kabul (mühür),
+  /// itiraz, iptal.
+  static IconData _statusIcon(ShipmentStatus s) => switch (s) {
+    ShipmentStatus.planned => PhosphorIconsRegular.calendarCheck,
+    ShipmentStatus.inTransit => PhosphorIconsRegular.truck,
+    ShipmentStatus.reported => PhosphorIconsRegular.listChecks,
+    ShipmentStatus.accepted => PhosphorIconsRegular.sealCheck,
+    ShipmentStatus.disputed => PhosphorIconsRegular.warningOctagon,
+    ShipmentStatus.cancelled => PhosphorIconsRegular.xCircle,
+    ShipmentStatus.unknown => PhosphorIconsRegular.truck,
+  };
 }

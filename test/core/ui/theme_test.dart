@@ -1,7 +1,9 @@
-// AknTheme v2 "Turuncu Plaka": token extensions, Mona Sans everywhere, the component themes of
-// §6.5 (buttons: orange primary with a BLACK label), §6.10 (white inputs), §6.11 (chips, tabs,
-// switches), §6.21 (sheets, dialogs), badge and navigation themes, status-bar styles, the global
-// focus ring (§12) and the plate re-theming (`AknTheme.onPlate`, `OnHero`).
+// AknTheme v3 "Akış": token extensions, Plus Jakarta Sans everywhere (no tabular figures on words),
+// the component themes of v3 §4 — superellipse buttons (the primary an orange gradient with a WHITE
+// 16 px w700 label and a warm glow), white inputs with a 1.5 px control border and a soft orange
+// focus glow, white pill chips that turn ink with a check, orange tab, switch, checkbox and radio
+// marks, sheets and dialogs r28 — the badge, navigation and picker themes, status-bar styles, the
+// global focus ring (§0.4) and the plate re-theming (`AknTheme.onPlate`, `OnHero`).
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,22 @@ const _pressed = {WidgetState.pressed};
 const _disabled = {WidgetState.disabled};
 const _selected = {WidgetState.selected};
 const _focused = {WidgetState.focused};
+const _white = Color(0xFFFFFFFF);
+const _transparent = Color(0x00000000);
+
+/// The theme's button background builders ignore their context.
+class _NoContext extends Fake implements BuildContext {}
+
+/// What [style] paints behind its label in [states]: the decoration of the
+/// gradient box its `backgroundBuilder` returns (null: the plain fill).
+ShapeDecoration? _painted(ButtonStyle style, Set<WidgetState> states) {
+  final built = style.backgroundBuilder?.call(
+    _NoContext(),
+    states,
+    const SizedBox(),
+  );
+  return built is DecoratedBox ? built.decoration as ShapeDecoration : null;
+}
 
 void main() {
   group('AknTheme', () {
@@ -21,7 +39,7 @@ void main() {
       ('light', AknTheme.light(), AknColors.light),
       ('dark', AknTheme.dark(), AknColors.dark),
     ]) {
-      test('$name carries the token extensions and Mona Sans', () {
+      test('$name carries the token extensions and Plus Jakarta Sans', () {
         final c = theme.extension<AknColors>();
         final t = theme.extension<AknTextStyles>();
         expect(c, colors);
@@ -29,7 +47,7 @@ void main() {
         expect(theme.brightness, colors.brightness);
         expect(theme.colorScheme.primary, colors.brand);
         // Decision G: white on the orange primary.
-        expect(theme.colorScheme.onPrimary, const Color(0xFFFFFFFF));
+        expect(theme.colorScheme.onPrimary, _white);
         expect(theme.scaffoldBackgroundColor, colors.bg);
         expect(theme.useMaterial3, isTrue);
         for (final s in [
@@ -39,9 +57,10 @@ void main() {
           theme.textTheme.displaySmall!,
         ]) {
           expect(s.fontFamily, AknFonts.sans);
+          // Words keep the face's own figures; tnum is for numeric styles.
           expect(s.fontFeatures ?? const [], isEmpty);
         }
-        // No ripples: pressed is a flat fill.
+        // No ripples: pressed is a soft fill and a press scale.
         expect(theme.splashFactory, NoSplash.splashFactory);
       });
 
@@ -60,77 +79,134 @@ void main() {
         },
       );
 
-      test('$name primary: orange gradient, white 17 px w700, 52 dp, r12', () {
-        final style = theme.filledButtonTheme.style!;
-        expect(style.backgroundColor!.resolve(_none), colors.brandFill);
-        expect(style.foregroundColor!.resolve(_none), const Color(0xFFFFFFFF));
-        // The 17 px w700 label on the gradient's end colour (owner decision
-        // G, like F2GO): 3.58:1.
-        expect(
-          contrast(
-            style.foregroundColor!.resolve(_none)!,
-            style.backgroundColor!.resolve(_none)!,
-          ),
-          greaterThanOrEqualTo(3.5),
-        );
-        // The gradient is painted by the background builder.
-        expect(style.backgroundBuilder, isNotNull);
-        expect(
-          style.backgroundColor!.resolve(_pressed),
-          colors.brandFillPressed,
-        );
-        expect(style.backgroundColor!.resolve(_disabled), colors.surfaceAlt);
-        expect(style.foregroundColor!.resolve(_disabled), colors.faint);
-        expect(style.minimumSize!.resolve(_none)!.height, 52);
-        final shape = style.shape!.resolve(_none)! as RoundedRectangleBorder;
-        expect(shape.borderRadius, AknRadius.button);
-        final label = style.textStyle!.resolve(_none)!;
-        expect(label.fontFamily, AknFonts.sans);
-        expect(label.fontSize, 17);
-        expect(label.fontWeight, FontWeight.w700);
-        expect(style.elevation!.resolve(_none), 0);
-        expect(style.splashFactory, NoSplash.splashFactory);
-        // The elevated button is the same primary.
-        expect(
-          theme.elevatedButtonTheme.style!.backgroundColor!.resolve(_none),
-          colors.brandFill,
-        );
-      });
+      test(
+        '$name primary: orange gradient, white 16 px w700, 52 dp, r16 squircle, warm glow',
+        () {
+          final style = theme.filledButtonTheme.style!;
+          expect(style.backgroundColor!.resolve(_none), colors.brandFill);
+          expect(style.foregroundColor!.resolve(_none), _white);
+          // The white label on the gradient's end colour (owner decision G):
+          // 3.77:1.
+          expect(
+            contrast(
+              style.foregroundColor!.resolve(_none)!,
+              style.backgroundColor!.resolve(_none)!,
+            ),
+            greaterThanOrEqualTo(3.5),
+          );
+          // The gradient is painted inside the shape by the background
+          // builder: one step darker while pressed, none when disabled.
+          const shape = RoundedSuperellipseBorder(
+            borderRadius: AknRadius.button,
+          );
+          expect(
+            _painted(style, _none),
+            ShapeDecoration(shape: shape, gradient: colors.buttonGradient),
+          );
+          expect(
+            _painted(style, _pressed),
+            ShapeDecoration(
+              shape: shape,
+              gradient: colors.buttonGradientPressed,
+            ),
+          );
+          expect(_painted(style, _disabled), isNull);
+          expect(
+            style.backgroundColor!.resolve(_pressed),
+            colors.brandFillPressed,
+          );
+          expect(style.backgroundColor!.resolve(_disabled), colors.surfaceAlt);
+          expect(style.foregroundColor!.resolve(_disabled), colors.faint);
+          expect(style.minimumSize!.resolve(_none)!.height, 52);
+          expect(style.shape!.resolve(_none), shape);
+          final label = style.textStyle!.resolve(_none)!;
+          expect(label.fontFamily, AknFonts.sans);
+          expect(label.fontSize, 16);
+          expect(label.height! * 16, closeTo(20, 1e-9));
+          expect(label.fontWeight, FontWeight.w700);
+          // The warm glow (v3 §3 `button`): a brand-fill shadow that settles
+          // while pressed and goes when disabled.
+          expect(
+            style.shadowColor!.resolve(_none)!.withValues(alpha: 1),
+            colors.brandFill,
+          );
+          expect(style.elevation!.resolve(_none), 3);
+          expect(style.elevation!.resolve(_pressed), 1);
+          expect(style.elevation!.resolve(_disabled), 0);
+          expect(style.splashFactory, NoSplash.splashFactory);
+          // The elevated button is the same primary.
+          final elevated = theme.elevatedButtonTheme.style!;
+          expect(elevated.backgroundColor!.resolve(_none), colors.brandFill);
+          expect(_painted(elevated, _none)!.gradient, colors.buttonGradient);
+        },
+      );
 
-      test('$name secondary and ghost: ink on white / none, never orange', () {
-        final o = theme.outlinedButtonTheme.style!;
-        expect(o.backgroundColor!.resolve(_none), colors.surface);
-        expect(o.backgroundColor!.resolve(_pressed), colors.surfaceAlt);
-        expect(o.foregroundColor!.resolve(_none), colors.ink);
-        final side = o.side!.resolve(_none)!;
-        expect(side.color, colors.lineStrong);
-        expect(side.width, 1.5);
-        final danger = AknTheme.secondaryButtonStyle(
-          colors,
-          AknTextStyles.from(colors),
-          danger: true,
-        );
-        expect(danger.foregroundColor!.resolve(_none), colors.danger.fg);
-        expect(danger.side!.resolve(_none)!.color, colors.lineStrong);
+      test(
+        '$name secondary and ghost: ink labels, never orange; destructive flat red',
+        () {
+          final o = theme.outlinedButtonTheme.style!;
+          // Light: a white key with a 1.5 px lineStrong 60 % rim; dark: the
+          // well, no rim.
+          final rest = o.backgroundColor!.resolve(_none);
+          expect(rest, colors.isDark ? colors.surfaceAlt : colors.surface);
+          if (colors.isDark) {
+            expect(o.backgroundColor!.resolve(_pressed), isNot(rest));
+          } else {
+            expect(o.backgroundColor!.resolve(_pressed), colors.surfaceAlt);
+          }
+          expect(o.backgroundColor!.resolve(_disabled), colors.surfaceAlt);
+          expect(o.foregroundColor!.resolve(_none), colors.ink);
+          expect(o.foregroundColor!.resolve(_disabled), colors.faint);
+          expect(
+            AknTheme.secondaryBorder(colors),
+            colors.lineStrong.withValues(alpha: 0.6),
+          );
+          final side = o.side!.resolve(_none)!;
+          if (colors.isDark) {
+            expect(side.width, 0);
+          } else {
+            expect(side.color, AknTheme.secondaryBorder(colors));
+            expect(side.width, 1.5);
+          }
+          expect(
+            o.shape!.resolve(_none),
+            const RoundedSuperellipseBorder(borderRadius: AknRadius.button),
+          );
+          expect(o.minimumSize!.resolve(_none)!.height, 52);
+          expect(o.textStyle!.resolve(_none)!.fontWeight, FontWeight.w700);
+          expect(_painted(o, _none), isNull);
+          final danger = AknTheme.secondaryButtonStyle(
+            colors,
+            AknTextStyles.from(colors),
+            danger: true,
+          );
+          expect(danger.foregroundColor!.resolve(_none), colors.danger.fg);
+          expect(danger.side!.resolve(_none), side);
 
-        final g = theme.textButtonTheme.style!;
-        expect(g.backgroundColor!.resolve(_none)!.a, 0);
-        expect(g.backgroundColor!.resolve(_pressed), colors.surfaceAlt);
-        expect(g.foregroundColor!.resolve(_none), colors.ink);
-        expect(
-          (g.shape!.resolve(_none)! as RoundedRectangleBorder).borderRadius,
-          AknRadius.buttonSmall,
-        );
+          final g = theme.textButtonTheme.style!;
+          expect(g.backgroundColor!.resolve(_none)!.a, 0);
+          expect(g.backgroundColor!.resolve(_pressed), colors.surfaceAlt);
+          expect(g.foregroundColor!.resolve(_none), colors.ink);
+          expect(
+            g.shape!.resolve(_none),
+            const RoundedSuperellipseBorder(
+              borderRadius: AknRadius.buttonSmall,
+            ),
+          );
 
-        final d = AknTheme.destructiveButtonStyle(
-          colors,
-          AknTextStyles.from(colors),
-        );
-        expect(d.backgroundColor!.resolve(_none), colors.dangerFill);
-        expect(d.foregroundColor!.resolve(_none), colors.onDangerFill);
-      });
+          final d = AknTheme.destructiveButtonStyle(
+            colors,
+            AknTextStyles.from(colors),
+          );
+          expect(d.backgroundColor!.resolve(_none), colors.dangerFill);
+          expect(d.foregroundColor!.resolve(_none), colors.onDangerFill);
+          // A flat red key: no gradient, no glow.
+          expect(_painted(d, _none), isNull);
+          expect(d.elevation!.resolve(_none), 0);
+        },
+      );
 
-      test('$name focus ring: 3 px brand, 2 px outside (§12)', () {
+      test('$name focus ring: 3 px brand, 2 px outside (v3 §0.4)', () {
         for (final style in [
           theme.filledButtonTheme.style!,
           theme.outlinedButtonTheme.style!,
@@ -151,109 +227,178 @@ void main() {
         final a = theme.appBarTheme;
         expect(a.backgroundColor, colors.bg);
         expect(a.foregroundColor, colors.ink);
+        // Flat; `AppScaffold` frosts it when content scrolls under.
         expect(a.elevation, 0);
         expect(a.scrolledUnderElevation, 0);
+        expect(a.surfaceTintColor, _transparent);
         expect(a.centerTitle, isFalse);
         expect(a.toolbarHeight, AknTheme.pushedBarHeight);
+        expect(AknTheme.pushedBarHeight, 52);
         expect(a.titleSpacing, 20);
         final title = a.titleTextStyle!;
+        expect(title, AknTextStyles.from(colors).headline);
         expect(title.fontSize, 17);
-        expect(title.fontWeight, FontWeight.w600);
+        expect(title.fontWeight, FontWeight.w700);
         expect(title.color, colors.ink);
         expect(a.systemOverlayStyle, AknTheme.overlayFor(colors.brightness));
       });
 
-      test('$name inputs: white, 1 px control border, 2 px orange focus', () {
-        final i = theme.inputDecorationTheme;
-        expect(i.filled, isTrue);
-        expect(
-          WidgetStateProperty.resolveAs<Color>(i.fillColor!, _none),
-          colors.surface,
-        );
-        expect(
-          WidgetStateProperty.resolveAs<Color>(i.fillColor!, _disabled),
-          colors.surfaceAlt,
-        );
-        final enabled = i.enabledBorder! as OutlineInputBorder;
-        expect(enabled.borderSide.color, colors.lineStrong);
-        expect(enabled.borderSide.width, 1);
-        expect(enabled.borderRadius, AknRadius.input);
-        final focused = i.focusedBorder! as OutlineInputBorder;
-        expect(focused.borderSide.color, colors.brand);
-        expect(focused.borderSide.width, 2);
-        final error = i.errorBorder! as OutlineInputBorder;
-        expect(error.borderSide.color, colors.danger.fg);
-        expect(error.borderSide.width, 2);
-        final disabled = i.disabledBorder! as OutlineInputBorder;
-        expect(disabled.borderSide.color, colors.line);
-        // Hints are dim (AA), never faint.
-        expect(i.hintStyle!.color, colors.dim);
-        expect(i.errorStyle!.color, colors.danger.fg);
-        // 52 dp: 22 px line + 15 + 15.
-        expect(i.contentPadding!.vertical, 30);
-        expect(theme.textSelectionTheme.cursorColor, colors.brand);
-      });
+      test(
+        '$name inputs: white, 1.5 px control border, 2 px orange focus with a soft glow',
+        () {
+          final i = theme.inputDecorationTheme;
+          expect(i.filled, isTrue);
+          expect(
+            WidgetStateProperty.resolveAs<Color>(i.fillColor!, _none),
+            colors.surface,
+          );
+          expect(
+            WidgetStateProperty.resolveAs<Color>(i.fillColor!, _disabled),
+            colors.surfaceAlt,
+          );
+          // At rest: the full control border (≥ 3:1, contrast_test.dart).
+          final enabled = i.enabledBorder! as AknInputBorder;
+          expect(enabled.borderSide.color, colors.lineStrong);
+          expect(enabled.borderSide.width, 1.5);
+          expect(enabled.borderRadius, AknRadius.input);
+          expect(enabled.glowWidth, 0);
+          expect(i.border, enabled);
+          // Focus: 2 px orange and a 4 px warm glow outside it.
+          final focused = i.focusedBorder! as AknInputBorder;
+          expect(focused.borderSide.color, colors.brand);
+          expect(focused.borderSide.width, 2);
+          expect(focused.glowWidth, 4);
+          expect(focused.glowColor, AknTheme.focusGlow(colors));
+          expect(
+            AknTheme.focusGlow(colors),
+            Color.lerp(colors.brandSoft, colors.brandLine, 0.5),
+          );
+          final error = i.errorBorder! as AknInputBorder;
+          expect(error.borderSide.color, colors.danger.fg);
+          expect(error.borderSide.width, 1.5);
+          final focusedError = i.focusedErrorBorder! as AknInputBorder;
+          expect(focusedError.borderSide.color, colors.danger.fg);
+          expect(focusedError.borderSide.width, 2);
+          expect(focusedError.glowWidth, 4);
+          expect(focusedError.glowColor, AknTheme.errorGlow(colors));
+          final disabled = i.disabledBorder! as AknInputBorder;
+          expect(disabled.borderSide.color, colors.line);
+          // Hints are dim (AA), never faint.
+          expect(i.hintStyle!.color, colors.dim);
+          expect(i.errorStyle!.color, colors.danger.fg);
+          // 52 dp: 22 px line + 15 + 15.
+          expect(i.contentPadding!.vertical, 30);
+          expect(theme.textSelectionTheme.cursorColor, colors.brand);
+        },
+      );
 
-      test('$name chips: Beton r10; selected = ink fill, page label', () {
-        final ch = theme.chipTheme;
-        expect(
-          (ch.shape! as RoundedRectangleBorder).borderRadius,
-          AknRadius.chip,
-        );
-        expect(ch.color!.resolve(_none), colors.surfaceAlt);
-        expect(ch.color!.resolve(_selected), colors.ink);
-        expect(ch.selectedColor, colors.ink);
-        expect(ch.showCheckmark, isFalse);
-        final label = ch.labelStyle!;
-        expect(
-          WidgetStateProperty.resolveAs<Color?>(label.color, _selected),
-          colors.bg,
-        );
-        expect(
-          WidgetStateProperty.resolveAs<Color?>(label.color, _none),
-          colors.ink,
-        );
-        expect(label.fontWeight, FontWeight.w600);
-      });
+      test(
+        '$name chips: white pills with a hairline; selected = ink fill, page label, a check',
+        () {
+          final ch = theme.chipTheme;
+          expect(
+            (ch.shape! as RoundedRectangleBorder).borderRadius,
+            AknRadius.chip,
+          );
+          expect(AknRadius.chip, AknRadius.pillAll);
+          expect(ch.color!.resolve(_none), colors.surface);
+          expect(ch.color!.resolve(_selected), colors.ink);
+          expect(ch.color!.resolve(_disabled), colors.surfaceAlt);
+          expect(ch.selectedColor, colors.ink);
+          expect(ch.showCheckmark, isTrue);
+          expect(ch.checkmarkColor, colors.bg);
+          final rest = WidgetStateProperty.resolveAs<BorderSide?>(
+            ch.side,
+            _none,
+          )!;
+          expect(rest.color, colors.line);
+          expect(rest.width, 1);
+          expect(
+            WidgetStateProperty.resolveAs<BorderSide?>(
+              ch.side,
+              _selected,
+            )!.width,
+            0,
+          );
+          final label = ch.labelStyle!;
+          expect(
+            WidgetStateProperty.resolveAs<Color?>(label.color, _selected),
+            colors.bg,
+          );
+          expect(
+            WidgetStateProperty.resolveAs<Color?>(label.color, _none),
+            colors.ink,
+          );
+          expect(
+            WidgetStateProperty.resolveAs<Color?>(label.color, _disabled),
+            colors.faint,
+          );
+          expect(label.fontSize, 14);
+          expect(label.fontWeight, FontWeight.w600);
+        },
+      );
 
-      test('$name tabs, switch, checkbox, radio (§6.11)', () {
+      test('$name tabs, switch, checkbox, radio: orange marks (v3 §4)', () {
         final tabs = theme.tabBarTheme;
         expect(tabs.labelColor, colors.ink);
         expect(tabs.unselectedLabelColor, colors.dim);
         expect(tabs.labelStyle!.fontSize, 16);
-        final ind = tabs.indicator! as UnderlineTabIndicator;
+        expect(tabs.labelStyle!.fontWeight, FontWeight.w700);
+        // A 3 px logo-orange bar with round ends that follows the selection
+        // on a spring.
+        expect(tabs.indicator, AknTabIndicator(color: colors.logo));
+        final ind = tabs.indicator! as AknTabIndicator;
         expect(ind.borderSide.color, colors.logo);
         expect(ind.borderSide.width, 3);
+        expect(ind.animate, isTrue);
+        expect(tabs.indicatorSize, TabBarIndicatorSize.label);
         expect(tabs.dividerColor, colors.line);
 
         final sw = theme.switchTheme;
         expect(sw.trackColor!.resolve(_selected), colors.logo);
         expect(sw.trackColor!.resolve(_none), colors.lineStrong);
-        expect(sw.thumbColor!.resolve(_selected), const Color(0xFFFFFFFF));
+        expect(sw.thumbColor!.resolve(_selected), _white);
 
+        // Checkbox and radio: the orange mark (white check); the control
+        // border at rest.
         final cb = theme.checkboxTheme;
-        expect(cb.fillColor!.resolve(_selected), colors.ink);
-        expect(cb.checkColor!.resolve(_selected), colors.bg);
-        expect(theme.radioTheme.fillColor!.resolve(_selected), colors.ink);
+        expect(cb.fillColor!.resolve(_selected), colors.brand);
+        expect(cb.checkColor!.resolve(_selected), colors.onBrandFill);
+        final box = WidgetStateProperty.resolveAs<BorderSide?>(cb.side, _none)!;
+        expect(box.color, colors.lineStrong);
+        expect(box.width, 1.6);
+        final radio = theme.radioTheme.fillColor!;
+        expect(radio.resolve(_selected), colors.brand);
+        expect(radio.resolve(_none), colors.lineStrong);
       });
 
-      test('$name sheets and dialogs: raised surface, r20, 36×4 handle', () {
-        final s = theme.bottomSheetTheme;
-        expect(s.backgroundColor, colors.surfaceRaised);
-        expect(
-          (s.shape! as RoundedRectangleBorder).borderRadius,
-          AknRadius.sheet,
-        );
-        expect(s.dragHandleSize, const Size(36, 4));
-        expect(s.dragHandleColor, colors.lineStrong);
-        expect(s.modalBarrierColor, colors.scrim);
-        expect(theme.dialogTheme.backgroundColor, colors.surfaceRaised);
-        expect(
-          (theme.dialogTheme.shape! as RoundedRectangleBorder).borderRadius,
-          AknRadius.dialog,
-        );
-        expect(theme.dialogTheme.titleTextStyle!.fontSize, 20);
-      });
+      test(
+        '$name sheets and dialogs: raised surface, r28 squircle, 40×5 handle',
+        () {
+          final s = theme.bottomSheetTheme;
+          expect(s.backgroundColor, colors.surfaceRaised);
+          expect(
+            s.shape,
+            const RoundedSuperellipseBorder(borderRadius: AknRadius.sheet),
+          );
+          expect(AknRadius.sheet.topLeft, const Radius.circular(28));
+          expect(s.showDragHandle, isTrue);
+          expect(s.dragHandleSize, const Size(40, 5));
+          expect(s.dragHandleColor, colors.lineStrong.withValues(alpha: 0.5));
+          expect(s.modalBarrierColor, colors.scrim);
+          final d = theme.dialogTheme;
+          expect(d.backgroundColor, colors.surfaceRaised);
+          expect(
+            d.shape,
+            const RoundedSuperellipseBorder(borderRadius: AknRadius.dialog),
+          );
+          expect(AknRadius.dialog, const BorderRadius.all(Radius.circular(28)));
+          // Dialogs float on the raised shadow.
+          expect(d.elevation, greaterThan(0));
+          expect(d.titleTextStyle!.fontSize, 20);
+          expect(d.barrierColor, colors.scrim);
+        },
+      );
 
       test('$name inverse surfaces are charcoal, never navy', () {
         final snack = theme.snackBarTheme.backgroundColor!;
@@ -263,39 +408,68 @@ void main() {
         expect(contrast(colors.onInverse, snack), greaterThanOrEqualTo(4.5));
       });
 
+      test('$name badge: a deep-orange pill with white tabular figures', () {
+        // v3 §4 "Badges"; the figures' contrast is checked in
+        // contrast_test.dart.
+        final b = theme.badgeTheme;
+        expect(b.backgroundColor, colors.brandFillPressed);
+        expect(b.textColor, colors.onBrandFill);
+        expect(b.smallSize, 8);
+        expect(b.largeSize, 18);
+        expect(b.textStyle!.fontSize, 10);
+        expect(b.textStyle!.fontWeight, FontWeight.w800);
+        expect(b.textStyle!.fontFeatures, AknNumerals.tabular);
+        expect(b.textStyle!.color, colors.onBrandFill);
+      });
+
       test(
-        '$name badge: ink pill with page-coloured digits (red = danger)',
+        '$name navigation bar: soft orange pill, ink active (w700), navInactive rest',
         () {
-          final b = theme.badgeTheme;
-          expect(b.backgroundColor, colors.ink);
-          expect(b.textColor, colors.bg);
-          expect(b.largeSize, 18);
-          expect(b.textStyle!.fontSize, 11);
-          expect(b.textStyle!.fontWeight, FontWeight.w700);
+          final n = theme.navigationBarTheme;
+          expect(n.backgroundColor, colors.surfaceRaised);
+          expect(n.indicatorColor, colors.brandSoft);
+          expect(n.indicatorShape, const StadiumBorder());
+          expect(n.iconTheme!.resolve(_selected)!.color, colors.ink);
+          expect(n.iconTheme!.resolve(_none)!.color, colors.navInactive);
+          final active = n.labelTextStyle!.resolve(_selected)!;
+          final rest = n.labelTextStyle!.resolve(_none)!;
+          expect(active.color, colors.ink);
+          expect(active.fontWeight, FontWeight.w700);
+          expect(rest.color, colors.navInactive);
+          expect(rest.fontWeight, FontWeight.w600);
+          expect(rest.fontSize, 11);
+          expect(n.elevation, 0);
         },
       );
 
-      test('$name navigation bar: no pill, ink active, navInactive rest', () {
-        final n = theme.navigationBarTheme;
-        expect(n.indicatorColor!.a, 0);
-        expect(n.iconTheme!.resolve(_selected)!.color, colors.ink);
-        expect(n.iconTheme!.resolve(_none)!.color, colors.navInactive);
-        expect(
-          n.labelTextStyle!.resolve(_selected)!.fontWeight,
-          FontWeight.w600,
-        );
-        expect(n.labelTextStyle!.resolve(_none)!.fontSize, 11);
-        expect(n.elevation, 0);
-      });
-
-      test('$name pickers: ink selection, no orange fills', () {
-        final dp = theme.datePickerTheme;
-        expect(dp.dayBackgroundColor!.resolve(_selected), colors.ink);
-        expect(dp.dayForegroundColor!.resolve(_selected), colors.bg);
-        expect(dp.todayBorder!.color, colors.ink);
-        final tp = theme.timePickerTheme;
-        expect(tp.dialHandColor, colors.ink);
-      });
+      test(
+        '$name pickers: deep-orange selection with white figures, Pas today',
+        () {
+          final dp = theme.datePickerTheme;
+          final day = dp.dayBackgroundColor!.resolve(_selected)!;
+          final figure = dp.dayForegroundColor!.resolve(_selected)!;
+          expect(day, colors.brandFillPressed);
+          expect(figure, colors.onBrandFill);
+          // The selected day's figure is text: AA on the deep orange.
+          expect(contrast(figure, day), greaterThanOrEqualTo(4.5));
+          expect(dp.dayBackgroundColor!.resolve(_none), _transparent);
+          expect(dp.dayForegroundColor!.resolve(_none), colors.ink);
+          expect(dp.todayBorder!.color, colors.brand);
+          final today = dp.todayForegroundColor!.resolve(_none)!;
+          expect(today, colors.brandInk);
+          expect(
+            contrast(today, dp.backgroundColor!),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(dp.rangeSelectionBackgroundColor, colors.brandSoft);
+          // "Seç" is the orange (Pas) action.
+          expect(
+            dp.confirmButtonStyle!.foregroundColor!.resolve(_none),
+            colors.brandInk,
+          );
+          expect(theme.timePickerTheme.dialHandColor, colors.brandFillPressed);
+        },
+      );
     }
 
     test('of(brightness) picks the matching theme', () {
@@ -319,7 +493,7 @@ void main() {
         const hero = AknTheme.overlayOnHero;
         expect(hero.statusBarIconBrightness, Brightness.light);
         expect(hero.statusBarBrightness, Brightness.dark);
-        expect(hero.statusBarColor, const Color(0x00000000));
+        expect(hero.statusBarColor, _transparent);
         expect(AknTheme.overlayOnNavy, same(AknTheme.overlayOnHero));
         final night = AknTheme.overlayOnPlate(Brightness.dark);
         expect(night.statusBarIconBrightness, Brightness.light);
@@ -363,7 +537,7 @@ void main() {
         final key = p.filledButtonTheme.style!;
         expect(key.backgroundColor!.resolve(_none), colors.brandFill);
         expect(key.foregroundColor!.resolve(_none), colors.onBrandFill);
-        expect(key.backgroundBuilder, isNotNull);
+        expect(_painted(key, _none)!.gradient, colors.buttonGradient);
         expect(
           p.outlinedButtonTheme.style!.foregroundColor!.resolve(_none),
           colors.ink,
@@ -383,7 +557,8 @@ void main() {
       expect(swapped.extension<AknColors>(), plate);
       final t = swapped.extension<AknTextStyles>()!;
       expect(t.display.color, plate.ink);
-      expect(t.display.fontSize, 30);
+      expect(t.display.fontSize, 28);
+      expect(t.plateFigure.fontSize, 46);
       // Every other extension survives.
       expect(swapped.extensions.length, theme.extensions.length);
     });
@@ -428,7 +603,7 @@ void main() {
     expect(text.body.fontFamily, AknFonts.sans);
   });
 
-  // OnHero / AknHeroPanel (cards.dart) re-theme their subtree with the plate palette (§2.2, §6.28).
+  // OnHero / AknHeroPanel (cards.dart) re-theme their subtree with the plate palette (v3 §2, §4).
   testWidgets('AknHeroPanel prints its content in plate ink', (tester) async {
     late AknColors inside;
     late bool onHero;
@@ -452,7 +627,8 @@ void main() {
     expect(inside.isPlatePalette, isTrue);
     expect(onHero, isTrue);
     expect(OnHero.palette(AknColors.light), AknColors.light.plateInk());
-    // The card itself: the G decoration (white + orange tint, border, r22).
+    // The card itself: the G decoration (white + warm wash, border, r26,
+    // the plate shadow).
     final box = tester.widget<DecoratedBox>(
       find
           .descendant(
@@ -479,9 +655,10 @@ void main() {
         ),
       ),
     );
-    // The card is white (decision G); its tint is #FFEDE2 at the top.
+    // The card is white (decision G); its warm wash is #FFF4EE at the top.
     const plate = Color(0xFFFFFFFF);
-    const tint = Color(0xFFFFEDE2);
+    const tint = Color(0xFFFFF4EE);
+    expect(AknColors.light.plateTint, tint);
     final text = inner.textButtonTheme.style!.foregroundColor!.resolve({})!;
     final icon =
         inner.iconButtonTheme.style?.foregroundColor?.resolve({}) ??
@@ -495,7 +672,7 @@ void main() {
     expect(contrast(text, plate), greaterThanOrEqualTo(4.5));
     expect(contrast(text, tint), greaterThanOrEqualTo(4.5));
     expect(contrast(icon, plate), greaterThanOrEqualTo(4.5));
-    // The white 17 px w700 primary label (owner decision G).
+    // The white 16 px w700 primary label (owner decision G).
     expect(contrast(filledFg, filledBg), greaterThanOrEqualTo(3.5));
   });
 
@@ -523,7 +700,7 @@ void main() {
   ) async {
     final theme = AknTheme.light();
     final sys = theme.appBarTheme.systemOverlayStyle!;
-    expect(sys.statusBarColor, const Color(0x00000000));
+    expect(sys.statusBarColor, _transparent);
     expect(
       SystemUiOverlayStyle.dark.statusBarIconBrightness,
       sys.statusBarIconBrightness,

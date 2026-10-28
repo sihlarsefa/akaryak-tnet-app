@@ -37,13 +37,13 @@ final homeSpendingProvider = FutureProvider.autoDispose<List<SpendingMonth>?>((
   }
 });
 
-/// Müşteri ana sayfası (sahip kararı G "F2GO kart dili"): turuncu geçişli üst bant (avatar,
-/// selamlama, şirket, zil) → bandın üstüne 48 px binen tek kahraman kart (yönetici destesi "Bu ay
-/// harcama"; deste yoksa bu ayın kartı; beyaz, hafif turuncu tonlu) → #F9FAFB sayfada beyaz bölüm
-/// kutuları: karar bekleyen en acil teklif (geri sayım) → "Yolda" (rota çizgisi) → onay bekleyen
-/// talepler → yüklenecek ödeme belgeleri → Limitlerim → Şablonlarım. "Sipariş ver" alt çubuğun
-/// ortasındaki tuştur. Talep eden: deste yok; sayfa "Taleplerim" ile başlar. Sınıf adı ve kurucu
-/// imzası sabittir (spec C.3).
+/// Müşteri ana sayfası (tasarım v3 "Akış", sahip kararı G): ışıklı turuncu üst bant (avatar,
+/// selamlama, şirket, zil) → bandın üstüne binen tek kahraman kart (yönetici destesi "Bu ay
+/// harcama"; deste yoksa bu ayın kartı; bant kendi yükselişiyle getirir) → kırık beyaz sayfada
+/// yüzen beyaz bölüm kartları (r22), birbiri ardına yükselerek: karar bekleyen en acil teklif
+/// (geri sayım) → "Yolda" (rota çizgisi) → onay bekleyen talepler → yüklenecek ödeme belgeleri →
+/// Limitlerim → Şablonlarım. "Sipariş ver" alt çubuğun ortasındaki tuştur. Talep eden: deste yok;
+/// sayfa "Taleplerim" ile başlar. Sınıf adı ve kurucu imzası sabittir (spec C.3).
 class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
 
@@ -113,7 +113,9 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         onRefresh: _refresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 32),
+          padding: EdgeInsets.only(
+            bottom: 32 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             _HomeContent(
               home: home,
@@ -199,43 +201,49 @@ class _HomeContent extends ConsumerWidget {
                 : null,
           )
         : null;
-    // Kahramandan sonraki ilk blokun üstü 14, sonrakiler 12 (bölüm kutuları arası ritim); kahraman
-    // yoksa bandın hemen altı 16.
+    // Ritim (v3 §3): kahramanın (ve sayfa noktalarının) altından ilk karta 20, kartlar arası 14;
+    // kahraman yoksa bandın hemen altı 16.
     var firstTaken = false;
     double top() {
-      if (firstTaken) return 12;
+      if (firstTaken) return 14;
       firstTaken = true;
-      return hero == null ? 16 : 14;
+      return hero == null ? 16 : 20;
     }
 
-    // Kutunun içindeki başlığın üstü.
-    const inner = 14.0;
+    // Kartın içindeki başlığın üstü.
+    const inner = 16.0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (hero != null) AknBandOverlap(child: hero),
-        LastUpdatedNote(
-          updatedAt: updatedAt,
-          fromCache: fromCache,
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-        ),
-        // Engelleyen durumlar ve yarım işler (kuyular).
-        if (!home.canOrder) OrderingBanner(home: home, top: top()),
-        if (home.financeInfoRequests > 0 && home.canOrder)
+    // Bölüm kartları: kahramanın altında birbiri ardına yükselerek gelir (v3 §5); sonradan
+    // eklenen kart (yeni teklif, taslak) kendi yerinde belirir. Kahraman kartı bandın üstünde
+    // kendi girişini yapar.
+    final sections = <(String, Widget)>[
+      // Engelleyen durumlar ve yarım işler (kuyular).
+      if (!home.canOrder) ('ordering', OrderingBanner(home: home, top: top())),
+      if (home.financeInfoRequests > 0 && home.canOrder)
+        (
+          'finance',
           Padding(
-            padding: EdgeInsets.fromLTRB(18, top(), 18, 0),
+            padding: EdgeInsets.fromLTRB(
+              homeBoxGutter(context),
+              top(),
+              homeBoxGutter(context),
+              0,
+            ),
             child: AknBanner(
               tone: AknTone.warn,
-              icon: Icons.mark_email_unread_outlined,
+              icon: PhosphorIconsRegular.envelopeSimple,
               title: HomeCopy.financeInfo,
               message: HomeCopy.financeInfoMessage,
               actionLabel: 'Yanıtla',
               onAction: () => context.push(AppRoutes.financeInfo),
             ),
           ),
-        if (submit.isActive) SubmissionStatusCard(state: submit, top: top()),
-        if (!tipDismissed && dash.lastOrder == null && canCreate)
+        ),
+      if (submit.isActive)
+        ('submit', SubmissionStatusCard(state: submit, top: top())),
+      if (!tipDismissed && dash.lastOrder == null && canCreate)
+        (
+          'tip',
           FirstOrderTip(
             top: top(),
             onStart: () => context.push(AppRoutes.orderNew),
@@ -244,14 +252,20 @@ class _HomeContent extends ConsumerWidget {
               ref.read(homeLocalRevisionProvider.notifier).bump();
             },
           ),
-        // Talep eden: kendi talepleri önce.
-        if (requester)
+        ),
+      // Talep eden: kendi talepleri önce.
+      if (requester)
+        (
+          'my-requests',
           CompanyRequestsSection(
             approver: false,
             headerTop: inner,
             boxTop: top(),
           ),
-        if (dash.pendingDecisions.isNotEmpty)
+        ),
+      if (dash.pendingDecisions.isNotEmpty)
+        (
+          'decisions',
           HomeSectionBox(
             top: top(),
             child: DecisionsSection(
@@ -262,7 +276,10 @@ class _HomeContent extends ConsumerWidget {
               canDecide: canDecide,
             ),
           ),
-        if (active != null)
+        ),
+      if (active != null)
+        (
+          'delivery',
           HomeSectionBox(
             top: top(),
             padding: EdgeInsets.zero,
@@ -274,14 +291,20 @@ class _HomeContent extends ConsumerWidget {
               canDecide: canDecide,
             ),
           ),
-        if (canDecide && home.companyApprovalsWaiting > 0)
+        ),
+      if (canDecide && home.companyApprovalsWaiting > 0)
+        (
+          'approvals',
           CompanyRequestsSection(
             headerTop: inner,
             boxTop: top(),
             approver: true,
             waiting: home.companyApprovalsWaiting,
           ),
-        if (home.pendingPaymentDocuments.isNotEmpty)
+        ),
+      if (home.pendingPaymentDocuments.isNotEmpty)
+        (
+          'documents',
           HomeSectionBox(
             top: top(),
             child: PendingDocumentsSection(
@@ -291,14 +314,20 @@ class _HomeContent extends ConsumerWidget {
                   ref.read(a2DataRevisionProvider.notifier).bump(),
             ),
           ),
-        if (!submit.isActive && draft != null && canCreate)
-          ResumeDraftCard(summary: draft, top: top()),
-        if (home.limits.isNotEmpty)
+        ),
+      if (!submit.isActive && draft != null && canCreate)
+        ('draft', ResumeDraftCard(summary: draft, top: top())),
+      if (home.limits.isNotEmpty)
+        (
+          'limits',
           HomeSectionBox(
             top: top(),
             child: LimitsSection(limits: home.limits, headerTop: inner),
           ),
-        if (home.templates.isNotEmpty && canCreate)
+        ),
+      if (home.templates.isNotEmpty && canCreate)
+        (
+          'templates',
           HomeSectionBox(
             top: top(),
             child: TemplatesSection(
@@ -306,7 +335,10 @@ class _HomeContent extends ConsumerWidget {
               headerTop: inner,
             ),
           ),
-        if (assistant && !assistantDismissed)
+        ),
+      if (assistant && !assistantDismissed)
+        (
+          'assistant',
           HomeSectionBox(
             top: top(),
             padding: EdgeInsets.zero,
@@ -319,17 +351,42 @@ class _HomeContent extends ConsumerWidget {
               },
             ),
           ),
-        if (home.station != null)
+        ),
+      if (home.station != null)
+        (
+          'station',
           HomeSectionBox(
             top: top(),
-            padding: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.only(bottom: 18),
             child: StationSection(station: home.station!, headerTop: inner),
           ),
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (hero != null) AknBandOverlap(child: hero),
+        LastUpdatedNote(
+          updatedAt: updatedAt,
+          fromCache: fromCache,
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+        ),
+        StaggerScope(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (i, (id, section)) in sections.indexed)
+                StaggerItem(key: ValueKey(id), index: i, child: section),
+            ],
+          ),
+        ),
         if (updatedAt != null && !fromCache)
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
             child: Text(
               'Güncellendi ${TurkishText.lower(Fmt.relative(updatedAt))}',
+              textAlign: TextAlign.center,
               style: context.aknText.caption.copyWith(color: context.akn.dim),
             ),
           ),

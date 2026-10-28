@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -30,8 +31,9 @@ enum DemoGroup {
   final String label;
 }
 
-/// Persona avatarının rol tonu (mor yok): müşteri turuncu, yönetim asfalt, finans yeşil, satış
-/// kehribar, operasyon mavi, diğer gri, merkez koyu.
+/// Persona avatarının rol tonu (tasarım v3 jetonlarından; mavi ve mor yok): müşteri yumuşak turuncu,
+/// yönetim grafit kuyu, finans yeşil, satış koyu sarı, operasyon (`blue`, adı API için korunur) koyu
+/// grafit, diğer gri, merkez (`ink`) marka turuncusu. Harfler zeminde en az 4,5:1.
 enum DemoTone { orange, slate, green, amber, blue, grey, ink }
 
 /// Bir demo hesabı: persona, grubu, kısa rol adı ve avatar tonu.
@@ -141,77 +143,27 @@ List<DemoAccount> demoAccounts([List<FakePersona>? personas]) {
   return [for (final e in indexed) e.$2];
 }
 
-/// G kart dili: beyaz kart, 1 px #F1E3D8 kenar, r16, yumuşak gölge (koyu temada yüzey + ince
-/// turuncumsu kenar, gölge yok).
-abstract final class _DemoStyle {
-  static const radius = BorderRadius.all(Radius.circular(16));
-  static const borderLight = Color(0xFFF1E3D8);
-  static const borderDark = Color(0xFF3A2D24);
-  static const shadow = [
-    BoxShadow(color: Color(0x12101828), blurRadius: 12, offset: Offset(0, 3)),
-  ];
+/// Kart satırının üst / alt payı: gölge kaydırma alanının kırpma kenarına değmez.
+const EdgeInsets _rowPadding = EdgeInsets.fromLTRB(
+  AknSpace.page,
+  6,
+  AknSpace.page,
+  18,
+);
 
-  /// Kart satırının üst / alt payı: gölge kaydırma alanının kırpma kenarına değmez.
-  static const rowPadding = EdgeInsets.fromLTRB(
-    AknSpace.page,
-    6,
-    AknSpace.page,
-    18,
-  );
+/// (zemin, harf) — v3 jetonlarından; açık ve koyu temada harfler zeminde en az 4,5:1.
+(Color, Color) _toneColors(DemoTone tone, AknColors c) => switch (tone) {
+  DemoTone.orange => (c.brandSoft, c.brandInk),
+  DemoTone.slate => (c.surfaceAlt, c.ink),
+  DemoTone.green => (c.ok.bg, c.ok.fg),
+  DemoTone.amber => (c.warn.bg, c.warn.fg),
+  DemoTone.blue => (c.inverse, c.onInverse),
+  DemoTone.grey => (c.neutral.bg, c.neutral.fg),
+  DemoTone.ink => (c.brandFillPressed, c.onBrandFill),
+};
 
-  /// (zemin, yazı) — açık / koyu; harfler zeminde en az 4,5:1.
-  static (Color, Color) tone(DemoTone tone, {required bool dark}) => switch ((
-    tone,
-    dark,
-  )) {
-    (DemoTone.orange, false) => (
-      const Color(0xFFFFE6D6),
-      const Color(0xFF9A3412),
-    ),
-    (DemoTone.orange, true) => (
-      const Color(0xFF3A2116),
-      const Color(0xFFFFB088),
-    ),
-    (DemoTone.slate, false) => (
-      const Color(0xFFE4E7EB),
-      const Color(0xFF1E2227),
-    ),
-    (DemoTone.slate, true) => (
-      const Color(0xFF2E333A),
-      const Color(0xFFE6E8EB),
-    ),
-    (DemoTone.green, false) => (
-      const Color(0xFFDDF3E6),
-      const Color(0xFF146C43),
-    ),
-    (DemoTone.green, true) => (
-      const Color(0xFF15301F),
-      const Color(0xFF7FD6A4),
-    ),
-    (DemoTone.amber, false) => (
-      const Color(0xFFFCEFD2),
-      const Color(0xFF8A4B00),
-    ),
-    (DemoTone.amber, true) => (
-      const Color(0xFF3A2C10),
-      const Color(0xFFF5C46B),
-    ),
-    (DemoTone.blue, false) => (
-      const Color(0xFFE1EAFB),
-      const Color(0xFF1D4AB4),
-    ),
-    (DemoTone.blue, true) => (const Color(0xFF172540), const Color(0xFF9DBBF5)),
-    (DemoTone.grey, false) => (
-      const Color(0xFFF0F1F3),
-      const Color(0xFF4A5159),
-    ),
-    (DemoTone.grey, true) => (const Color(0xFF262A30), const Color(0xFFB4BAC2)),
-    (DemoTone.ink, false) => (const Color(0xFF1E2227), const Color(0xFFFFFFFF)),
-    (DemoTone.ink, true) => (const Color(0xFFF1F2F4), const Color(0xFF16191D)),
-  };
-}
-
-/// Rol tonunda baş harfli yuvarlak avatar (yazı ölçeğiyle büyümez).
+/// Rol tonunda baş harfli yuvarlak avatar (yazı ölçeğiyle büyümez): yumuşak tonlu dairede kalın (800)
+/// baş harfler; koyu zeminlerde (operasyon, merkez) beyaz harfler.
 class DemoAvatar extends StatelessWidget {
   const DemoAvatar({super.key, required this.account, this.size = 36});
 
@@ -226,7 +178,8 @@ class DemoAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (bg, fg) = _DemoStyle.tone(account.tone, dark: context.akn.isDark);
+    final c = context.akn;
+    final (bg, fg) = _toneColors(account.tone, c);
     return ExcludeSemantics(
       child: Container(
         width: size,
@@ -237,14 +190,12 @@ class DemoAvatar extends StatelessWidget {
           TurkishText.initials(account.name),
           textScaler: TextScaler.noScaling,
           maxLines: 1,
-          style: TextStyle(
-            fontFamily: AknFonts.sans,
-            fontSize: size * 0.4,
+          style: context.aknText.label.copyWith(
+            fontSize: size * 0.38,
             height: 1,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             letterSpacing: 0.2,
             color: fg,
-            locale: AknFonts.locale,
           ),
         ),
       ),
@@ -253,8 +204,8 @@ class DemoAvatar extends StatelessWidget {
 }
 
 /// Giriş ekranındaki demo bölümü (sahip kararı 2026-10-21 20:22): "Demo hesaplarıyla girin",
-/// "Tümünü gör", tek satır ipucu (şifre `demo`, kod `123456`) ve Müşteri / Bayi / Merkez gruplarında
-/// yatay kaydırılan persona kartları. Bir karta dokunmak o hesapla giriş yapar ([onSelected]).
+/// "Tümünü gör", tek satır ipucu (şifre `demo`, kod `123456`) ve yatay kaydırılan persona kartları. Bir
+/// karta dokunmak o hesapla giriş yapar ([onSelected]). Kartlar açılışta sağdan sırayla "dağıtılır".
 class DemoAccountsSection extends StatelessWidget {
   const DemoAccountsSection({
     super.key,
@@ -275,7 +226,7 @@ class DemoAccountsSection extends StatelessWidget {
   /// "Tümünü gör": tüm hesaplar açıklamalarıyla bir sayfada; null ise bağlantı yok.
   final VoidCallback? onSeeAll;
 
-  /// Giriş yapılan hesabın anahtarı: kartında ilerleme göstergesi.
+  /// Giriş yapılan hesabın anahtarı: kartında ilerleme halkası.
   final String? busyKey;
 
   /// Bir giriş sürerken kartlar dokunmaya kapanır.
@@ -297,23 +248,12 @@ class DemoAccountsSection extends StatelessWidget {
         style: t.headline.copyWith(color: c.ink),
       ),
     );
-    final seeAll = onSeeAll == null
-        ? null
-        : AknInlineLink(
-            label: AuthCopy.demoSeeAll,
-            onTap: onSeeAll!,
-            style: t.label.copyWith(
-              fontSize: 14,
-              height: 20 / 14,
-              fontWeight: FontWeight.w600,
-              color: c.ink,
-            ),
-          );
+    final seeAll = onSeeAll == null ? null : _SeeAllLink(onTap: onSeeAll!);
     final strong = t.bodySmall.copyWith(
-      fontWeight: FontWeight.w600,
+      fontWeight: FontWeight.w700,
       color: c.ink,
     );
-    // "Tek dokunuşla giriş. Şifre demo, kod 123456." (değerler kalın).
+    // "Tek dokunuşla giriş. Şifre demo, kod 123456." (değerler kalın, rakamlar eş genişlikte).
     final hint = Text.rich(
       TextSpan(
         style: t.bodySmall.copyWith(color: c.dim),
@@ -321,7 +261,10 @@ class DemoAccountsSection extends StatelessWidget {
           const TextSpan(text: '${AuthCopy.demoTapHint} Şifre '),
           TextSpan(text: FakeAuth.password, style: strong),
           const TextSpan(text: ', kod '),
-          TextSpan(text: FakeAuth.code, style: strong),
+          TextSpan(
+            text: FakeAuth.code,
+            style: strong.copyWith(fontFeatures: AknNumerals.tabular),
+          ),
           const TextSpan(text: '.'),
         ],
       ),
@@ -370,7 +313,7 @@ class DemoAccountsSection extends StatelessWidget {
           ),
         ] else
           for (final (i, (group, list)) in demoGroups(all).indexed) ...[
-            // Önceki kart satırının altında gölge payı (18) var: sonraki başlık yakın durur.
+            // Önceki kart satırının altında gölge payı (20) var: sonraki başlık yakın durur.
             Padding(
               padding: EdgeInsets.fromLTRB(
                 AknSpace.page,
@@ -392,6 +335,56 @@ class DemoAccountsSection extends StatelessWidget {
   }
 }
 
+/// "Tümünü gör ›" (v3 bölüm bağlantısı): ink 14/20 600, altı çizili, küçük ok; 48 dp hedef.
+class _SeeAllLink extends StatelessWidget {
+  const _SeeAllLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Semantics(
+      link: true,
+      button: true,
+      label: AuthCopy.demoSeeAll,
+      excludeSemantics: true,
+      onTap: onTap,
+      child: PressScale(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: AknSpace.minTap,
+              minWidth: AknSpace.minTap,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  AuthCopy.demoSeeAll,
+                  style: t.label.copyWith(
+                    fontSize: 14,
+                    height: 20 / 14,
+                    color: c.link,
+                    decoration: TextDecoration.underline,
+                    decorationColor: c.link,
+                    decorationThickness: 1.4,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(PhosphorIconsBold.caretRight, size: 14, color: c.ink),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Hesapları gruplarına ayırır (boş grup yok; sıra Müşteri, Bayi, Merkez).
 List<(DemoGroup, List<DemoAccount>)> demoGroups(List<DemoAccount> accounts) => [
   for (final g in DemoGroup.values)
@@ -400,7 +393,7 @@ List<(DemoGroup, List<DemoAccount>)> demoGroups(List<DemoAccount> accounts) => [
       (g, list),
 ];
 
-/// Grup başlığı ("Müşteri"): 13/18 600 soluk.
+/// Grup başlığı ("Müşteri"): 12/16 700 soluk.
 class _GroupLabel extends StatelessWidget {
   const _GroupLabel(this.group);
 
@@ -412,17 +405,14 @@ class _GroupLabel extends StatelessWidget {
       header: true,
       child: Text(
         group.label,
-        style: context.aknText.label.copyWith(
-          fontWeight: FontWeight.w600,
-          color: context.akn.dim,
-        ),
+        style: context.aknText.captionStrong.copyWith(color: context.akn.dim),
       ),
     );
   }
 }
 
-/// Bir grubun kartları: sayfa kenarına kadar yatay kayar (ilk ve son kart sayfa boşluğunda durur),
-/// kartlar aynı yükseklikte; yanındaki kartın ucu görünür.
+/// Kartlar: sayfa kenarına kadar yatay kayar (ilk ve son kart sayfa boşluğunda durur), hepsi aynı
+/// yükseklikte; yanındaki kartın ucu görünür. Açılışta kartlar sağdan sırayla kayarak gelir.
 class _CardRow extends StatelessWidget {
   const _CardRow({
     required this.accounts,
@@ -446,7 +436,8 @@ class _CardRow extends StatelessWidget {
         final width = math.max(188.0, math.min(188 + (scale - 1) * 120, room));
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          padding: _DemoStyle.rowPadding,
+          clipBehavior: Clip.none,
+          padding: _rowPadding,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -455,12 +446,15 @@ class _CardRow extends StatelessWidget {
                   if (i > 0) const SizedBox(width: 10),
                   SizedBox(
                     width: width,
-                    child: DemoPersonaCard(
-                      account: accounts[i],
-                      busy: busyKey == accounts[i].key,
-                      onTap: enabled
-                          ? () => onSelected(accounts[i].persona)
-                          : null,
+                    child: _DealIn(
+                      index: i,
+                      child: DemoPersonaCard(
+                        account: accounts[i],
+                        busy: busyKey == accounts[i].key,
+                        onTap: enabled
+                            ? () => onSelected(accounts[i].persona)
+                            : null,
+                      ),
                     ),
                   ),
                 ],
@@ -473,8 +467,71 @@ class _CardRow extends StatelessWidget {
   }
 }
 
-/// Persona kartı (G kart dili): rol tonunda baş harf avatarı, ad (600) ve rol (500, soluk). Dokunmak
-/// giriş yapar; giriş sürerken sağda ilerleme göstergesi.
+/// Kartın açılış hareketi: [index] sırasıyla (45 ms arayla) sağdan 40 px kayarak ve hızla belirerek
+/// gelir. Ölçek yok, yapı sabit; azaltılmış harekette doğrudan çizilir.
+class _DealIn extends StatefulWidget {
+  const _DealIn({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_DealIn> createState() => _DealInState();
+}
+
+class _DealInState extends State<_DealIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 640),
+  );
+  static final _move = CurveTween(curve: AknMotion.emphasizedCurve);
+  static final _fade = CurveTween(
+    curve: const Interval(0, 0.35, curve: Curves.easeOut),
+  );
+  Timer? _timer;
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+      return;
+    }
+    // Sayfa yükselirken başlar; ekran dışındaki kartlar da aynı sırayla gelir.
+    final delay = Duration(milliseconds: 120 + 45 * widget.index.clamp(0, 7));
+    _timer = Timer(delay, () {
+      if (mounted) unawaited(_c.forward());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _c,
+    child: widget.child,
+    builder: (context, child) => Opacity(
+      opacity: _fade.evaluate(_c),
+      child: Transform.translate(
+        offset: Offset(40 * (1 - _move.evaluate(_c)), 0),
+        child: child,
+      ),
+    ),
+  );
+}
+
+/// Persona kartı (tasarım v3): beyaz kart (r20, yumuşak kart gölgesi; koyu temada ince çizgi), rol
+/// tonunda baş harf avatarı, ad (700) ve rol (500, soluk). Basınca %96'ya iner ve yaylanarak döner;
+/// dokunmak giriş yapar. Giriş sürerken avatarın çevresinde turuncu bir halka döner ve kart turuncu
+/// çizgi alır; başka bir giriş sürerken kart soluklaşır.
 class DemoPersonaCard extends StatelessWidget {
   const DemoPersonaCard({
     super.key,
@@ -493,13 +550,9 @@ class DemoPersonaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final dark = c.isDark;
-    final shape = RoundedRectangleBorder(
-      borderRadius: _DemoStyle.radius,
-      side: BorderSide(
-        color: dark ? _DemoStyle.borderDark : _DemoStyle.borderLight,
-      ),
-    );
+    final duration = AknMotion.of(context, AknMotion.base);
+    final avatar = DemoAvatar.scaled(context, 40);
+    final radius = AknRadius.card;
     return Semantics(
       container: true,
       button: true,
@@ -508,67 +561,92 @@ class DemoPersonaCard extends StatelessWidget {
       hint: busy ? AuthCopy.loggingIn : AuthCopy.demoCardHint,
       excludeSemantics: true,
       onTap: onTap,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: _DemoStyle.radius,
-          boxShadow: dark ? null : _DemoStyle.shadow,
-        ),
-        child: Material(
-          color: dark ? c.surface : const Color(0xFFFFFFFF),
-          shape: shape,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: AknSpace.minTap),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Row(
-                  children: [
-                    DemoAvatar(
-                      account: account,
-                      size: DemoAvatar.scaled(context),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            account.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.bodyStrong.copyWith(
-                              height: 20 / 15,
-                              color: c.ink,
-                            ),
+      child: AnimatedOpacity(
+        opacity: onTap == null && !busy ? 0.55 : 1,
+        duration: duration,
+        child: PressScale(
+          enabled: onTap != null,
+          scale: 0.96,
+          child: AnimatedContainer(
+            duration: duration,
+            curve: AknMotion.standard,
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: radius,
+              border: busy
+                  ? Border.all(color: c.brand, width: 1.5)
+                  : c.isDark
+                  ? Border.all(color: c.line)
+                  : Border.all(color: c.surface.withValues(alpha: 0)),
+              boxShadow: AknShadows.card(c),
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: radius,
+                splashFactory: NoSplash.splashFactory,
+                highlightColor: c.surfaceAlt.withValues(alpha: 0.7),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                    child: Row(
+                      children: [
+                        SizedBox.square(
+                          dimension: avatar,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              DemoAvatar(account: account, size: avatar),
+                              if (busy)
+                                Positioned(
+                                  left: -4,
+                                  top: -4,
+                                  right: -4,
+                                  bottom: -4,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    strokeCap: StrokeCap.round,
+                                    color: c.brand,
+                                  ),
+                                ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            account.role,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: t.label.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: c.dim,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (busy) ...[
-                      const SizedBox(width: 8),
-                      SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: c.brand,
                         ),
-                      ),
-                    ],
-                  ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                account.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.bodyStrong.copyWith(
+                                  height: 20 / 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: c.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                account.role,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.label.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  color: c.dim,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -579,7 +657,7 @@ class DemoPersonaCard extends StatelessWidget {
   }
 }
 
-/// "Kendi hesabınızla girin": demo kartları ile giriş formu arasındaki ayraç (iki yanda ince çizgi).
+/// "Kendi hesabınızla girin": demo kartları ile giriş formu arasındaki ayraç (iki yanda incelen çizgi).
 class OwnAccountDivider extends StatelessWidget {
   const OwnAccountDivider({super.key});
 
@@ -587,13 +665,22 @@ class OwnAccountDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    Widget line() => Expanded(
-      child: SizedBox(height: 1, child: ColoredBox(color: c.line)),
+    Widget line({required bool fadeStart}) => Expanded(
+      child: Container(
+        height: 1,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: fadeStart
+                ? [c.line.withValues(alpha: 0), c.line]
+                : [c.line, c.line.withValues(alpha: 0)],
+          ),
+        ),
+      ),
     );
     return LayoutBuilder(
       builder: (context, constraints) => Row(
         children: [
-          line(),
+          line(fadeStart: true),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: ConstrainedBox(
@@ -609,22 +696,20 @@ class OwnAccountDivider extends StatelessWidget {
                   textScaler: MediaQuery.textScalerOf(
                     context,
                   ).clamp(maxScaleFactor: 1.5),
-                  style: t.label.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: c.dim,
-                  ),
+                  style: t.label.copyWith(color: c.dim),
                 ),
               ),
             ),
           ),
-          line(),
+          line(fadeStart: false),
         ],
       ),
     );
   }
 }
 
-/// "Tümünü gör" sayfası: tüm demo hesapları gruplarıyla, personanın açıklamasıyla defter satırları.
+/// "Tümünü gör" sayfası: tüm demo hesapları gruplarıyla, personanın açıklamasıyla satırlar; gruplar
+/// sırayla belirir.
 class DemoAccountsList extends StatelessWidget {
   const DemoAccountsList({super.key, required this.onSelected, this.accounts});
 
@@ -644,9 +729,9 @@ class DemoAccountsList extends StatelessWidget {
           Padding(
             padding: EdgeInsets.fromLTRB(
               AknSpace.page,
-              i == 0 ? 4 : 16,
+              i == 0 ? 4 : 18,
               AknSpace.page,
-              4,
+              6,
             ),
             child: _GroupLabel(groups[i].$1),
           ),

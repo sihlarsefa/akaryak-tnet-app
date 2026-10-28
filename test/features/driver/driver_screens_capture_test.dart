@@ -54,24 +54,24 @@ Widget _app(
               onSelected: (_) {},
               items: const [
                 AknNavItem(
-                  icon: Icons.local_shipping_outlined,
-                  selectedIcon: Icons.local_shipping_rounded,
+                  icon: PhosphorIconsRegular.truck,
+                  selectedIcon: PhosphorIconsFill.truck,
                   label: 'Teslimatlarım',
                 ),
                 AknNavItem(
-                  icon: Icons.notifications_none_rounded,
-                  selectedIcon: Icons.notifications_rounded,
+                  icon: PhosphorIconsRegular.bell,
+                  selectedIcon: PhosphorIconsFill.bell,
                   label: 'Bildirimler',
                   badgeCount: 1,
                 ),
                 AknNavItem(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  selectedIcon: Icons.chat_bubble_rounded,
+                  icon: PhosphorIconsRegular.chatCircle,
+                  selectedIcon: PhosphorIconsFill.chatCircle,
                   label: 'Asistan',
                 ),
                 AknNavItem(
-                  icon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
+                  icon: PhosphorIconsRegular.user,
+                  selectedIcon: PhosphorIconsFill.user,
                   label: 'Profil',
                 ),
               ],

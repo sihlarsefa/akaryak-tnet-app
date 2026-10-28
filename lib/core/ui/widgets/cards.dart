@@ -2,26 +2,57 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../motion.dart';
 import '../status.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
+import 'animated_number.dart';
 import 'buttons.dart';
 import 'plate.dart';
 
 export 'plate.dart';
 
-/// The group box (design v2 §6.6): `surface`, a 1 px `line` border, radius
-/// 12, padding 16, **no shadow** in either theme.
+/// Marks content that already sits on a card surface (design v3 §3): an
+/// [AknCard], a ledger card ([AknLedger]), a KPI cell — or any custom card
+/// container that wraps its content in it. The building blocks read it to
+/// stay flat on a card: a ledger keeps its rows without a second card,
+/// dividers turn `lineSoft`, KPI tiles become quiet wells.
+class AknCardScope extends InheritedWidget {
+  const AknCardScope({super.key, required super.child});
+
+  /// True inside an [AknCardScope].
+  static bool isOn(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AknCardScope>() != null;
+
+  /// True when content already sits on a raised surface: a card
+  /// ([isOn]), the hero card ([OnHero]), the orange band, or a sheet or
+  /// dialog (a non-opaque route).
+  static bool onSurface(BuildContext context) =>
+      isOn(context) ||
+      OnHero.isOn(context) ||
+      context.akn.isBandPalette ||
+      ModalRoute.opaqueOf(context) == false;
+
+  @override
+  bool updateShouldNotify(AknCardScope oldWidget) => false;
+}
+
+/// The card (design v3 §3–4): white (`surface`) floating on the off-white
+/// page — radius 20, the soft card shadow ([AknShadows.card]; dark mode adds
+/// a 1 px `line`), padding 16. Rows inside are separated by inset hairlines
+/// ([AknLedgerDivider]); the content knows it sits on a card
+/// ([AknCardScope]).
 ///
-/// Use it for groups in forms and settings and for document tiles only — a
-/// list of `AknCard`s is a bug (collections are ledger rows,
-/// [AknListTile]). With [onTap] it presses: `surfaceAlt` fill and scale 0.98
-/// (90 ms in, 120 ms out), a selection haptic, and the 3 px focus ring for
-/// keyboard and switch users.
+/// With [onTap] it presses: scale 0.97 (100 ms in, a 260 ms spring back),
+/// the shadow settles onto the page ([AknShadows.pressed]) and the fill dims
+/// to `surfaceAlt`; a selection haptic, and the 3 px focus ring for keyboard
+/// and switch users.
 ///
-/// [accent] (the old left stripe) and [shadow] are ignored in v2.
+/// [shadow] false gives a flat card; [accent] (the old left stripe) is
+/// ignored.
 class AknCard extends StatelessWidget {
   const AknCard({
     super.key,
@@ -32,7 +63,7 @@ class AknCard extends StatelessWidget {
     this.margin,
     this.color,
     this.borderColor,
-    this.radius = AknRadius.md,
+    this.radius = 20,
     this.accent,
     this.shadow = true,
     this.semanticLabel,
@@ -45,13 +76,15 @@ class AknCard extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final EdgeInsetsGeometry? margin;
   final Color? color;
+
+  /// A 1 px border in both themes (default: none in light, `line` in dark).
   final Color? borderColor;
   final double radius;
 
-  /// Deprecated: v2 has no coloured accent strips (ignored).
+  /// Deprecated: no coloured accent strips (ignored).
   final AknTone? accent;
 
-  /// Deprecated: resting cards are flat in v2 (ignored).
+  /// The soft card shadow; false for a flat card.
   final bool shadow;
 
   /// Read as one node by screen readers (whole card is one action).
@@ -66,8 +99,9 @@ class AknCard extends StatelessWidget {
     final interactive = onTap != null || onLongPress != null;
     Widget card = _CardSurface(
       color: color ?? c.surface,
-      border: borderColor ?? c.line,
+      border: borderColor ?? (c.isDark ? c.line : null),
       radius: radius,
+      shadow: shadow,
       onTap: onTap == null
           ? null
           : () {
@@ -75,7 +109,9 @@ class AknCard extends StatelessWidget {
               onTap!();
             },
       onLongPress: onLongPress,
-      child: Padding(padding: padding, child: child),
+      child: AknCardScope(
+        child: Padding(padding: padding, child: child),
+      ),
     );
     if (semanticLabel != null) {
       card = Semantics(
@@ -90,22 +126,25 @@ class AknCard extends StatelessWidget {
   }
 }
 
-/// The group-box surface: flat, hairline border; when tappable a pressed
-/// fill and scale that follow the ink highlight (so a scroll that takes over
-/// the gesture releases it) and the focus ring.
+/// The card surface: shadow, radius, optional border; when tappable a
+/// pressed fill, a settling shadow and a scale that follow the ink highlight
+/// (so a scroll that takes over the gesture releases it), and the focus
+/// ring.
 class _CardSurface extends StatefulWidget {
   const _CardSurface({
     required this.color,
     required this.border,
     required this.radius,
+    required this.shadow,
     required this.child,
     this.onTap,
     this.onLongPress,
   });
 
   final Color color;
-  final Color border;
+  final Color? border;
   final double radius;
+  final bool shadow;
   final Widget child;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -126,13 +165,46 @@ class _CardSurfaceState extends State<_CardSurface> {
     final pressed = _pressed && interactive;
     final radius = BorderRadius.circular(widget.radius);
     final duration = pressed ? AknMotion.press : AknMotion.pressOut;
+    final border = widget.border;
+    final fill = pressed
+        ? (widget.color == c.surface
+              ? c.surfaceAlt
+              : Color.alphaBlend(c.ink.withValues(alpha: 0.05), widget.color))
+        : widget.color;
+    Widget content = widget.child;
+    if (interactive) {
+      content = Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
+          borderRadius: radius,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          hoverColor: Colors.transparent,
+          focusColor: Colors.transparent,
+          onHighlightChanged: (v) {
+            if (v != _pressed) setState(() => _pressed = v);
+          },
+          onFocusChange: (v) {
+            if (v != _focused) setState(() => _focused = v);
+          },
+          child: content,
+        ),
+      );
+    }
     Widget surface = AnimatedContainer(
       duration: AknMotion.of(context, duration),
       curve: AknMotion.standard,
       decoration: BoxDecoration(
-        color: pressed ? c.surfaceAlt : widget.color,
+        color: fill,
         borderRadius: radius,
-        border: Border.all(color: widget.border),
+        border: border == null ? null : Border.all(color: border),
+        boxShadow: !widget.shadow
+            ? null
+            : pressed
+            ? AknShadows.pressed(c)
+            : AknShadows.card(c),
       ),
       foregroundDecoration: _focused
           ? BoxDecoration(
@@ -140,33 +212,13 @@ class _CardSurfaceState extends State<_CardSurface> {
               border: Border.fromBorderSide(AknTheme.focusRing(c)),
             )
           : null,
-      child: interactive
-          ? Material(
-              type: MaterialType.transparency,
-              child: InkWell(
-                onTap: widget.onTap,
-                onLongPress: widget.onLongPress,
-                borderRadius: radius,
-                splashFactory: NoSplash.splashFactory,
-                highlightColor: Colors.transparent,
-                hoverColor: Colors.transparent,
-                focusColor: Colors.transparent,
-                onHighlightChanged: (v) {
-                  if (v != _pressed) setState(() => _pressed = v);
-                },
-                onFocusChange: (v) {
-                  if (v != _focused) setState(() => _focused = v);
-                },
-                child: widget.child,
-              ),
-            )
-          : widget.child,
+      child: ClipRRect(borderRadius: radius, child: content),
     );
     if (interactive) {
       surface = AnimatedScale(
         scale: pressed && !reduced ? AknMotion.pressScale : 1,
         duration: duration,
-        curve: AknMotion.standard,
+        curve: pressed ? AknMotion.standard : AknMotion.spring,
         child: surface,
       );
     }
@@ -174,13 +226,13 @@ class _CardSurfaceState extends State<_CardSurface> {
   }
 }
 
-/// Deprecated name of the plate (§5.2, §6.28): renders an [AknPlate] — the
-/// white card with a soft orange tint (owner decision G), r22, everything
-/// inside printed in the plate palette through [OnHero]. [watermark],
-/// [highlight] and [glow] are ignored.
+/// Deprecated name of the hero card: renders an [AknPlate] — the white card
+/// with its warm top wash, radius 26, the warm plate shadow (owner decision
+/// G) — with everything inside printed in the plate palette through
+/// [OnHero]. [watermark], [highlight] and [glow] are ignored.
 ///
-/// One plate per screen: list pages, settings, profile and onboarding use a
-/// plain white header instead.
+/// One hero card per screen: list pages, settings, profile and onboarding
+/// use a plain header instead.
 class AknHeroPanel extends StatelessWidget {
   const AknHeroPanel({
     super.key,
@@ -197,14 +249,14 @@ class AknHeroPanel extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final BorderRadius borderRadius;
 
-  /// Ignored (no watermark chevrons anywhere in v2).
+  /// Ignored (no watermark chevrons).
   final bool watermark;
   final EdgeInsetsGeometry? margin;
 
-  /// Ignored (the plate is flat).
+  /// Ignored (the hero card carries its own wash).
   final bool highlight;
 
-  /// Ignored (the plate has no shadow).
+  /// Ignored (the hero card carries its own shadow).
   final bool glow;
 
   @override
@@ -218,32 +270,33 @@ class AknHeroPanel extends StatelessWidget {
   );
 }
 
-/// Re-themes its subtree for content printed ON the plate card (owner
+/// Re-themes its subtree for content printed ON the hero card (owner
 /// decision G): the palette is `AknColors.plateInk()` — ink stays ink,
-/// hairlines `plateLine`, surfaces the card, charts in the orange accent —
-/// and the text styles are re-coloured (sizes kept). Stock controls keep
-/// their normal looks (the card is white).
+/// hairlines `plateLine`, quiet wells the warm `deltaFill`, charts in the
+/// orange accent — and the text styles are re-coloured (sizes kept). Status
+/// tones keep their colours (the card is white), so pills, buttons and
+/// fields keep their normal looks.
 ///
-/// [AknPlate] and [AknHeroPanel] apply it; DS widgets that need to know
-/// (logo, badges, chips) ask [OnHero.isOn].
+/// [AknPlate] and [AknHeroPanel] apply it; building blocks that need to
+/// know (logo, chips, KPI wells, ledgers) ask [OnHero.isOn].
 class OnHero extends StatelessWidget {
   const OnHero({super.key, required this.child});
 
   final Widget child;
 
-  /// Deprecated: there are no white controls on the plate in v2 (black).
+  /// Deprecated: there are no white controls on the hero card (black).
   static const Color onWhite = Colors.black;
 
-  /// Deprecated: no glass on the plate in v2 (black 12 %).
+  /// Deprecated: no glass on the hero card (black 12 %).
   static const Color glass = Colors.black12;
 
-  /// Deprecated: no glass on the plate in v2 (black 26 %).
+  /// Deprecated: no glass on the hero card (black 26 %).
   static const Color glassStrong = Colors.black26;
 
-  /// The plate palette derived from [base] (= `base.plateInk()`).
+  /// The hero-card palette derived from [base] (= `base.plateInk()`).
   static AknColors palette(AknColors base) => base.plateInk();
 
-  /// True inside a plate surface.
+  /// True inside a hero-card surface.
   static bool isOn(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_OnHeroScope>() != null;
 
@@ -282,9 +335,10 @@ class _OnHeroScope extends InheritedWidget {
   bool updateShouldNotify(_OnHeroScope old) => false;
 }
 
-/// A small chip (§6.28): on the plate a black chip with plate-coloured text
-/// (like the delta chip); elsewhere it renders as a lamp ([AknLamp], ink).
-/// Optional icon and tap (48 px target).
+/// A small chip (design v3 §4): on the hero card a warm pill (`plateIconFill`
+/// with Pas 12/16 700 text and an optional 14 px icon); elsewhere it renders
+/// as a status pill ([AknLamp], ink). Optional tap (48 px target, press
+/// scale, selection haptic).
 class AknHeroChip extends StatelessWidget {
   const AknHeroChip({
     super.key,
@@ -306,22 +360,23 @@ class AknHeroChip extends StatelessWidget {
     final onPlate = OnHero.isOn(context);
     final Widget visual;
     if (onPlate) {
-      final style = t.bodySmall.copyWith(
-        height: 24 / 14,
-        fontWeight: FontWeight.w700,
+      final style = t.captionStrong.copyWith(
+        fontSize: 12,
+        height: 16 / 12,
         color: c.brandInk,
       );
       visual = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
+        constraints: const BoxConstraints(minHeight: 28),
+        padding: EdgeInsets.fromLTRB(icon == null ? 11 : 9, 6, 11, 6),
         decoration: BoxDecoration(
-          color: c.deltaFill,
-          borderRadius: AknRadius.tag,
+          color: c.plateIconFill,
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 16, color: c.brandInk),
+              Icon(icon, size: 14, color: c.brandInk),
               const SizedBox(width: 5),
             ],
             Flexible(
@@ -342,7 +397,12 @@ class AknHeroChip extends StatelessWidget {
       return Semantics(
         label: semanticLabel ?? label,
         excludeSemantics: true,
-        child: visual,
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          widthFactor: 1,
+          heightFactor: 1,
+          child: visual,
+        ),
       );
     }
     return Semantics(
@@ -368,9 +428,11 @@ class AknHeroChip extends StatelessWidget {
   }
 }
 
-/// An icon in its box (§6.28): the icon only — 24 px, dim (or the tone's
-/// colour when it carries status) — never a tinted square. [size] keeps the
-/// old footprint so layouts do not jump.
+/// An icon in a soft squircle (design v3 §4): 40 px, radius 12 (scales with
+/// [size]), `surfaceAlt` with an ink glyph on a card (white on the light
+/// page, so it still reads there) — or, with a [tone], the tone's well and
+/// colour ("your move" = soft orange with a Pas glyph). On the hero card the
+/// well turns warm, on the band it turns to glass.
 class AknIconBox extends StatelessWidget {
   const AknIconBox({
     super.key,
@@ -389,37 +451,53 @@ class AknIconBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final tn = tone;
-    final color = tn == null || tn == AknTone.neutral ? c.dim : c.tone(tn).fg;
-    final glyph = iconSize ?? (size < 24 ? size : 24.0);
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Center(
-        child: Icon(icon, size: glyph, color: color),
+    final tc = tn == null ? null : c.tone(tn);
+    final glyph = iconSize ?? (size * 0.55).roundToDouble();
+    final well = c.isDark || AknCardScope.onSurface(context)
+        ? c.surfaceAlt
+        : c.surface;
+    return SizedBox.square(
+      dimension: size,
+      child: DecoratedBox(
+        decoration: ShapeDecoration(
+          color: tc?.bg ?? well,
+          shape: RoundedSuperellipseBorder(
+            borderRadius: BorderRadius.circular(size * 0.3),
+          ),
+        ),
+        child: Center(
+          child: Icon(icon, size: glyph, color: tc?.fg ?? c.ink),
+        ),
       ),
     );
   }
 }
 
-/// The ledger row (design v2 §6.8) — every item of a collection (orders,
+/// The list row (design v3 §4) — every item of a collection (orders,
 /// quotes, approvals, stops, payments, customers, notifications, documents):
 ///
 /// ```
-/// Title (headline 17/22 600)                    338.800,00 ₺  (amount)
-/// Second line (bodySmall 14/20 dim)                42,35 ₺/L  (amountMeta)
-/// ● Lamp label                           ⏱ 2 sa 57 dk kaldı   (status, +8)
-/// [footer, e.g. the route line, +10]
+/// [□] Title (15/20 600)                         338.800,00 ₺  (amount)
+///     Second line (bodySmall 14/20 dim)            42,35 ₺/L  (meta)
+///     (●) Lamp pill                       ⏱ 2 sa 57 dk kaldı  (status, +10)
+///     [footer, e.g. the route line, +12]
 /// ```
 ///
-/// Full-bleed (padding 12/20, min height 64), pressed = `surfaceAlt` across
-/// the whole row (90 ms). No leading by default; [leadingIcon] is a plain
-/// 24 px dim icon with a 16 px gap. A chevron only on navigation / settings
-/// rows (`showChevron: true`). Separate rows with [AknLedgerDivider] (or
-/// build the list with [AknLedger]).
+/// Min height 64 (dense 48), padding 12/20. [leadingIcon] sits in a 40 px
+/// soft squircle ([AknIconBox]; [leadingTone] tints it); [leading] takes any
+/// widget (an avatar). Figures on the right are tabular. A chevron
+/// (`caretRight` 18 dim) only on navigation / settings rows
+/// (`showChevron: true`). Pressed: a rounded `surfaceAlt` fill and the row
+/// scales to 0.97 (spring release); the chevron nudges forward.
 ///
-/// **Reflow**: below 340 px or at text scale ≥ 1.3 the right column moves
-/// under the title (title, amount, status, second line, meta) and nothing is
-/// cut (titles up to 2 lines, more when stacked).
+/// It looks right on a card (inside [AknLedger] or an [AknCard]) and alone
+/// on the page. Separate rows with [AknLedgerDivider] (or build the group
+/// with [AknLedger], which floats it as a card).
+///
+/// **Reflow**: at text scale ≥ 1.3, or when the right column would leave the
+/// title less than 96 px, the right column moves under the title (title,
+/// amount, status, second line, meta) and nothing is cut (titles up to 2
+/// lines, more when stacked).
 class AknListTile extends StatefulWidget {
   const AknListTile({
     super.key,
@@ -451,7 +529,8 @@ class AknListTile extends StatefulWidget {
   final String? subtitle;
   final Widget? leading;
 
-  /// A plain 24 px icon in front (dim, or the [leadingTone]'s colour).
+  /// An icon in a 40 px soft squircle in front (ink, or the [leadingTone]'s
+  /// colour on its well).
   final IconData? leadingIcon;
   final AknTone? leadingTone;
 
@@ -462,18 +541,18 @@ class AknListTile extends StatefulWidget {
   /// with [amount], the text under it.
   final String? meta;
 
-  /// Right column, line 1: `amount` 17/22 600, never wraps
+  /// Right column, line 1: `amount` 17/22 700 tabular, never wraps
   /// ("338.800,00 ₺").
   final String? amount;
 
   /// Right column, line 2: `bodySmall` dim ("42,35 ₺/L", "tahmini").
   final String? amountMeta;
 
-  /// The full-width status line (+8): a lamp and, on the right, a countdown
-  /// or a note — see [AknStatusLine].
+  /// The full-width status line (+10): a status pill and, on the right, a
+  /// countdown or a note — see [AknStatusLine].
   final Widget? status;
 
-  /// Under everything (+10): the route line.
+  /// Under everything (+12): the route line.
   final Widget? footer;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -486,7 +565,7 @@ class AknListTile extends StatefulWidget {
   final EdgeInsetsGeometry? padding;
   final String? semanticLabel;
 
-  /// Overrides the title style (default `headline` 17/22 600).
+  /// Overrides the title style (default 15/20 600 ink; dense 14/20).
   final TextStyle? titleStyle;
 
   @override
@@ -497,34 +576,51 @@ class _AknListTileState extends State<AknListTile> {
   bool _pressed = false;
   bool _focused = false;
 
+  /// Gap between the leading box and the texts.
+  static const double _leadGap = 14;
+
+  /// The pressed fill's corners.
+  static const BorderRadius _radius = BorderRadius.all(Radius.circular(16));
+
   @override
   Widget build(BuildContext context) {
     final w = widget;
     final c = context.akn;
     final t = context.aknText;
     final chevron = w.showChevron ?? false;
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
-    final leadTone = w.leadingTone;
+    final scaler = MediaQuery.textScalerOf(context);
+    final large = scaler.scale(10) >= 13;
+    final reduced = AknMotion.reduced(context);
+    final interactive = w.onTap != null || w.onLongPress != null;
+    final pressed = _pressed && interactive;
+    final boxSize = w.dense ? 36.0 : 40.0;
     final lead =
         w.leading ??
         (w.leadingIcon == null
             ? null
-            : Icon(
-                w.leadingIcon,
-                size: 24,
-                color: leadTone == null || leadTone == AknTone.neutral
-                    ? c.dim
-                    : c.tone(leadTone).fg,
+            : AknIconBox(
+                icon: w.leadingIcon!,
+                tone: w.leadingTone,
+                size: boxSize,
               ));
-    final titleStyle = (w.titleStyle ?? (w.dense ? t.bodyStrong : t.headline))
-        .copyWith(color: (w.titleStyle?.color) ?? c.ink);
+    final leadWidth = lead == null ? 0.0 : boxSize + _leadGap;
+    final defaultTitle = w.dense
+        ? t.bodyStrong.copyWith(fontSize: 14, height: 20 / 14)
+        : t.bodyStrong.copyWith(height: 20 / 15);
+    final titleStyle = (w.titleStyle ?? defaultTitle).copyWith(
+      color: (w.titleStyle?.color) ?? c.ink,
+    );
     final amountStyle = t.amount.copyWith(color: c.ink);
     final metaStyle = t.bodySmall.copyWith(color: c.dim);
+    final rightMetaStyle = metaStyle.copyWith(
+      fontFeatures: AknNumerals.tabular,
+    );
     final rightTop = w.amount ?? (w.amountMeta == null ? w.meta : null);
     final rightBottom = w.amount != null
         ? (w.amountMeta ?? w.meta)
         : w.amountMeta;
-    final rightTopStyle = w.amount != null ? amountStyle : metaStyle;
+    final rightTopStyle = w.amount != null ? amountStyle : rightMetaStyle;
+    final motion = pressed ? AknMotion.press : AknMotion.pressOut;
 
     Widget rowContent(bool stack) {
       final titleText = Text(
@@ -550,13 +646,13 @@ class _AknListTileState extends State<AknListTile> {
             const SizedBox(height: 2),
             Text(rightTop, style: rightTopStyle),
           ],
-          if (w.status != null) ...[const SizedBox(height: 6), w.status!],
+          if (w.status != null) ...[const SizedBox(height: 8), w.status!],
           if (subText != null) ...[const SizedBox(height: 4), subText],
           if (rightBottom != null) ...[
             const SizedBox(height: 2),
-            Text(rightBottom, style: metaStyle),
+            Text(rightBottom, style: rightMetaStyle),
           ],
-          if (w.footer != null) ...[const SizedBox(height: 10), w.footer!],
+          if (w.footer != null) ...[const SizedBox(height: 12), w.footer!],
           if (w.trailing != null) ...[const SizedBox(height: 8), w.trailing!],
         ];
       } else {
@@ -588,7 +684,7 @@ class _AknListTileState extends State<AknListTile> {
                   const SizedBox(width: 12),
                   Text(
                     rightBottom,
-                    style: metaStyle,
+                    style: rightMetaStyle,
                     maxLines: 1,
                     softWrap: false,
                   ),
@@ -596,7 +692,7 @@ class _AknListTileState extends State<AknListTile> {
               ],
             ),
           ],
-          if (w.status != null) ...[const SizedBox(height: 8), w.status!],
+          if (w.status != null) ...[const SizedBox(height: 10), w.status!],
         ];
       }
       final row = Row(
@@ -604,7 +700,7 @@ class _AknListTileState extends State<AknListTile> {
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
-          if (lead != null) ...[lead, const SizedBox(width: 16)],
+          if (lead != null) ...[lead, const SizedBox(width: _leadGap)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -617,23 +713,32 @@ class _AknListTileState extends State<AknListTile> {
             w.trailing!,
           ],
           if (chevron) ...[
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded, color: c.dim, size: 22),
+            const SizedBox(width: 6),
+            AnimatedSlide(
+              offset: Offset(pressed && !reduced ? 0.2 : 0, 0),
+              duration: AknMotion.of(context, motion),
+              curve: pressed ? AknMotion.standard : AknMotion.spring,
+              child: Icon(
+                PhosphorIconsRegular.caretRight,
+                color: c.dim,
+                size: 18,
+              ),
+            ),
           ],
         ],
       );
       // The footer (route line) runs under both columns, full width (after
-      // the leading icon), +10.
+      // the leading box), +12.
       if (stack || w.footer == null) return row;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           row,
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Padding(
             padding: EdgeInsetsDirectional.only(
-              start: w.leading == null && w.leadingIcon != null ? 40 : 0,
+              start: w.leading == null && w.leadingIcon != null ? leadWidth : 0,
             ),
             child: w.footer,
           ),
@@ -641,16 +746,19 @@ class _AknListTileState extends State<AknListTile> {
       );
     }
 
-    final interactive = w.onTap != null || w.onLongPress != null;
     final pad =
         w.padding ??
         (w.dense
             ? const EdgeInsets.symmetric(horizontal: 20, vertical: 8)
             : AknSpace.row);
-    final pressed = _pressed && interactive;
+    // On a card the pressed fill is the quiet well; on the page a shade
+    // deeper so it still shows on the off-white.
+    final pressFill = c.isDark || AknCardScope.onSurface(context)
+        ? c.surfaceAlt
+        : c.line;
     Widget tile = LayoutBuilder(
       builder: (context, constraints) {
-        var stack = large || constraints.maxWidth < 340;
+        var stack = large;
         if (!stack && (rightTop != null || rightBottom != null)) {
           // Measured reflow: when the right column would leave the title
           // less than 96 px, it moves under the title instead (nothing
@@ -660,7 +768,7 @@ class _AknListTileState extends State<AknListTile> {
             final tp = TextPainter(
               text: TextSpan(text: text, style: style),
               textDirection: TextDirection.ltr,
-              textScaler: MediaQuery.textScalerOf(context),
+              textScaler: scaler,
               maxLines: 1,
             )..layout();
             final w = tp.width;
@@ -672,23 +780,24 @@ class _AknListTileState extends State<AknListTile> {
           final content =
               constraints.maxWidth -
               resolved.horizontal -
-              (lead == null ? 0 : 40) -
-              (chevron ? 26 : 0);
+              leadWidth -
+              (chevron ? 24 : 0);
           final right = math.max(
             width(rightTop, rightTopStyle),
-            width(rightBottom, metaStyle),
+            width(rightBottom, rightMetaStyle),
           );
           stack = right + 12 > content - 96;
         }
         return AnimatedContainer(
-          duration: AknMotion.of(
-            context,
-            pressed ? AknMotion.press : AknMotion.pressOut,
-          ),
+          duration: AknMotion.of(context, motion),
           curve: AknMotion.standard,
-          color: pressed ? c.surfaceAlt : Colors.transparent,
+          decoration: BoxDecoration(
+            color: pressed ? pressFill : pressFill.withValues(alpha: 0),
+            borderRadius: _radius,
+          ),
           foregroundDecoration: _focused
               ? BoxDecoration(
+                  borderRadius: _radius,
                   border: Border.fromBorderSide(
                     AknTheme.focusRing(
                       c,
@@ -704,22 +813,28 @@ class _AknListTileState extends State<AknListTile> {
       },
     );
     if (interactive) {
-      tile = Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: w.onTap,
-          onLongPress: w.onLongPress,
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-          focusColor: Colors.transparent,
-          onHighlightChanged: (v) {
-            if (v != _pressed) setState(() => _pressed = v);
-          },
-          onFocusChange: (v) {
-            if (v != _focused) setState(() => _focused = v);
-          },
-          child: tile,
+      tile = AnimatedScale(
+        scale: pressed && !reduced ? AknMotion.pressScale : 1,
+        duration: motion,
+        curve: pressed ? AknMotion.standard : AknMotion.spring,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: w.onTap,
+            onLongPress: w.onLongPress,
+            borderRadius: _radius,
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+            hoverColor: Colors.transparent,
+            focusColor: Colors.transparent,
+            onHighlightChanged: (v) {
+              if (v != _pressed) setState(() => _pressed = v);
+            },
+            onFocusChange: (v) {
+              if (v != _focused) setState(() => _focused = v);
+            },
+            child: tile,
+          ),
         ),
       );
     }
@@ -736,9 +851,9 @@ class _AknListTileState extends State<AknListTile> {
   }
 }
 
-/// The ledger row's status line: a lamp on the left and, on the right, a
+/// A row's status line: a status pill on the left and, on the right, a
 /// countdown or a short note ("Burak Yılmaz’ın talebi", "varış 11:20").
-/// When both do not fit on one line the right part moves under the lamp.
+/// When both do not fit on one line the right part moves under the pill.
 class AknStatusLine extends StatelessWidget {
   const AknStatusLine({super.key, this.lamp, this.trailing});
 
@@ -760,55 +875,123 @@ class AknStatusLine extends StatelessWidget {
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 10,
-      runSpacing: 4,
+      runSpacing: 6,
       children: [l, r],
     );
   }
 }
 
-/// The hairline between two ledger rows: 1 px `line`, inset 20 on both
-/// sides.
+/// The hairline between two rows: 1 px, inset [indent] (20) on both sides —
+/// `lineSoft` on a card, `line` on the page.
 class AknLedgerDivider extends StatelessWidget {
   const AknLedgerDivider({super.key, this.indent = AknSpace.page});
 
   final double indent;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.symmetric(horizontal: indent),
-    child: SizedBox(
-      height: 1,
-      width: double.infinity,
-      child: ColoredBox(color: context.akn.line),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final onCard = AknCardScope.isOn(context) || OnHero.isOn(context);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: indent),
+      child: SizedBox(
+        height: 1,
+        width: double.infinity,
+        child: ColoredBox(color: onCard ? c.lineSoft : c.line),
+      ),
+    );
+  }
 }
 
-/// A ledger: [children] (usually [AknListTile]s) with inset hairlines
-/// between them — never above the first or below the last.
+/// A group of rows (design v3 §3–4): [children] (usually [AknListTile]s)
+/// with inset `lineSoft` hairlines between them — never above the first or
+/// below the last.
+///
+/// On the page it floats as a white card: the 20 px page gutter, radius
+/// 20, the soft card shadow (dark: a 1 px `line`), 4 px of air inside above
+/// the first and below the last row. Where it already sits on a surface — an
+/// [AknCard] or another [AknCardScope], the hero card, a sheet or dialog —
+/// or inside a parent that already insets it, the rows stay flat.
 class AknLedger extends StatelessWidget {
   const AknLedger({super.key, required this.children});
 
   final List<Widget> children;
 
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      for (var i = 0; i < children.length; i++) ...[
-        if (i > 0) const AknLedgerDivider(),
-        children[i],
-      ],
-    ],
+  /// The card's margin on the page.
+  static const EdgeInsets _margin = EdgeInsets.fromLTRB(
+    AknSpace.page,
+    4,
+    AknSpace.page,
+    4,
   );
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    final rows = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < children.length; i++) ...[
+          if (i > 0) const AknLedgerDivider(),
+          children[i],
+        ],
+      ],
+    );
+    if (AknCardScope.onSurface(context)) return rows;
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Full-bleed on the page (or a wide layout): float as a card. A
+        // parent that already insets the rows keeps them flat.
+        final screen = MediaQuery.maybeSizeOf(context)?.width ?? box.maxWidth;
+        final pageLevel =
+            box.hasBoundedWidth &&
+            (box.maxWidth >= screen - 0.5 || box.maxWidth >= 600);
+        if (!pageLevel) return rows;
+        return Padding(
+          padding: _margin,
+          child: _LedgerCard(
+            child: AknCardScope(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: rows,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
-/// Section title (design v2 §6.7): `title` 20/26 600 ink with an optional
-/// count after it (500 dim), an optional `bodySmall` subtitle, and on the
-/// right either an action (ink 15/20 600 + chevron — never orange) or a
-/// [caption] ("şu an, 10:42", "bugün 06:00, ₺/L"). Sentence case, never
-/// upper case.
+/// The white card of a page-level [AknLedger] (not an [AknCard]: a ledger is
+/// a group of rows, not a group box).
+class _LedgerCard extends StatelessWidget {
+  const _LedgerCard({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: AknRadius.card,
+        border: c.isDark ? Border.all(color: c.line) : null,
+        boxShadow: AknShadows.card(c),
+      ),
+      child: ClipRRect(borderRadius: AknRadius.card, child: child),
+    );
+  }
+}
+
+/// Section title (design v3 §4): 18/24 800 ink (−0.3) with an optional
+/// count in a soft pill (12/16 700, tabular; it pops when the count
+/// changes), an optional `bodySmall` subtitle, and on the right either a
+/// link ("Tümü": 13/18 600 ink + `caretRight` 16, a soft pill and a press
+/// scale while pressed, a selection haptic) or a [caption] ("şu an, 10:42",
+/// "bugün 06:00, ₺/L"). Sentence case, never upper case.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -835,124 +1018,251 @@ class SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final titleStyle = t.title.copyWith(color: c.ink);
+    final titleStyle = t.title.copyWith(
+      fontSize: 18,
+      height: 24 / 18,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.3,
+      color: c.ink,
+    );
     final hasAction = actionLabel != null && onAction != null;
     final cap = caption;
-    // Section titles are already large (20/26): they clamp at 1.6× text
-    // (32 px) like the bar titles, so at 2.0× the content under them still
-    // reaches the first viewport (§12, board screen 9).
-    final heading = Semantics(
-      header: true,
-      child: Text.rich(
-        TextSpan(
-          text: title,
-          children: [
-            if (count != null)
+    // Section titles clamp at 1.6× text like the bar titles, so at 2.0× the
+    // content under them still reaches the first viewport.
+    final scaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.6);
+    final n = count;
+    final Widget heading = n == null
+        ? Semantics(
+            header: true,
+            child: Text(title, style: titleStyle, textScaler: scaler),
+          )
+        : Semantics(
+            header: true,
+            // A no-break space keeps the count with the last word.
+            label: '$title $n',
+            excludeSemantics: true,
+            child: Text.rich(
               TextSpan(
-                // A no-break space keeps the count with the last word.
-                text: '\u00A0$count',
-                style: titleStyle.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: c.dim,
-                ),
+                text: title,
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 8),
+                      child: _CountPill(count: n, textScaler: scaler),
+                    ),
+                  ),
+                ],
               ),
-          ],
-        ),
-        style: titleStyle,
-        textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.6),
-      ),
-    );
+              style: titleStyle,
+              textScaler: scaler,
+            ),
+          );
     // The title takes what is left; the action / caption keeps its natural
     // width (at most 55 % of the row) and sits on the right edge.
     return Padding(
       padding: padding,
       child: LayoutBuilder(
-        builder: (context, constraints) => Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  heading,
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(subtitle!, style: t.bodySmall.copyWith(color: c.dim)),
-                  ],
-                ],
-              ),
-            ),
-            if (hasAction)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth.isFinite
-                      ? constraints.maxWidth * 0.55
-                      : double.infinity,
-                ),
-                child: Semantics(
-                  button: true,
-                  label: actionLabel,
-                  excludeSemantics: true,
-                  onTap: onAction,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      AknHaptics.selection();
-                      onAction!();
-                    },
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: AknSpace.minTap,
+        builder: (context, constraints) {
+          final maxSide = constraints.maxWidth.isFinite
+              ? constraints.maxWidth * 0.55
+              : double.infinity;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    heading,
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: t.bodySmall.copyWith(color: c.dim),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.only(start: 12),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                actionLabel!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.bodyStrong.copyWith(
-                                  height: 20 / 15,
-                                  color: c.ink,
-                                ),
+                    ],
+                  ],
+                ),
+              ),
+              if (hasAction)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxSide),
+                  child: _SectionAction(label: actionLabel!, onTap: onAction!),
+                )
+              else if (cap != null && cap.isNotEmpty)
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxSide),
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                      start: 12,
+                      end: 8,
+                    ),
+                    child: Text(
+                      cap,
+                      textAlign: TextAlign.end,
+                      style: t.label.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: c.dim,
+                        fontFeatures: AknNumerals.tabular,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// The count after a section title: a soft pill that pops when the count
+/// changes.
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.count, required this.textScaler});
+
+  final int count;
+  final TextScaler textScaler;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final style = t.captionStrong.copyWith(color: c.ink);
+    return AnimatedSwitcher(
+      duration: AknMotion.of(context, const Duration(milliseconds: 320)),
+      switchInCurve: AknMotion.pop,
+      switchOutCurve: AknMotion.exit,
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(scale: animation, child: child),
+      ),
+      layoutBuilder: (current, previous) =>
+          Stack(alignment: Alignment.center, children: [...previous, ?current]),
+      // No `alignment` here: an Align would stretch the pill across the
+      // line inside the WidgetSpan. The min width centres the digits.
+      child: Container(
+        key: ValueKey<int>(count),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: c.ink.withValues(alpha: c.isDark ? 0.12 : 0.07),
+          borderRadius: AknRadius.pillAll,
+        ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 8),
+          child: Text(
+            '$count',
+            style: style,
+            textScaler: textScaler,
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The section link ("Tümü ›"): a soft pill shows and the link scales a
+/// touch while pressed; a selection haptic on tap; a 48 px target.
+class _SectionAction extends StatefulWidget {
+  const _SectionAction({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_SectionAction> createState() => _SectionActionState();
+}
+
+class _SectionActionState extends State<_SectionAction> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (_down != v) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final reduced = AknMotion.reduced(context);
+    final duration = _down ? AknMotion.press : AknMotion.pressOut;
+    // Like the title, the link clamps at 1.6× text; the caret grows with it.
+    final scaler = MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.6);
+    return Semantics(
+      button: true,
+      label: widget.label,
+      excludeSemantics: true,
+      onTap: widget.onTap,
+      child: Listener(
+        onPointerDown: (_) => _set(true),
+        onPointerUp: (_) => _set(false),
+        onPointerCancel: (_) => _set(false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            AknHaptics.selection();
+            widget.onTap();
+          },
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(start: 12),
+              child: Center(
+                widthFactor: 1,
+                child: AnimatedScale(
+                  scale: _down && !reduced ? 0.94 : 1,
+                  duration: duration,
+                  curve: _down ? AknMotion.standard : AknMotion.spring,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      PositionedDirectional(
+                        start: -10,
+                        end: -6,
+                        top: -6,
+                        bottom: -6,
+                        child: AnimatedOpacity(
+                          opacity: _down ? 1 : 0,
+                          duration: AknMotion.of(context, duration),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: c.ink.withValues(
+                                alpha: c.isDark ? 0.12 : 0.07,
                               ),
+                              borderRadius: AknRadius.pillAll,
                             ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20,
-                              color: c.ink,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              )
-            else if (cap != null && cap.isNotEmpty)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: constraints.maxWidth.isFinite
-                      ? constraints.maxWidth * 0.55
-                      : double.infinity,
-                ),
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.only(start: 12, end: 8),
-                  child: Text(
-                    cap,
-                    textAlign: TextAlign.end,
-                    style: t.label.copyWith(
-                      fontWeight: FontWeight.w400,
-                      color: c.dim,
-                    ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              widget.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textScaler: scaler,
+                              style: t.label.copyWith(color: c.ink),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            PhosphorIconsRegular.caretRight,
+                            size: scaler.scale(16),
+                            color: c.ink,
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               ),
-          ],
+            ),
+          ),
         ),
       ),
     );
@@ -960,9 +1270,10 @@ class SectionHeader extends StatelessWidget {
 }
 
 /// A label / value pair (server facts, summaries): label `bodySmall` dim on
-/// the left, value 15/22 600 ink on the right. A [tone] adds a lamp dot in
-/// front of the value and colours it (never colour alone: the value text
-/// carries the meaning). Proportional figures.
+/// the left, value 15/22 600 ink on the right with tabular figures. A
+/// [tone] adds a status dot (with its halo) in front of the value and
+/// colours it (never colour alone: the value text carries the meaning).
+/// Rows of facts on a card are separated by inset hairlines.
 class FactRow extends StatelessWidget {
   const FactRow({
     super.key,
@@ -990,6 +1301,7 @@ class FactRow extends StatelessWidget {
         ? null
         : c.tone(tn);
     final vStyle = t.bodyStrong
+        .copyWith(fontFeatures: AknNumerals.tabular)
         .merge(valueStyle)
         .copyWith(color: tc?.fg ?? valueStyle?.color ?? c.ink);
     final scaler = MediaQuery.textScalerOf(context);
@@ -999,10 +1311,12 @@ class FactRow extends StatelessWidget {
       dot = SizedBox(
         height: scaler.scale(15) * 22 / 15,
         child: Center(
-          child: Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: tc.solid, shape: BoxShape.circle),
+          child: CustomPaint(
+            size: const Size.square(8),
+            painter: LampDotPainter(
+              color: tc.solid,
+              halo: Color.alphaBlend(tc.solid.withValues(alpha: 0.2), tc.bg),
+            ),
           ),
         ),
       );
@@ -1015,7 +1329,7 @@ class FactRow extends StatelessWidget {
         padding: padding,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Reflow (like the ledger row): when the value does not fit on
+            // Reflow (like the list row): when the value does not fit on
             // one line in its column, the value moves under the label,
             // left-aligned, and wraps there — a long note or address never
             // becomes a narrow right-aligned column.
@@ -1025,7 +1339,7 @@ class FactRow extends StatelessWidget {
               textScaler: scaler,
               maxLines: 1,
             )..layout();
-            final valueWidth = tp.width + (dot == null ? 0 : 16);
+            final valueWidth = tp.width + (dot == null ? 0 : 18);
             tp.dispose();
             final room = constraints.maxWidth - iconWidth - 12;
             final stack =
@@ -1051,7 +1365,10 @@ class FactRow extends StatelessWidget {
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (dot != null) ...[dot, const SizedBox(width: 8)],
+                            if (dot != null) ...[
+                              dot,
+                              const SizedBox(width: 10),
+                            ],
                             Flexible(child: Text(value, style: vStyle)),
                           ],
                         ),
@@ -1061,10 +1378,11 @@ class FactRow extends StatelessWidget {
                 ],
               );
             }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            // Label and value share a baseline (14/20 beside 15/22).
+            final pair = Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                ?leadIcon,
                 Expanded(flex: 5, child: Text(label, style: labelStyle)),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1073,7 +1391,7 @@ class FactRow extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (dot != null) ...[dot, const SizedBox(width: 8)],
+                      if (dot != null) ...[dot, const SizedBox(width: 10)],
                       Flexible(
                         child: Text(
                           value,
@@ -1086,6 +1404,14 @@ class FactRow extends StatelessWidget {
                 ),
               ],
             );
+            if (leadIcon == null) return pair;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                leadIcon,
+                Expanded(child: pair),
+              ],
+            );
           },
         ),
       ),
@@ -1093,11 +1419,12 @@ class FactRow extends StatelessWidget {
   }
 }
 
-/// A well (design v2 §4.5): a Beton box (r12, padding 12/14) with the
-/// tone's icon and ink text — callouts and blocking notices ("Onaylamak
-/// için çek görselini yükleyin"). No pastel tints, no border. The action is
-/// a small secondary button (right, or under the text when there is no
-/// room).
+/// A tinted well (design v3 §4): the tone's soft well (`ToneColors.bg`,
+/// 1 px `ToneColors.line`, radius 16) with the tone's icon in a 32 px disc,
+/// a 700 title and the message — callouts and blocking notices ("Onaylamak
+/// için çek görselini yükleyin"). It opens in (height + fade) when it first
+/// appears. The action is a small secondary button (right, or under the
+/// text when there is no room).
 class AknBanner extends StatelessWidget {
   const AknBanner({
     super.key,
@@ -1120,24 +1447,41 @@ class AknBanner extends StatelessWidget {
   final VoidCallback? onClose;
   final EdgeInsetsGeometry? margin;
 
+  /// The banner's corners.
+  static const BorderRadius _radius = BorderRadius.all(Radius.circular(16));
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
     final tc = c.tone(tone);
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final scaler = MediaQuery.textScalerOf(context);
+    final large = scaler.scale(10) >= 13;
     final hasAction = actionLabel != null && onAction != null;
+    final hasTitle = title != null;
+    final titleStyle = t.bodyStrong.copyWith(
+      fontWeight: FontWeight.w700,
+      color: c.ink,
+    );
+    final messageStyle = t.bodySmall.copyWith(color: hasTitle ? c.dim : c.ink);
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (title != null) ...[
-          Text(title!, style: t.bodyStrong.copyWith(color: c.ink)),
+        if (hasTitle) ...[
+          Text(title!, style: titleStyle),
           const SizedBox(height: 2),
         ],
-        Text(message, style: t.bodySmall.copyWith(color: c.ink)),
+        Text(message, style: messageStyle),
       ],
     );
+    // The first line's centre meets the disc's centre at every text size:
+    // a short line drops to the disc's middle, a tall one lowers the disc.
+    final first = hasTitle ? titleStyle : messageStyle;
+    final firstSize = first.fontSize ?? 14;
+    final firstLine = scaler.scale(firstSize) * (first.height ?? 20 / 14);
+    final textTop = math.max(0.0, (32 - firstLine) / 2);
+    final discTop = math.max(0.0, (firstLine - 32) / 2);
     final action = hasAction
         ? AknButton.secondary(
             label: actionLabel!,
@@ -1145,13 +1489,23 @@ class AknBanner extends StatelessWidget {
             onPressed: onAction,
           )
         : null;
-    Widget banner = Container(
+    final disc = Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(color: tc.line, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Icon(icon ?? AknStatus.toneIcon(tone), color: tc.fg, size: 18),
+    );
+    Widget banner = AnimatedContainer(
+      duration: AknMotion.of(context, AknMotion.base),
+      curve: AknMotion.standard,
       decoration: BoxDecoration(
-        color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
+        color: tc.bg,
+        borderRadius: _radius,
+        border: Border.all(color: tc.line),
       ),
       padding: EdgeInsetsDirectional.fromSTEB(
-        14,
+        12,
         12,
         onClose == null ? 14 : 4,
         12,
@@ -1176,30 +1530,36 @@ class AknBanner extends StatelessWidget {
             tp.dispose();
             final closeWidth = onClose == null ? 0 : AknSpace.minTap;
             side =
-                constraints.maxWidth - 30 - 12 - actionWidth - closeWidth >=
+                constraints.maxWidth - 44 - 12 - actionWidth - closeWidth >=
                 140;
           }
+          final body = Padding(
+            padding: EdgeInsets.only(top: side ? 0 : textTop),
+            child: side || action == null
+                ? text
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [text, const SizedBox(height: 10), action],
+                  ),
+          );
           return Row(
             crossAxisAlignment: side
                 ? CrossAxisAlignment.center
                 : CrossAxisAlignment.start,
             children: [
-              Icon(icon ?? AknStatus.toneIcon(tone), color: tc.fg, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: side || action == null
-                    ? text
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [text, const SizedBox(height: 8), action],
-                      ),
+              Padding(
+                padding: EdgeInsets.only(top: side ? 0 : discTop),
+                child: disc,
               ),
+              const SizedBox(width: 12),
+              Expanded(child: body),
               if (side) ...[const SizedBox(width: 12), action!],
               if (onClose != null)
-                // 48 dp dokunma hedefi; simge küçük kalır.
+                // 48 dp dokunma hedefi; simge küçük kalır ve diskle aynı
+                // hizada durur.
                 Transform.translate(
-                  offset: const Offset(4, -10),
+                  offset: Offset(4, side ? -8 : discTop - 8),
                   child: IconButton(
                     iconSize: 18,
                     constraints: const BoxConstraints(
@@ -1208,7 +1568,7 @@ class AknBanner extends StatelessWidget {
                     ),
                     tooltip: 'Kapat',
                     onPressed: onClose,
-                    icon: Icon(Icons.close_rounded, color: c.dim),
+                    icon: Icon(PhosphorIconsRegular.x, color: c.dim),
                   ),
                 ),
             ],
@@ -1216,16 +1576,85 @@ class AknBanner extends StatelessWidget {
         },
       ),
     );
+    banner = _Reveal(handoff: ('AknBanner', title, message), child: banner);
     if (margin != null) banner = Padding(padding: margin!, child: banner);
     return Semantics(container: true, liveRegion: true, child: banner);
   }
 }
 
-/// Horizontal usage meter (limit usage): the orange accent fill
-/// ([AknColors.plateAccent], owner decision G: orange marks progress) on the
-/// chart track below [warnAt], the warn colour up to [dangerAt], danger beyond. The fill caps
-/// at 100 % (the label still says the real share, "%112"). It renders the
-/// final value at once and only glides when the value changes.
+/// Opens its child once, when first built: the height grows from zero and
+/// the content fades in (emphasized, 380 ms). Static under reduce motion.
+/// The widget structure never changes, so the child keeps its state.
+class _Reveal extends StatefulWidget {
+  const _Reveal({required this.child, required this.handoff});
+
+  final Widget child;
+
+  /// Names the content for [AknEntranceHandoff].
+  final Object handoff;
+
+  @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 380),
+  );
+  late final CurvedAnimation _size = CurvedAnimation(
+    parent: _c,
+    curve: AknMotion.emphasizedCurve,
+  );
+  late final CurvedAnimation _fade = CurvedAnimation(
+    parent: _c,
+    curve: const Interval(0.3, 1, curve: Curves.easeOut),
+  );
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final handed = AknEntranceHandoff.take(widget.handoff);
+    if (handed != null) _c.value = handed;
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+    } else if (_c.value < 1) {
+      _c.forward();
+    }
+  }
+
+  @override
+  void deactivate() {
+    AknEntranceHandoff.put(widget.handoff, _c.value);
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _size.dispose();
+    _fade.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizeTransition(
+    sizeFactor: _size,
+    axisAlignment: -1,
+    child: FadeTransition(opacity: _fade, child: widget.child),
+  );
+}
+
+/// Horizontal usage meter (limit usage): a rounded `chartTrack` with the
+/// orange fill (owner decision G: orange marks progress; the button
+/// gradient) below [warnAt], the warn colour up to [dangerAt], danger
+/// beyond. The fill caps at 100 % (the label still says the real share,
+/// "%112"). It grows from empty when it first appears and glides to a new
+/// value when it changes, blending the colour when it crosses a threshold
+/// (jumps under reduce motion).
 class UsageBar extends StatelessWidget {
   const UsageBar({
     super.key,
@@ -1261,13 +1690,17 @@ class UsageBar extends StatelessWidget {
             : v >= warnAt
             ? AknTone.warn
             : null);
-    final color = effective == null
-        ? c.plateAccent
-        : effective == AknTone.info
-        ? c.ink
-        : effective == AknTone.brand
-        ? c.brandBright
-        : c.tone(effective).solid;
+    final Gradient fill = switch (effective) {
+      null => LinearGradient(colors: [c.brandFillStart, c.plateAccent]),
+      AknTone.info => LinearGradient(colors: [c.ink, c.ink]),
+      AknTone.brand => LinearGradient(colors: [c.brandFillStart, c.brand]),
+      final AknTone tn => LinearGradient(
+        colors: [
+          Color.lerp(c.tone(tn).solid, c.surface, 0.18)!,
+          c.tone(tn).solid,
+        ],
+      ),
+    };
     final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     final shown = valueLabel ?? '%${(v * 100).round()}';
     final capped = v.clamp(0.0, 1.0);
@@ -1298,7 +1731,8 @@ class UsageBar extends StatelessWidget {
                   Text(
                     valueLabel!,
                     style: t.label.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: AknNumerals.tabular,
                       color: effective == null || effective == AknTone.info
                           ? c.ink
                           : c.tone(effective).fg,
@@ -1306,33 +1740,15 @@ class UsageBar extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
           ],
-          ClipRRect(
-            borderRadius: BorderRadius.circular(height / 2),
-            child: SizedBox(
-              height: height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(color: c.chartTrack),
-                  TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: capped, end: capped),
-                    duration: AknMotion.of(context, AknMotion.slow),
-                    curve: AknMotion.emphasizedCurve,
-                    builder: (context, f, _) => FractionallySizedBox(
-                      alignment: AlignmentDirectional.centerStart,
-                      widthFactor: f.clamp(0.0, 1.0),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(height / 2),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          SizedBox(
+            height: height,
+            child: _UsageTrack(
+              value: capped,
+              track: c.chartTrack,
+              fill: fill,
+              handoff: ('UsageBar', label, capped),
             ),
           ),
         ],
@@ -1341,10 +1757,165 @@ class UsageBar extends StatelessWidget {
   }
 }
 
-/// An amount in the ledger voice (`amount` 17/22 600, or `amountLarge`
-/// Condensed 28/32 700 with [large]); proportional figures, aligned by the
-/// right edge. Format with `Fmt` (`core/utils/format.dart`); the app never
-/// computes money except "tahmini" values.
+/// The track and fill of a [UsageBar]: the fill grows from empty when it
+/// first appears (900 ms, emphasized) and glides to a new share when it
+/// changes ([AknMotion.count], in step with a counting figure beside it);
+/// it jumps under reduce motion. A remount mid-way (a wrapper's entrance
+/// ending) resumes from the fill on screen ([AknEntranceHandoff]).
+class _UsageTrack extends StatefulWidget {
+  const _UsageTrack({
+    required this.value,
+    required this.track,
+    required this.fill,
+    required this.handoff,
+  });
+
+  /// 0..1.
+  final double value;
+  final Color track;
+  final Gradient fill;
+
+  /// Names the bar for [AknEntranceHandoff].
+  final Object handoff;
+
+  @override
+  State<_UsageTrack> createState() => _UsageTrackState();
+}
+
+class _UsageTrackState extends State<_UsageTrack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    value: 1,
+  );
+  late final CurvedAnimation _t = CurvedAnimation(
+    parent: _c,
+    curve: AknMotion.emphasizedCurve,
+  );
+  double _from = 0;
+  late double _to = widget.value;
+  bool _started = false;
+
+  /// The fill's colours when the threshold colour last changed (null: no
+  /// blend running).
+  Gradient? _fromFill;
+
+  /// The fill on screen right now.
+  double get _shown => _from + (_to - _from) * _t.value;
+
+  /// The colours on screen right now, blending from [_fromFill] to [target].
+  Gradient _fillAt(Gradient target) {
+    final from = _fromFill;
+    if (from == null) return target;
+    return Gradient.lerp(from, target, _t.value) ?? target;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final handed = AknEntranceHandoff.take(widget.handoff);
+    _glide(
+      from: handed ?? 0,
+      duration: handed == null
+          ? const Duration(milliseconds: 900)
+          : AknMotion.slow,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_UsageTrack old) {
+    super.didUpdateWidget(old);
+    final fillChanged = old.fill != widget.fill;
+    if (old.value == widget.value && !fillChanged) return;
+    // Crossing a threshold (orange → ochre → red) blends the colours along
+    // the glide instead of switching them.
+    _fromFill = fillChanged || _c.isAnimating ? _fillAt(old.fill) : null;
+    _glide(from: _shown, duration: AknMotion.count);
+  }
+
+  void _glide({required double from, required Duration duration}) {
+    _from = from;
+    _to = widget.value;
+    final d = AknMotion.of(context, duration);
+    final moves = (_to - from).abs() >= 0.001 || _fromFill != null;
+    if (d == Duration.zero || !moves) {
+      _fromFill = null;
+      _c.value = 1;
+      return;
+    }
+    _c.duration = d;
+    _c.forward(from: 0);
+  }
+
+  @override
+  void deactivate() {
+    AknEntranceHandoff.put(widget.handoff, _shown);
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _t.dispose();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _t,
+    builder: (context, _) => CustomPaint(
+      size: Size.infinite,
+      painter: _UsagePainter(
+        value: _shown,
+        track: widget.track,
+        fill: _fillAt(widget.fill),
+      ),
+    ),
+  );
+}
+
+/// The usage bar: a rounded track and the rounded fill (at least a dot
+/// when the share is above zero).
+class _UsagePainter extends CustomPainter {
+  const _UsagePainter({
+    required this.value,
+    required this.track,
+    required this.fill,
+  });
+
+  final double value;
+  final Color track;
+  final Gradient fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final h = size.height;
+    final radius = Radius.circular(h / 2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, radius),
+      Paint()..color = track,
+    );
+    final v = value.clamp(0.0, 1.0);
+    if (v <= 0) return;
+    final w = math.max(size.width * v, h);
+    final rect = Rect.fromLTWH(0, 0, math.min(w, size.width), h);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, radius),
+      Paint()..shader = fill.createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_UsagePainter old) =>
+      old.value != value || old.track != track || old.fill != fill;
+}
+
+/// An amount in the row voice (`amount` 17/22 700, or `amountLarge` 28/34
+/// 800 with [large]); tabular figures, aligned by the right edge. Format
+/// with `Fmt` (`core/utils/format.dart`); the app never computes money
+/// except "tahmini" values.
 class AmountText extends StatelessWidget {
   const AmountText(
     this.text, {
@@ -1368,7 +1939,7 @@ class AmountText extends StatelessWidget {
     return Text(
       text,
       textAlign: textAlign,
-      style: base.copyWith(color: color),
+      style: base.copyWith(color: color, fontFeatures: AknNumerals.tabular),
     );
   }
 }

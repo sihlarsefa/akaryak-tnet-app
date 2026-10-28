@@ -61,7 +61,7 @@ class _CustomerStepState extends ConsumerState<_CustomerStep> {
     final t = context.aknText;
     final o = s.options;
     final picking = !s.hasCustomer || _changing;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         if (s.resumeCandidate != null) ...[
@@ -142,6 +142,8 @@ class _CustomerStepState extends ConsumerState<_CustomerStep> {
   }
 }
 
+/// Yarım kalan form ("sıra sizde" tonu): yumuşak turuncu zemin ve kenar, turuncu simge kutusu, kısa
+/// özet ve "Devam et" / "Yeni başla".
 class _ResumeCard extends StatelessWidget {
   const _ResumeCard({
     required this.draft,
@@ -158,26 +160,61 @@ class _ResumeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     return Container(
       decoration: BoxDecoration(
-        color: context.akn.surfaceAlt,
+        color: c.brandSoft,
         borderRadius: AknRadius.card,
+        border: Border.all(color: c.brandLine),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Yarım kalan formunuza devam edin', style: t.bodyStrong),
-          const SizedBox(height: 4),
-          Text(
-            [
-              draft.customerTitle ?? 'Cari seçilmedi',
-              if (draft.lines.isNotEmpty) '${draft.lines.length} satır',
-              if (savedAt != null) Fmt.relative(savedAt),
-            ].join(', '),
-            style: t.bodySmall.copyWith(color: context.akn.ink),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: ShapeDecoration(
+                  color: c.surface,
+                  shape: const RoundedSuperellipseBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                ),
+                child: Icon(
+                  PhosphorIconsRegular.clockCounterClockwise,
+                  size: 22,
+                  color: c.brandInk,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Yarım kalan formunuza devam edin',
+                      style: t.bodyStrong.copyWith(color: c.ink),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      [
+                        draft.customerTitle ?? 'Cari seçilmedi',
+                        if (draft.lines.isNotEmpty)
+                          '${draft.lines.length} satır',
+                        if (savedAt != null) Fmt.relative(savedAt),
+                      ].join(', '),
+                      style: t.bodySmall.copyWith(color: c.ink),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -295,19 +332,33 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                 : AknIllustration.error,
           )
         else
-          for (var i = 0; i < rows.length; i++) ...[
-            if (i > 0) const AknLedgerDivider(indent: 0),
-            AknListTile(
-              title: rows[i].$2,
-              subtitle: rows[i].$3,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              semanticLabel: [
-                rows[i].$2,
-                if (rows[i].$3 != null && rows[i].$3!.isNotEmpty) rows[i].$3!,
-              ].join(', '),
-              onTap: () => widget.onPicked(rows[i].$1, rows[i].$2),
+          AknCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            margin: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < rows.length; i++) ...[
+                  if (i > 0) const AknLedgerDivider(indent: 16),
+                  AknListTile(
+                    title: rows[i].$2,
+                    subtitle: rows[i].$3,
+                    leading: AknAvatar(name: rows[i].$2, size: 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    semanticLabel: [
+                      rows[i].$2,
+                      if (rows[i].$3 != null && rows[i].$3!.isNotEmpty)
+                        rows[i].$3!,
+                    ].join(', '),
+                    onTap: () => widget.onPicked(rows[i].$1, rows[i].$2),
+                  ),
+                ],
+              ],
             ),
-          ],
+          ),
       ],
     );
   }
@@ -321,23 +372,29 @@ class _LimitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final c = context.akn;
     final ratio = limit.usedRatio;
     final blocking = limit.isBlocking;
     return AknCard(
-      accent: blocking ? AknTone.danger : null,
+      borderColor: blocking ? c.danger.line : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
-              const Icon(Icons.speed_rounded, size: 20),
-              const SizedBox(width: 8),
+              AknIconBox(
+                icon: PhosphorIconsFill.gauge,
+                tone: blocking ? AknTone.danger : null,
+                size: 36,
+                iconSize: 19,
+              ),
+              const SizedBox(width: 12),
               Expanded(child: Text('Limit', style: t.bodyStrong)),
               if (limit.isUnlimited)
                 const StatusChip(
                   label: 'Limitsiz',
                   tone: AknTone.ok,
-                  icon: Icons.all_inclusive_rounded,
+                  icon: PhosphorIconsRegular.infinity,
                   size: StatusChipSize.small,
                 ),
             ],
@@ -382,7 +439,7 @@ class _SupplyStep extends ConsumerWidget {
       for (final x in s.supply)
         if (!x.isDistributor) x.name,
     ];
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         FieldTextInput(
@@ -497,7 +554,7 @@ class _SupplyStep extends ConsumerWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              const Icon(Icons.lock_outline_rounded, size: 16),
+              const Icon(PhosphorIconsRegular.lock, size: 16),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
@@ -610,7 +667,7 @@ class _PaymentStep extends ConsumerWidget {
     final due = ship == null ? null : TrTime.addDays(ship, d.paymentTermDays);
     final maxTerm = method?.maxTermDays ?? o?.maxPaymentTermDays ?? 365;
     final minTerm = method?.minTermDays ?? 0;
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         if (pay == null || !pay.enabled)
@@ -628,7 +685,7 @@ class _PaymentStep extends ConsumerWidget {
           ChoiceCard(
             title: 'Belirtilmemiş',
             subtitle: 'Siparişte bayinin varsayılanı uygulanır',
-            leadingIcon: Icons.help_outline_rounded,
+            leadingIcon: PhosphorIconsRegular.question,
             selected: d.paymentMethodCode == null,
             margin: const EdgeInsets.only(bottom: 8),
             onTap: () => ctrl.setPaymentMethod(null),
@@ -673,7 +730,7 @@ class _PaymentStep extends ConsumerWidget {
           value: due == null
               ? 'Sevk tarihi seçilince hesaplanır'
               : '${Fmt.date(due)}, ${Fmt.weekday(due)}',
-          icon: Icons.event_rounded,
+          icon: PhosphorIconsRegular.calendarDot,
         ),
         Text('Sevk tarihi + vade', style: t.caption),
         if (method != null && method.fields.isNotEmpty) ...[
@@ -684,7 +741,7 @@ class _PaymentStep extends ConsumerWidget {
           const SizedBox(height: 12),
           AknBanner(
             tone: AknTone.info,
-            icon: Icons.photo_camera_outlined,
+            icon: PhosphorIconsRegular.camera,
             message:
                 '${method!.documentKind!.label} sipariş açıldıktan sonra müşteri ya da bayi tarafından yüklenir.',
           ),
@@ -694,14 +751,14 @@ class _PaymentStep extends ConsumerWidget {
   }
 
   static IconData _methodIcon(String code) => switch (code) {
-    'CEK' => Icons.receipt_long_outlined,
-    'SENET' => Icons.description_outlined,
-    'HAVALE' => Icons.account_balance_outlined,
-    'KART' => Icons.credit_card_rounded,
-    'NAKIT' => Icons.payments_outlined,
-    'DBS' => Icons.account_balance_wallet_outlined,
-    'TEMINAT' => Icons.verified_user_outlined,
-    _ => Icons.payments_outlined,
+    'CEK' => PhosphorIconsRegular.receipt,
+    'SENET' => PhosphorIconsRegular.fileText,
+    'HAVALE' => PhosphorIconsRegular.bank,
+    'KART' => PhosphorIconsRegular.creditCard,
+    'NAKIT' => PhosphorIconsRegular.money,
+    'DBS' => PhosphorIconsRegular.wallet,
+    'TEMINAT' => PhosphorIconsRegular.shieldCheck,
+    _ => PhosphorIconsRegular.money,
   };
 }
 
@@ -803,9 +860,9 @@ class _LinesStep extends ConsumerWidget {
       formWizardProvider(args).select((s) => s.errors['lines']),
     );
     if (s == null) {
-      return ListView(
+      return const FieldStaggeredList(
         padding: _pad,
-        children: const [
+        children: [
           EmptyState(
             compact: true,
             title: 'Önce cari seçin',
@@ -816,7 +873,7 @@ class _LinesStep extends ConsumerWidget {
         ],
       );
     }
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         for (var i = 0; i < lines.length; i++)
@@ -833,7 +890,7 @@ class _LinesStep extends ConsumerWidget {
         FieldErrorText(error),
         AknButton.secondary(
           label: 'Satır ekle',
-          icon: Icons.add_rounded,
+          icon: PhosphorIconsRegular.plus,
           expand: true,
           onPressed: lines.length >= 20 ? null : ctrl.addLine,
         ),
@@ -891,25 +948,28 @@ class _LineCard extends ConsumerWidget {
         ctrl.updateLine(lineKey, f);
 
     return AknCard(
-      accent: error != null ? AknTone.danger : null,
+      borderColor: error != null ? c.danger.line : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
+              // Satır numarası: turuncu degrade dairede beyaz rakam.
               Container(
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: c.surfaceAlt,
+                  gradient: c.buttonGradient,
                   shape: BoxShape.circle,
+                  boxShadow: AknShadows.button(c),
                 ),
                 child: Text(
                   '${index + 1}',
                   style: t.label.copyWith(
-                    color: c.ink,
-                    fontWeight: FontWeight.w600,
+                    color: c.onBrandFill,
+                    fontWeight: FontWeight.w800,
+                    fontFeatures: AknNumerals.tabular,
                   ),
                 ),
               ),
@@ -927,12 +987,12 @@ class _LineCard extends ConsumerWidget {
                 const StatusChip(
                   label: 'Tüpraş elle',
                   tone: AknTone.warn,
-                  icon: Icons.edit_rounded,
+                  icon: PhosphorIconsRegular.pencilSimple,
                   size: StatusChipSize.small,
                 ),
               if (removable)
                 AknIconButton(
-                  icon: Icons.delete_outline_rounded,
+                  icon: PhosphorIconsRegular.trash,
                   semanticLabel: '${index + 1}. satırı sil',
                   onPressed: () => ctrl.removeLine(lineKey),
                 ),
@@ -943,7 +1003,7 @@ class _LineCard extends ConsumerWidget {
             label: 'Ürün',
             requiredMark: true,
             value: line.productId,
-            icon: Icons.local_gas_station_outlined,
+            icon: PhosphorIconsRegular.gasPump,
             options: [
               for (final p in o.products)
                 FieldPickerOption(
@@ -961,7 +1021,7 @@ class _LineCard extends ConsumerWidget {
             label: 'Teslimat noktası',
             requiredMark: true,
             value: line.deliveryPointId,
-            icon: Icons.place_outlined,
+            icon: PhosphorIconsRegular.mapPin,
             options: [
               for (final p in o.points)
                 FieldPickerOption(
@@ -1121,9 +1181,9 @@ class _LineResult extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.surfaceAlt,
-        borderRadius: AknRadius.card,
+        borderRadius: AknRadius.input,
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1190,7 +1250,7 @@ class _SummaryStep extends ConsumerWidget {
     final t = context.aknText;
     final c = context.akn;
     final justification = d.exceptionJustification ?? '';
-    return ListView(
+    return FieldStaggeredList(
       padding: _pad,
       children: [
         _SummaryPlate(args: args),
@@ -1243,7 +1303,7 @@ class _SummaryStep extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.info_outline_rounded, size: 18, color: c.dim),
+            Icon(PhosphorIconsRegular.info, size: 18, color: c.dim),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1258,8 +1318,8 @@ class _SummaryStep extends ConsumerWidget {
   }
 }
 
-/// Özet adımının plakası (tasarım v2 §7.16): form tutarı (önizleme gelmediyse "tahmini"), kural,
-/// Litre / Satır / Ödeme okumaları.
+/// Özet adımının plakası (tasarım v3 §4 hero kartı): form tutarı (önizleme gelmediyse "tahmini";
+/// rakam döner), kural, Litre / Satır / Ödeme okumaları (sayaç gibi yerine oturur).
 class _SummaryPlate extends ConsumerWidget {
   const _SummaryPlate({required this.args});
 
@@ -1297,7 +1357,7 @@ class _SummaryPlate extends ConsumerWidget {
         if (due != null) 'ödeme ${Fmt.date(due)}',
       ].join(', '),
       head: PlateHead(
-        icon: Icons.request_quote_outlined,
+        icon: PhosphorIconsRegular.invoice,
         title: p == null ? 'Tahmini form tutarı' : 'Form tutarı',
         period: p == null ? null : 'önizleme',
       ),

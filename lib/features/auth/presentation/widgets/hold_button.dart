@@ -8,7 +8,9 @@ import '../../copy.dart';
 import 'countdown.dart';
 
 /// Birincil eylem düğmesi; sunucu [scope] için bekleme istediyse kapalıdır ve kalan süreyi sayar
-/// ("Tekrar dene · 0:45"). Süre dolunca bekleme kalkar, düğme eski hâline döner.
+/// ("Tekrar dene (0:45)", eş genişlikte rakamlar). Beklerken düğmenin altında ince bir çizgi kalan süre
+/// kadar dolu durur ve her saniye yumuşakça boşalır. Süre dolunca bekleme kalkar, düğme eski hâline
+/// döner.
 class HoldAwareButton extends ConsumerWidget {
   const HoldAwareButton({
     super.key,
@@ -41,11 +43,25 @@ class HoldAwareButton extends ConsumerWidget {
     return CountdownBuilder(
       until: hold.until,
       onDone: () => ref.read(authThrottleProvider.notifier).clear(scope),
-      builder: (context, remaining) => _button(
-        label: AuthCopy.retryIn(formatWait(remaining)),
-        semanticLabel: AuthCopy.retryInSpoken(spokenWait(remaining)),
-        onPressed: null,
-      ),
+      builder: (context, remaining) {
+        final total = hold.wait.inMilliseconds;
+        final left = total <= 0
+            ? 0.0
+            : (remaining.inMilliseconds / total).clamp(0.0, 1.0);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _button(
+              label: AuthCopy.retryIn(formatWait(remaining)),
+              semanticLabel: AuthCopy.retryInSpoken(spokenWait(remaining)),
+              onPressed: null,
+            ),
+            const SizedBox(height: 10),
+            _DrainLine(value: left),
+          ],
+        );
+      },
     );
   }
 
@@ -76,4 +92,43 @@ class HoldAwareButton extends ConsumerWidget {
       onPressed: onPressed,
     ),
   };
+}
+
+/// Bekleme çizgisi: 4 px hap biçimli kuyu, içinde kalan süre kadar turuncu dolgu; her saniye yumuşakça
+/// kısalır (400 ms). Süs; süre düğmenin etiketinde okunur.
+class _DrainLine extends StatelessWidget {
+  const _DrainLine({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return ExcludeSemantics(
+      child: SizedBox(
+        height: 4,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: c.surfaceAlt,
+            borderRadius: AknRadius.pillAll,
+          ),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: value),
+            duration: AknMotion.of(context, AknMotion.slow),
+            curve: AknMotion.standard,
+            builder: (context, v, _) => FractionallySizedBox(
+              alignment: AlignmentDirectional.centerStart,
+              widthFactor: v,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [c.brandFillStart, c.brand]),
+                  borderRadius: AknRadius.pillAll,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
