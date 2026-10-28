@@ -18,7 +18,8 @@ import 'app_scaffold.dart' show AppChrome, NotificationBell;
 /// `heroEnd` lit by a drifting `heroGlow` light at the top-left, a warm
 /// white light at the bottom-right and a soft sweep of light now and then
 /// ([AknBand]) — that starts behind the status bar (light status icons) and
-/// carries, in white, a 46 px glass avatar with the initial, the greeting
+/// carries a 46 px white avatar with the two initials (the panel's user
+/// menu), and in white the greeting
 /// ("İyi akşamlar, Elif", 17/22 w800) over the company or station (13/18
 /// w500, white 92 %), and the bell (plus any [actions], e.g. the assistant)
 /// in 44 px glass circles ([AknBandSquare]).
@@ -570,9 +571,10 @@ class _HomeBar extends StatelessWidget {
   }
 }
 
-/// The round glass avatar on the band: 46 px, white 20 % with a 1 px white
-/// 28 % ring that catches the light at its top-left, and the initial (18
-/// w800 white). Decorative (the header reads the name).
+/// The avatar on the band, the web panel's user-menu avatar turned for the
+/// orange band: a 46 px white disc with a 3 px white 35 % halo and the two
+/// initials ("SA", 16 w800) in the deep orange of the primary
+/// (`brandFill`, 5.7:1). Decorative (the header reads the name).
 class _BandAvatar extends StatelessWidget {
   const _BandAvatar({required this.name});
 
@@ -582,28 +584,37 @@ class _BandAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final initials = TurkishText.initials(name);
-    final initial = initials.isEmpty ? '' : initials.characters.first;
     return ExcludeSemantics(
-      child: CustomPaint(
-        painter: _GlassPainter(
-          fill: c.onHero.withValues(alpha: 0.2),
-          ring: c.onHero.withValues(alpha: 0.28),
-          light: c.onHero,
-        ),
-        child: SizedBox.square(
-          dimension: 46,
-          child: Center(
-            child: Text(
-              initial,
-              textScaler: TextScaler.noScaling,
-              style: context.aknText.headline.copyWith(
-                fontSize: 18,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-                color: c.onHero,
-              ),
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: c.onHero,
+          border: Border.all(
+            color: c.onHero.withValues(alpha: 0.35),
+            width: 3,
+            strokeAlign: BorderSide.strokeAlignOutside,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: c.heroEnd.withValues(alpha: 0.35),
+              offset: const Offset(0, 2),
+              blurRadius: 8,
             ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          initials,
+          textScaler: TextScaler.noScaling,
+          maxLines: 1,
+          style: context.aknText.headline.copyWith(
+            fontSize: 16,
+            height: 1,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+            color: c.brandFill,
           ),
         ),
       ),

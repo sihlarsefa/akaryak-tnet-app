@@ -1,0 +1,64 @@
+{
+ "items": [
+  {
+   "customerId": 3,
+   "customerCode": "CH202610253",
+   "customerTitle": "Akdeniz İnşaat A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-08-29T19:07:13.20969",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 221,
+   "customerCode": "CH-WALK-001",
+   "customerTitle": "Demo Filo Lojistik A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-08-29T19:07:13.20969",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 226,
+   "customerCode": "CH-D4-003",
+   "customerTitle": "Doğu Akdeniz Nakliyat Ltd. Şti.",
+   "city": "Mersin",
+   "assignedAt": "2026-04-11T19:07:17.572462",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 5,
+   "customerCode": "CH202610235",
+   "customerTitle": "Doğu Otomotiv A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-08-29T19:07:13.20969",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 1,
+   "customerCode": "CH202610271",
+   "customerTitle": "Ege Lojistik A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-08-29T19:07:13.20969",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 224,
+   "customerCode": "CH-D4-001",
+   "customerTitle": "Marmara Filo Lojistik A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-09-18T19:07:17.572462",
+   "assignedBy": "Walkthrough Bayi"
+  },
+  {
+   "customerId": 2,
+   "customerCode": "CH202610262",
+   "customerTitle": "Marmara Taşımacılık A.Ş.",
+   "city": "İstanbul",
+   "assignedAt": "2026-08-29T19:07:13.20969",
+   "assignedBy": "Walkthrough Bayi"
+  }
+ ],
+ "totalCount": 7,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

@@ -992,6 +992,10 @@ class _LedgerCard extends StatelessWidget {
 /// link ("Tümü": 13/18 600 ink + `caretRight` 16, a soft pill and a press
 /// scale while pressed, a selection haptic) or a [caption] ("şu an, 10:42",
 /// "bugün 06:00, ₺/L"). Sentence case, never upper case.
+///
+/// With an [icon] the title follows the web panel's neutral icon tile
+/// ([AknSectionIcon]: 32 px, radius 10, `surfaceAlt` with a hairline and an
+/// ink glyph) — the `.panel-title` look of the panel's cards.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -1001,10 +1005,14 @@ class SectionHeader extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.caption,
+    this.icon,
     this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
   });
 
   final String title;
+
+  /// The panel's neutral icon tile before the title.
+  final IconData? icon;
   final String? subtitle;
   final int? count;
   final String? actionLabel;
@@ -1067,25 +1075,38 @@ class SectionHeader extends StatelessWidget {
           final maxSide = constraints.maxWidth.isFinite
               ? constraints.maxWidth * 0.55
               : double.infinity;
+          final glyph = icon;
+          Widget titles = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              heading,
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(subtitle!, style: t.bodySmall.copyWith(color: c.dim)),
+              ],
+            ],
+          );
+          if (glyph != null) {
+            // The tile stays beside the first line when the title wraps.
+            titles = Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AknSectionIcon(icon: glyph),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: titles,
+                  ),
+                ),
+              ],
+            );
+          }
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    heading,
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: t.bodySmall.copyWith(color: c.dim),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+              Expanded(child: titles),
               if (hasAction)
                 ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxSide),
@@ -1113,6 +1134,34 @@ class SectionHeader extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// The web panel's neutral icon tile (`.panel-title` icon): [size] px, radius
+/// 10, `surfaceAlt` (white on a well) with a 1 px hairline and an ink glyph.
+/// Decorative: the title next to it carries the meaning.
+class AknSectionIcon extends StatelessWidget {
+  const AknSectionIcon({super.key, required this.icon, this.size = 32});
+
+  final IconData icon;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    return ExcludeSemantics(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: c.surfaceAlt,
+          borderRadius: BorderRadius.circular(size * 10 / 32),
+          border: Border.all(color: c.line),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: size / 2, color: c.ink),
       ),
     );
   }
@@ -1648,9 +1697,9 @@ class _RevealState extends State<_Reveal> with SingleTickerProviderStateMixin {
   );
 }
 
-/// Horizontal usage meter (limit usage): a rounded `chartTrack` with the
-/// orange fill (owner decision G: orange marks progress; the button
-/// gradient) below [warnAt], the warn colour up to [dangerAt], danger
+/// Horizontal usage meter (limit usage), read like the web panel's limit
+/// bars — status colours only: a rounded `chartTrack` with the ok (green)
+/// fill below [warnAt], the warn (amber) colour up to [dangerAt], danger
 /// beyond. The fill caps at 100 % (the label still says the real share,
 /// "%112"). It grows from empty when it first appears and glides to a new
 /// value when it changes, blending the colour when it crosses a threshold
@@ -1691,7 +1740,9 @@ class UsageBar extends StatelessWidget {
             ? AknTone.warn
             : null);
     final Gradient fill = switch (effective) {
-      null => LinearGradient(colors: [c.brandFillStart, c.plateAccent]),
+      null => LinearGradient(
+        colors: [Color.lerp(c.ok.solid, c.surface, 0.18)!, c.ok.solid],
+      ),
       AknTone.info => LinearGradient(colors: [c.ink, c.ink]),
       AknTone.brand => LinearGradient(colors: [c.brandFillStart, c.brand]),
       final AknTone tn => LinearGradient(

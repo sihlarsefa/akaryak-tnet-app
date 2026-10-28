@@ -1,0 +1,207 @@
+{
+ "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "userName": "istasyon.demo",
+ "displayName": "Walkthrough Bayi",
+ "email": "istasyon.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****01",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "owner"
+ ],
+ "bayiRoleNames": [
+  "Bayi sahibi"
+ ],
+ "pages": [
+  "StationQuoteDesk:Gorur",
+  "StationQuoteDesk:Ekler",
+  "StationQuoteDesk:Duzenler",
+  "StationQuoteDesk:Siler",
+  "StationQuoteDesk:Inceler",
+  "StationQuotes:Gorur",
+  "StationQuotes:Ekler",
+  "StationQuotes:Duzenler",
+  "StationQuotes:Siler",
+  "StationQuotes:Inceler",
+  "StationOrders:Gorur",
+  "StationOrders:Ekler",
+  "StationOrders:Duzenler",
+  "StationOrders:Siler",
+  "StationOrders:Inceler",
+  "StationShipments:Gorur",
+  "StationShipments:Ekler",
+  "StationShipments:Duzenler",
+  "StationShipments:Siler",
+  "StationShipments:Inceler",
+  "StationShipmentBoard:Gorur",
+  "StationShipmentBoard:Ekler",
+  "StationShipmentBoard:Duzenler",
+  "StationShipmentBoard:Siler",
+  "StationShipmentBoard:Inceler",
+  "StationCustomers:Gorur",
+  "StationCustomers:Ekler",
+  "StationCustomers:Duzenler",
+  "StationCustomers:Siler",
+  "StationCustomers:Inceler",
+  "StationReports:Gorur",
+  "StationReports:Ekler",
+  "StationReports:Duzenler",
+  "StationReports:Siler",
+  "StationReports:Inceler",
+  "StationFieldOrders:Gorur",
+  "StationFieldOrders:Ekler",
+  "StationFieldOrders:Duzenler",
+  "StationFieldOrders:Siler",
+  "StationFieldOrders:Inceler",
+  "StationFieldApprovals:Gorur",
+  "StationFieldApprovals:Ekler",
+  "StationFieldApprovals:Duzenler",
+  "StationFieldApprovals:Siler",
+  "StationFieldApprovals:Inceler",
+  "StationApprovals:Gorur",
+  "StationApprovals:Ekler",
+  "StationApprovals:Duzenler",
+  "StationApprovals:Siler",
+  "StationApprovals:Inceler",
+  "StationFinance:Gorur",
+  "StationFinance:Ekler",
+  "StationFinance:Duzenler",
+  "StationFinance:Siler",
+  "StationFinance:Inceler",
+  "StationLeads:Gorur",
+  "StationLeads:Ekler",
+  "StationLeads:Duzenler",
+  "StationLeads:Siler",
+  "StationLeads:Inceler",
+  "StationPayments:Gorur",
+  "StationPayments:Ekler",
+  "StationPayments:Duzenler",
+  "StationPayments:Siler",
+  "StationPayments:Inceler",
+  "StationStaff:Gorur",
+  "StationStaff:Ekler",
+  "StationStaff:Duzenler",
+  "StationStaff:Siler",
+  "StationStaff:Inceler",
+  "StationPricing:Gorur",
+  "StationPricing:Ekler",
+  "StationPricing:Duzenler",
+  "StationPricing:Siler",
+  "StationPricing:Inceler",
+  "StationProfitability:Gorur",
+  "StationProfitability:Ekler",
+  "StationProfitability:Duzenler",
+  "StationProfitability:Siler",
+  "StationProfitability:Inceler",
+  "StationRoles:Gorur",
+  "StationRoles:Ekler",
+  "StationRoles:Duzenler",
+  "StationRoles:Siler",
+  "StationRoles:Inceler",
+  "StationSettings:Gorur",
+  "StationSettings:Ekler",
+  "StationSettings:Duzenler",
+  "StationSettings:Siler",
+  "StationSettings:Inceler"
+ ],
+ "capabilities": [
+  {
+   "code": "approvals.chain.edit",
+   "limit": null
+  },
+  {
+   "code": "approvals.delegate",
+   "limit": null
+  },
+  {
+   "code": "approve.field.exception",
+   "limit": null
+  },
+  {
+   "code": "approve.field.manager",
+   "limit": null
+  },
+  {
+   "code": "approve.field.senior",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.lead",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.onboarding",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.order",
+   "limit": null
+  },
+  {
+   "code": "approve.order.executive",
+   "limit": null
+  },
+  {
+   "code": "costs.view",
+   "limit": null
+  },
+  {
+   "code": "field.strategic.flag",
+   "limit": null
+  },
+  {
+   "code": "finance.profile.edit",
+   "limit": null
+  },
+  {
+   "code": "finance.riskreport.pull",
+   "limit": null
+  },
+  {
+   "code": "finance.rules.edit",
+   "limit": null
+  },
+  {
+   "code": "lead.viewAll",
+   "limit": null
+  },
+  {
+   "code": "loading.record",
+   "limit": null
+  },
+  {
+   "code": "payment.instrument.manage",
+   "limit": null
+  },
+  {
+   "code": "payment.status.update",
+   "limit": null
+  },
+  {
+   "code": "roles.manage",
+   "limit": null
+  },
+  {
+   "code": "shipment.assign",
+   "limit": null
+  },
+  {
+   "code": "staff.manage",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": true,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "b24cbd587e73dbff"
+}

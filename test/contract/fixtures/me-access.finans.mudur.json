@@ -1,0 +1,104 @@
+{
+ "userId": "2369d675-be74-484e-ba07-c88da751e508",
+ "userName": "finans.mudur.demo",
+ "displayName": "Selin Kaya",
+ "email": "finans.mudur.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****02",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "finance_manager"
+ ],
+ "bayiRoleNames": [
+  "Finans müdürü"
+ ],
+ "pages": [
+  "StationQuoteDesk:Gorur",
+  "StationQuotes:Gorur",
+  "StationOrders:Gorur",
+  "StationCustomers:Gorur",
+  "StationCustomers:Duzenler",
+  "StationCustomers:Inceler",
+  "StationReports:Gorur",
+  "StationFieldApprovals:Gorur",
+  "StationFieldApprovals:Duzenler",
+  "StationApprovals:Gorur",
+  "StationApprovals:Ekler",
+  "StationApprovals:Duzenler",
+  "StationApprovals:Siler",
+  "StationApprovals:Inceler",
+  "StationFinance:Gorur",
+  "StationFinance:Ekler",
+  "StationFinance:Duzenler",
+  "StationFinance:Siler",
+  "StationFinance:Inceler",
+  "StationLeads:Gorur",
+  "StationLeads:Inceler",
+  "StationPayments:Gorur",
+  "StationPayments:Duzenler",
+  "StationPayments:Inceler",
+  "StationPricing:Gorur",
+  "StationProfitability:Gorur",
+  "StationSettings:Gorur"
+ ],
+ "capabilities": [
+  {
+   "code": "approvals.chain.edit",
+   "limit": null
+  },
+  {
+   "code": "approvals.delegate",
+   "limit": null
+  },
+  {
+   "code": "approve.field.senior",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.lead",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.onboarding",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.order",
+   "limit": null
+  },
+  {
+   "code": "costs.view",
+   "limit": null
+  },
+  {
+   "code": "finance.profile.edit",
+   "limit": null
+  },
+  {
+   "code": "finance.riskreport.pull",
+   "limit": null
+  },
+  {
+   "code": "finance.rules.edit",
+   "limit": null
+  },
+  {
+   "code": "lead.viewAll",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "800ebb30e939c6fb"
+}

@@ -35,6 +35,9 @@ class NotificationsPage extends ConsumerWidget {
     final canMarkAll = s.unreadCount > 0 || (badge > 0 && !s.loading);
     return AppScaffold(
       title: NotificationsCopy.title,
+      bandIcon: PhosphorIconsRegular.bell,
+      eyebrow: 'Hesabım',
+      description: 'Son gelişmeler',
       showBell: false,
       refreshing: s.refreshing,
       actions: [

@@ -209,6 +209,7 @@
 				97C146EA1CF9000F007C117D /* Sources */,
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
+				5A4B4E000000000000000021 /* Firebase Config (optional) */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				675EE280404F10B281EE1323 /* [CP] Embed Pods Frameworks */,
@@ -324,6 +325,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
+		};
+		5A4B4E000000000000000021 /* Firebase Config (optional) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Firebase Config (optional)";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Optional Firebase config for push. ios/Runner/GoogleService-Info.plist is git-ignored and not in the\n# Resources phase, so the app builds and runs without it (push off, in-app inbox only). When the file\n# exists it is copied into the app bundle, where Firebase.initializeApp() reads it; when it is missing a\n# stale copy from an earlier build is removed.\nSRC=\"${PROJECT_DIR}/Runner/GoogleService-Info.plist\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\nif [ -f \"$SRC\" ]; then\n  cp \"$SRC\" \"$DST\"\n  echo \"GoogleService-Info.plist copied into the bundle: push enabled\"\nelse\n  rm -f \"$DST\"\n  echo \"No GoogleService-Info.plist: push disabled\"\nfi\n";
 		};
 		675EE280404F10B281EE1323 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;

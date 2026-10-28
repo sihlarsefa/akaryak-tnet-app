@@ -1,0 +1,14 @@
+{
+ "kind": "companyRequest",
+ "orders": [],
+ "paymentGroupKey": null,
+ "financePendingCount": 0,
+ "companyRequest": {
+  "id": 75,
+  "message": "Siparişiniz şirket içi onaya gönderildi (Talep #75). Onaylanınca siparişleriniz bayiye iletilir."
+ },
+ "paymentDocument": null,
+ "partialError": null,
+ "message": "Siparişiniz şirket içi onaya gönderildi (Talep #75). Onaylanınca siparişleriniz bayiye iletilir.",
+ "failedLineIndex": null
+}

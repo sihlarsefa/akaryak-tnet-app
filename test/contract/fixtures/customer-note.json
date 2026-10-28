@@ -1,0 +1,10 @@
+{
+ "id": 14,
+ "stationId": 221,
+ "customerId": 221,
+ "body": "Sözleşme denetimi notu",
+ "createdAt": "2026-10-28T19:51:20.523128Z",
+ "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "createdByDisplay": "Walkthrough Bayi",
+ "canDelete": true
+}

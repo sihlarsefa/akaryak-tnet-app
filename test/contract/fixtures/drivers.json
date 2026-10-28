@@ -1,0 +1,50 @@
+[
+ {
+  "userId": "773499dc-08ad-4775-b0f0-fba01c52ae1f",
+  "displayName": "Hüseyin Polat",
+  "phone": "905325550408",
+  "isDriverRole": true,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ },
+ {
+  "userId": "5739c4c8-fc65-45bd-b24d-deb93727146f",
+  "displayName": "Kadir Er",
+  "phone": "905325550409",
+  "isDriverRole": false,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ },
+ {
+  "userId": "3b7bc10d-a332-4a78-b394-81c422cebd69",
+  "displayName": "Kemal Aksoy",
+  "phone": "905325550401",
+  "isDriverRole": false,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ },
+ {
+  "userId": "962c2459-33b9-43fd-a476-d3b8ac23cb1e",
+  "displayName": "Onur Şahin",
+  "phone": "905325550407",
+  "isDriverRole": false,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ },
+ {
+  "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "displayName": "Walkthrough Bayi",
+  "phone": "905325550101",
+  "isDriverRole": false,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ },
+ {
+  "userId": "91fa030f-e545-46ad-aab6-42e5b8108c3f",
+  "displayName": "Zeynep Arslan",
+  "phone": "905325550303",
+  "isDriverRole": false,
+  "hasActiveDevice": true,
+  "activeShipments": 0
+ }
+]

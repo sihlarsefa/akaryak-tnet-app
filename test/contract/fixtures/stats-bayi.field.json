@@ -1,0 +1,178 @@
+{
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "scope": "own",
+ "generatedAt": "2026-10-28T19:39:53.2614+00:00",
+ "period": {
+  "key": "quarter",
+  "label": "Son 3 ay",
+  "from": "2026-07-31",
+  "to": "2026-10-28",
+  "compareLabel": "Önceki 3 ay",
+  "compareFrom": "2026-05-02",
+  "compareTo": "2026-07-30"
+ },
+ "sales": {
+  "orders": 131,
+  "liters": 2232200,
+  "amount": 59649981.4,
+  "prevOrders": 36,
+  "prevLiters": 643100,
+  "prevAmount": 27091218,
+  "avgUnitPrice": 26.72,
+  "prevAvgUnitPrice": 42.13,
+  "activeCustomers": 7,
+  "newCustomers": 5
+ },
+ "months": [
+  {
+   "year": 2026,
+   "month": 5,
+   "label": "May",
+   "orders": 7,
+   "liters": 96500,
+   "amount": 4169950
+  },
+  {
+   "year": 2026,
+   "month": 6,
+   "label": "Haz",
+   "orders": 14,
+   "liters": 253300,
+   "amount": 10429574
+  },
+  {
+   "year": 2026,
+   "month": 7,
+   "label": "Tem",
+   "orders": 15,
+   "liters": 293300,
+   "amount": 12491694
+  },
+  {
+   "year": 2026,
+   "month": 8,
+   "label": "Ağu",
+   "orders": 15,
+   "liters": 275300,
+   "amount": 11492334
+  },
+  {
+   "year": 2026,
+   "month": 9,
+   "label": "Eyl",
+   "orders": 52,
+   "liters": 942600,
+   "amount": 22964028
+  },
+  {
+   "year": 2026,
+   "month": 10,
+   "label": "Eki",
+   "orders": 64,
+   "liters": 1014300,
+   "amount": 25193619.4
+  }
+ ],
+ "products": [
+  {
+   "productId": 1,
+   "name": "Motorin (Euro 5)",
+   "liters": 647500,
+   "amount": 19834054.6,
+   "share": 0.3325
+  },
+  {
+   "productId": 2,
+   "name": "Kurşunsuz 95",
+   "liters": 555000,
+   "amount": 15165256.8,
+   "share": 0.2542
+  },
+  {
+   "productId": 4,
+   "name": "LPG",
+   "liters": 580800,
+   "amount": 13164278,
+   "share": 0.2207
+  },
+  {
+   "productId": 3,
+   "name": "Kurşunsuz 98",
+   "liters": 448900,
+   "amount": 11486392,
+   "share": 0.1926
+  }
+ ],
+ "topCustomers": [
+  {
+   "customerId": 221,
+   "title": "Demo Filo Lojistik A.Ş.",
+   "orders": 74,
+   "liters": 1275700,
+   "amount": 54524588,
+   "share": 0.9141
+  },
+  {
+   "customerId": 224,
+   "title": "Marmara Filo Lojistik A.Ş.",
+   "orders": 8,
+   "liters": 63500,
+   "amount": 2598993.4,
+   "share": 0.0436
+  },
+  {
+   "customerId": 1,
+   "title": "Ege Lojistik A.Ş.",
+   "orders": 12,
+   "liters": 240750,
+   "amount": 1763720,
+   "share": 0.0296
+  },
+  {
+   "customerId": 226,
+   "title": "Doğu Akdeniz Nakliyat Ltd. Şti.",
+   "orders": 1,
+   "liters": 10000,
+   "amount": 421000,
+   "share": 0.0071
+  },
+  {
+   "customerId": 2,
+   "title": "Marmara Taşımacılık A.Ş.",
+   "orders": 12,
+   "liters": 212250,
+   "amount": 341680,
+   "share": 0.0057
+  }
+ ],
+ "funnel": {
+  "requests": 338,
+  "quoted": 135,
+  "accepted": 131,
+  "rejected": 35,
+  "expired": 34,
+  "conversionRate": 0.3876,
+  "avgFirstQuoteMinutes": 28
+ },
+ "deliveries": {
+  "delivered": 7,
+  "deliveredLiters": 35662,
+  "onTimeRate": 0.4286,
+  "inTransit": 1,
+  "planned": 4,
+  "disputes": 1
+ },
+ "collections": null,
+ "team": [
+  {
+   "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "name": "Emre Yıldız",
+   "forms": 11,
+   "converted": 6,
+   "liters": 99000
+  }
+ ],
+ "risk": null,
+ "failedSections": []
+}

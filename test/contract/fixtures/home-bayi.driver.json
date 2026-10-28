@@ -1,0 +1,18 @@
+{
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "generatedAt": "2026-10-28T19:39:50.26589+00:00",
+ "sections": {
+  "desk": null,
+  "shipments": null,
+  "approvals": null,
+  "collections": null,
+  "finance": null,
+  "leads": null,
+  "field": null,
+  "setup": null,
+  "sales": null
+ },
+ "failedSections": [],
+ "isFieldSales": false
+}

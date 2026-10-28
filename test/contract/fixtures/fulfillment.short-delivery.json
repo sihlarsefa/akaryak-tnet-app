@@ -1,0 +1,35 @@
+{
+ "orderId": 8284,
+ "orderNumber": "AYN-20261028-000029",
+ "deliveryAddress": "İstanbul / Pendik — Organize Sanayi 5. Cad. No:12 Pendik/İstanbul",
+ "orderedLiters": 6000,
+ "acceptedLiters": 5400,
+ "canManage": true,
+ "canAccept": false,
+ "isOpen": true,
+ "completionHint": "Teslim alınan 5.400 L, sipariş 6.000 L: eksik 600 L, teslim toleransını (%1; en az 5.940 L) aşıyor. Kalan litre için sevkiyat planlayın; tüm litre ya da tolerans içindeki miktar teslim alınınca sipariş otomatik tamamlanır.",
+ "shipments": [
+  {
+   "id": 25,
+   "plannedLiters": 600,
+   "deliveredLiters": null,
+   "vehiclePlate": "34 FIX 002",
+   "driverName": "Yedek Şoför",
+   "scheduledAt": "2026-10-29T09:00:00",
+   "deliveryDocumentNo": null,
+   "status": 5,
+   "disputeNote": null
+  },
+  {
+   "id": 24,
+   "plannedLiters": 5400,
+   "deliveredLiters": 5400,
+   "vehiclePlate": "34 FIX 001",
+   "driverName": "Hüseyin Polat",
+   "scheduledAt": "2026-10-28T23:30:00",
+   "deliveryDocumentNo": "IRS-FIX-1",
+   "status": 3,
+   "disputeNote": null
+  }
+ ]
+}

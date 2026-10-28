@@ -1,0 +1,108 @@
+{
+ "paymentGroupKey": null,
+ "details": {
+  "bank": "Yapı Kredi",
+  "transferDate": "2026-10-27"
+ },
+ "detailLines": [
+  {
+   "label": "Banka",
+   "value": "Yapı Kredi"
+  },
+  {
+   "label": "Gönderim tarihi",
+   "value": "27.10.2026"
+  }
+ ],
+ "history": [
+  {
+   "attachmentPublicId": null,
+   "fromStatusLabel": "Belirtilmemiş",
+   "toStatusLabel": "Bekliyor",
+   "changedAtUtc": "2026-10-26T17:07:17.908595+00:00",
+   "fromStatus": 0,
+   "toStatus": 1,
+   "note": "Sipariş oluşturuldu · Havale · vade 28.10.2026",
+   "attachmentId": null,
+   "changedByUserId": "10a1c820-75e3-442c-b97c-80ca75990c4c",
+   "changedByDisplay": "Hande Yıldırım",
+   "changedAt": "2026-10-26T17:07:17.908595"
+  },
+  {
+   "attachmentPublicId": "da7b4fbb-f851-433e-9ac9-0ac1d2b9cc49",
+   "fromStatusLabel": "Bekliyor",
+   "toStatusLabel": "Belge yüklendi",
+   "changedAtUtc": "2026-10-28T19:07:19.513863+00:00",
+   "fromStatus": 1,
+   "toStatus": 2,
+   "note": "Belge yüklendi: Havale / EFT dekontu",
+   "attachmentId": 1,
+   "changedByUserId": "10a1c820-75e3-442c-b97c-80ca75990c4c",
+   "changedByDisplay": "Hande Yıldırım",
+   "changedAt": "2026-10-28T19:07:19.513863"
+  }
+ ],
+ "instrument": null,
+ "allowedTransitions": [
+  3,
+  6
+ ],
+ "noteRequiredFor": [
+  6
+ ],
+ "concurrencyToken": "bee5b2ea-4768-492e-9269-5e1251571204",
+ "canEditInstrument": false,
+ "documents": [
+  {
+   "publicId": "da7b4fbb-f851-433e-9ac9-0ac1d2b9cc49",
+   "ownerType": 1,
+   "ownerId": 8243,
+   "stationId": 221,
+   "customerId": 224,
+   "kind": 3,
+   "kindLabel": "Havale / EFT dekontu",
+   "fileName": "dekont-D4-1002.pdf",
+   "contentType": "application/pdf",
+   "sizeBytes": 953,
+   "sha256": "748cc66272889e285c4e347239ff431114dbfe4db4946acbcfd0b9f32aaa24ba",
+   "version": 1,
+   "previousVersionPublicId": null,
+   "note": "Havale dekontu (demo)",
+   "uploadedByUserId": "10a1c820-75e3-442c-b97c-80ca75990c4c",
+   "uploadedByName": "Hande Yıldırım",
+   "createdAt": "2026-10-28T19:07:19.425702",
+   "isActive": true,
+   "canDelete": true,
+   "isImage": false,
+   "isPdf": true
+  }
+ ],
+ "documentKind": 3,
+ "documentKindLabel": "Havale / EFT dekontu",
+ "documentRequired": false,
+ "notice": null,
+ "paymentStatusLabel": "Belge yüklendi",
+ "financeLabel": null,
+ "orderStatusLabel": "Onaylandı",
+ "paymentLine": "Havale / EFT (peşin) · vade 28.10.2026",
+ "dueHint": "bugün",
+ "overdueDays": 0,
+ "orderId": 8243,
+ "orderNumber": "D4-1002",
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 224,
+ "customerTitle": "Marmara Filo Lojistik A.Ş.",
+ "orderStatus": 3,
+ "methodCode": "HAVALE",
+ "methodName": "Havale / EFT (peşin)",
+ "termDays": 0,
+ "dueDate": "2026-10-28T00:00:00",
+ "installments": null,
+ "paymentStatus": 2,
+ "financeStatus": 0,
+ "estimatedAmount": 264600,
+ "amount": 262800,
+ "isOverdue": false,
+ "createdAt": "2026-10-26T20:07:17.908595"
+}

@@ -1,0 +1,15 @@
+{
+ "expiryEnabled": false,
+ "counts": {
+  "all": 1203,
+  "awaitingQuote": 1175,
+  "revision": 28,
+  "expiringSoon": null,
+  "financeHeld": 3
+ },
+ "today": {
+  "ordersToday": 64,
+  "quotedToday": 4,
+  "avgFirstQuoteMinutes": 17
+ }
+}

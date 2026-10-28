@@ -1,0 +1,53 @@
+{
+ "userId": "8217b489-9911-43f0-a964-8e51201f037b",
+ "userName": "siparis.demo",
+ "displayName": "Esra Yılmaz",
+ "email": "siparis.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****06",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "order_desk"
+ ],
+ "bayiRoleNames": [
+  "Sipariş masası / operasyon"
+ ],
+ "pages": [
+  "StationQuoteDesk:Gorur",
+  "StationQuoteDesk:Ekler",
+  "StationQuoteDesk:Duzenler",
+  "StationQuoteDesk:Siler",
+  "StationQuoteDesk:Inceler",
+  "StationQuotes:Gorur",
+  "StationQuotes:Ekler",
+  "StationQuotes:Duzenler",
+  "StationQuotes:Siler",
+  "StationQuotes:Inceler",
+  "StationOrders:Gorur",
+  "StationOrders:Ekler",
+  "StationOrders:Duzenler",
+  "StationOrders:Siler",
+  "StationOrders:Inceler",
+  "StationShipments:Gorur",
+  "StationShipmentBoard:Gorur",
+  "StationCustomers:Gorur",
+  "StationReports:Gorur",
+  "StationApprovals:Gorur",
+  "StationPayments:Gorur"
+ ],
+ "capabilities": [],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "bc77da9c7f32bac5"
+}

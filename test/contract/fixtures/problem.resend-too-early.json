@@ -1,0 +1,8 @@
+{
+ "title": "Çok fazla istek",
+ "status": 429,
+ "detail": "Yeni kod için 1 dakika bekleyin.",
+ "code": "rate_limited",
+ "traceId": "5756cfbc-35bd-43d2-823a-6877a88afdc5",
+ "retryAfter": 60
+}

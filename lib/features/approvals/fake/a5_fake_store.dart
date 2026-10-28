@@ -2003,7 +2003,9 @@ class A5FakeStore {
       }, 'Ek bilgi isteğinde neyin istendiğini yazın.');
     }
     if (decision == ApprovalDecision.reject.code) {
-      final min = (a['isMirror'] == true) ? 1 : 10;
+      final min = ApprovalType.fromCode(
+        type,
+      ).minRejectNoteLength(isMirror: a['isMirror'] == true);
       if (note == null || note.length < min) {
         throw FakeResponse.validation({
           'note': [

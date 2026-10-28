@@ -11,19 +11,25 @@ import 'animated_number.dart';
 import 'cards.dart';
 import 'skeletons.dart';
 
-/// A KPI tile (design v3 §4 "KPI tiles"): a white card (radius 20, the soft
-/// card shadow) with the label in `caption` dim over the value in `number`
-/// (24/30 800, tabular) that counts up when it appears ([AnimatedNumber]),
-/// an optional unit (`readoutUnit`) and a delta chip under it (a drawn ▲ /
-/// ▼ and the change, 12/16 700) that pops in after the count.
+/// A KPI tile (design v3 §4 "KPI tiles", the web panel's `.kpi`): a white
+/// card (radius 20, the hairline card shadow) with the label (13/18 600) —
+/// after the panel's icon tile when there is an [icon] — over the value in
+/// `number` (24/30 800, tabular) that counts up when it appears
+/// ([AnimatedNumber]), an optional unit (`readoutUnit`) and a delta chip
+/// under it (a drawn ▲ / ▼ and the change, 12/16 700) that pops in after the
+/// count.
+///
+/// A [tone] states a status like the panel's `tone-*` cards: a 3 px line in
+/// the tone across the top of the card, the icon tile in the tone's well
+/// and the value in the tone's text colour (`brand` = the accent: "your
+/// move"). Without a tone the tile is neutral (`surfaceAlt` tile, ink
+/// glyph, ink value).
 ///
 /// The delta takes the ok / danger colours only when it is known whether a
 /// rise is good for the viewer ([positiveIsGood] set); otherwise it is a
 /// neutral chip. On a card, a sheet or the hero card the tile is a quiet
 /// well instead of a card; inside a [KpiRow] the row draws the cell. The
 /// value scales down in its column instead of wrapping mid-number.
-///
-/// [icon] and [tone] are kept for API stability and ignored.
 class KpiTile extends StatelessWidget {
   const KpiTile({
     super.key,
@@ -52,10 +58,10 @@ class KpiTile extends StatelessWidget {
   /// `Fmt.moneyCompact`, `Fmt.liters`.
   final String Function(num value)? format;
 
-  /// Ignored (no icon boxes on KPI tiles).
+  /// The panel's icon tile before the label (28 px, radius 8).
   final IconData? icon;
 
-  /// Ignored (KPI tiles carry no tint).
+  /// A status the figure states (top line, tile and value in the tone).
   final AknTone? tone;
 
   /// Change in percent (12.5 = +%12,5).
@@ -93,8 +99,9 @@ class KpiTile extends StatelessWidget {
     final well = inRow
         ? _KpiCellScope.wellOf(context)
         : AknCardScope.onSurface(context);
-    final labelStyle = t.caption.copyWith(color: c.dim);
-    final valueStyle = t.number.copyWith(color: c.ink);
+    final tc = tone == null ? null : c.tone(tone!);
+    final labelStyle = t.label.copyWith(color: c.ink);
+    final valueStyle = t.number.copyWith(color: tc?.fg ?? c.ink);
     final unitStyle = t.readoutUnit.copyWith(
       height: 1.2,
       color: c.dim,
@@ -172,16 +179,44 @@ class KpiTile extends StatelessWidget {
       ),
     );
     final note = trendLabel ?? caption;
+    final labelText = Text(
+      label,
+      style: labelStyle,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+    );
+    final glyph = icon;
+    Widget labelLine = labelText;
+    if (glyph != null) {
+      // The panel's icon tile: neutral (surface-3 well, ink glyph, an inset
+      // hairline) or the tone's well with the tone's glyph.
+      final tileFill = tc?.bg ?? (well ? c.surface : c.surfaceAlt);
+      final glyphColor = tone == AknTone.brand ? c.brand : tc?.solid ?? c.ink;
+      labelLine = Row(
+        children: [
+          ExcludeSemantics(
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: tileFill,
+                borderRadius: const BorderRadius.all(Radius.circular(8)),
+                border: Border.all(color: tc?.line ?? c.line),
+              ),
+              alignment: Alignment.center,
+              child: Icon(glyph, size: 16, color: glyphColor),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: labelText),
+        ],
+      );
+    }
     Widget body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          label,
-          style: labelStyle,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-        ),
+        labelLine,
         const SizedBox(height: 6),
         if (loading)
           const SkeletonBox(width: 72, height: 28, radius: 8)
@@ -199,7 +234,7 @@ class KpiTile extends StatelessWidget {
         ],
       ],
     );
-    if (!inRow) body = _KpiCell(well: well, child: body);
+    if (!inRow) body = _KpiCell(well: well, tone: tone, child: body);
     final trendText = trendValue == null
         ? ''
         : trendValue == 0
@@ -288,7 +323,14 @@ class KpiRow extends StatelessWidget {
                 child: i < end
                     ? _KpiCellScope(
                         well: well,
-                        child: _KpiCell(well: well, child: children[i]),
+                        child: _KpiCell(
+                          well: well,
+                          tone: switch (children[i]) {
+                            final KpiTile k => k.tone,
+                            _ => null,
+                          },
+                          child: children[i],
+                        ),
                       )
                     : const SizedBox.shrink(),
               ),
@@ -330,36 +372,58 @@ class _KpiCellScope extends InheritedWidget {
   bool updateShouldNotify(_KpiCellScope old) => old.well != well;
 }
 
-/// One KPI cell: a white card on the page, a quiet well on a surface.
+/// One KPI cell: a white card on the page, a quiet well on a surface. A
+/// [tone] draws the panel's 3 px status line across the top of the card.
 class _KpiCell extends StatelessWidget {
-  const _KpiCell({required this.well, required this.child});
+  const _KpiCell({required this.well, required this.child, this.tone});
 
   final bool well;
+  final AknTone? tone;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final radius = well
+        ? const BorderRadius.all(Radius.circular(16))
+        : AknRadius.card;
+    Widget content = AknCardScope(
+      child: Padding(
+        padding: well
+            ? const EdgeInsets.fromLTRB(12, 10, 10, 12)
+            : const EdgeInsets.fromLTRB(14, 12, 12, 14),
+        child: child,
+      ),
+    );
+    final t = tone;
+    if (t != null) {
+      final line = t == AknTone.brand ? c.brand : c.tone(t).solid;
+      content = ClipRRect(
+        borderRadius: radius,
+        child: Stack(
+          children: [
+            content,
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 3,
+              child: ColoredBox(color: line),
+            ),
+          ],
+        ),
+      );
+    }
     return DecoratedBox(
       decoration: well
-          ? BoxDecoration(
-              color: c.surfaceAlt,
-              borderRadius: const BorderRadius.all(Radius.circular(16)),
-            )
+          ? BoxDecoration(color: c.surfaceAlt, borderRadius: radius)
           : BoxDecoration(
               color: c.surface,
-              borderRadius: AknRadius.card,
+              borderRadius: radius,
               border: c.isDark ? Border.all(color: c.line) : null,
               boxShadow: AknShadows.card(c),
             ),
-      child: AknCardScope(
-        child: Padding(
-          padding: well
-              ? const EdgeInsets.fromLTRB(12, 10, 10, 12)
-              : const EdgeInsets.fromLTRB(14, 12, 12, 14),
-          child: child,
-        ),
-      ),
+      child: content,
     );
   }
 }

@@ -4,7 +4,9 @@
 // ve erişilebilirlik (360×640, %100 / %200 yazı, açık / koyu).
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
+import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/customer_home/api.dart';
 import 'package:akaryakitnet/features/customer_home/copy.dart';
@@ -129,6 +131,60 @@ void main() {
     expect(find.byType(ManagerStatsDeck), findsNothing);
     expect(find.byType(AknPlate), findsNothing);
     await tearDownUi(tester);
+  });
+
+  group('karar bekleyen teklif finans onayında (financeStatus)', () {
+    // Sunucu: teklif onayı limit aşımıyla bayinin finansına gittiyse sipariş "Onay bekliyor"da
+    // kalır (`RouteLimitOverrunToFinanceAsync(customerAction: true)`); onay ancak finans karar
+    // verince yapılabilir. Panel satırı `financeStatus` taşır.
+    List<Map<String, dynamic>> decisions() => [
+      for (final o in env.world.ordersOfCustomer(
+        findFakePersona('musteri')!.customerId!,
+      ))
+        if (o['status'] == 2) o,
+    ];
+
+    testWidgets(
+      'tek satır finansta: finans lambası; geri sayım ve "sıra sizde" '
+      'yok',
+      (tester) async {
+        final rows = decisions();
+        expect(rows, isNotEmpty);
+        for (final o in rows) {
+          o['financeStatus'] = 1;
+        }
+        await open(tester);
+        expect(find.textContaining('Karar bekleyen teklifler'), findsOneWidget);
+        expect(find.text('Demir Petrol teklifi'), findsOneWidget);
+        expect(find.text('Finans onayında'), findsOneWidget);
+        expect(find.byType(CountdownBadge), findsNothing);
+        await tearDownUi(tester);
+      },
+    );
+
+    testWidgets('en acil satır müşterinin karar verebileceği tekliftir', (
+      tester,
+    ) async {
+      final held = decisions().first;
+      held['financeStatus'] = 4;
+      // Süresi daha geç dolan, finanstan geçmiş ikinci teklif.
+      env.world.orders.add(
+        Map<String, dynamic>.of(held)
+          ..['id'] = 99901
+          ..['orderNumber'] = 'SIP-20261028-99901'
+          ..['stationTitle'] = 'Kuzey Enerji A.Ş.'
+          ..['financeStatus'] = 2
+          ..['expiresAt'] = FakeWorld.local(
+            DateTime.now().add(const Duration(hours: 6)),
+          ),
+      );
+      await open(tester);
+      expect(find.text('Kuzey Enerji teklifi'), findsOneWidget);
+      expect(find.text('Demir Petrol teklifi'), findsNothing);
+      expect(find.text('Finans ek bilgi istedi'), findsNothing);
+      expect(find.byType(CountdownBadge), findsOneWidget);
+      await tearDownUi(tester);
+    });
   });
 
   testWidgets('karar satırı siparişi açar', (tester) async {

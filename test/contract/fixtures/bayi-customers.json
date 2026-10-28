@@ -1,0 +1,53 @@
+{
+ "items": [
+  {
+   "customerId": 3,
+   "stationCustomerId": 224,
+   "title": "Akdeniz İnşaat A.Ş.",
+   "city": "İstanbul",
+   "limitUsagePct": 1426.3,
+   "financeStatus": 1,
+   "financeStatusLabel": "Onaylı",
+   "lastOrderAt": "2026-10-23T14:06:57.27261+03:00",
+   "openOrders": 23,
+   "code": "CH202610253",
+   "district": "Bakırköy",
+   "phone": "05343000003",
+   "limitTone": "danger"
+  },
+  {
+   "customerId": 23,
+   "stationCustomerId": 240,
+   "title": "Akdeniz İnşaat A.Ş.",
+   "city": "Konya",
+   "limitUsagePct": 0,
+   "financeStatus": 1,
+   "financeStatusLabel": "Onaylı",
+   "lastOrderAt": "2026-10-02T11:06:57.27261+03:00",
+   "openOrders": 21,
+   "code": "CH2026100523",
+   "district": "Meram",
+   "phone": "05383000023",
+   "limitTone": "ok"
+  },
+  {
+   "customerId": 43,
+   "stationCustomerId": 256,
+   "title": "Akdeniz İnşaat A.Ş.",
+   "city": "Hatay",
+   "limitUsagePct": 0,
+   "financeStatus": 1,
+   "financeStatusLabel": "Onaylı",
+   "lastOrderAt": "2026-09-13T10:06:57.27261+03:00",
+   "openOrders": 22,
+   "code": "CH2026091543",
+   "district": "Antakya",
+   "phone": "05343000043",
+   "limitTone": "ok"
+  }
+ ],
+ "totalCount": 203,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 9
+}

@@ -1,0 +1,12 @@
+{
+ "title": "Geçersiz istek",
+ "status": 400,
+ "detail": "Lütfen işaretli alanları kontrol edin.",
+ "code": "validation",
+ "traceId": "d141f718-3ac2-4e47-b5b8-239f0ea7f4f7",
+ "errors": {
+  "Lines": [
+   "En az bir ürün satırı ekleyin."
+  ]
+ }
+}

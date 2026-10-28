@@ -1,0 +1,7 @@
+{
+ "title": "Yetkisiz işlem",
+ "status": 403,
+ "detail": "Bu işlem için yetkiniz yok.",
+ "code": "forbidden",
+ "traceId": "3bef6304-8857-4b8d-aab9-6d5c5e00ea4f"
+}

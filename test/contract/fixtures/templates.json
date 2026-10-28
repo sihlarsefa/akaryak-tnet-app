@@ -1,0 +1,29 @@
+[
+ {
+  "id": 1,
+  "name": "Haftalık filo ikmali",
+  "lineCount": 2,
+  "totalLiters": 13000,
+  "summary": "2 ürün 13.000 L",
+  "lastUsedAt": "2026-10-25T19:07:16.700102",
+  "createdAt": "2026-09-13T19:07:16.700102"
+ },
+ {
+  "id": 3,
+  "name": "Ay sonu stok tamamlama",
+  "lineCount": 2,
+  "totalLiters": 21000,
+  "summary": "Motorin (Euro 5) 21.000 L · 2 nokta",
+  "lastUsedAt": "2026-10-07T19:07:16.700102",
+  "createdAt": "2026-09-13T19:07:16.700102"
+ },
+ {
+  "id": 2,
+  "name": "Şantiye LPG ikmali",
+  "lineCount": 1,
+  "totalLiters": 4000,
+  "summary": "LPG 4.000 L",
+  "lastUsedAt": null,
+  "createdAt": "2026-09-13T19:07:16.700102"
+ }
+]

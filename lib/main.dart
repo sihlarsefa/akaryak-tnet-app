@@ -10,6 +10,6 @@ Future<void> main() {
   return bootstrap();
 }
 
-/// Arayüz yazı tipi Plus Jakarta Sans'ın lisansı (SIL OFL 1.1) "Lisanslar" sayfasında görünsün
+/// Arayüz yazı tipi Archivo'nun lisansı (SIL OFL 1.1) "Lisanslar" sayfasında görünsün
 /// (tasarım v3 §1). Toplayıcı yalnızca lisanslar istendiğinde çalışır.
 void registerFontLicenses() => AknFonts.registerLicense();

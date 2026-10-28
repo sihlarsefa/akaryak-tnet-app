@@ -1,0 +1,23 @@
+{
+ "kind": "orders",
+ "orders": [
+  {
+   "orderId": 8266,
+   "orderNumber": "AYN-20261028-000011",
+   "expiresAt": "2026-10-28T23:59:59",
+   "financeStatus": 1,
+   "financeReasons": "Limit aşımı 81.853.780 TL",
+   "paymentMethodCode": "NAKIT",
+   "paymentDueDate": "2026-10-29T00:00:00",
+   "estimatedAmount": 254400,
+   "paymentGroupKey": null
+  }
+ ],
+ "paymentGroupKey": null,
+ "financePendingCount": 1,
+ "companyRequest": null,
+ "paymentDocument": null,
+ "partialError": null,
+ "message": "Sipariş oluşturuldu: AYN-20261028-000011 — finans onayına gönderildi; onaylanınca bayi teklif verecek.",
+ "failedLineIndex": null
+}

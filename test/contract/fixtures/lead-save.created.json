@@ -1,0 +1,10 @@
+{
+ "id": 7,
+ "leadNumber": "ONK-20261028-000001",
+ "concurrencyToken": "38eb74a5-6c0f-41e6-a2d8-787ae0189679",
+ "warnings": [
+  "VKN doğrulanamadı; numarayı kontrol edin."
+ ],
+ "status": 0,
+ "created": true
+}

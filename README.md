@@ -77,7 +77,7 @@ bu yüzden genel `NSAllowsArbitraryLoads` / `usesCleartextTraffic` eklenmedi. Ca
 | `ios/Flutter/Secrets.xcconfig` | `GMS_API_KEY = …` (örnek: `Secrets.xcconfig.example`) |
 | `android/local.properties` | `MAPS_API_KEY=…` |
 | `android/key.properties` + `*.jks` | yayın imzası (örnek: `key.properties.example`); yoksa debug imzası |
-| `ios/Runner/GoogleService-Info.plist`, `android/app/google-services.json` | Firebase; yoksa push kapalı çalışır, gelen kutusu 60 sn'de bir yoklanır |
+| `ios/Runner/GoogleService-Info.plist`, `android/app/google-services.json` | Firebase (F2GO'nun projesi); dosyayı bu yola koymak yeter, Xcode hedefine eklenmez: iOS'ta Runner'ın "Firebase Config (optional)" derleme adımı varsa pakete kopyalar, yoksa paketteki eski kopyayı siler; Android'de `google-services` eklentisi yalnızca dosya varken uygulanır. Yoksa push kapalı çalışır, gelen kutusu 60 sn'de bir yoklanır |
 
 ## Mimari
 

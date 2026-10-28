@@ -1,0 +1,163 @@
+{
+ "orderId": 8237,
+ "status": 3,
+ "steps": [
+  {
+   "key": "received",
+   "label": "Sipariş alındı",
+   "icon": "fa-file-text-o",
+   "state": 2,
+   "at": "2026-10-26T18:07:17.057803",
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "quote",
+   "label": "Teklif",
+   "icon": "fa-try",
+   "state": 2,
+   "at": "2026-10-26T18:12:17.057803",
+   "atIsDateOnly": false,
+   "detail": "44,10 TL/L"
+  },
+  {
+   "key": "approval",
+   "label": "Onay",
+   "icon": "fa-gavel",
+   "state": 2,
+   "at": "2026-10-26T21:07:17.057803",
+   "atIsDateOnly": false,
+   "detail": "Teklif onaylandı"
+  },
+  {
+   "key": "dispatch",
+   "label": "Yola çıktı",
+   "icon": "fa-truck",
+   "state": 2,
+   "at": "2026-10-28T00:00:00",
+   "atIsDateOnly": true,
+   "detail": "34 AKN 202 · Ali Demir"
+  },
+  {
+   "key": "delivered",
+   "label": "Teslim edildi",
+   "icon": "fa-flag-checkered",
+   "state": 1,
+   "at": null,
+   "atIsDateOnly": false,
+   "detail": "Araç yolda"
+  }
+ ],
+ "shipments": [
+  {
+   "id": 10,
+   "code": "SVK-00000010",
+   "plannedLiters": 8000,
+   "deliveredLiters": null,
+   "vehiclePlate": "34 AKN 202",
+   "driverName": "Ali Demir",
+   "scheduledAt": "2026-10-28T10:00:00",
+   "status": 1,
+   "deliveryDocumentNo": null,
+   "disputeNote": null,
+   "plannedAt": "2026-10-28T02:07:17.057803",
+   "dispatchedAt": null,
+   "deliveredAt": null,
+   "acceptedAt": null,
+   "disputedAt": null,
+   "cancelledAt": null,
+   "isDispatched": true
+  }
+ ],
+ "events": [
+  {
+   "at": "2026-10-28T02:07:17.057803",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "34 AKN 202 · Ali Demir · 8.000 L",
+   "tone": "info"
+  }
+ ],
+ "orderedLiters": 8000,
+ "acceptedLiters": 0,
+ "inProcessLiters": 8000,
+ "awaitingAcceptanceCount": 0,
+ "canAcceptDeliveries": true,
+ "expiryEnabled": false,
+ "priceComparison": {
+  "currentUnitPriceTry": 44.1,
+  "previous": [
+   {
+    "orderId": 8241,
+    "orderNumber": "PFD-SB-06",
+    "orderedAt": "2026-10-26T14:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 6000,
+    "unitPriceTry": 44.1,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 392,
+    "orderNumber": "SIP-20261023-C0165",
+    "orderedAt": "2026-10-23T13:36:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 20300,
+    "unitPriceTry": 44.54,
+    "diffPercent": -1
+   },
+   {
+    "orderId": 227,
+    "orderNumber": "WALK-AP-001",
+    "orderedAt": "2026-10-20T17:06:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 44.1,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 396,
+    "orderNumber": "SIP-20261019-C0169",
+    "orderedAt": "2026-10-19T09:32:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 35100,
+    "unitPriceTry": 45.02,
+    "diffPercent": -2
+   },
+   {
+    "orderId": 230,
+    "orderNumber": "WALK-CP-002",
+    "orderedAt": "2026-10-17T17:06:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 6000,
+    "unitPriceTry": 44.1,
+    "diffPercent": 0
+   }
+  ],
+  "lastUnitPriceTry": 44.1,
+  "lastDiffPercent": 0,
+  "averageUnitPriceTry": 44.372,
+  "averageDiffPercent": -0.6,
+  "minUnitPriceTry": 44.1,
+  "maxUnitPriceTry": 45.02,
+  "hasHistory": true
+ },
+ "activeShipment": {
+  "id": 10,
+  "code": "SVK-00000010",
+  "plannedLiters": 8000,
+  "deliveredLiters": null,
+  "vehiclePlate": "34 AKN 202",
+  "driverName": "Ali Demir",
+  "scheduledAt": "2026-10-28T10:00:00",
+  "status": 1,
+  "deliveryDocumentNo": null,
+  "disputeNote": null,
+  "plannedAt": "2026-10-28T02:07:17.057803",
+  "dispatchedAt": null,
+  "deliveredAt": null,
+  "acceptedAt": null,
+  "disputedAt": null,
+  "cancelledAt": null,
+  "isDispatched": true
+ }
+}

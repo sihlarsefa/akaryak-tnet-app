@@ -1,0 +1,159 @@
+{
+ "orderId": 8266,
+ "status": 7,
+ "steps": [
+  {
+   "key": "received",
+   "label": "Sipariş alındı",
+   "icon": "fa-file-text-o",
+   "state": 2,
+   "at": "2026-10-28T22:50:56.220346",
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "quote",
+   "label": "Teklif",
+   "icon": "fa-try",
+   "state": 2,
+   "at": "2026-10-28T22:51:08.313292",
+   "atIsDateOnly": false,
+   "detail": "41,25 TL/L"
+  },
+  {
+   "key": "approval",
+   "label": "Onay",
+   "icon": "fa-gavel",
+   "state": 2,
+   "at": "2026-10-28T22:51:08.414248",
+   "atIsDateOnly": false,
+   "detail": "Teklif onaylandı"
+  },
+  {
+   "key": "dispatch",
+   "label": "Yola çıktı",
+   "icon": "fa-truck",
+   "state": 2,
+   "at": "2026-10-28T00:00:00",
+   "atIsDateOnly": true,
+   "detail": "34 KNT 734 · Hüseyin Polat"
+  },
+  {
+   "key": "delivered",
+   "label": "Teslim edildi",
+   "icon": "fa-flag-checkered",
+   "state": 2,
+   "at": "2026-10-28T22:51:14.50259",
+   "atIsDateOnly": false,
+   "detail": "5.980 L teslim alındı"
+  }
+ ],
+ "shipments": [
+  {
+   "id": 16,
+   "code": "SVK-00000016",
+   "plannedLiters": 6000,
+   "deliveredLiters": 5980,
+   "vehiclePlate": "34 KNT 734",
+   "driverName": "Hüseyin Polat",
+   "scheduledAt": "2026-10-28T23:00:00",
+   "status": 3,
+   "deliveryDocumentNo": "IRS-CONTRACT-1",
+   "disputeNote": null,
+   "plannedAt": "2026-10-28T22:51:08.489576",
+   "dispatchedAt": null,
+   "deliveredAt": "2026-10-28T22:51:14.424",
+   "acceptedAt": "2026-10-28T22:51:14.502567",
+   "disputedAt": null,
+   "cancelledAt": null,
+   "isDispatched": true
+  }
+ ],
+ "events": [
+  {
+   "at": "2026-10-28T22:51:08.489576",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "34 KNT 734 · Hüseyin Polat · 6.000 L",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-28T22:51:14.424",
+   "icon": "fa-map-marker",
+   "title": "Teslimat bildirildi",
+   "note": "5.980 L · irsaliye IRS-CONTRACT-1",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-28T22:51:14.502567",
+   "icon": "fa-check",
+   "title": "Teslim alındı",
+   "note": "5.980 L · 34 KNT 734 · Hüseyin Polat",
+   "tone": "ok"
+  }
+ ],
+ "orderedLiters": 6000,
+ "acceptedLiters": 5980,
+ "inProcessLiters": 0,
+ "awaitingAcceptanceCount": 0,
+ "canAcceptDeliveries": false,
+ "expiryEnabled": false,
+ "priceComparison": {
+  "currentUnitPriceTry": 41.25,
+  "previous": [
+   {
+    "orderId": 8262,
+    "orderNumber": "AYN-20261028-000007",
+    "orderedAt": "2026-10-28T22:47:47.767728",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 42.1,
+    "diffPercent": -2
+   },
+   {
+    "orderId": 8261,
+    "orderNumber": "AYN-20261028-000006",
+    "orderedAt": "2026-10-28T22:46:44.960251",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 42.1,
+    "diffPercent": -2
+   },
+   {
+    "orderId": 8259,
+    "orderNumber": "AYN-20261028-000004",
+    "orderedAt": "2026-10-28T22:40:15.142044",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 6000,
+    "unitPriceTry": 41.9,
+    "diffPercent": -1.6
+   },
+   {
+    "orderId": 8258,
+    "orderNumber": "AYN-20261028-000003",
+    "orderedAt": "2026-10-28T22:39:57.730687",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 41.9,
+    "diffPercent": -1.6
+   },
+   {
+    "orderId": 8257,
+    "orderNumber": "AYN-20261028-000002",
+    "orderedAt": "2026-10-28T22:36:50.798606",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 8000,
+    "unitPriceTry": 41.75,
+    "diffPercent": -1.2
+   }
+  ],
+  "lastUnitPriceTry": 42.1,
+  "lastDiffPercent": -2,
+  "averageUnitPriceTry": 41.95,
+  "averageDiffPercent": -1.7,
+  "minUnitPriceTry": 41.75,
+  "maxUnitPriceTry": 42.1,
+  "hasHistory": true
+ },
+ "activeShipment": null
+}

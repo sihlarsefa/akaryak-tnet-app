@@ -1,0 +1,38 @@
+{
+ "items": [
+  {
+   "id": 227,
+   "orderNumber": "WALK-AP-001",
+   "status": 3,
+   "statusLabel": "Onaylandı",
+   "customerId": 221,
+   "customerTitle": "Demo Filo Lojistik A.Ş.",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 3000,
+   "requestedDeliveryDate": "2026-11-01T00:00:00+03:00",
+   "expiresAt": null,
+   "unitPrice": 44.1,
+   "totalAmount": 132300,
+   "paymentMethodCode": null,
+   "paymentMethodName": null,
+   "paymentStatus": 0,
+   "paymentStatusLabel": "Belirtilmemiş",
+   "financeStatus": 0,
+   "financeLabel": "Gerekmiyor",
+   "shipmentState": "reported",
+   "shipmentStateLabel": "Kabul bekliyor",
+   "createdAt": "2026-10-20T17:06:57.27261+03:00",
+   "productId": 2,
+   "deliveryPointName": "Merkez Depo",
+   "deliveryCity": "İstanbul",
+   "quoteVersion": 1,
+   "paymentDueDate": null,
+   "acceptedLiters": 0,
+   "remainingLiters": 0
+  }
+ ],
+ "totalCount": 1,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

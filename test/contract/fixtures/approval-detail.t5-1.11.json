@@ -1,0 +1,153 @@
+{
+ "id": 11,
+ "type": 5,
+ "typeLabel": "Saha finans",
+ "status": 1,
+ "statusLabel": "Onaylandı",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 224,
+ "customerTitle": "Marmara Filo Lojistik A.Ş.",
+ "subjectType": "FieldOrderForm",
+ "subjectId": 23,
+ "subjectNumber": "SSF-D4-0003",
+ "title": "Saha formu finans onayı · SSF-D4-0003",
+ "summaryText": "Marmara Filo Lojistik A.Ş. · 18.000 L · 738.124,20 TL · DBS 60 gün · Gerekçe: Vadeli yöntem (DBS, 60 gün)",
+ "amount": 738124.2,
+ "liters": 18000,
+ "requestedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+ "requestedByName": "Emre Yıldız",
+ "createdAt": "2026-10-28T13:43:18.721745+00:00",
+ "dueAt": null,
+ "slaState": 0,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "a7dd9dba-b912-466f-a931-757505a68e1d",
+ "contextJson": "{\"reasons\":\"Vadeli y\\u00F6ntem (DBS, 60 g\\u00FCn)\",\"limitOverrun\":false,\"method\":\"DBS\",\"termDays\":60}",
+ "decidedAt": "2026-10-28T16:42:18.721745+00:00",
+ "decidedByUserId": "29432842-f7ca-44fb-9743-71b65f309839",
+ "decidedByName": "Burak Demir",
+ "decisionNote": "DBS limiti ve teminat yeterli; finans onaylandı.",
+ "steps": [
+  {
+   "id": 13,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.order",
+   "minAmount": 0,
+   "status": 2,
+   "statusLabel": "Onaylandı",
+   "dueAt": "2026-10-29T13:43:18.721745",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "decidedByName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": "2026-10-28T16:42:18.721745",
+   "note": "DBS limiti ve teminat yeterli; finans onaylandı."
+  }
+ ],
+ "events": [
+  {
+   "id": 24,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "userName": "Emre Yıldız",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T13:43:18.721745"
+  },
+  {
+   "id": 25,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 13,
+   "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "userName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T16:32:18.721745"
+  },
+  {
+   "id": 26,
+   "eventType": 5,
+   "label": "Onaylandı",
+   "stepId": 13,
+   "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "userName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": "DBS limiti ve teminat yeterli; finans onaylandı.",
+   "occurredAt": "2026-10-28T16:42:18.721745"
+  }
+ ],
+ "attachments": [],
+ "modes": [],
+ "modeLabels": [],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "SSF-D4-0003 · Marmara Filo Lojistik A.Ş.",
+  "subline": "Finans kararı forma döner: kâr onayı da tamamsa form siparişe dönüşür ve siparişler yeniden finansa düşmez.",
+  "amount": 738124.2,
+  "liters": 18000,
+  "facts": [
+   {
+    "label": "Form no",
+    "value": "SSF-D4-0003",
+    "tone": "neutral"
+   },
+   {
+    "label": "Cari",
+    "value": "Marmara Filo Lojistik A.Ş.",
+    "tone": "neutral"
+   },
+   {
+    "label": "Temsilci",
+    "value": "Emre Yıldız",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [
+   {
+    "title": "Motorin (Euro 5)",
+    "subtitle": "Tuzla Ana Depo (Tuzla / İstanbul) · 31.10.2026",
+    "value": "18.000 L · 41,0069 ₺/L"
+   }
+  ],
+  "warnings": [],
+  "band": {
+   "key": "risk-a",
+   "label": "Risk A",
+   "tone": "ok"
+  },
+  "links": {
+   "orderId": null,
+   "fieldOrderId": 23,
+   "leadId": null,
+   "customerId": 224,
+   "stationCustomerId": 422,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": null
+}

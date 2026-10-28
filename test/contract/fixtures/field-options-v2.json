@@ -1,0 +1,247 @@
+{
+ "showCosts": false,
+ "stationId": 221,
+ "customerId": 3,
+ "customerTitle": "Akdeniz İnşaat A.Ş.",
+ "defaultDate": "2026-10-29",
+ "products": [
+  {
+   "id": 1,
+   "code": "MOTORIN_E5",
+   "name": "Motorin (Euro 5)",
+   "suggestedUnitPrice": 42.05,
+   "suggestedSource": "discount",
+   "suggestedSourceLabel": "Cari iskontosu",
+   "lastUnitPrice": null,
+   "pumpPricePerLiter": 42.85,
+   "tuprasPricesM3": {
+    "İZMİT": 36336.8,
+    "ALİAĞA": 36507.58,
+    "KIRIKKALE": 36765.57,
+    "BATMAN": 37038.1
+   },
+   "tuprasPriceDates": {
+    "İZMİT": "2026-10-28",
+    "ALİAĞA": "2026-10-28",
+    "KIRIKKALE": "2026-10-28",
+    "BATMAN": "2026-10-28"
+   }
+  },
+  {
+   "id": 2,
+   "code": "KURSUNSUZ_95",
+   "name": "Kurşunsuz 95",
+   "suggestedUnitPrice": 43.8354,
+   "suggestedSource": "discount",
+   "suggestedSourceLabel": "Cari iskontosu",
+   "lastUnitPrice": null,
+   "pumpPricePerLiter": 44.1,
+   "tuprasPricesM3": {
+    "İZMİT": 37396.8,
+    "ALİAĞA": 37572.56,
+    "KIRIKKALE": 37838.08,
+    "BATMAN": 38118.56
+   },
+   "tuprasPriceDates": {
+    "İZMİT": "2026-10-28",
+    "ALİAĞA": "2026-10-28",
+    "KIRIKKALE": "2026-10-28",
+    "BATMAN": "2026-10-28"
+   }
+  },
+  {
+   "id": 3,
+   "code": "KURSUNSUZ_98",
+   "name": "Kurşunsuz 98",
+   "suggestedUnitPrice": 45.9228,
+   "suggestedSource": "discount",
+   "suggestedSourceLabel": "Cari iskontosu",
+   "lastUnitPrice": null,
+   "pumpPricePerLiter": 46.2,
+   "tuprasPricesM3": {},
+   "tuprasPriceDates": {}
+  },
+  {
+   "id": 4,
+   "code": "LPG",
+   "name": "LPG",
+   "suggestedUnitPrice": 28.4,
+   "suggestedSource": "list",
+   "suggestedSourceLabel": "Liste fiyatı",
+   "lastUnitPrice": null,
+   "pumpPricePerLiter": 28.4,
+   "tuprasPricesM3": {},
+   "tuprasPriceDates": {}
+  }
+ ],
+ "points": [
+  {
+   "id": 10,
+   "name": "Akdeniz İnşaat A.Ş. — Ege Filo Teslimatı",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Pancar OSB Cad. No:15 Bakırköy/İstanbul",
+   "place": "Bakırköy / İstanbul"
+  },
+  {
+   "id": 9,
+   "name": "Bornova Dağıtım Noktası",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Pinarbası OSB No:14 Bakırköy/İstanbul",
+   "place": "Bakırköy / İstanbul"
+  },
+  {
+   "id": 11,
+   "name": "Nilüfer Merkez Depo",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Demirtaş OSB No:16 Bakırköy/İstanbul",
+   "place": "Bakırköy / İstanbul"
+  },
+  {
+   "id": 12,
+   "name": "Osmangazi Tank Sahası",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Sanayi Cad. No:17 Bakırköy/İstanbul",
+   "place": "Bakırköy / İstanbul"
+  }
+ ],
+ "limit": {
+  "state": "exceeded",
+  "limitType": "Tutar",
+  "limitPeriod": "Aylık",
+  "limitAmount": 115000,
+  "used": 1640240,
+  "requested": 0,
+  "available": 0,
+  "unit": "TL",
+  "message": "Aylık limit aşılıyor: kullanılabilir 0,00 TL, istenen 0,00 TL.",
+  "isBlocking": true
+ },
+ "model": 1,
+ "city": "İstanbul",
+ "distributor": "Petrol Ofisi",
+ "terminal": null,
+ "location": "İZMİT",
+ "locations": [
+  {
+   "code": "İZMİT",
+   "label": "İzmit"
+  },
+  {
+   "code": "ALİAĞA",
+   "label": "Aliağa (İzmir)"
+  },
+  {
+   "code": "KIRIKKALE",
+   "label": "Kırıkkale"
+  },
+  {
+   "code": "BATMAN",
+   "label": "Batman"
+  }
+ ],
+ "vatRatePercent": 20,
+ "pricesIncludeVat": true,
+ "collateralPct": 0,
+ "strategic": false,
+ "maxPaymentTermDays": 365,
+ "payment": {
+  "stationId": 221,
+  "customerId": 3,
+  "enabled": true,
+  "defaultMethodCode": null,
+  "methods": [
+   {
+    "code": "NAKIT",
+    "name": "Nakit (peşin)",
+    "shortName": "Nakit",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": null,
+    "documentRequired": false,
+    "allowsInstallments": false,
+    "installmentOptions": [],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [
+     {
+      "key": "note",
+      "label": "Tahsilat notu",
+      "type": "textarea",
+      "required": false,
+      "maxLength": 300,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     }
+    ],
+    "hint": "Teslimatta ya da öncesinde nakit tahsilat."
+   },
+   {
+    "code": "HAVALE",
+    "name": "Havale / EFT (peşin)",
+    "shortName": "Havale",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": 3,
+    "documentRequired": false,
+    "allowsInstallments": false,
+    "installmentOptions": [],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [
+     {
+      "key": "bank",
+      "label": "Banka",
+      "type": "text",
+      "required": false,
+      "maxLength": 80,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     },
+     {
+      "key": "transferDate",
+      "label": "Gönderim tarihi",
+      "type": "date",
+      "required": false,
+      "maxLength": null,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     }
+    ],
+    "hint": "Dekont yüklenince ödeme \"Belge yüklendi\" olur."
+   },
+   {
+    "code": "KART",
+    "name": "Kredi / banka kartı (POS)",
+    "shortName": "Kart",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": 4,
+    "documentRequired": false,
+    "allowsInstallments": true,
+    "installmentOptions": [
+     1,
+     3,
+     6
+    ],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [],
+    "hint": "Kart bilgisi saklanmaz; kârlılıkta kart komisyonu uygulanır."
+   }
+  ],
+  "blockedReason": null,
+  "advanceBalance": 0,
+  "linked": true
+ },
+ "costInputs": null
+}

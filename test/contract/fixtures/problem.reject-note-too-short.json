@@ -1,0 +1,7 @@
+{
+ "title": "İş kuralı hatası",
+ "status": 400,
+ "detail": "Ret gerekçesi en az 3 karakter olmalı (saha personeline iletilir).",
+ "code": "business_rule",
+ "traceId": "b5bf563e-a3ae-47cd-aaa7-bf8038d1e814"
+}

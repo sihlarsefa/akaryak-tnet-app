@@ -150,6 +150,9 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     final showSla = !customer && _scope == ApprovalScope.toMe;
     return AppScaffold(
       title: ApprovalsCopy.title,
+      bandIcon: PhosphorIconsRegular.checkCircle,
+      eyebrow: 'Onay merkezi',
+      description: 'Bekleyen talepler ve kararlar',
       refreshing: raw.refreshing,
       body: A5PagedListView<ApprovalRow>(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),

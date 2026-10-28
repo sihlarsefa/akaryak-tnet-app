@@ -58,7 +58,7 @@ void main() {
     });
 
     test('keeps the family, weights, colours and tabular figures', () {
-      // One family in v3: Plus Jakarta Sans for words and figures.
+      // One family: Archivo (the web panel's face) for words and figures.
       expect(d.plateFigure.fontFamily, AknFonts.sans);
       expect(d.body.fontFamily, AknFonts.sans);
       expect(d.plateFigure.fontWeight, FontWeight.w800);
@@ -146,10 +146,11 @@ void main() {
     test('dark driver: the dark card and the gradient primary as they are', () {
       final c = AknDriverMode.theme(AknTheme.dark()).extension<AknColors>()!;
       // Decision G: the plate is the dark card, the primary keeps its
-      // orange gradient (#FF7B35 → #E5530A) with a white label at night too.
+      // orange gradient (the panel's #D2450E, ending on the accent fill
+      // #CF4711 at night) with a white label at night too.
       expect(c.plate, AknColors.dark.plate);
-      expect(c.brandFillStart, const Color(0xFFFF7B35));
-      expect(c.brandFill, const Color(0xFFE5530A));
+      expect(c.brandFillStart, const Color(0xFFD2450E));
+      expect(c.brandFill, const Color(0xFFCF4711));
       expect(c.onBrandFill, const Color(0xFFFFFFFF));
     });
 

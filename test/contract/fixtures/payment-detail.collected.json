@@ -1,0 +1,78 @@
+{
+ "paymentGroupKey": null,
+ "details": {
+  "note": "sözleşme denetimi"
+ },
+ "detailLines": [
+  {
+   "label": "Tahsilat notu",
+   "value": "sözleşme denetimi"
+  }
+ ],
+ "history": [
+  {
+   "attachmentPublicId": null,
+   "fromStatusLabel": "Belirtilmemiş",
+   "toStatusLabel": "Bekliyor",
+   "changedAtUtc": "2026-10-28T19:50:56.237482+00:00",
+   "fromStatus": 0,
+   "toStatus": 1,
+   "note": "Sipariş oluşturuldu · Nakit · vade 29.10.2026",
+   "attachmentId": null,
+   "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+   "changedByDisplay": "Ayşe Demir",
+   "changedAt": "2026-10-28T19:50:56.237482"
+  },
+  {
+   "attachmentPublicId": null,
+   "fromStatusLabel": "Bekliyor",
+   "toStatusLabel": "Tahsil edildi",
+   "changedAtUtc": "2026-10-28T19:51:14.631036+00:00",
+   "fromStatus": 1,
+   "toStatus": 3,
+   "note": "Sözleşme denetimi tahsilat",
+   "attachmentId": null,
+   "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "changedByDisplay": "Walkthrough Bayi",
+   "changedAt": "2026-10-28T19:51:14.631036"
+  }
+ ],
+ "instrument": null,
+ "allowedTransitions": [
+  5
+ ],
+ "noteRequiredFor": [
+  5
+ ],
+ "concurrencyToken": "b717ee52-c754-4ba3-a50b-ff5900c29312",
+ "canEditInstrument": false,
+ "documents": [],
+ "documentKind": null,
+ "documentKindLabel": null,
+ "documentRequired": false,
+ "notice": null,
+ "paymentStatusLabel": "Tahsil edildi",
+ "financeLabel": "Finans onaylandı",
+ "orderStatusLabel": "Tamamlandı",
+ "paymentLine": "Nakit (peşin) · vade 29.10.2026",
+ "dueHint": null,
+ "overdueDays": 0,
+ "orderId": 8266,
+ "orderNumber": "AYN-20261028-000011",
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "orderStatus": 7,
+ "methodCode": "NAKIT",
+ "methodName": "Nakit (peşin)",
+ "termDays": 0,
+ "dueDate": "2026-10-29T00:00:00",
+ "installments": null,
+ "paymentStatus": 3,
+ "financeStatus": 2,
+ "estimatedAmount": 254400,
+ "amount": 247500,
+ "isOverdue": false,
+ "createdAt": "2026-10-28T22:50:56.220346"
+}

@@ -1,0 +1,175 @@
+{
+ "id": 20,
+ "type": 7,
+ "typeLabel": "Ön kayıt",
+ "status": 2,
+ "statusLabel": "Reddedildi",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "subjectType": "CustomerLead",
+ "subjectId": 5,
+ "subjectNumber": "ONK-D4-000005",
+ "title": "Ön kayıt: Tekirdağ Hafriyat ve Nakliye Ltd. Şti.",
+ "summaryText": "VKN 7632475761 · Tekirdağ / Çorlu · aylık 26.000 L · limit 900.000 ₺ · Açık hesap (cari vadeli) · 90 gün vade",
+ "amount": 900000,
+ "liters": 26000,
+ "requestedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+ "requestedByName": "Emre Yıldız",
+ "createdAt": "2026-10-22T13:33:19.000676+00:00",
+ "dueAt": null,
+ "slaState": 0,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "7d4dbe28-83fc-476e-bbd7-2c4ba0258508",
+ "contextJson": "{\"\\u00D6n kay\\u0131t\":\"ONK-D4-000005\",\"VKN\":\"7632475761\"}",
+ "decidedAt": "2026-10-23T11:32:19.000676+00:00",
+ "decidedByUserId": "29432842-f7ca-44fb-9743-71b65f309839",
+ "decidedByName": "Burak Demir",
+ "decisionNote": "Risk raporu D sınıfı: banka limitlerinin büyük kısmı kullanılmış ve gecikmeler var. 90 gün açık hesap uygun değil; peşin çalışma önerildi.",
+ "steps": [
+  {
+   "id": 25,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.lead",
+   "minAmount": 0,
+   "status": 3,
+   "statusLabel": "Reddedildi",
+   "dueAt": "2026-10-23T13:33:19.000676",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "decidedByName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": "2026-10-23T11:32:19.000676",
+   "note": "Risk raporu D sınıfı: banka limitlerinin büyük kısmı kullanılmış ve gecikmeler var. 90 gün açık hesap uygun değil; peşin çalışma önerildi."
+  }
+ ],
+ "events": [
+  {
+   "id": 41,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "userName": "Emre Yıldız",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-22T13:33:19.000676"
+  },
+  {
+   "id": 42,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 25,
+   "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "userName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-22T14:32:19.000676"
+  },
+  {
+   "id": 43,
+   "eventType": 7,
+   "label": "Reddedildi",
+   "stepId": 25,
+   "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "userName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": "Risk raporu D sınıfı: banka limitlerinin büyük kısmı kullanılmış ve gecikmeler var. 90 gün açık hesap uygun değil; peşin çalışma önerildi.",
+   "occurredAt": "2026-10-23T11:32:19.000676"
+  }
+ ],
+ "attachments": [
+  {
+   "publicId": "0a61e06f-f8ee-4453-a366-23507b04c208",
+   "ownerType": 5,
+   "ownerId": 5,
+   "stationId": 221,
+   "customerId": null,
+   "kind": 10,
+   "kindLabel": "Vergi levhası",
+   "fileName": "vergi-levhasi-7632475761.pdf",
+   "contentType": "application/pdf",
+   "sizeBytes": 959,
+   "sha256": "954ceb386637904cc0eba7717e103226778e9f1a12245c45e43cf6a162e1832f",
+   "version": 1,
+   "previousVersionPublicId": null,
+   "note": "Vergi levhası (saha ön kaydı, demo)",
+   "uploadedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "uploadedByName": "Emre Yıldız",
+   "createdAt": "2026-10-28T19:07:19.909728",
+   "isActive": true,
+   "canDelete": true,
+   "isImage": false,
+   "isPdf": true
+  }
+ ],
+ "modes": [],
+ "modeLabels": [],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "ONK-D4-000005 · Tekirdağ Hafriyat ve Nakliye Ltd. Şti.",
+  "subline": "AkaryakıtNet Walkthrough İstasyonu · Temsilci Emre Yıldız",
+  "amount": 900000,
+  "liters": 26000,
+  "facts": [
+   {
+    "label": "Durum",
+    "value": "Reddedildi",
+    "tone": "neutral"
+   },
+   {
+    "label": "Bayi",
+    "value": "AkaryakıtNet Walkthrough İstasyonu",
+    "tone": "neutral"
+   },
+   {
+    "label": "Temsilci",
+    "value": "Emre Yıldız",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [
+   {
+    "title": "Motorin (Euro 5)",
+    "subtitle": null,
+    "value": "26.000 L / ay"
+   }
+  ],
+  "warnings": [
+   "Deneme sağlayıcısı: skor ve banka satırları örnek veridir, gerçek banka verisi değildir; risk sınıfı karta otomatik yazılmaz."
+  ],
+  "band": null,
+  "links": {
+   "orderId": null,
+   "fieldOrderId": null,
+   "leadId": 5,
+   "customerId": null,
+   "stationCustomerId": null,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": null
+}

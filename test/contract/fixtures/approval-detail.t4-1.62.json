@@ -1,0 +1,147 @@
+{
+ "id": 62,
+ "type": 4,
+ "typeLabel": "Sipariş finans",
+ "status": 1,
+ "statusLabel": "Onaylandı",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "subjectType": "Order",
+ "subjectId": 8257,
+ "subjectNumber": "AYN-20261028-000002",
+ "title": "Sipariş finans onayı · AYN-20261028-000002",
+ "summaryText": "Demo Filo Lojistik A.Ş. · Motorin (Euro 5) · 8.000 L · Nakit · tahmini 339.200,00 TL · Gerekçe: Limit aşımı 80.974.880 TL",
+ "amount": 339200,
+ "liters": 8000,
+ "requestedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+ "requestedByName": "Ayşe Demir",
+ "createdAt": "2026-10-28T19:36:50.868815+00:00",
+ "dueAt": null,
+ "slaState": 0,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "235b5b99-bfbc-4cc3-a8cd-3efb176a2926",
+ "contextJson": "{\"reasons\":\"Limit a\\u015F\\u0131m\\u0131 80.974.880 TL\",\"limitOverrun\":true,\"method\":\"NAKIT\",\"termDays\":0,\"dueDate\":\"2026-10-29\",\"estimatedAmount\":339200.00,\"source\":\"Customer\"}",
+ "decidedAt": "2026-10-28T19:36:59.528056+00:00",
+ "decidedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "decidedByName": "Walkthrough Bayi",
+ "decisionNote": null,
+ "steps": [
+  {
+   "id": 67,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.order",
+   "minAmount": 0,
+   "status": 2,
+   "statusLabel": "Onaylandı",
+   "dueAt": "2026-10-29T19:36:50.868815",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "decidedByName": "Walkthrough Bayi",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": "2026-10-28T19:36:59.528056",
+   "note": null
+  }
+ ],
+ "events": [
+  {
+   "id": 101,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+   "userName": "Ayşe Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T19:36:50.868815"
+  },
+  {
+   "id": 102,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 67,
+   "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "userName": "Walkthrough Bayi",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T19:36:57.560113"
+  },
+  {
+   "id": 103,
+   "eventType": 5,
+   "label": "Onaylandı",
+   "stepId": 67,
+   "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "userName": "Walkthrough Bayi",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T19:36:59.528056"
+  }
+ ],
+ "attachments": [],
+ "modes": [],
+ "modeLabels": [],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "AYN-20261028-000002 · Demo Filo Lojistik A.Ş.",
+  "subline": "Motorin (Euro 5) · 8.000 L · teslim 29.10.2026",
+  "amount": 334000,
+  "liters": 8000,
+  "facts": [
+   {
+    "label": "Sipariş no",
+    "value": "AYN-20261028-000002",
+    "tone": "neutral"
+   },
+   {
+    "label": "Ürün",
+    "value": "Motorin (Euro 5)",
+    "tone": "neutral"
+   },
+   {
+    "label": "Miktar",
+    "value": "8.000 L",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [],
+  "warnings": [],
+  "band": {
+   "key": "risk-b",
+   "label": "Risk B",
+   "tone": "info"
+  },
+  "links": {
+   "orderId": 8257,
+   "fieldOrderId": null,
+   "leadId": null,
+   "customerId": 221,
+   "stationCustomerId": 221,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": null
+}

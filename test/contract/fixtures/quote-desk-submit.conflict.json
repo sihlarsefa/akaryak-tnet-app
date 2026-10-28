@@ -1,0 +1,16 @@
+[
+ {
+  "orderId": 8266,
+  "outcome": "invalid",
+  "outcomeLabel": "Gönderilemedi",
+  "success": false,
+  "message": "Bu aşamada teklif verilemez."
+ },
+ {
+  "orderId": 99999999,
+  "outcome": "invalid",
+  "outcomeLabel": "Gönderilemedi",
+  "success": false,
+  "message": "Sipariş bulunamadı."
+ }
+]

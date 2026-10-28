@@ -1,0 +1,37 @@
+[
+ {
+  "id": 3,
+  "name": "Akdeniz İnşaat A.Ş.",
+  "extra": "İstanbul"
+ },
+ {
+  "id": 221,
+  "name": "Demo Filo Lojistik A.Ş.",
+  "extra": "İstanbul"
+ },
+ {
+  "id": 226,
+  "name": "Doğu Akdeniz Nakliyat Ltd. Şti.",
+  "extra": "Mersin"
+ },
+ {
+  "id": 5,
+  "name": "Doğu Otomotiv A.Ş.",
+  "extra": "İstanbul"
+ },
+ {
+  "id": 1,
+  "name": "Ege Lojistik A.Ş.",
+  "extra": "İstanbul"
+ },
+ {
+  "id": 224,
+  "name": "Marmara Filo Lojistik A.Ş.",
+  "extra": "İstanbul"
+ },
+ {
+  "id": 2,
+  "name": "Marmara Taşımacılık A.Ş.",
+  "extra": "İstanbul"
+ }
+]

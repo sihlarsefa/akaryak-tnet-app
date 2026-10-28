@@ -13,7 +13,7 @@ import '../ui.dart';
 /// environment only).
 ///
 /// Every token, component, drawing and motion piece of the v3 spec (§1–§6):
-/// Plus Jakarta Sans with tabular figures, the graphite + orange palette,
+/// Archivo with tabular figures, the slate + orange palette (the web panel's),
 /// floating white cards, Phosphor icons and the lively motion vocabulary
 /// (cascades, springs, ambient life, draw-ins, bursts) — in light and dark,
 /// at 100 / 130 / 200 % text and with reduce motion; the toggles in the app
@@ -504,7 +504,7 @@ class _TypeTab extends StatelessWidget {
       children: [
         const _H(
           'Sözcükler',
-          'Plus Jakarta Sans, tek aile (400–800); hiyerarşi boyut ve '
+          'Archivo (web paneliyle aynı), tek aile (400–800); hiyerarşi boyut ve '
               'kalınlıktan gelir, renkten değil.',
         ),
         spec('display', '28/34 800', Text('Siparişlerim', style: t.display)),

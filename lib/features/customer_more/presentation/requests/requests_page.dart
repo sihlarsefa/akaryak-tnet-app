@@ -92,6 +92,9 @@ class RequestsPage extends ConsumerWidget {
     }
     return AppScaffold(
       title: CmCopy.requestsTitle,
+      bandIcon: PhosphorIconsRegular.listChecks,
+      eyebrow: 'Müşteri',
+      description: 'Şirket içi sipariş talepleri',
       refreshing: p.refreshing,
       body: Column(
         children: [

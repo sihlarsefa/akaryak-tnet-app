@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// AkaryakıtNet design tokens — design language v3 "Akış": a calm graphite
-/// base, white cards floating on an off-white page, and orange kept for the
-/// brand moments. Owner decisions stay: the orange header band with white
-/// content on every home (decision G) and never blue, purple or navy
-/// (decision 5).
+/// AkaryakıtNet design tokens — design language v3 "Akış" aligned with the
+/// web panel (F2GO look, 2026-10-28): the panel's slate ink and hairlines,
+/// white cards on the panel's `surface-2` page, its accent family (#F05E21 /
+/// fill #CF4711 / ink #C2410C / soft #FFF1E8) and its status palette
+/// (success · pending · danger · neutral). Meaning rules as in the panel:
+/// orange = action or "you are here"; green, amber and red = status only;
+/// everything else neutral. Owner decisions stay: the orange header band with
+/// white content on every home (decision G) and never blue, purple or navy
+/// (decision 5; slate is text only, never a surface; the panel's blue links
+/// do not come to the app).
 ///
 /// * Band: `heroStart` → `heroMid` → `heroEnd` (135°, [AknColors.bandGradient])
 ///   lit by a soft `heroGlow`; content `onHero` (white) / `onHeroDim`
@@ -157,7 +162,7 @@ class AknColors extends ThemeExtension<AknColors> {
     required this.navInactive,
     required this.inverse,
     required this.onInverse,
-    this.link = _graphite,
+    this.link = _ink,
     this.heroMid = _bandMid,
     this.brandFillStart = _buttonStart,
     this.plateTint = _plateTint,
@@ -172,16 +177,16 @@ class AknColors extends ThemeExtension<AknColors> {
   final Brightness brightness;
 
   /// Links are ink + underline (offset 3): never blue, never orange, so a
-  /// link never reads as a primary action. #15171A light, #F2F3F5 dark,
+  /// link never reads as a primary action. #0F172A light, #F2F3F5 dark,
   /// ink on the hero card.
   final Color link;
 
-  /// Logo orange #FF5001 for marks: selected outlines, the focus ring
+  /// The panel accent #F05E21 for marks: selected outlines, the focus ring
   /// (3 px, 2 px offset), switches, the input focus border and caret, the
   /// active tab. Never body text.
   final Color brand;
 
-  /// Pressed state of [brand] marks (#E64800).
+  /// Pressed state of [brand] marks (the panel's accent-fill #CF4711).
   final Color brandPressed;
 
   /// Pas: orange TEXT. It means "your move" (countdowns, "Kararınızı
@@ -189,24 +194,24 @@ class AknColors extends ThemeExtension<AknColors> {
   final Color brandInk;
 
   /// The soft orange behind selected things: the active bottom-bar pill, the
-  /// "your move" halo and chip (#FFF1EA; dark #33201A).
+  /// "your move" halo and chip (#FFF1E8; dark #33201A).
   final Color brandSoft;
 
-  /// Soft orange border (#FFD6C2; dark #5A2A12).
+  /// Soft orange border (#FED0B8; dark #5A2A12).
   final Color brandLine;
 
   /// Primary button: the END of the button gradient and its solid fallback
-  /// (#E5530A) — [brandFillStart] → [brandFill] with a WHITE label
-  /// ([buttonGradient], 3.75:1).
+  /// (#B93A0B) — [brandFillStart] → [brandFill], the panel's `--grad-brand`,
+  /// with a WHITE label ([buttonGradient], 4.57:1 → 5.72:1).
   final Color brandFill;
 
-  /// Pressed primary (#CC4708; dark #C2410C).
+  /// Pressed primary (#A53309, the end of the panel's hover gradient).
   final Color brandFillPressed;
 
   /// Label on [brandFill]: white, 16 px w700.
   final Color onBrandFill;
 
-  /// Start of the primary-button gradient (#FF7B35).
+  /// Start of the primary-button gradient (#D2450E).
   final Color brandFillStart;
 
   /// The logo orange #FF5001: logo tile, Sipariş ver key mark, current bar,
@@ -244,44 +249,46 @@ class AknColors extends ThemeExtension<AknColors> {
   /// Deprecated alias of [onHeroDim] (white 92 %).
   final Color onNavyDim;
 
-  /// Page (#F5F6F7; dark #0E0F11). White cards float on it.
+  /// Page (the panel's surface-2 #F8FAFC; dark #0E0F11). White cards with
+  /// the 1 px hairline sit on it.
   final Color bg;
 
   /// Cards, sheets, bars (#FFFFFF; dark #17181B).
   final Color surface;
 
   /// Quiet wells — search, chips at rest, segmented track, skeleton, pressed
-  /// rows (#EFF0F2; dark #1E2024).
+  /// rows (the panel's surface-3 #F1F5F9; dark #1E2024).
   final Color surfaceAlt;
 
   /// Sheets, menus, dialogs, the bottom bar (#FFFFFF; dark #222429).
   final Color surfaceRaised;
 
-  /// Graphite ink: all text and icons (#15171A, 17.96:1 on white; dark
-  /// #F2F3F5).
+  /// Slate ink (the panel's #0F172A): all text and icons (17.85:1 on white;
+  /// dark #F2F3F5). Text only — never a surface (no navy).
   final Color ink;
 
   /// Body text = [ink] (one ink; hierarchy by weight and size).
   final Color text;
 
-  /// Secondary text (#5F646C, 5.96:1 on white, 5.22:1 on [surfaceAlt]; dark
-  /// #A2A7AF).
+  /// Secondary text (#5F6E83: the panel's muted #64748B a hair deeper —
+  /// 5.19:1 on white, 4.74:1 on [surfaceAlt]; dark #A2A7AF).
   final Color dim;
 
   /// Disabled text only; never informative text or marks.
   final Color faint;
 
-  /// Decorative hairlines (#E6E8EB; dark #2A2D32).
+  /// Decorative hairlines (the panel's line #E6EAF0, soft #EDF1F6; dark
+  /// #2A2D32).
   final Color line;
   final Color lineSoft;
 
   /// Control borders: inputs, outline buttons, checkbox, drag handle
-  /// (#858B93, 3.44:1 on white, 3.18:1 on the page; dark #6C7179, 3.61:1).
+  /// (#7D8CA1, 3.42:1 on white, 3.27:1 on the page; dark #6C7179, 3.61:1).
   final Color lineStrong;
 
   final ToneColors ok;
 
-  /// Ochre, never orange.
+  /// Amber (the panel's pending), never the brand orange.
   final ToneColors warn;
   final ToneColors danger;
 
@@ -313,7 +320,7 @@ class AknColors extends ThemeExtension<AknColors> {
   /// All ink on the hero card (= [ink]).
   final Color onPlate;
 
-  /// Past-month bars on the hero card: #FF5001 at 24 % (dark 40 %).
+  /// Past-month bars on the hero card: #F05E21 at 24 % (dark 40 %).
   final Color plateContext;
 
   /// The hero card's hairline divider (#F3E4DB; dark #3A2A21).
@@ -326,14 +333,14 @@ class AknColors extends ThemeExtension<AknColors> {
   final Color plateBorder;
 
   /// Orange accent on the hero card: the icon-tile glyph and the this-month
-  /// bar (#E5530A; dark #FF7A3D).
+  /// bar (#F05E21; dark #FF7A3D).
   final Color plateAccent;
 
   /// The hero card's 40 × 40 icon tile (#FFEDE3; dark #3A2116); also the
   /// meter and ranked-bar track on it.
   final Color plateIconFill;
 
-  /// The delta chip on the hero card (#FFF1EA; dark #3A2116) with
+  /// The delta chip on the hero card (#FFF1E8; dark #3A2116) with
   /// [brandInk] text.
   final Color deltaFill;
 
@@ -344,17 +351,18 @@ class AknColors extends ThemeExtension<AknColors> {
   /// a radial glow at the top-left that makes the orange luminous.
   final Color heroGlow;
 
-  /// The current / selected value on white charts (logo orange).
+  /// The current / selected value on white charts (the accent).
   final Color chartHighlight;
 
-  /// Every other bar or dot on white charts (#858B93, 3.44:1; dark #7D838B).
+  /// Every other bar or dot on white charts (#7D8CA1, 3.42:1; dark #7D838B).
   final Color chartContext;
 
   /// Meter and ranked-bar tracks on white.
   final Color chartTrack;
 
-  /// Inactive bottom-bar icon and label (#6B7079, 4.98:1 on white; dark
-  /// #A2A7AF). Active items are [ink] on the [brandSoft] pill.
+  /// Inactive bottom-bar icon and label (the panel's muted #64748B, 4.76:1
+  /// on white; dark #A2A7AF). The active item is the panel's "you are here":
+  /// an accent glyph and a Pas label on the [brandSoft] pill.
   final Color navInactive;
 
   /// Inverse surfaces: toasts, tooltips, the bar-value bubble (#1B1D21;
@@ -392,15 +400,14 @@ class AknColors extends ThemeExtension<AknColors> {
     stops: const [0, 0.5, 1],
   );
 
-  /// The primary button: [brandFillStart] → [brandFill] (135°), settling
-  /// into [brandFill] by the middle — so the centred white label always
-  /// sits on ≥ 3:1 (bold large text, WCAG) while the light start stays
-  /// visible at the leading edge.
+  /// The primary button: [brandFillStart] → [brandFill] (135°) across the
+  /// whole button, like the panel's `--grad-brand` — the white label sits on
+  /// ≥ 4.5:1 everywhere.
   LinearGradient get buttonGradient => LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
     colors: [brandFillStart, brandFill],
-    stops: const [0, 0.5],
+    stops: const [0, 1],
   );
 
   /// The pressed primary button: the gradient one step darker.
@@ -453,31 +460,64 @@ class AknColors extends ThemeExtension<AknColors> {
     chartTrack: plateIconFill,
   );
 
-  // Named palette (v3 §2).
+  // Named palette (v3 §2, aligned with the web panel's F2GO tokens on
+  // 2026-10-28: akaryakitnet-v3.css `:root`).
   static const _white = Color(0xFFFFFFFF);
   static const _black = Color(0xFF000000);
-  static const _plaka = Color(0xFFFF5001);
-  static const _plakaNight = Color(0xFFE64800);
-  static const _graphite = Color(0xFF15171A);
-  static const _page = Color(0xFFF5F6F7);
-  static const _well = Color(0xFFEFF0F2);
-  static const _slate = Color(0xFF5F646C);
-  static const _pas = Color(0xFFC2410C);
-  static const _rule = Color(0xFF858B93);
-  static const _hairline = Color(0xFFE6E8EB);
 
-  // The orange band, the primary button and the hero card (decision G).
+  /// The logo orange (#FF5001): the » tile and the logo painters only.
+  static const _plaka = Color(0xFFFF5001);
+
+  /// Panel `--color-accent` (#F05E21): marks — focus, selection, the active
+  /// tab, the current bar, the "your move" dot.
+  static const _accent = Color(0xFFF05E21);
+
+  /// Panel `--color-accent-fill` (#CF4711): pressed marks.
+  static const _accentFill = Color(0xFFCF4711);
+
+  /// Panel `--color-accent-soft` / `--color-accent-line`.
+  static const _accentSoft = Color(0xFFFFF1E8);
+  static const _accentLine = Color(0xFFFED0B8);
+
+  /// Panel `--color-ink` (slate #0F172A): text only, never a surface.
+  static const _ink = Color(0xFF0F172A);
+
+  /// Panel `--color-surface-2` (#F8FAFC): the page under white cards.
+  static const _page = Color(0xFFF8FAFC);
+
+  /// Panel `--color-surface-3` (#F1F5F9): quiet wells.
+  static const _well = Color(0xFFF1F5F9);
+
+  /// Panel `--color-muted` (#64748B) a hair deeper (#5F6E83) so secondary
+  /// text keeps AA on the wells too (4.74:1 on #F1F5F9).
+  static const _muted = Color(0xFF5F6E83);
+
+  /// Panel `--color-accent-ink` (#C2410C): orange TEXT.
+  static const _pas = Color(0xFFC2410C);
+
+  /// Control borders, chart context: slate at ≥ 3:1 on white and the page.
+  static const _rule = Color(0xFF7D8CA1);
+
+  /// Panel `--color-line` (#E6EAF0) and `--color-line-3` (#EDF1F6).
+  static const _hairline = Color(0xFFE6EAF0);
+  static const _hairlineSoft = Color(0xFFEDF1F6);
+
+  /// Panel `--color-neutral-line` (#E2E8F0).
+  static const _wellLine = Color(0xFFE2E8F0);
+
+  // The orange band and the hero card (decision G) and the primary button
+  // (the panel's `--grad-brand` #D2450E → #B93A0B, white label ≥ 4.5:1).
   static const _bandStart = Color(0xFFFF8A3D);
   static const _bandMid = Color(0xFFF2581A);
   static const _bandEnd = Color(0xFFD9440A);
   static const _heroGlow = Color(0xFFFFC59E);
-  static const _buttonStart = Color(0xFFFF7B35);
-  static const _buttonEnd = Color(0xFFE5530A);
+  static const _buttonStart = Color(0xFFD2450E);
+  static const _buttonEnd = Color(0xFFB93A0B);
+  static const _buttonPressed = Color(0xFFA53309);
   static const _plateTint = Color(0xFFFFF4EE);
   static const _plateBorder = Color(0xFFF5E3D8);
-  static const _accent = Color(0xFFE5530A);
   static const _iconFill = Color(0xFFFFEDE3);
-  static const _deltaFill = Color(0xFFFFF1EA);
+  static const _deltaFill = _accentSoft;
   static const _homeBg = _page;
   static const _white92 = Color(0xEBFFFFFF);
   static const _white20 = Color(0x33FFFFFF);
@@ -493,13 +533,13 @@ class AknColors extends ThemeExtension<AknColors> {
 
   static const AknColors light = AknColors(
     brightness: Brightness.light,
-    brand: _plaka,
-    brandPressed: _plakaNight,
+    brand: _accent,
+    brandPressed: _accentFill,
     brandInk: _pas,
-    brandSoft: _deltaFill,
-    brandLine: Color(0xFFFFD6C2),
+    brandSoft: _accentSoft,
+    brandLine: _accentLine,
     brandFill: _buttonEnd,
-    brandFillPressed: Color(0xFFCC4708),
+    brandFillPressed: _buttonPressed,
     onBrandFill: _white,
     brandBright: _plaka,
     logo: _plaka,
@@ -515,83 +555,87 @@ class AknColors extends ThemeExtension<AknColors> {
     surface: _white,
     surfaceAlt: _well,
     surfaceRaised: _white,
-    ink: _graphite,
-    text: _graphite,
-    dim: _slate,
-    faint: Color(0xFF9A9FA6),
+    ink: _ink,
+    text: _ink,
+    dim: _muted,
+    faint: Color(0xFF94A3B8),
     line: _hairline,
-    lineSoft: Color(0xFFEEF0F2),
+    lineSoft: _hairlineSoft,
     lineStrong: _rule,
+    // Status (panel): success · pending · danger · neutral, each a soft well
+    // with its line, the -ink text and the solid dot.
     ok: ToneColors(
-      fg: Color(0xFF0F7A43),
-      bg: Color(0xFFEAF7EF),
-      line: Color(0xFFC3E8D1),
-      solid: Color(0xFF15803D),
+      fg: Color(0xFF047857),
+      bg: Color(0xFFECFDF5),
+      line: Color(0xFFA7F3D0),
+      solid: Color(0xFF059669),
       onSolid: _white,
     ),
     warn: ToneColors(
-      fg: Color(0xFF8A5A00),
-      bg: Color(0xFFFDF5E3),
-      line: Color(0xFFF1DDAE),
-      solid: Color(0xFF9A6700),
+      fg: Color(0xFFB45309),
+      bg: Color(0xFFFFFBEB),
+      line: Color(0xFFFDE68A),
+      solid: Color(0xFFD97706),
       onSolid: _white,
     ),
     danger: ToneColors(
-      fg: Color(0xFFC0261C),
-      bg: Color(0xFFFDEFEE),
-      line: Color(0xFFF6CBC7),
-      solid: Color(0xFFD92D20),
+      fg: Color(0xFFB91C1C),
+      bg: Color(0xFFFEF2F2),
+      line: Color(0xFFFECACA),
+      solid: Color(0xFFDC2626),
       onSolid: _white,
     ),
     info: ToneColors(
-      fg: _graphite,
+      fg: _ink,
       bg: _well,
-      line: Color(0xFFE1E3E7),
-      solid: _graphite,
+      line: _wellLine,
+      solid: _ink,
       onSolid: _white,
     ),
     neutral: ToneColors(
-      fg: _slate,
-      bg: Color(0xFFF1F2F4),
-      line: Color(0xFFE3E5E8),
-      solid: _slate,
+      fg: _muted,
+      bg: _well,
+      line: _wellLine,
+      solid: Color(0xFF64748B),
       onSolid: _white,
     ),
     brandTone: ToneColors(
       fg: _pas,
-      bg: _deltaFill,
-      line: Color(0xFFFFD6C2),
-      solid: _plaka,
+      bg: _accentSoft,
+      line: _accentLine,
+      solid: _accent,
       onSolid: _black,
     ),
-    dangerFill: Color(0xFFC0261C),
+    dangerFill: Color(0xFFDC2626),
     onDangerFill: _white,
-    scrim: Color(0x7315171A),
-    shadow: Color(0x2915171A),
-    skeleton: Color(0xFFECEEF0),
-    skeletonHighlight: Color(0xFFF8F9FA),
+    scrim: Color(0x730F172A),
+    shadow: Color(0x290F172A),
+    skeleton: Color(0xFFEEF2F6),
+    skeletonHighlight: _page,
     plate: _white,
-    onPlate: _graphite,
-    plateContext: Color(0x3DFF5001),
+    onPlate: _ink,
+    plateContext: Color(0x3DF05E21),
     plateLine: Color(0xFFF3E4DB),
-    chartHighlight: _plaka,
+    chartHighlight: _accent,
     chartContext: _rule,
-    chartTrack: Color(0xFFEEF0F2),
-    navInactive: Color(0xFF6B7079),
+    chartTrack: _hairlineSoft,
+    navInactive: Color(0xFF64748B),
     inverse: Color(0xFF1B1D21),
     onInverse: _white,
-    link: _graphite,
+    link: _ink,
   );
 
   static const AknColors dark = AknColors(
     brightness: Brightness.dark,
-    brand: _plaka,
-    brandPressed: _plakaNight,
+    brand: _accent,
+    brandPressed: _accentFill,
     brandInk: Color(0xFFFF7A3D),
     brandSoft: Color(0xFF33201A),
     brandLine: Color(0xFF5A2A12),
-    brandFill: _buttonEnd,
-    brandFillPressed: _pas,
+    // At night the gradient ends on the accent fill (#CF4711), so the
+    // primary still reads as a mark (≥ 3:1) on the dark surfaces.
+    brandFill: _accentFill,
+    brandFillPressed: _buttonPressed,
     onBrandFill: _white,
     brandBright: _plaka,
     logo: _plaka,
@@ -653,7 +697,7 @@ class AknColors extends ThemeExtension<AknColors> {
       fg: Color(0xFFFF7A3D),
       bg: Color(0xFF33201A),
       line: Color(0xFF5A2A12),
-      solid: _plaka,
+      solid: _accent,
       onSolid: _black,
     ),
     dangerFill: Color(0xFFC0261C),
@@ -664,9 +708,9 @@ class AknColors extends ThemeExtension<AknColors> {
     skeletonHighlight: Color(0xFF26292E),
     plate: _nightSurface,
     onPlate: _nightInk,
-    plateContext: Color(0x66FF5001),
+    plateContext: Color(0x66F05E21),
     plateLine: Color(0xFF3A2A21),
-    chartHighlight: _plaka,
+    chartHighlight: _accent,
     chartContext: Color(0xFF7D838B),
     chartTrack: Color(0xFF26292E),
     navInactive: _nightDim,
@@ -1143,17 +1187,24 @@ abstract final class AknRadius {
   static const BorderRadius pillAll = BorderRadius.all(Radius.circular(pill));
 }
 
-/// Depth by role (v3 §3): cards float on the off-white page.
+/// Depth by role (v3 §3, panel rule "hairlines over shadows"): white cards on
+/// the page carry the panel's 1 px `line` and only a whisper of shadow.
 ///
-/// * [card]: resting cards, list cards, section boxes — a soft two-layer
-///   shadow (dark: a short black one; dark cards also keep a 1 px `line`).
+/// * [card]: resting cards, list cards, section boxes — the 1 px hairline
+///   ring (a zero-blur spread, so every card site gets the panel border)
+///   over a soft contact shadow (dark: a short black one; dark cards keep
+///   their own 1 px `line`).
 /// * [raised]: things that float above the page — sheets, menus, toasts,
-///   dialogs, the dragged deck card.
+///   dialogs, the dragged deck card (the panel's `--shadow-pop`).
 /// * [plate] / [band] / [button]: the brand moments carry a warm tint in
 ///   their shadow (the hero card, the header band, the primary button glow).
 abstract final class AknShadows {
-  /// Resting cards: `0 1 2` ink 4 % + `0 8 24 −6` ink 8 % (dark: `0 1 2`
-  /// black 40 %).
+  /// The panel's 1 px card border as a ring outside the card (`line`).
+  static BoxShadow hairline(AknColors c) =>
+      BoxShadow(color: c.line, spreadRadius: 1);
+
+  /// Resting cards: the hairline ring + `0 1 2` ink 5 % + `0 6 16 −8` ink
+  /// 8 % (dark: `0 1 2` black 40 %).
   static List<BoxShadow> card(AknColors c) => c.isDark
       ? const [
           BoxShadow(
@@ -1162,33 +1213,36 @@ abstract final class AknShadows {
             blurRadius: 2,
           ),
         ]
-      : const [
-          BoxShadow(
-            color: Color(0x0A15171A),
+      : [
+          hairline(c),
+          const BoxShadow(
+            color: Color(0x0D0F172A),
             offset: Offset(0, 1),
             blurRadius: 2,
           ),
-          BoxShadow(
-            color: Color(0x1415171A),
-            offset: Offset(0, 8),
-            blurRadius: 24,
-            spreadRadius: -6,
+          const BoxShadow(
+            color: Color(0x140F172A),
+            offset: Offset(0, 6),
+            blurRadius: 16,
+            spreadRadius: -8,
           ),
         ];
 
-  /// Pressed cards settle onto the page: only the contact shadow.
+  /// Pressed cards settle onto the page: the hairline and the contact
+  /// shadow.
   static List<BoxShadow> pressed(AknColors c) => c.isDark
       ? const []
-      : const [
-          BoxShadow(
-            color: Color(0x0A15171A),
+      : [
+          hairline(c),
+          const BoxShadow(
+            color: Color(0x0D0F172A),
             offset: Offset(0, 1),
             blurRadius: 2,
           ),
         ];
 
-  /// Sheets, menus, toasts, dialogs: `0 2 6` ink 6 % + `0 24 48 −12` ink
-  /// 24 % (dark: `0 24 48 −12` black 70 %).
+  /// Sheets, menus, toasts, dialogs (the panel's pop shadow): `0 2 6 −2`
+  /// ink 8 % + `0 14 34 −12` ink 25 % (dark: `0 24 48 −12` black 70 %).
   static List<BoxShadow> raised(AknColors c) => c.isDark
       ? const [
           BoxShadow(
@@ -1200,14 +1254,15 @@ abstract final class AknShadows {
         ]
       : const [
           BoxShadow(
-            color: Color(0x0F15171A),
+            color: Color(0x140F172A),
             offset: Offset(0, 2),
             blurRadius: 6,
+            spreadRadius: -2,
           ),
           BoxShadow(
-            color: Color(0x3D15171A),
-            offset: Offset(0, 24),
-            blurRadius: 48,
+            color: Color(0x400F172A),
+            offset: Offset(0, 14),
+            blurRadius: 34,
             spreadRadius: -12,
           ),
         ];
@@ -1219,7 +1274,7 @@ abstract final class AknShadows {
   /// 35 %).
   static List<BoxShadow> bar(AknColors c) => [
     BoxShadow(
-      color: c.isDark ? const Color(0x59000000) : const Color(0x0F15171A),
+      color: c.isDark ? const Color(0x59000000) : const Color(0x0F0F172A),
       offset: const Offset(0, -8),
       blurRadius: 24,
     ),
@@ -1243,7 +1298,7 @@ abstract final class AknShadows {
             blurRadius: 6,
           ),
           BoxShadow(
-            color: Color(0x2915171A),
+            color: Color(0x290F172A),
             offset: Offset(0, 18),
             blurRadius: 36,
             spreadRadius: -10,
@@ -1261,7 +1316,7 @@ abstract final class AknShadows {
         ]
       : const [
           BoxShadow(
-            color: Color(0x1A15171A),
+            color: Color(0x1A0F172A),
             offset: Offset(0, 6),
             blurRadius: 14,
             spreadRadius: -6,
@@ -1278,12 +1333,13 @@ abstract final class AknShadows {
     ),
   ];
 
-  /// The primary button's warm glow: `0 8 18 −6` #E5530A 55 % (dark 35 %).
+  /// The primary button's warm glow, calmer than v3 (the panel's buttons
+  /// are flat): `0 6 14 −6` #B93A0B 45 % (dark 35 %).
   static List<BoxShadow> button(AknColors c) => [
     BoxShadow(
-      color: c.isDark ? const Color(0x59E5530A) : const Color(0x8CE5530A),
-      offset: const Offset(0, 8),
-      blurRadius: 18,
+      color: c.isDark ? const Color(0x59B93A0B) : const Color(0x73B93A0B),
+      offset: const Offset(0, 6),
+      blurRadius: 14,
       spreadRadius: -6,
     ),
   ];

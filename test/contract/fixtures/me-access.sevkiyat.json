@@ -1,0 +1,49 @@
+{
+ "userId": "962c2459-33b9-43fd-a476-d3b8ac23cb1e",
+ "userName": "sevkiyat.demo",
+ "displayName": "Onur Şahin",
+ "email": "sevkiyat.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****07",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "dispatch"
+ ],
+ "bayiRoleNames": [
+  "Sevkiyat planlama"
+ ],
+ "pages": [
+  "StationOrders:Gorur",
+  "StationShipments:Gorur",
+  "StationShipments:Ekler",
+  "StationShipments:Duzenler",
+  "StationShipments:Siler",
+  "StationShipments:Inceler",
+  "StationShipmentBoard:Gorur",
+  "StationShipmentBoard:Ekler",
+  "StationShipmentBoard:Duzenler",
+  "StationShipmentBoard:Siler",
+  "StationShipmentBoard:Inceler",
+  "StationCustomers:Gorur"
+ ],
+ "capabilities": [
+  {
+   "code": "shipment.assign",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "c492510f34177c8c"
+}

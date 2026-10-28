@@ -1,0 +1,67 @@
+{
+ "paymentGroupKey": "3e369d19-3c4d-7530-b740-798d2f364d10",
+ "details": {
+  "bank": "Yapı Kredi"
+ },
+ "detailLines": [
+  {
+   "label": "Banka",
+   "value": "Yapı Kredi"
+  }
+ ],
+ "history": [
+  {
+   "attachmentPublicId": null,
+   "fromStatusLabel": "Belirtilmemiş",
+   "toStatusLabel": "Bekliyor",
+   "changedAtUtc": "2026-10-25T17:43:18.721745+00:00",
+   "fromStatus": 0,
+   "toStatus": 1,
+   "note": "Sipariş oluşturuldu · Havale · vade 26.10.2026",
+   "attachmentId": null,
+   "changedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "changedByDisplay": "Emre Yıldız",
+   "changedAt": "2026-10-25T17:43:18.721745"
+  }
+ ],
+ "instrument": null,
+ "allowedTransitions": [
+  2,
+  3,
+  6
+ ],
+ "noteRequiredFor": [
+  6
+ ],
+ "concurrencyToken": "ad14994a-279e-4953-a264-3772cb993f24",
+ "canEditInstrument": false,
+ "documents": [],
+ "documentKind": 3,
+ "documentKindLabel": "Havale / EFT dekontu",
+ "documentRequired": false,
+ "notice": null,
+ "paymentStatusLabel": "Bekliyor",
+ "financeLabel": null,
+ "orderStatusLabel": "Onaylandı",
+ "paymentLine": "Havale / EFT (peşin) · vade 26.10.2026",
+ "dueHint": "2 gün gecikti",
+ "overdueDays": 2,
+ "orderId": 8254,
+ "orderNumber": "SSF-D4-0001-1",
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 224,
+ "customerTitle": "Marmara Filo Lojistik A.Ş.",
+ "orderStatus": 3,
+ "methodCode": "HAVALE",
+ "methodName": "Havale / EFT (peşin)",
+ "termDays": 0,
+ "dueDate": "2026-10-26T00:00:00",
+ "installments": null,
+ "paymentStatus": 1,
+ "financeStatus": 0,
+ "estimatedAmount": 685600,
+ "amount": 590345.6,
+ "isOverdue": true,
+ "createdAt": "2026-10-25T20:43:18.721745"
+}

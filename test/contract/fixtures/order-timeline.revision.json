@@ -1,0 +1,44 @@
+[
+ {
+  "fromStatus": 0,
+  "toStatus": 1,
+  "note": "Finans onayına gönderildi: Limit aşımı 82.501.930 TL",
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T23:01:16.786804"
+ },
+ {
+  "fromStatus": 1,
+  "toStatus": 1,
+  "note": "Finans onayladı: Sözleşme denetimi",
+  "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "changedAt": "2026-10-28T23:01:20.805063"
+ },
+ {
+  "fromStatus": 1,
+  "toStatus": 2,
+  "note": null,
+  "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "changedAt": "2026-10-28T23:01:21.139387"
+ },
+ {
+  "fromStatus": 2,
+  "toStatus": 5,
+  "note": "Fiyat yüksek, lütfen revize edin.",
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T23:01:21.33968"
+ },
+ {
+  "fromStatus": 5,
+  "toStatus": 2,
+  "note": null,
+  "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "changedAt": "2026-10-28T23:01:21.442847"
+ },
+ {
+  "fromStatus": 2,
+  "toStatus": 4,
+  "note": "Sözleşme denetimi: ret",
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T23:01:21.511526"
+ }
+]

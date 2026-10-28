@@ -1,0 +1,53 @@
+{
+ "items": [
+  {
+   "id": 69,
+   "category": "system",
+   "categoryLabel": "Sistem",
+   "eventCode": "system.test",
+   "title": "Test bildirimi",
+   "body": "Bildirimler bu cihazda çalışıyor.",
+   "severity": 0,
+   "route": "/notifications",
+   "entityType": null,
+   "entityId": null,
+   "createdAt": "2026-10-28T19:39:19.448923+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 48,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.reported",
+   "title": "Teslimatı onaylayın: AYN-20261028-000002",
+   "body": "7.960 L teslim edildi olarak bildirildi. Kabul edin ya da itiraz edin.",
+   "severity": 2,
+   "route": "/shipments/12",
+   "entityType": "Shipment",
+   "entityId": 12,
+   "createdAt": "2026-10-28T19:37:40.00278+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 45,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.dispatched",
+   "title": "Yola çıktı: AYN-20261028-000002",
+   "body": "Motorin (Euro 5) 7.960 L teslimatınız yola çıktı.",
+   "severity": 0,
+   "route": "/orders/8257",
+   "entityType": "Shipment",
+   "entityId": 12,
+   "createdAt": "2026-10-28T19:37:39.97831+00:00",
+   "readAt": null,
+   "isRead": false
+  }
+ ],
+ "totalCount": 9,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

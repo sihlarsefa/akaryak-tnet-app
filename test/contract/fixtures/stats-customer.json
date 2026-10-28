@@ -1,0 +1,160 @@
+{
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "generatedAt": "2026-10-28T19:39:42.247273+00:00",
+ "period": {
+  "key": "month",
+  "label": "Bu ay",
+  "from": "2026-10-01",
+  "to": "2026-10-28",
+  "compareLabel": "Geçen ayın aynı dönemi",
+  "compareFrom": "2026-09-01",
+  "compareTo": "2026-09-28"
+ },
+ "spending": {
+  "orders": 31,
+  "liters": 499800,
+  "amount": 21753546,
+  "prevOrders": 29,
+  "prevLiters": 522600,
+  "prevAmount": 22206228,
+  "avgUnitPrice": 43.52,
+  "prevAvgUnitPrice": 42.49
+ },
+ "months": [
+  {
+   "year": 2026,
+   "month": 5,
+   "label": "May",
+   "orders": 7,
+   "liters": 96500,
+   "amount": 4169950
+  },
+  {
+   "year": 2026,
+   "month": 6,
+   "label": "Haz",
+   "orders": 14,
+   "liters": 253300,
+   "amount": 10429574
+  },
+  {
+   "year": 2026,
+   "month": 7,
+   "label": "Tem",
+   "orders": 14,
+   "liters": 253300,
+   "amount": 10897694
+  },
+  {
+   "year": 2026,
+   "month": 8,
+   "label": "Ağu",
+   "orders": 14,
+   "liters": 253300,
+   "amount": 10564814
+  },
+  {
+   "year": 2026,
+   "month": 9,
+   "label": "Eyl",
+   "orders": 29,
+   "liters": 522600,
+   "amount": 22206228
+  },
+  {
+   "year": 2026,
+   "month": 10,
+   "label": "Eki",
+   "orders": 31,
+   "liters": 499800,
+   "amount": 21753546
+  }
+ ],
+ "products": [
+  {
+   "productId": 1,
+   "name": "Motorin (Euro 5)",
+   "liters": 165000,
+   "amount": 7135870,
+   "share": 0.328
+  },
+  {
+   "productId": 2,
+   "name": "Kurşunsuz 95",
+   "liters": 145800,
+   "amount": 6407108,
+   "share": 0.2945
+  },
+  {
+   "productId": 3,
+   "name": "Kurşunsuz 98",
+   "liters": 97800,
+   "amount": 4246308,
+   "share": 0.1952
+  },
+  {
+   "productId": 4,
+   "name": "LPG",
+   "liters": 91200,
+   "amount": 3964260,
+   "share": 0.1822
+  }
+ ],
+ "stations": [
+  {
+   "stationId": 221,
+   "title": "AkaryakıtNet Walkthrough İstasyonu",
+   "liters": 499800,
+   "amount": 21753546,
+   "share": 1
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "deliveryPointId": 837,
+   "name": "Merkez Depo",
+   "city": "İstanbul",
+   "liters": 69000,
+   "amount": 2970150,
+   "share": 0.1365
+  },
+  {
+   "deliveryPointId": 856,
+   "name": "Bornova Dağıtım Noktası #20",
+   "city": "İzmir",
+   "liters": 35100,
+   "amount": 1580202,
+   "share": 0.0726
+  },
+  {
+   "deliveryPointId": 1006,
+   "name": "Anadolu Lojistik Üssü #170",
+   "city": "İstanbul",
+   "liters": 35100,
+   "amount": 1580202,
+   "share": 0.0726
+  }
+ ],
+ "orders": {
+  "awaitingQuote": 48,
+  "awaitingDecision": 33,
+  "awaitingCompanyApproval": 2,
+  "inTransit": 1,
+  "delivered": 7,
+  "disputed": 1
+ },
+ "limits": [
+  {
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "limit": 500000,
+   "used": 81469680,
+   "available": 0,
+   "usageRate": 162.939,
+   "unit": "TL",
+   "periodLabel": "Bu ay"
+  }
+ ],
+ "failedSections": []
+}

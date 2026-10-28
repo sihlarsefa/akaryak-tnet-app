@@ -1,0 +1,192 @@
+{
+ "orderId": 8284,
+ "status": 3,
+ "steps": [
+  {
+   "key": "received",
+   "label": "Sipariş alındı",
+   "icon": "fa-file-text-o",
+   "state": 2,
+   "at": "2026-10-28T23:42:54.842527",
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "quote",
+   "label": "Teklif",
+   "icon": "fa-try",
+   "state": 2,
+   "at": "2026-10-28T23:42:55.625987",
+   "atIsDateOnly": false,
+   "detail": "41,40 TL/L"
+  },
+  {
+   "key": "approval",
+   "label": "Onay",
+   "icon": "fa-gavel",
+   "state": 2,
+   "at": "2026-10-28T23:42:55.713499",
+   "atIsDateOnly": false,
+   "detail": "Teklif onaylandı"
+  },
+  {
+   "key": "dispatch",
+   "label": "Yola çıktı",
+   "icon": "fa-truck",
+   "state": 2,
+   "at": "2026-10-28T00:00:00",
+   "atIsDateOnly": true,
+   "detail": "34 FIX 001 · Hüseyin Polat"
+  },
+  {
+   "key": "delivered",
+   "label": "Teslim edildi",
+   "icon": "fa-flag-checkered",
+   "state": 1,
+   "at": null,
+   "atIsDateOnly": false,
+   "detail": "5.400 / 6.000 L teslim alındı"
+  }
+ ],
+ "shipments": [
+  {
+   "id": 25,
+   "code": "SVK-00000025",
+   "plannedLiters": 600,
+   "deliveredLiters": null,
+   "vehiclePlate": "34 FIX 002",
+   "driverName": "Yedek Şoför",
+   "scheduledAt": "2026-10-29T09:00:00",
+   "status": 5,
+   "deliveryDocumentNo": null,
+   "disputeNote": null,
+   "plannedAt": "2026-10-28T23:42:55.92173",
+   "dispatchedAt": null,
+   "deliveredAt": null,
+   "acceptedAt": null,
+   "disputedAt": null,
+   "cancelledAt": "2026-10-28T23:42:56.301992",
+   "isDispatched": false
+  },
+  {
+   "id": 24,
+   "code": "SVK-00000024",
+   "plannedLiters": 5400,
+   "deliveredLiters": 5400,
+   "vehiclePlate": "34 FIX 001",
+   "driverName": "Hüseyin Polat",
+   "scheduledAt": "2026-10-28T23:30:00",
+   "status": 3,
+   "deliveryDocumentNo": "IRS-FIX-1",
+   "disputeNote": null,
+   "plannedAt": "2026-10-28T23:42:55.829973",
+   "dispatchedAt": null,
+   "deliveredAt": "2026-10-28T23:42:56.146",
+   "acceptedAt": "2026-10-28T23:42:56.264375",
+   "disputedAt": null,
+   "cancelledAt": null,
+   "isDispatched": true
+  }
+ ],
+ "events": [
+  {
+   "at": "2026-10-28T23:42:55.92173",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "34 FIX 002 · Yedek Şoför · 600 L",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-28T23:42:56.301992",
+   "icon": "fa-ban",
+   "title": "Sevkiyat planı iptal edildi",
+   "note": "34 FIX 002 · Yedek Şoför",
+   "tone": "muted"
+  },
+  {
+   "at": "2026-10-28T23:42:55.829973",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "34 FIX 001 · Hüseyin Polat · 5.400 L",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-28T23:42:56.146",
+   "icon": "fa-map-marker",
+   "title": "Teslimat bildirildi",
+   "note": "5.400 L · irsaliye IRS-FIX-1",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-28T23:42:56.264375",
+   "icon": "fa-check",
+   "title": "Teslim alındı",
+   "note": "5.400 L · 34 FIX 001 · Hüseyin Polat",
+   "tone": "ok"
+  }
+ ],
+ "orderedLiters": 6000,
+ "acceptedLiters": 5400,
+ "inProcessLiters": 0,
+ "awaitingAcceptanceCount": 0,
+ "canAcceptDeliveries": true,
+ "expiryEnabled": false,
+ "priceComparison": {
+  "currentUnitPriceTry": 41.4,
+  "previous": [
+   {
+    "orderId": 8282,
+    "orderNumber": "AYN-20261028-000027",
+    "orderedAt": "2026-10-28T23:10:42.782278",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 41.2,
+    "diffPercent": 0.5
+   },
+   {
+    "orderId": 8271,
+    "orderNumber": "AYN-20261028-000016",
+    "orderedAt": "2026-10-28T22:54:18.991565",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 6000,
+    "unitPriceTry": 41.4,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 8270,
+    "orderNumber": "AYN-20261028-000015",
+    "orderedAt": "2026-10-28T22:53:35.10263",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 1500,
+    "unitPriceTry": 41.5,
+    "diffPercent": -0.2
+   },
+   {
+    "orderId": 8266,
+    "orderNumber": "AYN-20261028-000011",
+    "orderedAt": "2026-10-28T22:50:56.220346",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 6000,
+    "unitPriceTry": 41.25,
+    "diffPercent": 0.4
+   },
+   {
+    "orderId": 8262,
+    "orderNumber": "AYN-20261028-000007",
+    "orderedAt": "2026-10-28T22:47:47.767728",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 3000,
+    "unitPriceTry": 42.1,
+    "diffPercent": -1.7
+   }
+  ],
+  "lastUnitPriceTry": 41.2,
+  "lastDiffPercent": 0.5,
+  "averageUnitPriceTry": 41.49,
+  "averageDiffPercent": -0.2,
+  "minUnitPriceTry": 41.2,
+  "maxUnitPriceTry": 42.1,
+  "hasHistory": true
+ },
+ "activeShipment": null
+}

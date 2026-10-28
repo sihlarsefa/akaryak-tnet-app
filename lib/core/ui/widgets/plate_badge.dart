@@ -7,7 +7,7 @@ import '../typography.dart';
 /// Turkish licence plate (design v3 §4): a white plate with a faint
 /// top-to-bottom sheen, a 1.5 px graphite rim and radius 5, a soft contact
 /// shadow, the blue TR strip (#1D4AB4, 16 wide, "TR" white 8 700 at the
-/// bottom) and the number in Plus Jakarta Sans 700 with tabular figures
+/// bottom) and the number in Archivo 700 with tabular figures
 /// and 0.6 tracking. 28 px high at the default [fontSize] 15, 32 in driver
 /// mode (17).
 ///

@@ -1,0 +1,38 @@
+{
+ "plates": [
+  {
+   "value": "34 FLW 101",
+   "pair": "Hüseyin Polat"
+  },
+  {
+   "value": "34 AKN 202",
+   "pair": "Ali Demir"
+  },
+  {
+   "value": "34 AKN 101",
+   "pair": "Mehmet Yılmaz"
+  }
+ ],
+ "drivers": [
+  {
+   "value": "Hüseyin Polat",
+   "pair": "34 FLW 101"
+  },
+  {
+   "value": "Ali Demir",
+   "pair": "34 AKN 202"
+  },
+  {
+   "value": "Mehmet Yılmaz",
+   "pair": "34 AKN 101"
+  },
+  {
+   "value": "Can Öztürk",
+   "pair": "16 BUR 402"
+  },
+  {
+   "value": "Hasan Kaya",
+   "pair": "35 IZM 302"
+  }
+ ]
+}

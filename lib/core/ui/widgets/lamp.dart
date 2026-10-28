@@ -7,19 +7,19 @@ import '../status.dart';
 import '../theme.dart';
 import '../tokens.dart';
 
-/// Pill sizes: medium = 26 px high, 8 px dot; small = 22 px high, 6 px dot.
+/// Pill sizes: medium = 26 px high, 7 px dot; small = 22 px high, 6 px dot.
 /// Both set the label in 12/16 700.
 enum AknLampSize { small, medium }
 
-/// Status as a tinted pill (design v3 §4 "Status chips / lamps"): the tone's
-/// soft well (`ToneColors.bg`) with the Turkish label in the tone's text
-/// colour (12/16 700) and a leading 8 px dot in the tone's solid colour
-/// inside a 3 px halo. Status is never colour alone — the word always
-/// carries it.
+/// Status as a tinted pill (design v3 §4 "Status chips / lamps", the web
+/// panel's status pill): the tone's soft well (`ToneColors.bg`) inside a
+/// 1 px line in the tone (`ToneColors.line`), the Turkish label in the
+/// tone's text colour (12/16 700) and a leading 7 px dot in the tone's solid
+/// colour. Status is never colour alone — the word always carries it.
 ///
 /// Tone → look:
-/// * `brand` ("your move"): orange dot whose halo breathes (`AknAmbient`,
-///   `AknMotion.breathe`), Pas label on the soft orange well.
+/// * `brand` ("your move"): orange dot in a halo that breathes
+///   (`AknAmbient`, `AknMotion.breathe`), Pas label on the soft orange well.
 /// * `info` (in progress, someone else's move): ink dot, ink label, grey
 ///   well.
 /// * `ok` / `warn` / `danger`: the tone's dot, label and well.
@@ -114,7 +114,7 @@ class AknLamp extends StatelessWidget {
     // The dot grows a little with large text so it keeps its weight beside
     // the label (8 px at 1×, 12 px at 2×).
     final grow = (scaler.scale(12) / 12).clamp(1.0, 1.5);
-    final dot = (small ? 6.0 : 8.0) * grow;
+    final dot = (small ? 6.0 : 7.0) * grow;
     final fontSize = textStyle.fontSize ?? 12;
     final lineHeight = scaler.scale(fontSize) * (textStyle.height ?? 16 / 12);
     final hollow = tone == AknTone.neutral && !solid;
@@ -124,11 +124,14 @@ class AknLamp extends StatelessWidget {
     final halo = glass
         ? c.onHero.withValues(alpha: 0.28)
         : Color.alphaBlend(tc.solid.withValues(alpha: 0.2), tc.bg);
+    // The panel's dots are flat; only "your move" (and the glass pill on the
+    // band) keeps a halo.
+    final haloed = !hollow && (glass || tone == AknTone.brand);
     Widget mark = CustomPaint(
       size: Size.square(dot),
       painter: LampDotPainter(
         color: dotColor,
-        halo: hollow ? null : halo,
+        halo: haloed ? halo : null,
         hollow: hollow,
         check: solid,
         checkColor: glass ? c.heroMid : tc.onSolid,
@@ -152,19 +155,20 @@ class AknLamp extends StatelessWidget {
       duration: AknMotion.of(context, AknMotion.base),
       curve: AknMotion.standard,
       constraints: BoxConstraints(minHeight: minHeight),
-      // Vertical padding centres one 16 px line in the 26 (22) px pill.
+      // Vertical padding centres one 16 px line in the 26 (22) px pill,
+      // inside its 1 px line.
       padding: EdgeInsetsDirectional.fromSTEB(
+        small ? 6 : 8,
+        (minHeight - 18) / 2,
         small ? 7 : 9,
-        (minHeight - 16) / 2,
-        small ? 8 : 10,
-        (minHeight - 16) / 2,
+        (minHeight - 18) / 2,
       ),
       decoration: BoxDecoration(
         color: glass ? c.navyRaised : tc.bg,
         borderRadius: BorderRadius.circular(minHeight / 2),
-        border: glass
-            ? Border.all(color: c.onHero.withValues(alpha: 0.28))
-            : null,
+        border: Border.all(
+          color: glass ? c.onHero.withValues(alpha: 0.28) : tc.line,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

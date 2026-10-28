@@ -6,7 +6,7 @@ import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 
 /// Bir plaka okuması (§7.11): etiket (sürücü kipinde 15/20 600 soluk) üstte, değer pompa göstergesi
-/// gibi Plus Jakarta Sans 800 tablo rakamları (sürücü kipinde 28/32) ve küçük birimi ("km", "L")
+/// gibi Archivo 800 tablo rakamları (sürücü kipinde 28/32) ve küçük birimi ("km", "L")
 /// aynı satırda.
 @immutable
 class StopReadout {

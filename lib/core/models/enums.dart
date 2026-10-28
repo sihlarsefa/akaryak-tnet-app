@@ -111,6 +111,15 @@ enum ApprovalType implements CodedEnum {
       this == fieldFormFinance ||
       this == customerOnboarding ||
       this == leadFinance;
+
+  /// Ret gerekçesinin en kısa uzunluğu (sunucu `ApprovalTypes.MinRejectNoteLength`): motorun kendi
+  /// türlerinde 10; yansımalarda karar eski servisindir: saha formu kârlılık onayında 3
+  /// (`FieldOrderForm.RejectNoteMinLength`; gerekçe saha personeline iletilir), diğerlerinde 1.
+  int minRejectNoteLength({required bool isMirror}) => !isMirror
+      ? 10
+      : this == fieldOrderProfit
+      ? 3
+      : 1;
 }
 
 /// Onay talebi durumu.

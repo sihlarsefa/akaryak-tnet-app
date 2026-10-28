@@ -490,9 +490,13 @@ class HomeCardHeader extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.caption,
+    this.icon,
   });
 
   final String title;
+
+  /// Web panelindeki kart başlığı gibi nötr simge karosu.
+  final IconData? icon;
   final int? count;
   final String? subtitle;
   final String? actionLabel;
@@ -504,6 +508,7 @@ class HomeCardHeader extends StatelessWidget {
     constraints: const BoxConstraints(minHeight: 58),
     child: BayiSectionHeader(
       title: title,
+      icon: icon,
       count: count,
       subtitle: subtitle,
       actionLabel: actionLabel,

@@ -1,0 +1,149 @@
+{
+ "id": 8,
+ "type": 4,
+ "typeLabel": "Sipariş finans",
+ "status": 2,
+ "statusLabel": "Reddedildi",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 226,
+ "customerTitle": "Doğu Akdeniz Nakliyat Ltd. Şti.",
+ "subjectType": "Order",
+ "subjectId": 8253,
+ "subjectNumber": "D4-1012",
+ "title": "Sipariş finans onayı · D4-1012",
+ "summaryText": "Doğu Akdeniz Nakliyat Ltd. Şti. · Motorin (Euro 5) · 18.000 L · Açık hesap 45 gün · tahmini 771.300,00 TL · Gerekçe: Vadeli yöntem (Açık hesap, 45 gün) · Yüksek risk (C)",
+ "amount": 771300,
+ "liters": 18000,
+ "requestedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "requestedByName": "Walkthrough Bayi",
+ "createdAt": "2026-10-27T17:08:17.908595+00:00",
+ "dueAt": null,
+ "slaState": 0,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "7d157bc2-6e55-4148-95f5-91a48c01a5c3",
+ "contextJson": "{\"reasons\":\"Vadeli y\\u00F6ntem (A\\u00E7\\u0131k hesap, 45 g\\u00FCn) \\u00B7 Y\\u00FCksek risk (C)\",\"limitOverrun\":false,\"method\":\"ACIK_HESAP\",\"termDays\":45,\"dueDate\":\"2026-12-14\",\"estimatedAmount\":771300.00,\"source\":\"Customer\"}",
+ "decidedAt": "2026-10-27T19:07:17.908595+00:00",
+ "decidedByUserId": "2369d675-be74-484e-ba07-c88da751e508",
+ "decidedByName": "Selin Kaya",
+ "decisionNote": "Karşılıksız çek kaydı (D4-1011) ve gecikmiş bakiye nedeniyle vadeli satış reddedildi; peşin ya da teminat mektubu karşılığı çalışılabilir.",
+ "steps": [
+  {
+   "id": 10,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.order",
+   "minAmount": 0,
+   "status": 3,
+   "statusLabel": "Reddedildi",
+   "dueAt": "2026-10-28T17:08:17.908595",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": "2369d675-be74-484e-ba07-c88da751e508",
+   "decidedByName": "Selin Kaya",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": "2026-10-27T19:07:17.908595",
+   "note": "Karşılıksız çek kaydı (D4-1011) ve gecikmiş bakiye nedeniyle vadeli satış reddedildi; peşin ya da teminat mektubu karşılığı çalışılabilir."
+  }
+ ],
+ "events": [
+  {
+   "id": 18,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "userName": "Walkthrough Bayi",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-27T17:08:17.908595"
+  },
+  {
+   "id": 19,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 10,
+   "userId": "2369d675-be74-484e-ba07-c88da751e508",
+   "userName": "Selin Kaya",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-27T18:47:17.908595"
+  },
+  {
+   "id": 20,
+   "eventType": 7,
+   "label": "Reddedildi",
+   "stepId": 10,
+   "userId": "2369d675-be74-484e-ba07-c88da751e508",
+   "userName": "Selin Kaya",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": "Karşılıksız çek kaydı (D4-1011) ve gecikmiş bakiye nedeniyle vadeli satış reddedildi; peşin ya da teminat mektubu karşılığı çalışılabilir.",
+   "occurredAt": "2026-10-27T19:07:17.908595"
+  }
+ ],
+ "attachments": [],
+ "modes": [],
+ "modeLabels": [],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "D4-1012 · Doğu Akdeniz Nakliyat Ltd. Şti.",
+  "subline": "Motorin (Euro 5) · 18.000 L · teslim 30.10.2026",
+  "amount": 771300,
+  "liters": 18000,
+  "facts": [
+   {
+    "label": "Sipariş no",
+    "value": "D4-1012",
+    "tone": "neutral"
+   },
+   {
+    "label": "Ürün",
+    "value": "Motorin (Euro 5)",
+    "tone": "neutral"
+   },
+   {
+    "label": "Miktar",
+    "value": "18.000 L",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [],
+  "warnings": [
+   "Karşılıksız çek kaydı var."
+  ],
+  "band": {
+   "key": "risk-c",
+   "label": "Risk C",
+   "tone": "warn"
+  },
+  "links": {
+   "orderId": 8253,
+   "fieldOrderId": null,
+   "leadId": null,
+   "customerId": 226,
+   "stationCustomerId": 424,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": null
+}

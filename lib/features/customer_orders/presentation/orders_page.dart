@@ -96,6 +96,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     return AppScaffold(
       title: OrdersCopy.myOrders,
       largeTitle: true,
+      bandIcon: PhosphorIconsRegular.receipt,
+      eyebrow: 'Müşteri',
+      description: 'Teklif, aktif ve geçmiş',
       refreshing: s.loading && s.loaded,
       actions: [
         if (policy.can(Pg.customerCreateOrder))
@@ -320,7 +323,10 @@ class _Tab extends StatelessWidget {
                   AnimatedDefaultTextStyle(
                     duration: duration,
                     curve: AknMotion.standard,
-                    style: t.button.copyWith(color: selected ? c.ink : c.dim),
+                    // Seçili sekme panelin "buradasınız"ı: Pas.
+                    style: t.button.copyWith(
+                      color: selected ? c.brandInk : c.dim,
+                    ),
                     child: Text(label),
                   ),
                   if (n != null) ...[
@@ -333,16 +339,16 @@ class _Tab extends StatelessWidget {
                         vertical: 1,
                       ),
                       decoration: BoxDecoration(
-                        color: yourMove ? c.brandSoft : c.surfaceAlt,
+                        color: yourMove || selected
+                            ? c.brandSoft
+                            : c.surfaceAlt,
                         borderRadius: AknRadius.pillAll,
                       ),
                       child: Text(
                         '$n',
                         style: t.captionStrong.copyWith(
                           fontFeatures: AknNumerals.tabular,
-                          color: yourMove
-                              ? c.brandInk
-                              : (selected ? c.ink : c.dim),
+                          color: yourMove || selected ? c.brandInk : c.dim,
                         ),
                       ),
                     ),

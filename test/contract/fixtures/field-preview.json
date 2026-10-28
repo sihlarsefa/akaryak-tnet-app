@@ -1,0 +1,68 @@
+{
+ "showCosts": false,
+ "model": 1,
+ "band": {
+  "key": "mid",
+  "label": "Bayi yöneticisi onayı",
+  "tone": "warn",
+  "hint": "Satış müdürü / bayi müdürü onaylar. Bu ürün için bindirim varsayılanı tanımlı değil (Referans fiyatlar › Bindirim): form otomatik onaylanmaz."
+ },
+ "notices": [
+  "Bu ürün için bindirim varsayılanı tanımlı değil (Referans fiyatlar › Bindirim): form otomatik onaylanmaz."
+ ],
+ "totals": {
+  "liters": 8000,
+  "m3": 8,
+  "amount": 337200,
+  "salesInvoice": 337200,
+  "lines": 1
+ },
+ "lines": [
+  {
+   "key": 0,
+   "productId": 1,
+   "productName": "Motorin (Euro 5)",
+   "liters": 8000,
+   "unitPriceL": 42.15,
+   "unitPriceM3": 42150,
+   "amount": 337200,
+   "costUnknown": false,
+   "tuprasM3": 36336.8,
+   "pumpM3": 42850,
+   "invoiceExVatM3": 35125,
+   "invoicePerLiter": 42.15,
+   "invoiceExVatPerLiter": 35.125,
+   "salesInvoice": 337200,
+   "tuprasDiffM3": 5813.2,
+   "tuprasDiffPercent": 15.9981,
+   "pumpMinusTuprasM3": 6513.2,
+   "pumpMinusTuprasPercent": 17.9245,
+   "pumpDiscountM3": 700,
+   "pumpDiscountPercent": 1.6336,
+   "pumpAbove": false,
+   "cost": null
+  }
+ ],
+ "limit": {
+  "state": "exceeded",
+  "message": "Aylık limit aşılıyor: kullanılabilir 0,00 TL, istenen 337.200,00 TL.",
+  "blocking": true,
+  "unit": "TL",
+  "usedPct": 100
+ },
+ "dueDate": "2026-10-30",
+ "collateralPct": 0,
+ "finance": {
+  "required": true,
+  "reasons": [
+   "Limit aşımı 1.862.440 TL"
+  ],
+  "blocked": null
+ },
+ "overriddenLines": [],
+ "chip": null,
+ "reason": null,
+ "barem": null,
+ "form": null,
+ "thresholds": null
+}

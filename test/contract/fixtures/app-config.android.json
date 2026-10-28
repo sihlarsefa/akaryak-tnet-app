@@ -1,0 +1,39 @@
+{
+ "minBuild": 1,
+ "latestBuild": 1,
+ "storeUrl": "https://play.google.com/store/apps/details?id=com.ortakplatform.akaryakitnet",
+ "updateTitle": "Yeni sürüm hazır",
+ "updateMessage": "Uygulamanın yeni bir sürümü var. Kesintisiz kullanım için lütfen güncelleyin.",
+ "features": {
+  "otpLogin": false,
+  "assistant": false,
+  "weather": true,
+  "payments": true,
+  "push": false,
+  "orderExpiry": false,
+  "deliveryPhotoRequired": false,
+  "deliverySignatureRequired": false,
+  "deliveryGpsRequired": false
+ },
+ "support": {
+  "phone": null,
+  "whatsapp": null,
+  "email": null,
+  "url": "http://127.0.0.1:5382/legal/support"
+ },
+ "legal": {
+  "privacyUrl": "http://127.0.0.1:5382/legal/privacy",
+  "kvkkUrl": "http://127.0.0.1:5382/legal/kvkk",
+  "termsUrl": "http://127.0.0.1:5382/legal/terms",
+  "accountDeletionUrl": "http://127.0.0.1:5382/legal/account-deletion"
+ },
+ "leadKvkkVersion": "1.0",
+ "assistantConsentVersion": "1",
+ "maintenance": {
+  "active": false,
+  "message": null
+ },
+ "apiBuild": "b4149d00b6cd",
+ "contractVersion": "mobile-v1",
+ "serverTimeUtc": "2026-10-28T19:39:33.873928+00:00"
+}

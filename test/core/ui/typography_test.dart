@@ -1,8 +1,9 @@
-// Typography v3 "Akış" (§1): Plus Jakarta Sans, one family for words and figures; the type scale
-// (sizes, line heights, weights, tracking, colours); tabular figures (`tnum`) on every numeric style
-// and none on words; the Material text theme mapping; the bundled unmodified upstream 2.7.1 statics
-// (400–800), their pubspec registration, the OFL licence (no Reserved Font Name) and its
-// "Lisanslar" entry; and real-glyph rendering (tabular digits, five distinct weights, Turkish).
+// Typography (v3 §1, aligned with the web panel 2026-10-28): Archivo — the panel's face — one family
+// for words and figures; the type scale (sizes, line heights, weights, the panel's tracking, colours);
+// tabular figures (`tnum`) on every numeric style and none on words; the Material text theme mapping;
+// the bundled static instances of Archivo 2.001 (400–800), their pubspec registration, the OFL
+// licence (no Reserved Font Name) and its "Lisanslar" entry; and real-glyph rendering (tabular
+// digits, five distinct weights, Turkish and ₺).
 import 'dart:io';
 
 import 'package:akaryakitnet/core/ui/tokens.dart';
@@ -13,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/fonts.dart';
 
-const _sans = 'PlusJakartaSans';
+const _sans = 'Archivo';
 const _tnum = [FontFeature.tabularFigures()];
 
 /// The few OpenType facts the asset test reads from a TTF: the family (name
@@ -61,13 +62,16 @@ class _OpenType {
 }
 
 void main() {
-  test('one family (v3 §1): Plus Jakarta Sans, Turkish, tabular figures', () {
-    expect(AknFonts.sans, _sans);
-    // Deprecated: there is no condensed face any more.
-    expect(AknFonts.condensed, AknFonts.sans);
-    expect(AknFonts.locale, const Locale('tr', 'TR'));
-    expect(AknNumerals.tabular, _tnum);
-  });
+  test(
+    'one family: Archivo (the web panel\'s face), Turkish, tabular figures',
+    () {
+      expect(AknFonts.sans, _sans);
+      // Deprecated: there is no condensed face any more.
+      expect(AknFonts.condensed, AknFonts.sans);
+      expect(AknFonts.locale, const Locale('tr', 'TR'));
+      expect(AknNumerals.tabular, _tnum);
+    },
+  );
 
   group('AknTextStyles (v3 §1)', () {
     final t = AknTextStyles.from(AknColors.light);
@@ -105,7 +109,7 @@ void main() {
         size: 28,
         line: 34,
         weight: FontWeight.w800,
-        tracking: -0.8,
+        tracking: -0.4,
         color: c.ink,
       );
       spec(
@@ -114,7 +118,7 @@ void main() {
         size: 20,
         line: 26,
         weight: FontWeight.w700,
-        tracking: -0.4,
+        tracking: -0.2,
         color: c.ink,
       );
       spec(
@@ -123,7 +127,7 @@ void main() {
         size: 17,
         line: 22,
         weight: FontWeight.w700,
-        tracking: -0.2,
+        tracking: -0.1,
         color: c.ink,
       );
       spec(
@@ -140,7 +144,6 @@ void main() {
         size: 15,
         line: 22,
         weight: FontWeight.w600,
-        tracking: -0.1,
         color: c.ink,
       );
       spec(
@@ -183,7 +186,7 @@ void main() {
         size: 17,
         line: 22,
         weight: FontWeight.w700,
-        tracking: -0.3,
+        tracking: -0.15,
         color: c.ink,
         figures: true,
       );
@@ -193,7 +196,7 @@ void main() {
         size: 28,
         line: 34,
         weight: FontWeight.w800,
-        tracking: -0.8,
+        tracking: -0.4,
         color: c.ink,
         figures: true,
       );
@@ -203,7 +206,7 @@ void main() {
         size: 24,
         line: 30,
         weight: FontWeight.w800,
-        tracking: -0.6,
+        tracking: -0.35,
         color: c.ink,
         figures: true,
       );
@@ -213,18 +216,11 @@ void main() {
         size: 32,
         line: 38,
         weight: FontWeight.w800,
-        tracking: -1,
+        tracking: -0.5,
         color: c.ink,
         figures: true,
       );
-      spec(
-        'button',
-        t.button,
-        size: 16,
-        line: 20,
-        weight: FontWeight.w700,
-        tracking: -0.1,
-      );
+      spec('button', t.button, size: 16, line: 20, weight: FontWeight.w700);
       // The button label takes its colour from the button.
       expect(t.button.color, isNull);
     });
@@ -236,7 +232,7 @@ void main() {
         size: 46,
         line: 52,
         weight: FontWeight.w800,
-        tracking: -1.6,
+        tracking: -0.7,
         color: c.ink,
         figures: true,
       );
@@ -246,7 +242,7 @@ void main() {
         size: 24,
         line: 28,
         weight: FontWeight.w700,
-        tracking: -0.4,
+        tracking: -0.2,
         color: c.ink,
         figures: true,
       );
@@ -256,7 +252,7 @@ void main() {
         size: 20,
         line: 24,
         weight: FontWeight.w700,
-        tracking: -0.3,
+        tracking: -0.15,
         color: c.ink,
       );
       spec(
@@ -367,57 +363,62 @@ void main() {
     });
   });
 
-  group('Plus Jakarta Sans assets (v3 §1)', () {
-    // Unmodified upstream 2.7.1 statics (font version 2.071): the exact byte
-    // size of each published file and the weight it declares.
+  group('Archivo assets', () {
+    // Static instances of Archivo 2.001 (wdth 100) built from the google/fonts
+    // variable font (assets/fonts/archivo/SOURCE.txt): the weight each file
+    // declares; Latin + Latin Extended keep them near 110 KB.
     const files = {
-      'PlusJakartaSans-Regular.ttf': (132040, 400),
-      'PlusJakartaSans-Medium.ttf': (132308, 500),
-      'PlusJakartaSans-SemiBold.ttf': (132416, 600),
-      'PlusJakartaSans-Bold.ttf': (132116, 700),
-      'PlusJakartaSans-ExtraBold.ttf': (131992, 800),
+      'Archivo-Regular.ttf': 400,
+      'Archivo-Medium.ttf': 500,
+      'Archivo-SemiBold.ttf': 600,
+      'Archivo-Bold.ttf': 700,
+      'Archivo-ExtraBold.ttf': 800,
     };
 
-    test('the five upstream statics and the OFL are bundled', () {
-      files.forEach((name, spec) {
-        final (size, weight) = spec;
-        final f = File('assets/fonts/jakarta/$name');
+    test('the five static instances and the OFL are bundled', () {
+      files.forEach((name, weight) {
+        final f = File('assets/fonts/archivo/$name');
         expect(f.existsSync(), isTrue, reason: name);
-        expect(f.lengthSync(), size, reason: '$name was modified');
+        expect(f.lengthSync(), inInclusiveRange(80000, 160000), reason: name);
         final font = _OpenType(f.readAsBytesSync());
-        expect(font.family, 'Plus Jakarta Sans', reason: name);
-        expect(font.version, startsWith('Version 2.071;'), reason: name);
+        expect(font.family, 'Archivo', reason: name);
+        expect(font.version, startsWith('Version 2.001'), reason: name);
         expect(font.weight, weight, reason: name);
       });
-      final ofl = File('assets/fonts/jakarta/OFL.txt').readAsStringSync();
-      expect(
-        ofl,
-        startsWith('Copyright 2020 The Plus Jakarta Sans Project Authors'),
-      );
+      final ofl = File('assets/fonts/archivo/OFL.txt').readAsStringSync();
+      expect(ofl, startsWith('Copyright 2020 The Archivo Project Authors'));
       expect(ofl, contains('SIL OPEN FONT LICENSE Version 1.1'));
       // No Reserved Font Name: the copyright statement reserves none (the
-      // licence body only defines the term).
+      // licence body only defines the term), so the instances keep the name.
       final statement = ofl.substring(
         0,
         ofl.indexOf('SIL OPEN FONT LICENSE Version 1.1'),
       );
       expect(statement, isNot(contains('Reserved Font Name')));
+      // The build recipe travels with the files.
+      expect(
+        File('assets/fonts/archivo/SOURCE.txt').readAsStringSync(),
+        contains('Archivo[wdth,wght].ttf'),
+      );
     });
 
     test('pubspec declares the family with its five weights', () {
       final pubspec = File('pubspec.yaml').readAsStringSync();
       expect(pubspec, contains('family: $_sans\n'));
-      expect(pubspec, contains('- assets/fonts/jakarta/OFL.txt'));
-      files.forEach((file, spec) {
+      expect(pubspec, contains('- assets/fonts/archivo/OFL.txt'));
+      files.forEach((file, weight) {
         expect(
           pubspec,
           contains(
-            '- asset: assets/fonts/jakarta/$file\n          weight: ${spec.$2}',
+            '- asset: assets/fonts/archivo/$file\n          weight: $weight',
           ),
           reason: file,
         );
       });
-      // Mona Sans (v2) is gone.
+      // Plus Jakarta Sans (v3) and Mona Sans (v2) are gone.
+      expect(pubspec, isNot(contains('PlusJakartaSans')));
+      expect(pubspec, isNot(contains('assets/fonts/jakarta')));
+      expect(Directory('assets/fonts/jakarta').existsSync(), isFalse);
       expect(pubspec, isNot(contains('MonaSans')));
       expect(pubspec, isNot(contains('assets/fonts/mona')));
       // Native splash at night: the dark page, Gece grafiti (also on
@@ -428,23 +429,22 @@ void main() {
 
     test('the licence is registered for the "Lisanslar" page', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
-      expect(AknFonts.licenseAsset, 'assets/fonts/jakarta/OFL.txt');
+      expect(AknFonts.licenseAsset, 'assets/fonts/archivo/OFL.txt');
+      expect(AknFonts.licenseName, 'Archivo');
       AknFonts.registerLicense();
       final entries = await LicenseRegistry.licenses.toList();
-      final jakarta = entries.where(
-        (e) => e.packages.contains('Plus Jakarta Sans'),
-      );
-      expect(jakarta, isNotEmpty);
-      final text = jakarta.first.paragraphs.map((p) => p.text).join('\n');
+      final archivo = entries.where((e) => e.packages.contains('Archivo'));
+      expect(archivo, isNotEmpty);
+      final text = archivo.first.paragraphs.map((p) => p.text).join('\n');
       expect(text, contains('SIL OPEN FONT LICENSE'));
-      expect(text, contains('Plus Jakarta Sans Project Authors'));
+      expect(text, contains('Archivo Project Authors'));
     });
   });
 
   group('real glyphs', () {
     setUpAll(loadUiFont);
     final t = AknTextStyles.from(AknColors.light);
-    final skip = uiFontAvailable() ? false : 'Plus Jakarta Sans bulunamadı';
+    final skip = uiFontAvailable() ? false : 'Archivo bulunamadı';
 
     double width(String text, TextStyle style) {
       final p = TextPainter(

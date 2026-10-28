@@ -1,0 +1,129 @@
+{
+ "id": 28,
+ "type": 2,
+ "typeLabel": "Limit",
+ "status": 0,
+ "statusLabel": "Bekliyor",
+ "isMirror": true,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "subjectType": "LimitChangeRequest",
+ "subjectId": 1,
+ "subjectNumber": "#1",
+ "title": "Limit değişikliği: Aylık 500.000,00 TL → Aylık 750.000,00 TL",
+ "summaryText": "Filo 12 araçtan 18 araca çıktı; aylık tüketim arttığı için limit artışı talep ediyoruz.",
+ "amount": 750000,
+ "liters": null,
+ "requestedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "requestedByName": "Walkthrough Bayi",
+ "createdAt": "2026-10-28T13:07:14.750319+00:00",
+ "dueAt": "2026-10-29T19:07:37.381374+00:00",
+ "slaState": 1,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "1fe796ae-a71a-4203-bf20-46b8be5fd5cb",
+ "contextJson": "{\"previous\":\"Ayl\\u0131k 500.000,00 TL\",\"requested\":\"Ayl\\u0131k 750.000,00 TL\",\"stationCustomerId\":221}",
+ "decidedAt": null,
+ "decidedByUserId": null,
+ "decidedByName": null,
+ "decisionNote": null,
+ "steps": [
+  {
+   "id": 33,
+   "levelNo": 1,
+   "name": "Merkez onayı",
+   "capabilityCode": "approve.limit.hq",
+   "minAmount": null,
+   "status": 1,
+   "statusLabel": "Karar bekliyor",
+   "dueAt": "2026-10-29T19:07:37.381374",
+   "remindedAt": "2026-10-28T19:07:37.381375",
+   "escalatedAt": null,
+   "decidedByUserId": null,
+   "decidedByName": null,
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": null,
+   "note": null
+  }
+ ],
+ "events": [
+  {
+   "id": 53,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "userName": "Walkthrough Bayi",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T13:07:14.750319"
+  },
+  {
+   "id": 87,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 33,
+   "userId": "80a86269-90ff-479e-95f2-51e7da7d032a",
+   "userName": "Head Office Yönetici",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T19:19:48.591343"
+  }
+ ],
+ "attachments": [],
+ "modes": [],
+ "modeLabels": [],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "Demo Filo Lojistik A.Ş. · AkaryakıtNet Walkthrough İstasyonu",
+  "subline": "Limit değişikliği talebi · merkez onayı",
+  "amount": 750000,
+  "liters": null,
+  "facts": [
+   {
+    "label": "Cari",
+    "value": "Demo Filo Lojistik A.Ş.",
+    "tone": "neutral"
+   },
+   {
+    "label": "Bayi",
+    "value": "AkaryakıtNet Walkthrough İstasyonu",
+    "tone": "neutral"
+   },
+   {
+    "label": "Mevcut limit",
+    "value": "Aylık 500.000 ₺",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [],
+  "warnings": [],
+  "band": null,
+  "links": {
+   "orderId": null,
+   "fieldOrderId": null,
+   "leadId": null,
+   "customerId": 221,
+   "stationCustomerId": 221,
+   "limitRequestId": 1,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": "Kendi talebinizi onaylayamazsınız."
+}

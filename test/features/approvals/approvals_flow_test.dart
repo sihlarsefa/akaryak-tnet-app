@@ -77,6 +77,29 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets(
+    'saha formu kârlılık yansıması: ret gerekçesi en az 3 karakter (sunucu kuralı)',
+    (tester) async {
+      final app = await pumpA5(
+        tester,
+        persona: 'satis',
+        location: '/approvals/9002',
+      );
+      await tapText(tester, 'Reddet');
+      expect(find.text('En az 3 karakter'), findsOneWidget);
+      await typeInto(tester, 'Ret gerekçesi', 'ok');
+      await tapText(tester, 'Reddet', last: true);
+      expect(find.text('Gerekçe en az 3 karakter olmalı.'), findsOneWidget);
+      expect(app.log.all('POST', '/decide'), isEmpty);
+      await typeInto(tester, 'Ret gerekçesi', 'Kâr düşük');
+      await tapText(tester, 'Reddet', last: true);
+      final req = app.log.last('POST', 'approvals/9002/decide')!;
+      expect((req.data as Map)['decision'], 4);
+      expect((req.data as Map)['note'], 'Kâr düşük');
+      await finish(tester);
+    },
+  );
+
   testWidgets('ek bilgi isteği: not zorunlu, istenen belge türü gönderilir', (
     tester,
   ) async {

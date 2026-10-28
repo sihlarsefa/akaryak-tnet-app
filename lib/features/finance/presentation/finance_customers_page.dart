@@ -44,6 +44,9 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
     final q = _query;
     return AppScaffold(
       title: FinanceCopy.title,
+      bandIcon: PhosphorIconsRegular.bank,
+      eyebrow: 'Bayi',
+      description: 'Cari kartları, limit ve risk',
       refreshing: state.refreshing,
       body: A5PagedListView<FinanceListItem>(
         state: state,

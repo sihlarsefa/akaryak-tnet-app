@@ -1,0 +1,11 @@
+{
+ "formId": 29,
+ "formNumber": "SSF-20261028-000003",
+ "status": 1,
+ "requiredApprovalLevel": 1,
+ "autoApproved": false,
+ "autoRejected": false,
+ "convertedOrderIds": [],
+ "message": "SSF-20261028-000003 gönderildi; bayi yöneticisi onayı bekleniyor. Finans onayı da istendi (Limit aşımı 1.749.740 TL); siparişler iki onay da tamamlanınca açılır.",
+ "financeStatus": 1
+}

@@ -10,6 +10,7 @@ import 'package:akaryakitnet/core/media/image_capture.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/offline/connectivity.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
+import 'package:akaryakitnet/features/bayi/fake/dispatch_fake.dart';
 import 'package:akaryakitnet/features/customer_orders/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -307,6 +308,60 @@ void main() {
   testWidgets('onaylı siparişte "Onaylanan teklif"', (tester) async {
     await open(tester, o3);
     expect(find.text('Onaylanan teklif'), findsOneWidget);
+    await tearDownUi(tester);
+  });
+
+  // Canlı sandbox (sipariş 8284): 6.000 L'nin 5.400 L'si kabul edildi, kalan planı iptal; sipariş
+  // "Onaylandı"da kalır ve sunucu müşteriye nedenini söyler (`shipments/order/{id}` → completionHint).
+  testWidgets(
+    'kısmi teslim, açık sevkiyat yok: "Sipariş henüz tamamlanmadı" notu',
+    (tester) async {
+      registerBayiDispatchFakes(env.server);
+      final w = env.world;
+      final qty = (w.order(o3)!['quantityLiters'] as num).toDouble();
+      w.shipments.removeWhere((s) => s['orderId'] == o3);
+      w.shipments.addAll([
+        w.newShipment(
+          id: 78001,
+          orderId: o3,
+          plannedLiters: qty * 0.9,
+          status: 3,
+          scheduledAt: DateTime.now().subtract(const Duration(hours: 6)),
+          deliveredLiters: qty * 0.9,
+          deliveryDocumentNo: 'IRS-KISMI-1',
+        ),
+        w.newShipment(
+          id: 78002,
+          orderId: o3,
+          plannedLiters: qty * 0.1,
+          status: 5,
+          scheduledAt: DateTime.now().add(const Duration(hours: 20)),
+        ),
+      ]);
+      await open(tester, o3);
+      await tester.scrollUntilVisible(
+        find.text('Sipariş henüz tamamlanmadı'),
+        150,
+      );
+      expect(
+        find.textContaining('Kalan litre bayinin yeni sevkiyatıyla gelir'),
+        findsOneWidget,
+      );
+      await tearDownUi(tester);
+    },
+  );
+
+  testWidgets('açık sevkiyat varken teslimat özeti okunmaz, not yok', (
+    tester,
+  ) async {
+    var calls = 0;
+    env.server.get('shipments/order/{orderId:int}', (req) {
+      calls++;
+      throw FakeResponse.notFound('Sipariş bulunamadı.');
+    });
+    await open(tester, o3);
+    expect(find.text('Sipariş henüz tamamlanmadı'), findsNothing);
+    expect(calls, 0, reason: 'yolda sevkiyat varken istek yok');
     await tearDownUi(tester);
   });
 

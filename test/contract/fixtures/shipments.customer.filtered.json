@@ -1,0 +1,196 @@
+{
+ "filter": {
+  "search": null,
+  "status": null,
+  "orderStatus": null,
+  "stationId": null,
+  "customerId": null,
+  "productId": null,
+  "distributorId": null,
+  "distributorName": null,
+  "stationCity": null,
+  "customerCity": null,
+  "region": null,
+  "zone": null,
+  "vehiclePlate": null,
+  "driverName": null,
+  "deliveryDocumentNo": null,
+  "scheduledFrom": null,
+  "scheduledTo": null,
+  "deliveredFrom": null,
+  "deliveredTo": null,
+  "minLiters": null,
+  "maxLiters": null,
+  "page": 1,
+  "statuses": [
+   2,
+   4
+  ],
+  "orderCreatedFrom": null,
+  "orderCreatedTo": null,
+  "requestedDeliveryFrom": null,
+  "requestedDeliveryTo": null,
+  "acceptedFrom": null,
+  "acceptedTo": null,
+  "createdFrom": null,
+  "createdTo": null,
+  "deliveredMin": null,
+  "deliveredMax": null,
+  "shortDelivery": null,
+  "hasDispute": null,
+  "acceptedByUserId": null,
+  "createdByUserId": null,
+  "deliveryCity": null,
+  "deliveryDistrict": null,
+  "stationDistrict": null,
+  "deliveryPointId": null,
+  "regionId": null,
+  "zoneId": null,
+  "sort": 3,
+  "pageSize": 25,
+  "driverUserId": null
+ },
+ "statusFilter": null,
+ "items": [
+  {
+   "id": 1,
+   "orderId": 227,
+   "orderNumber": "WALK-AP-001",
+   "stationId": 221,
+   "stationName": "AkaryakıtNet Walkthrough İstasyonu",
+   "stationCode": "STN-WALK-01",
+   "stationCity": "İstanbul",
+   "stationDistrict": "Kadıköy",
+   "distributorName": "Petrol Ofisi",
+   "region": "Marmara",
+   "zone": "L-Marmara Bölge",
+   "customerId": 221,
+   "customerName": "Demo Filo Lojistik A.Ş.",
+   "customerCity": "İstanbul",
+   "productId": 2,
+   "productName": "Kurşunsuz 95",
+   "plannedLiters": 1650,
+   "deliveredLiters": 1617,
+   "vehiclePlate": "35 IZM 301",
+   "driverName": "Hasan Kaya",
+   "scheduledAt": "2026-10-28T19:06:57.27261",
+   "deliveredAt": "2026-10-28T01:06:57.27261",
+   "deliveryDocumentNo": "IRS-W00227-A",
+   "status": 2,
+   "disputeNote": null,
+   "orderStatus": 3,
+   "deliveryAddress": "Merkez Depo — Filo Mah. Depo Sok. No:12 Üsküdar/İstanbul",
+   "acceptedAt": null,
+   "createdAt": "2026-10-27T19:06:57.27261",
+   "orderCreatedAt": "2026-10-20T17:06:57.27261",
+   "requestedDeliveryDate": "2026-11-01T00:00:00",
+   "deliveryPointName": "Merkez Depo",
+   "deliveryCity": "İstanbul",
+   "deliveryDistrict": "Üsküdar",
+   "driverUserId": null,
+   "code": "SVK-00000001",
+   "differenceLiters": -33
+  },
+  {
+   "id": 3,
+   "orderId": 228,
+   "orderNumber": "WALK-AP-002",
+   "stationId": 221,
+   "stationName": "AkaryakıtNet Walkthrough İstasyonu",
+   "stationCode": "STN-WALK-01",
+   "stationCity": "İstanbul",
+   "stationDistrict": "Kadıköy",
+   "distributorName": "Petrol Ofisi",
+   "region": "Marmara",
+   "zone": "L-Marmara Bölge",
+   "customerId": 221,
+   "customerName": "Demo Filo Lojistik A.Ş.",
+   "customerCity": "İstanbul",
+   "productId": 1,
+   "productName": "Motorin (Euro 5)",
+   "plannedLiters": 8250,
+   "deliveredLiters": 8085,
+   "vehiclePlate": "35 IZM 302",
+   "driverName": "Hasan Kaya",
+   "scheduledAt": "2026-10-27T19:06:57.27261",
+   "deliveredAt": "2026-10-27T01:06:57.27261",
+   "deliveryDocumentNo": "IRS-W00228-A",
+   "status": 4,
+   "disputeNote": "Eksik litre bildirildi; bayi yeniden kontrol etsin.",
+   "orderStatus": 3,
+   "deliveryAddress": "Merkez Depo — Filo Mah. Depo Sok. No:12 Üsküdar/İstanbul",
+   "acceptedAt": null,
+   "createdAt": "2026-10-26T19:06:57.27261",
+   "orderCreatedAt": "2026-10-19T17:06:57.27261",
+   "requestedDeliveryDate": "2026-11-02T00:00:00",
+   "deliveryPointName": "Merkez Depo",
+   "deliveryCity": "İstanbul",
+   "deliveryDistrict": "Üsküdar",
+   "driverUserId": null,
+   "code": "SVK-00000003",
+   "differenceLiters": -165
+  }
+ ],
+ "totalFiltered": 2,
+ "page": 1,
+ "pageSize": 25,
+ "totalPages": 1,
+ "countAll": 12,
+ "countPlanned": 4,
+ "countInTransit": 1,
+ "countReported": 1,
+ "countAccepted": 5,
+ "countDisputed": 1,
+ "countCancelled": 0,
+ "stationOptions": [],
+ "customerOptions": [],
+ "productOptions": [
+  {
+   "id": 1,
+   "name": "MOTORIN_E5 — Motorin (Euro 5)"
+  },
+  {
+   "id": 2,
+   "name": "KURSUNSUZ_95 — Kurşunsuz 95"
+  },
+  {
+   "id": 3,
+   "name": "KURSUNSUZ_98 — Kurşunsuz 98"
+  },
+  {
+   "id": 4,
+   "name": "LPG — LPG"
+  }
+ ],
+ "distributorOptions": [
+  {
+   "id": 9,
+   "name": "Akpet"
+  },
+  {
+   "id": 8,
+   "name": "Alpet"
+  },
+  {
+   "id": 7,
+   "name": "Aytemiz"
+  }
+ ],
+ "distributorNameOptions": [
+  "Petrol Ofisi"
+ ],
+ "stationCityOptions": [
+  "İstanbul"
+ ],
+ "customerCityOptions": [
+  "İstanbul"
+ ],
+ "regionOptions": [
+  "Marmara"
+ ],
+ "zoneOptions": [
+  "L-Marmara Bölge"
+ ],
+ "canFilterStation": true,
+ "canFilterCustomer": false
+}

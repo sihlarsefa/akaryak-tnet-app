@@ -1,0 +1,7 @@
+{
+ "title": "Kayıt değişti",
+ "status": 409,
+ "detail": "Teklif güncellendi; güncel teklifi görüp yeniden karar verin.",
+ "code": "concurrency_conflict",
+ "traceId": "48372cd4-2a28-47a4-8753-7256222e68a9"
+}

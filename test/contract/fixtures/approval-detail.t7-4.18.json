@@ -1,0 +1,186 @@
+{
+ "id": 18,
+ "type": 7,
+ "typeLabel": "Ön kayıt",
+ "status": 4,
+ "statusLabel": "Ek bilgi istendi",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "subjectType": "CustomerLead",
+ "subjectId": 3,
+ "subjectNumber": "ONK-D4-000003",
+ "title": "Ön kayıt: Sakarya Beton ve Yapı Malzemeleri A.Ş.",
+ "summaryText": "VKN 8537071204 · Sakarya / Adapazarı · aylık 18.000 L · limit 650.000 ₺ · Çek/Senet · 90 gün vade",
+ "amount": 650000,
+ "liters": 18000,
+ "requestedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+ "requestedByName": "Emre Yıldız",
+ "createdAt": "2026-10-26T17:33:19.000676+00:00",
+ "dueAt": null,
+ "slaState": 0,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": false,
+ "concurrencyToken": "d09ae5b4-fccd-41ba-9186-6682c30c5862",
+ "contextJson": "{\"\\u00D6n kay\\u0131t\":\"ONK-D4-000003\",\"VKN\":\"8537071204\"}",
+ "decidedAt": null,
+ "decidedByUserId": null,
+ "decidedByName": null,
+ "decisionNote": null,
+ "steps": [
+  {
+   "id": 22,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.lead",
+   "minAmount": 0,
+   "status": 1,
+   "statusLabel": "Karar bekliyor",
+   "dueAt": "2026-10-27T17:33:19.000676",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": null,
+   "decidedByName": null,
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": null,
+   "note": null
+  }
+ ],
+ "events": [
+  {
+   "id": 33,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "userName": "Emre Yıldız",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-26T17:33:19.000676"
+  },
+  {
+   "id": 34,
+   "eventType": 2,
+   "label": "Görüntülendi",
+   "stepId": 22,
+   "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+   "userName": "Burak Demir",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-26T18:32:19.000676"
+  },
+  {
+   "id": 35,
+   "eventType": 8,
+   "label": "Ek bilgi istendi",
+   "stepId": 22,
+   "userId": "2369d675-be74-484e-ba07-c88da751e508",
+   "userName": "Selin Kaya",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": "Son iki yılın bilançosu ve imza sirküleri gerekli; risk sınıfı C olduğu için teminat önerisi de bekleniyor. · İstenen belge: İmza sirküleri",
+   "occurredAt": "2026-10-27T13:32:19.000676"
+  }
+ ],
+ "attachments": [
+  {
+   "publicId": "ab3fd6e0-4265-4675-ada8-ef508b920d97",
+   "ownerType": 5,
+   "ownerId": 3,
+   "stationId": 221,
+   "customerId": null,
+   "kind": 10,
+   "kindLabel": "Vergi levhası",
+   "fileName": "vergi-levhasi-8537071204.pdf",
+   "contentType": "application/pdf",
+   "sizeBytes": 975,
+   "sha256": "38e1faf278db87cd28eb0587c07d8db286131044f74919569d839331767998c2",
+   "version": 1,
+   "previousVersionPublicId": null,
+   "note": "Vergi levhası (saha ön kaydı, demo)",
+   "uploadedByUserId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "uploadedByName": "Emre Yıldız",
+   "createdAt": "2026-10-28T19:07:19.874867",
+   "isActive": true,
+   "canDelete": true,
+   "isImage": false,
+   "isPdf": true
+  }
+ ],
+ "modes": [
+  4
+ ],
+ "modeLabels": [
+  "Reddet"
+ ],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": true,
+ "summary": {
+  "headline": "ONK-D4-000003 · Sakarya Beton ve Yapı Malzemeleri A.Ş.",
+  "subline": "AkaryakıtNet Walkthrough İstasyonu · Temsilci Emre Yıldız",
+  "amount": 650000,
+  "liters": 18000,
+  "facts": [
+   {
+    "label": "Durum",
+    "value": "Ek bilgi istendi",
+    "tone": "neutral"
+   },
+   {
+    "label": "Bayi",
+    "value": "AkaryakıtNet Walkthrough İstasyonu",
+    "tone": "neutral"
+   },
+   {
+    "label": "Temsilci",
+    "value": "Emre Yıldız",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [
+   {
+    "title": "Motorin (Euro 5)",
+    "subtitle": "taahhüt 15.000 L / ay",
+    "value": "18.000 L / ay"
+   }
+  ],
+  "warnings": [
+   "Temsilciden istenen: Son iki yılın bilançosu ve imza sirküleri gerekli; risk sınıfı C olduğu için teminat önerisi de bekleniyor. · İstenen belge: İmza sirküleri",
+   "Deneme sağlayıcısı: skor ve banka satırları örnek veridir, gerçek banka verisi değildir; risk sınıfı karta otomatik yazılmaz."
+  ],
+  "band": null,
+  "links": {
+   "orderId": null,
+   "fieldOrderId": null,
+   "leadId": 3,
+   "customerId": null,
+   "stationCustomerId": null,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": {
+  "note": "Son iki yılın bilançosu ve imza sirküleri gerekli; risk sınıfı C olduğu için teminat önerisi de bekleniyor.",
+  "requiredAttachmentKind": 11,
+  "requiredKindLabel": "İmza sirküleri",
+  "requestedAt": "2026-10-27T13:32:19.000676+00:00",
+  "requiredKindUploaded": false
+ },
+ "conditionForm": null,
+ "decisionHint": null
+}

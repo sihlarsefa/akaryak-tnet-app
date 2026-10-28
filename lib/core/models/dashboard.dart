@@ -27,6 +27,7 @@ class DashboardOrderRow {
     this.latestTotalAmountTry,
     this.latestDeliveryDate,
     this.revisionNote,
+    this.financeStatus = OrderFinanceStatus.notRequired,
     this.msLeft = 0,
     this.receivedAt,
   });
@@ -52,6 +53,7 @@ class DashboardOrderRow {
     latestTotalAmountTry: r.decOrNull('latestTotalAmountTry'),
     latestDeliveryDate: r.dateTr('latestDeliveryDate'),
     revisionNote: r.nonEmpty('revisionNote'),
+    financeStatus: r.enumOf('financeStatus', OrderFinanceStatus.fromCode),
     msLeft: r.integer('msLeft'),
     receivedAt: DateTime.now().toUtc(),
   );
@@ -76,6 +78,11 @@ class DashboardOrderRow {
   final double? latestTotalAmountTry;
   final DateTime? latestDeliveryDate;
   final String? revisionNote;
+
+  /// Finans durumu: müşterinin teklif onayı limit aşımıyla bayinin finans onayına gittiyse sipariş
+  /// "Onay bekliyor"da kalır ama karar finansındır (müşterinin değil; `OrderService`
+  /// `RouteLimitOverrunToFinanceAsync`).
+  final OrderFinanceStatus financeStatus;
 
   /// Süre sonuna kalan milisaniye (yanıt anında). ≤ 0: doldu.
   final int msLeft;

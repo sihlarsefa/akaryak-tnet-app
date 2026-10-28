@@ -1,0 +1,58 @@
+[
+ {
+  "userId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "displayName": "Ayşe Demir",
+  "email": "musteri.demo@akaryakitnet.local",
+  "phoneNumber": "905325550202",
+  "role": 3,
+  "roleLabel": "Yönetici",
+  "isActive": true,
+  "isSelf": true,
+  "createdAt": "2026-10-28T19:06:57.34908",
+  "lastLoginAt": "2026-10-28T19:39:40",
+  "invitationPending": false,
+  "invitationQueued": false
+ },
+ {
+  "userId": "6128bdc0-f6a4-49e3-a066-1239f56b9e8c",
+  "displayName": "Murat Kaya",
+  "email": "onay.demo@akaryakitnet.local",
+  "phoneNumber": "905327000102",
+  "role": 2,
+  "roleLabel": "Onaylayan",
+  "isActive": true,
+  "isSelf": false,
+  "createdAt": "2026-09-18T19:07:14.88076",
+  "lastLoginAt": "2026-10-28T19:39:33",
+  "invitationPending": false,
+  "invitationQueued": false
+ },
+ {
+  "userId": "031e976b-53fe-417c-9de2-0236b7888417",
+  "displayName": "Selin Aydın",
+  "email": "talep.demo@akaryakitnet.local",
+  "phoneNumber": "905327000101",
+  "role": 1,
+  "roleLabel": "Talep eden",
+  "isActive": true,
+  "isSelf": false,
+  "createdAt": "2026-09-18T19:07:14.88076",
+  "lastLoginAt": "2026-10-28T19:39:33",
+  "invitationPending": false,
+  "invitationQueued": false
+ },
+ {
+  "userId": "7594dc33-fbf0-4007-9488-64541a02eeb6",
+  "displayName": "Kerem Yıldız",
+  "email": "talep2.demo@akaryakitnet.local",
+  "phoneNumber": "905327000104",
+  "role": 1,
+  "roleLabel": "Talep eden",
+  "isActive": false,
+  "isSelf": false,
+  "createdAt": "2026-06-30T19:07:14.88076",
+  "lastLoginAt": "2026-08-14T19:07:14.88076",
+  "invitationPending": false,
+  "invitationQueued": false
+ }
+]

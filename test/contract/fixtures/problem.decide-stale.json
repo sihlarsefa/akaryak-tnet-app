@@ -1,0 +1,7 @@
+{
+ "title": "Kayıt değişti",
+ "status": 409,
+ "detail": "Talep siz bakarken değişti; güncel hâlini görüp yeniden deneyin.",
+ "code": "concurrency_conflict",
+ "traceId": "b91e9a3e-4c0b-4b21-a990-1f117fe4d7a7"
+}

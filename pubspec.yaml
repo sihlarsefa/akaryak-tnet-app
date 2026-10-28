@@ -95,22 +95,24 @@ flutter:
     - assets/brand/
     # PDF belgelerinde Türkçe karakterler için gömülü Roboto (Apache 2.0, bkz. assets/fonts/NOTICE.txt)
     - assets/fonts/
-    # Plus Jakarta Sans lisansı (SIL OFL 1.1); main() içinde LicenseRegistry'ye eklenir.
-    - assets/fonts/jakarta/OFL.txt
-  # Arayüz yazı tipi: Plus Jakarta Sans 2.7.1 (Tokotype, SIL OFL 1.1), değiştirilmemiş upstream statik
-  # TTF'ler (tasarım v3 §1). Tek aile; rakamlar sabit genişlikli (tnum). PDF'ler Roboto'da kalır.
+    # Archivo lisansı (SIL OFL 1.1); main() içinde LicenseRegistry'ye eklenir.
+    - assets/fonts/archivo/OFL.txt
+  # Arayüz yazı tipi: Archivo 2.001 (Omnibus-Type, SIL OFL 1.1) — web panelinin yazı tipi. google/fonts
+  # değişken TTF'sinden wdth 100'de statik örnekler (Latin + Latin Extended, ₺; tüm OpenType özellikleri,
+  # tnum dahil): assets/fonts/archivo/SOURCE.txt. Tek aile; rakamlar sabit genişlikli (tnum). PDF'ler
+  # Roboto'da kalır.
   fonts:
-    - family: PlusJakartaSans
+    - family: Archivo
       fonts:
-        - asset: assets/fonts/jakarta/PlusJakartaSans-Regular.ttf
+        - asset: assets/fonts/archivo/Archivo-Regular.ttf
           weight: 400
-        - asset: assets/fonts/jakarta/PlusJakartaSans-Medium.ttf
+        - asset: assets/fonts/archivo/Archivo-Medium.ttf
           weight: 500
-        - asset: assets/fonts/jakarta/PlusJakartaSans-SemiBold.ttf
+        - asset: assets/fonts/archivo/Archivo-SemiBold.ttf
           weight: 600
-        - asset: assets/fonts/jakarta/PlusJakartaSans-Bold.ttf
+        - asset: assets/fonts/archivo/Archivo-Bold.ttf
           weight: 700
-        - asset: assets/fonts/jakarta/PlusJakartaSans-ExtraBold.ttf
+        - asset: assets/fonts/archivo/Archivo-ExtraBold.ttf
           weight: 800
 
 # Uygulama simgesi: `bash $W/akn-flutter.sh icons`

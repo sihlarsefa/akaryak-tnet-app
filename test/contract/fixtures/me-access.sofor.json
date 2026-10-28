@@ -1,0 +1,39 @@
+{
+ "userId": "773499dc-08ad-4775-b0f0-fba01c52ae1f",
+ "userName": "sofor.demo",
+ "displayName": "Hüseyin Polat",
+ "email": "sofor.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****08",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "driver"
+ ],
+ "bayiRoleNames": [
+  "Şoför"
+ ],
+ "pages": [
+  "StationShipments:Gorur",
+  "StationShipments:Duzenler"
+ ],
+ "capabilities": [
+  {
+   "code": "shipment.ownOnly",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 1,
+ "phoneVerified": false,
+ "accessVersion": "365f0badad60c6db"
+}

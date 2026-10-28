@@ -1,0 +1,117 @@
+{
+ "orderId": 8256,
+ "status": 2,
+ "steps": [
+  {
+   "key": "received",
+   "label": "Sipariş alındı",
+   "icon": "fa-file-text-o",
+   "state": 2,
+   "at": "2026-10-28T22:17:30.390673",
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "quote",
+   "label": "Teklif",
+   "icon": "fa-try",
+   "state": 2,
+   "at": "2026-10-28T22:21:58.42431",
+   "atIsDateOnly": false,
+   "detail": "42,50 TL/L"
+  },
+  {
+   "key": "approval",
+   "label": "Onay",
+   "icon": "fa-gavel",
+   "state": 1,
+   "at": "2026-10-28T22:21:58.42431",
+   "atIsDateOnly": false,
+   "detail": "Kararınız bekleniyor"
+  },
+  {
+   "key": "dispatch",
+   "label": "Yola çıktı",
+   "icon": "fa-truck",
+   "state": 0,
+   "at": null,
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "delivered",
+   "label": "Teslim edildi",
+   "icon": "fa-flag-checkered",
+   "state": 0,
+   "at": null,
+   "atIsDateOnly": false,
+   "detail": null
+  }
+ ],
+ "shipments": [],
+ "events": [],
+ "orderedLiters": 5000,
+ "acceptedLiters": 0,
+ "inProcessLiters": 0,
+ "awaitingAcceptanceCount": 0,
+ "canAcceptDeliveries": false,
+ "expiryEnabled": false,
+ "priceComparison": {
+  "currentUnitPriceTry": 42.5,
+  "previous": [
+   {
+    "orderId": 8257,
+    "orderNumber": "AYN-20261028-000002",
+    "orderedAt": "2026-10-28T22:36:50.798606",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 8000,
+    "unitPriceTry": 41.75,
+    "diffPercent": 1.8
+   },
+   {
+    "orderId": 8236,
+    "orderNumber": "PFD-SB-01",
+    "orderedAt": "2026-10-26T19:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 12000,
+    "unitPriceTry": 42.85,
+    "diffPercent": -0.8
+   },
+   {
+    "orderId": 8238,
+    "orderNumber": "PFD-SB-03",
+    "orderedAt": "2026-10-26T17:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 15000,
+    "unitPriceTry": 42.85,
+    "diffPercent": -0.8
+   },
+   {
+    "orderId": 8240,
+    "orderNumber": "PFD-SB-05",
+    "orderedAt": "2026-10-26T15:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 20000,
+    "unitPriceTry": 42.85,
+    "diffPercent": -0.8
+   },
+   {
+    "orderId": 395,
+    "orderNumber": "SIP-20261020-C0168",
+    "orderedAt": "2026-10-20T10:33:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 32000,
+    "unitPriceTry": 44.9,
+    "diffPercent": -5.3
+   }
+  ],
+  "lastUnitPriceTry": 41.75,
+  "lastDiffPercent": 1.8,
+  "averageUnitPriceTry": 43.04,
+  "averageDiffPercent": -1.3,
+  "minUnitPriceTry": 41.75,
+  "maxUnitPriceTry": 44.9,
+  "hasHistory": true
+ },
+ "activeShipment": null
+}

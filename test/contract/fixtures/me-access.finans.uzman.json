@@ -1,0 +1,78 @@
+{
+ "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+ "userName": "finans.uzman.demo",
+ "displayName": "Burak Demir",
+ "email": "finans.uzman.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****03",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "finance_specialist"
+ ],
+ "bayiRoleNames": [
+  "Finans / kredi uzmanı"
+ ],
+ "pages": [
+  "StationQuotes:Gorur",
+  "StationOrders:Gorur",
+  "StationCustomers:Gorur",
+  "StationCustomers:Inceler",
+  "StationReports:Gorur",
+  "StationApprovals:Gorur",
+  "StationApprovals:Ekler",
+  "StationFinance:Gorur",
+  "StationFinance:Ekler",
+  "StationFinance:Duzenler",
+  "StationFinance:Inceler",
+  "StationLeads:Gorur",
+  "StationLeads:Inceler",
+  "StationPayments:Gorur"
+ ],
+ "capabilities": [
+  {
+   "code": "approve.finance.lead",
+   "limit": 1000000
+  },
+  {
+   "code": "approve.finance.onboarding",
+   "limit": 1000000
+  },
+  {
+   "code": "approve.finance.order",
+   "limit": 1000000
+  },
+  {
+   "code": "finance.profile.edit",
+   "limit": null
+  },
+  {
+   "code": "finance.riskreport.pull",
+   "limit": null
+  },
+  {
+   "code": "lead.viewAll",
+   "limit": null
+  }
+ ],
+ "delegations": [
+  {
+   "fromUserName": "Selin Kaya",
+   "approvalType": null,
+   "approvalTypeLabel": "Tüm onaylar",
+   "validTo": "2026-11-27T19:07:17.171043+00:00"
+  }
+ ],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "527a8fab6a3d70af"
+}

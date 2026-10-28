@@ -133,6 +133,9 @@ class _PaymentsPageState extends ConsumerState<PaymentsPage>
         : ins.refreshing;
     return AppScaffold(
       title: PaymentsCopy.title,
+      bandIcon: PhosphorIconsRegular.wallet,
+      eyebrow: 'Bayi',
+      description: 'Ödemeler, belgeler, vadeler',
       refreshing: refreshing,
       bottom: _tabBar(
         pay.hasData ? pay.totalCount : null,

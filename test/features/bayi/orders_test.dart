@@ -8,6 +8,7 @@ import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/application/orders_controller.dart';
 import 'package:akaryakitnet/features/bayi/copy.dart';
 import 'package:akaryakitnet/features/bayi/data/order_models.dart';
+import 'package:akaryakitnet/features/bayi/fake/seed.dart';
 import 'package:akaryakitnet/features/bayi/presentation/orders/orders_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -295,4 +296,119 @@ void main() {
     expect(find.text('Tamamla'), findsNothing);
     await app.finish(tester);
   });
+
+  // Canlı sandbox senaryosu (sipariş 8271): 6.000 L'nin 5.950 L'si kabul edildi, kalan 50 L'lik plan
+  // iptal edildi; sipariş "Onaylandı"da kalır ve sunucu teslim toleransı (%1) içinde "Tamamla"ya izin
+  // verir (`completionHint`).
+  testWidgets(
+    'Tamamla: teslim toleransı içinde eksik teslim, kalan plan iptal (sunucunun çağrısı)',
+    (tester) async {
+      late int id;
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'siparis',
+        location: '/bayi/orders',
+        setup: (h) => id = _partialDelivery(h.world, acceptedRatio: 0.995),
+      );
+      await app.push(tester, '/bayi/orders/$id');
+      final b = app.container.read(bayiOrderProvider(id)).data!;
+      expect(b.order.status, OrderStatus.approved);
+      expect(b.completion, BayiCompletion.withinTolerance);
+      expect(find.text('Sipariş henüz tamamlanmadı'), findsOneWidget);
+      expect(
+        find.textContaining('"Tamamla" ile kapatabilirsiniz'),
+        findsOneWidget,
+      );
+      await scrollTap(tester, find.text('Tamamla'));
+      expect(find.text('Sipariş tamamlansın mı?'), findsOneWidget);
+      expect(find.textContaining('teslim toleransı içinde'), findsWidgets);
+      await scrollTap(
+        tester,
+        find.descendant(
+          of: find.byType(ConfirmSheet),
+          matching: find.text('Tamamla'),
+        ),
+      );
+      expect(
+        app.container.read(bayiOrderProvider(id)).data!.order.status,
+        OrderStatus.completed,
+      );
+      expect(find.text('Tamamla'), findsNothing);
+      expect(find.text('Sipariş henüz tamamlanmadı'), findsNothing);
+      await app.finish(tester);
+    },
+  );
+
+  testWidgets(
+    'tolerans dışı eksik teslim: Tamamla yok, sunucunun engeli gösterilir',
+    (tester) async {
+      late int id;
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'siparis',
+        location: '/bayi/orders',
+        setup: (h) => id = _partialDelivery(h.world, acceptedRatio: 0.9),
+      );
+      await app.push(tester, '/bayi/orders/$id');
+      final b = app.container.read(bayiOrderProvider(id)).data!;
+      expect(b.completion, isNull);
+      expect(find.text('Sipariş henüz tamamlanmadı'), findsOneWidget);
+      expect(find.textContaining('teslim toleransını (%1'), findsOneWidget);
+      expect(find.text('Tamamla'), findsNothing);
+      await app.finish(tester);
+    },
+  );
+
+  testWidgets('depo: tolerans içinde de Tamamla ve "Tamamla" çağrısı yok', (
+    tester,
+  ) async {
+    late int id;
+    final app = await BayiTestApp.start(
+      tester,
+      persona: 'depo',
+      location: '/bayi/orders',
+      setup: (h) => id = _partialDelivery(h.world, acceptedRatio: 0.995),
+    );
+    await app.push(tester, '/bayi/orders/$id');
+    expect(
+      app.container.read(bayiOrderProvider(id)).data!.completion,
+      BayiCompletion.withinTolerance,
+      reason: 'sipariş kapatılabilir; yetki yok',
+    );
+    expect(find.text('Tamamla'), findsNothing);
+    expect(find.text('Sipariş henüz tamamlanmadı'), findsNothing);
+    await app.finish(tester);
+  });
+}
+
+/// Bayi 1'in teklifli, onaylı ilk siparişinin sevkiyatlarını değiştirir: sipariş litresinin
+/// [acceptedRatio] kadarı kabul edilmiş tek sevkiyat ve kalanın iptal edilmiş planı. Sipariş kimliği.
+int _partialDelivery(FakeWorld w, {required double acceptedRatio}) {
+  ensureBayiSeed(w);
+  final o = w
+      .ordersOfStation(1)
+      .firstWhere((o) => o['status'] == 3 && (o['quotes'] as List).isNotEmpty);
+  final id = o['id'] as int;
+  w.shipments.removeWhere((s) => s['orderId'] == id);
+  final qty = (o['quantityLiters'] as num).toDouble();
+  final accepted = (qty * acceptedRatio).roundToDouble();
+  w.shipments.addAll([
+    w.newShipment(
+      id: 77001,
+      orderId: id,
+      plannedLiters: accepted,
+      status: 3,
+      scheduledAt: DateTime.now().subtract(const Duration(hours: 6)),
+      deliveredLiters: accepted,
+      deliveryDocumentNo: 'IRS-TOL-1',
+    ),
+    w.newShipment(
+      id: 77002,
+      orderId: id,
+      plannedLiters: qty - accepted,
+      status: 5,
+      scheduledAt: DateTime.now().add(const Duration(hours: 20)),
+    ),
+  ]);
+  return id;
 }

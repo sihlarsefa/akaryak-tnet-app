@@ -60,6 +60,9 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
     final total = s.list.totalCount;
     return AppScaffold(
       title: 'Siparişler',
+      bandIcon: PhosphorIconsRegular.receipt,
+      eyebrow: 'Bayi',
+      description: 'Tüm müşteri siparişleri',
       refreshing: s.list.refreshing,
       actions: [
         FilterButton(

@@ -769,8 +769,9 @@ class ApprovalDetail {
     return d.label;
   }
 
-  /// Ret gerekçesinin en kısa uzunluğu (yerel türlerde 10, yansımalarda 1; web paritesi).
-  int get minRejectNoteLength => row.isMirror ? 1 : 10;
+  /// Ret gerekçesinin en kısa uzunluğu (sunucu kuralı; bkz. [ApprovalType.minRejectNoteLength]).
+  int get minRejectNoteLength =>
+      type.minRejectNoteLength(isMirror: row.isMirror);
 
   /// Koşullu onaylandı mı (olay günlüğünden).
   bool get isConditionallyApproved =>

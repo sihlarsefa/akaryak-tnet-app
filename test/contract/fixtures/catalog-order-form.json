@@ -1,0 +1,136 @@
+{
+ "customerId": 221,
+ "linkedStationId": 221,
+ "linkedStationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "products": [
+  {
+   "id": 1,
+   "code": "MOTORIN_E5",
+   "name": "Motorin (Euro 5)",
+   "unit": "Litre",
+   "sortOrder": 1,
+   "isActive": true,
+   "createdAt": "2026-10-28T19:06:33.614537",
+   "updatedAt": null,
+   "orderCount": 0
+  },
+  {
+   "id": 2,
+   "code": "KURSUNSUZ_95",
+   "name": "Kurşunsuz 95",
+   "unit": "Litre",
+   "sortOrder": 2,
+   "isActive": true,
+   "createdAt": "2026-10-28T19:06:33.614572",
+   "updatedAt": null,
+   "orderCount": 0
+  },
+  {
+   "id": 3,
+   "code": "KURSUNSUZ_98",
+   "name": "Kurşunsuz 98",
+   "unit": "Litre",
+   "sortOrder": 3,
+   "isActive": true,
+   "createdAt": "2026-10-28T19:06:33.614572",
+   "updatedAt": null,
+   "orderCount": 0
+  },
+  {
+   "id": 4,
+   "code": "LPG",
+   "name": "LPG",
+   "unit": "Litre",
+   "sortOrder": 4,
+   "isActive": true,
+   "createdAt": "2026-10-28T19:06:33.614572",
+   "updatedAt": null,
+   "orderCount": 0
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "id": 838,
+   "customerId": 221,
+   "name": "Anadolu Lojistik Üssü #02",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:12 Pendik/İstanbul",
+   "isActive": true,
+   "latitude": 41.0576,
+   "longitude": 28.929,
+   "contactName": "Mustafa Çetin",
+   "contactPhone": "0532 555 01 11",
+   "deliveryWindowStart": "09:00:00",
+   "deliveryWindowEnd": "18:00:00",
+   "tankCapacityLiters": 50000,
+   "accessNotes": "Şantiye içi yol dar; 18 m³ üzeri araç giremez.",
+   "hasLocation": true
+  },
+  {
+   "id": 846,
+   "customerId": 221,
+   "name": "Anadolu Lojistik Üssü #10",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:20 Pendik/İstanbul",
+   "isActive": true,
+   "latitude": null,
+   "longitude": null,
+   "contactName": null,
+   "contactPhone": null,
+   "deliveryWindowStart": null,
+   "deliveryWindowEnd": null,
+   "tankCapacityLiters": null,
+   "accessNotes": null,
+   "hasLocation": false
+  },
+  {
+   "id": 942,
+   "customerId": 221,
+   "name": "Anadolu Lojistik Üssü #106",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:36 Pendik/İstanbul",
+   "isActive": true,
+   "latitude": null,
+   "longitude": null,
+   "contactName": null,
+   "contactPhone": null,
+   "deliveryWindowStart": null,
+   "deliveryWindowEnd": null,
+   "tankCapacityLiters": null,
+   "accessNotes": null,
+   "hasLocation": false
+  }
+ ],
+ "templates": [
+  {
+   "id": 1,
+   "name": "Haftalık filo ikmali",
+   "lineCount": 2,
+   "totalLiters": 13000,
+   "summary": "2 ürün 13.000 L",
+   "lastUsedAt": "2026-10-25T19:07:16.700102",
+   "createdAt": "2026-09-13T19:07:16.700102"
+  },
+  {
+   "id": 3,
+   "name": "Ay sonu stok tamamlama",
+   "lineCount": 2,
+   "totalLiters": 21000,
+   "summary": "Motorin (Euro 5) 21.000 L · 2 nokta",
+   "lastUsedAt": "2026-10-07T19:07:16.700102",
+   "createdAt": "2026-09-13T19:07:16.700102"
+  },
+  {
+   "id": 2,
+   "name": "Şantiye LPG ikmali",
+   "lineCount": 1,
+   "totalLiters": 4000,
+   "summary": "LPG 4.000 L",
+   "lastUsedAt": null,
+   "createdAt": "2026-09-13T19:07:16.700102"
+  }
+ ]
+}

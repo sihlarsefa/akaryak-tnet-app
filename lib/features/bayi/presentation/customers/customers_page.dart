@@ -31,6 +31,9 @@ class BayiCustomersPage extends ConsumerWidget {
     final total = s.list.totalCount;
     return AppScaffold(
       title: portfolio ? 'Portföyüm' : 'Cariler',
+      bandIcon: PhosphorIconsRegular.usersThree,
+      eyebrow: 'Bayi',
+      description: 'Müşteriler, limit ve risk',
       refreshing: s.list.refreshing,
       body: PagedListBody<BayiCustomerRow>(
         list: s.list,

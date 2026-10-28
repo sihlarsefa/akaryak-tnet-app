@@ -44,6 +44,7 @@ class TuprasStrip extends ConsumerWidget {
       children: [
         SectionHeader(
           title: 'Tüpraş fiyatları',
+          icon: PhosphorIconsRegular.gasPump,
           caption: snap == null ? null : _caption(snap),
           padding: headerPadding,
         ),

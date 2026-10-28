@@ -1,0 +1,232 @@
+{
+ "customerId": 7,
+ "stationCustomerId": 227,
+ "title": "Merkez Tekstil A.Ş.",
+ "taxNumberMasked": "20******07",
+ "city": "İstanbul",
+ "district": "Başakşehir",
+ "contacts": [
+  {
+   "name": "Emine Kaya",
+   "role": "Yetkili",
+   "phone": "05424000007",
+   "email": "musteri7@firma-demo.com.tr"
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "id": 28,
+   "name": "Hatay Antakya Depo",
+   "city": "İstanbul",
+   "district": "Başakşehir",
+   "address": "Organize Sanayi No:33 Başakşehir/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 25,
+   "name": "Merkez Tekstil A.Ş. — Denizli Pamukkale Depo",
+   "city": "İstanbul",
+   "district": "Başakşehir",
+   "address": "Organize Sanayi No:30 Başakşehir/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 27,
+   "name": "Sakarya Adapazarı Depo",
+   "city": "İstanbul",
+   "district": "Başakşehir",
+   "address": "1. OSB Cad. No:32 Başakşehir/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 26,
+   "name": "Tekirdağ Çorlu Depo",
+   "city": "İstanbul",
+   "district": "Başakşehir",
+   "address": "Çerkezköy OSB Yolu No:31 Başakşehir/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  }
+ ],
+ "limit": {
+  "amount": 135000,
+  "used": 901250,
+  "period": "Aylık",
+  "periodLabel": "Bu ay",
+  "usagePct": 667.6,
+  "unit": "TL",
+  "remaining": 0,
+  "limitType": "Tutar",
+  "tone": "danger"
+ },
+ "finance": {
+  "status": 1,
+  "label": "Onaylı",
+  "canOrder": true,
+  "blockReason": null
+ },
+ "openOrders": [
+  {
+   "id": 643,
+   "orderNumber": "SIP-20261019-L0007-009",
+   "status": 1,
+   "statusLabel": "Teklif bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 20250,
+   "totalAmount": null,
+   "createdAt": "2026-10-19T10:06:57.27261+03:00"
+  },
+  {
+   "id": 644,
+   "orderNumber": "SIP-20261018-L0007-010",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Kurşunsuz 98",
+   "quantityLiters": 25500,
+   "totalAmount": null,
+   "createdAt": "2026-10-18T09:06:57.27261+03:00"
+  },
+  {
+   "id": 647,
+   "orderNumber": "SIP-20261015-L0007-013",
+   "status": 0,
+   "statusLabel": "Oluşturuldu",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 10250,
+   "totalAmount": null,
+   "createdAt": "2026-10-15T06:06:57.27261+03:00"
+  }
+ ],
+ "lastOrders": [
+  {
+   "id": 643,
+   "orderNumber": "SIP-20261019-L0007-009",
+   "status": 1,
+   "statusLabel": "Teklif bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 20250,
+   "totalAmount": null,
+   "createdAt": "2026-10-19T10:06:57.27261+03:00"
+  },
+  {
+   "id": 644,
+   "orderNumber": "SIP-20261018-L0007-010",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Kurşunsuz 98",
+   "quantityLiters": 25500,
+   "totalAmount": null,
+   "createdAt": "2026-10-18T09:06:57.27261+03:00"
+  },
+  {
+   "id": 645,
+   "orderNumber": "SIP-20261017-L0007-011",
+   "status": 4,
+   "statusLabel": "Reddedildi",
+   "productName": "LPG",
+   "quantityLiters": 30750,
+   "totalAmount": null,
+   "createdAt": "2026-10-17T08:06:57.27261+03:00"
+  },
+  {
+   "id": 646,
+   "orderNumber": "SIP-20261016-L0007-012",
+   "status": 6,
+   "statusLabel": "Süresi doldu",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 5000,
+   "totalAmount": null,
+   "createdAt": "2026-10-16T07:06:57.27261+03:00"
+  },
+  {
+   "id": 647,
+   "orderNumber": "SIP-20261015-L0007-013",
+   "status": 0,
+   "statusLabel": "Oluşturuldu",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 10250,
+   "totalAmount": null,
+   "createdAt": "2026-10-15T06:06:57.27261+03:00"
+  }
+ ],
+ "openForms": [
+  {
+   "id": 4,
+   "formNumber": "SSF-DEMO-1004",
+   "customerTitle": "Merkez Tekstil A.Ş.",
+   "status": 1,
+   "statusLabel": "Onay bekliyor",
+   "totalLiters": 15000,
+   "totalAmount": 599640,
+   "createdAt": "2026-10-26T17:07:13.640849+00:00"
+  }
+ ],
+ "notes": [],
+ "actions": {
+  "canAddNote": true,
+  "canRequestLimit": false,
+  "canCreateFieldForm": true,
+  "canQuote": true,
+  "canViewNotes": true
+ },
+ "collections": {
+  "overdueCount": 0,
+  "overdueAmount": 0,
+  "openInstruments": 0,
+  "nextInstrumentDue": null,
+  "advanceBalance": 0
+ },
+ "financeCard": {
+  "stationCustomerId": 227,
+  "status": 1,
+  "statusLabel": "Onaylı",
+  "riskClass": 2,
+  "riskClassLabel": "B",
+  "nextReviewDate": "2027-10-28",
+  "hasBouncedCheque": false,
+  "hasProtestedNote": false,
+  "hasProfile": true,
+  "isGrandfathered": true
+ },
+ "pendingLimitRequest": {
+  "id": 11,
+  "limitType": "Tutar",
+  "period": "Aylık",
+  "amount": 250000,
+  "createdAt": "2026-10-28T20:11:06.279431+00:00"
+ },
+ "isPortfolioView": false,
+ "code": "CH202610217",
+ "isActive": true
+}

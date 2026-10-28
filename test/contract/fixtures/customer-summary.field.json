@@ -1,0 +1,204 @@
+{
+ "customerId": 3,
+ "stationCustomerId": 224,
+ "title": "Akdeniz İnşaat A.Ş.",
+ "taxNumberMasked": "20******03",
+ "city": "İstanbul",
+ "district": "Bakırköy",
+ "contacts": [
+  {
+   "name": "Fatma Özdemir",
+   "role": "Yetkili",
+   "phone": "05454000003",
+   "email": "musteri3@firma-demo.com.tr"
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "id": 10,
+   "name": "Akdeniz İnşaat A.Ş. — Ege Filo Teslimatı",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Pancar OSB Cad. No:15 Bakırköy/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 9,
+   "name": "Bornova Dağıtım Noktası",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Pinarbası OSB No:14 Bakırköy/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 11,
+   "name": "Nilüfer Merkez Depo",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Demirtaş OSB No:16 Bakırköy/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 12,
+   "name": "Osmangazi Tank Sahası",
+   "city": "İstanbul",
+   "district": "Bakırköy",
+   "address": "Sanayi Cad. No:17 Bakırköy/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  }
+ ],
+ "limit": {
+  "amount": 115000,
+  "used": 1640240,
+  "period": "Aylık",
+  "periodLabel": "Bu ay",
+  "usagePct": 1426.3,
+  "unit": "TL",
+  "remaining": 0,
+  "limitType": "Tutar",
+  "tone": "danger"
+ },
+ "finance": {
+  "status": 1,
+  "label": "Onaylı",
+  "canOrder": true,
+  "blockReason": null
+ },
+ "openOrders": [
+  {
+   "id": 527,
+   "orderNumber": "SIP-20261022-L0003-006",
+   "status": 0,
+   "statusLabel": "Oluşturuldu",
+   "productName": "Kurşunsuz 98",
+   "quantityLiters": 5500,
+   "totalAmount": null,
+   "createdAt": "2026-10-22T13:06:57.27261+03:00"
+  },
+  {
+   "id": 529,
+   "orderNumber": "SIP-20261020-L0003-008",
+   "status": 3,
+   "statusLabel": "Onaylandı",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 15000,
+   "totalAmount": null,
+   "createdAt": "2026-10-20T11:06:57.27261+03:00"
+  },
+  {
+   "id": 530,
+   "orderNumber": "SIP-20261019-L0003-009",
+   "status": 1,
+   "statusLabel": "Teklif bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 20250,
+   "totalAmount": null,
+   "createdAt": "2026-10-19T10:06:57.27261+03:00"
+  }
+ ],
+ "lastOrders": [
+  {
+   "id": 526,
+   "orderNumber": "SIP-20261023-L0003-005",
+   "status": 6,
+   "statusLabel": "Süresi doldu",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 30250,
+   "totalAmount": null,
+   "createdAt": "2026-10-23T14:06:57.27261+03:00"
+  },
+  {
+   "id": 527,
+   "orderNumber": "SIP-20261022-L0003-006",
+   "status": 0,
+   "statusLabel": "Oluşturuldu",
+   "productName": "Kurşunsuz 98",
+   "quantityLiters": 5500,
+   "totalAmount": null,
+   "createdAt": "2026-10-22T13:06:57.27261+03:00"
+  },
+  {
+   "id": 528,
+   "orderNumber": "SIP-20261021-L0003-007",
+   "status": 7,
+   "statusLabel": "Tamamlandı",
+   "productName": "LPG",
+   "quantityLiters": 10750,
+   "totalAmount": null,
+   "createdAt": "2026-10-21T12:06:57.27261+03:00"
+  },
+  {
+   "id": 529,
+   "orderNumber": "SIP-20261020-L0003-008",
+   "status": 3,
+   "statusLabel": "Onaylandı",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 15000,
+   "totalAmount": null,
+   "createdAt": "2026-10-20T11:06:57.27261+03:00"
+  },
+  {
+   "id": 530,
+   "orderNumber": "SIP-20261019-L0003-009",
+   "status": 1,
+   "statusLabel": "Teklif bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 20250,
+   "totalAmount": null,
+   "createdAt": "2026-10-19T10:06:57.27261+03:00"
+  }
+ ],
+ "openForms": [],
+ "notes": [],
+ "actions": {
+  "canAddNote": false,
+  "canRequestLimit": false,
+  "canCreateFieldForm": true,
+  "canQuote": false,
+  "canViewNotes": false
+ },
+ "collections": null,
+ "financeCard": null,
+ "pendingLimitRequest": {
+  "id": 4,
+  "limitType": "Litre",
+  "period": "Haftalık",
+  "amount": 60000,
+  "createdAt": "2026-10-27T17:07:14.750319+00:00"
+ },
+ "isPortfolioView": true,
+ "code": "CH202610253",
+ "isActive": true
+}

@@ -32,12 +32,13 @@ class FilterOption<T> {
 Color _mix(Color a, Color b, double t) =>
     t <= 0 ? a : (t >= 1 ? b : Color.lerp(a, b, t)!);
 
-/// A single v3 chip (§4 Chips): a 36 px pill in a 48 px touch target
-/// (driver mode: 44 in 64), white (`surface`) with a 1 px `line` border, ink
-/// 14/18 600 label and a small count pill. Selected = an ink fill with a
-/// page-coloured label, and a check that slides in and pops before the label
-/// (it takes the place of [icon]); [tonal] is the "your move" flavour (the
-/// soft orange well with a Pas label). Selection animates the fill (~300 ms)
+/// A single v3 chip (§4 Chips, the panel's `.chip`): a 36 px pill in a 48 px
+/// touch target (driver mode: 44 in 64), white (`surface`) with a 1 px `line`
+/// border, ink 14/18 600 label and a small count pill. Selected = the
+/// panel's "you are here": the soft orange well (`brandSoft`) with its orange
+/// line, a Pas label, and a check that slides in and pops before the label
+/// (it takes the place of [icon]); [tonal] is kept for API stability (every
+/// selected chip is tonal now). Selection animates the fill (~300 ms)
 /// and springs the check in; a press scales the chip down a touch with a
 /// selection haptic. Icons grow with the label at large text sizes.
 ///
@@ -154,13 +155,10 @@ class _ChipBody extends StatelessWidget {
         ? 1.0
         : AknMotion.spring.transform(progress);
     final rest = active ? c.surface : c.surfaceAlt;
-    final fill = _mix(rest, tonal ? c.brandSoft : c.ink, f);
-    final border = _mix(
-      active ? c.line : c.surfaceAlt,
-      tonal ? c.brandLine : c.ink,
-      f,
-    );
-    final fg = _mix(active ? c.ink : c.faint, tonal ? c.brandInk : c.bg, f);
+    // Selected: the panel's soft orange chip (every chip; [tonal] kept).
+    final fill = _mix(rest, c.brandSoft, f);
+    final border = _mix(active ? c.line : c.surfaceAlt, c.brandLine, f);
+    final fg = _mix(active ? c.ink : c.faint, c.brandInk, f);
     final check = Icon(PhosphorIconsBold.check, size: checkSize, color: fg);
     final Widget lead;
     if (icon != null) {
@@ -252,12 +250,10 @@ class _ChipBody extends StatelessWidget {
               count: n,
               background: _mix(
                 c.surfaceAlt,
-                tonal
-                    ? c.surface.withValues(alpha: 0.8)
-                    : c.bg.withValues(alpha: 0.16),
+                c.surface.withValues(alpha: 0.8),
                 f,
               ),
-              color: _mix(c.dim, tonal ? c.brandInk : c.bg, f),
+              color: _mix(c.dim, c.brandInk, f),
             ),
           ],
         ],
@@ -305,8 +301,8 @@ class _CountPill extends StatelessWidget {
 /// chip that is tapped half-hidden glides into view.
 ///
 /// Single-select by default (tapping the selected chip clears it when
-/// [allowEmpty]); [multi] toggles independently. Selected = ink fill and a
-/// check, never colour alone (the screen reader hears "seçili").
+/// [allowEmpty]); [multi] toggles independently. Selected = the soft orange
+/// chip and a check, never colour alone (the screen reader hears "seçili").
 class FilterChips<T> extends StatelessWidget {
   const FilterChips({
     super.key,
@@ -513,8 +509,9 @@ class _EntranceState extends State<_Entrance>
 /// Segmented control (§4 Segmented): a `surfaceAlt` pill track (padding 3,
 /// 40 high; 36 with [dense]; 48 in driver mode) with a white pill thumb
 /// carrying the card shadow (dark: a lighter graphite) that slides on the
-/// spring curve and stretches a little in flight. Labels 14/18: selected ink
-/// w700, others dim w600 — weight and colour animate; a count pill follows
+/// spring curve and stretches a little in flight. Labels 14/18: selected Pas
+/// w700 (the panel's `.seg-btn`), others dim w600 — weight and colour
+/// animate; a count pill follows
 /// the label. Each segment is a screen-reader button with a tap action, a
 /// 48 dp touch target (64 in driver mode) and a press scale.
 class AknSegmented<T> extends StatelessWidget {
@@ -629,7 +626,8 @@ class AknSegmented<T> extends StatelessWidget {
                           fontWeight: i == index
                               ? FontWeight.w700
                               : FontWeight.w600,
-                          color: i == index ? c.ink : c.dim,
+                          // The panel's `.seg-btn` "you are here": Pas.
+                          color: i == index ? c.brandInk : c.dim,
                         ),
                         onTap: () {
                           if (i == index) return;
@@ -714,8 +712,8 @@ class _Segment extends StatelessWidget {
                           duration: duration,
                           builder: (context, s, _) => _CountPill(
                             count: count!,
-                            background: _mix(c.line, c.surfaceAlt, s),
-                            color: _mix(c.dim, c.ink, s),
+                            background: _mix(c.line, c.brandSoft, s),
+                            color: _mix(c.dim, c.brandInk, s),
                           ),
                         ),
                       ],
@@ -781,7 +779,7 @@ class AknTabBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) => _bar(
     AknTabIndicator(
-      color: context.akn.logo,
+      color: context.akn.brand,
       animate: !AknMotion.reduced(context),
     ),
   );

@@ -1,0 +1,59 @@
+{
+ "items": [
+  {
+   "id": 1,
+   "leadNumber": "ONK-D4-000001",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": 0,
+   "companyTitle": "Bursa Ova Tarım Ürünleri Ltd. Şti.",
+   "taxNumber": "3216861842",
+   "city": "Bursa",
+   "salesRepName": "Emre Yıldız",
+   "requestedLimitAmount": 400000,
+   "monthlyLiters": 9000,
+   "existsElsewhere": false,
+   "createdAt": "2026-10-27T23:07:19.000676",
+   "submittedAt": null,
+   "convertedAt": null
+  },
+  {
+   "id": 3,
+   "leadNumber": "ONK-D4-000003",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": 3,
+   "companyTitle": "Sakarya Beton ve Yapı Malzemeleri A.Ş.",
+   "taxNumber": "8537071204",
+   "city": "Sakarya",
+   "salesRepName": "Emre Yıldız",
+   "requestedLimitAmount": 650000,
+   "monthlyLiters": 18000,
+   "existsElsewhere": false,
+   "createdAt": "2026-10-26T17:07:19.000676",
+   "submittedAt": "2026-10-26T17:32:19.000676",
+   "convertedAt": null
+  },
+  {
+   "id": 5,
+   "leadNumber": "ONK-D4-000005",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": 6,
+   "companyTitle": "Tekirdağ Hafriyat ve Nakliye Ltd. Şti.",
+   "taxNumber": "7632475761",
+   "city": "Tekirdağ",
+   "salesRepName": "Emre Yıldız",
+   "requestedLimitAmount": 900000,
+   "monthlyLiters": 26000,
+   "existsElsewhere": false,
+   "createdAt": "2026-10-22T13:07:19.000676",
+   "submittedAt": "2026-10-22T13:32:19.000676",
+   "convertedAt": null
+  }
+ ],
+ "totalCount": 3,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

@@ -1,0 +1,11 @@
+{
+ "stationId": 221,
+ "customerId": 221,
+ "stationCustomerId": 221,
+ "canOrder": true,
+ "blockReason": null,
+ "isGrandfathered": true,
+ "profileStatus": 1,
+ "infoRequested": false,
+ "openApprovalRequestId": null
+}

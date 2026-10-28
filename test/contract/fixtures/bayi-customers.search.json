@@ -1,0 +1,23 @@
+{
+ "items": [
+  {
+   "customerId": 221,
+   "stationCustomerId": 221,
+   "title": "Demo Filo Lojistik A.Ş.",
+   "city": "İstanbul",
+   "limitUsagePct": 16293.9,
+   "financeStatus": 1,
+   "financeStatusLabel": "Onaylı",
+   "lastOrderAt": "2026-10-28T22:36:50.798606+03:00",
+   "openOrders": 145,
+   "code": "CH-WALK-001",
+   "district": "Üsküdar",
+   "phone": "02165550202",
+   "limitTone": "danger"
+  }
+ ],
+ "totalCount": 1,
+ "pageNumber": 1,
+ "pageSize": 30,
+ "totalPages": 1
+}

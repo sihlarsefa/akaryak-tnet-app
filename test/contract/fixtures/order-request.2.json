@@ -1,0 +1,42 @@
+{
+ "id": 2,
+ "concurrencyToken": "55664462-46f9-4c42-9b83-a3ef1c62e8f3",
+ "customerId": 221,
+ "requestedByUserId": "031e976b-53fe-417c-9de2-0236b7888417",
+ "requestedByName": "Selin Aydın",
+ "status": 0,
+ "statusLabel": "Onay bekliyor",
+ "totalLiters": 14000,
+ "estimatedAmount": 599900,
+ "note": "Şantiye jeneratörleri için ay sonu stok alımı",
+ "decidedByName": null,
+ "decidedAt": null,
+ "decisionNote": null,
+ "createdOrderIds": [],
+ "createdAt": "2026-10-27T17:07:14.88076",
+ "lines": [
+  {
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "productName": "Motorin (Euro 5)",
+   "deliveryPointName": "Merkez Depo (İstanbul / Üsküdar)",
+   "orderId": null,
+   "orderNumber": null,
+   "error": null,
+   "stationId": 221,
+   "productId": 1,
+   "deliveryPointId": 837,
+   "quantityLiters": 14000,
+   "requestedDeliveryDate": "2026-11-01T00:00:00",
+   "estimatedUnitPrice": 42.85
+  }
+ ],
+ "canDecide": true,
+ "canCancel": false,
+ "paymentMethodCode": null,
+ "paymentMethodName": null,
+ "paymentTermDays": null,
+ "paymentInstallments": null,
+ "paymentDetailJson": null,
+ "paymentDisplay": null,
+ "paymentDetails": []
+}

@@ -1,0 +1,136 @@
+{
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "generatedAt": "2026-10-28T19:39:42.27278+00:00",
+ "period": {
+  "key": "year",
+  "label": "Bu yıl",
+  "from": "2026-01-01",
+  "to": "2026-10-28",
+  "compareLabel": "Geçen yılın aynı dönemi",
+  "compareFrom": "2025-01-01",
+  "compareTo": "2025-10-28"
+ },
+ "spending": {
+  "orders": 109,
+  "liters": 1878800,
+  "amount": 80021806,
+  "prevOrders": 0,
+  "prevLiters": 0,
+  "prevAmount": 0,
+  "avgUnitPrice": 42.59,
+  "prevAvgUnitPrice": null
+ },
+ "months": [
+  {
+   "year": 2025,
+   "month": 11,
+   "label": "Kas",
+   "orders": 0,
+   "liters": 0,
+   "amount": 0
+  },
+  {
+   "year": 2025,
+   "month": 12,
+   "label": "Ara",
+   "orders": 0,
+   "liters": 0,
+   "amount": 0
+  },
+  {
+   "year": 2026,
+   "month": 1,
+   "label": "Oca",
+   "orders": 0,
+   "liters": 0,
+   "amount": 0
+  }
+ ],
+ "products": [
+  {
+   "productId": 1,
+   "name": "Motorin (Euro 5)",
+   "liters": 518400,
+   "amount": 22097146,
+   "share": 0.2761
+  },
+  {
+   "productId": 2,
+   "name": "Kurşunsuz 95",
+   "liters": 479400,
+   "amount": 20523932,
+   "share": 0.2565
+  },
+  {
+   "productId": 4,
+   "name": "LPG",
+   "liters": 474000,
+   "amount": 20066892,
+   "share": 0.2508
+  },
+  {
+   "productId": 3,
+   "name": "Kurşunsuz 98",
+   "liters": 407000,
+   "amount": 17333836,
+   "share": 0.2166
+  }
+ ],
+ "stations": [
+  {
+   "stationId": 221,
+   "title": "AkaryakıtNet Walkthrough İstasyonu",
+   "liters": 1878800,
+   "amount": 80021806,
+   "share": 1
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "deliveryPointId": 837,
+   "name": "Merkez Depo",
+   "city": "İstanbul",
+   "liters": 85000,
+   "amount": 3641510,
+   "share": 0.0455
+  },
+  {
+   "deliveryPointId": 856,
+   "name": "Bornova Dağıtım Noktası #20",
+   "city": "İzmir",
+   "liters": 35100,
+   "amount": 1580202,
+   "share": 0.0197
+  },
+  {
+   "deliveryPointId": 1006,
+   "name": "Anadolu Lojistik Üssü #170",
+   "city": "İstanbul",
+   "liters": 35100,
+   "amount": 1580202,
+   "share": 0.0197
+  }
+ ],
+ "orders": {
+  "awaitingQuote": 48,
+  "awaitingDecision": 33,
+  "awaitingCompanyApproval": 2,
+  "inTransit": 1,
+  "delivered": 7,
+  "disputed": 1
+ },
+ "limits": [
+  {
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "limit": 500000,
+   "used": 81469680,
+   "available": 0,
+   "usageRate": 162.939,
+   "unit": "TL",
+   "periodLabel": "Bu ay"
+  }
+ ],
+ "failedSections": []
+}

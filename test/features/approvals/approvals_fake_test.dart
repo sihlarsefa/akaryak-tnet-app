@@ -210,6 +210,52 @@ void main() {
       );
     });
 
+    test('ret gerekçesi alt sınırı sunucuyla aynı: yerel 10, saha formu '
+        'kârlılık yansıması 3, diğer yansımalar 1', () {
+      // Sunucu `ApprovalTypes.MinRejectNoteLength` (canlı: approvals/10/decide "ok" → 400
+      // "Ret gerekçesi en az 3 karakter olmalı (saha personeline iletilir).").
+      expect(
+        ApprovalType.orderFinance.minRejectNoteLength(isMirror: false),
+        10,
+      );
+      expect(
+        ApprovalType.fieldOrderProfit.minRejectNoteLength(isMirror: true),
+        3,
+      );
+      expect(ApprovalType.limitChange.minRejectNoteLength(isMirror: true), 1);
+      expect(
+        ApprovalType.companyOrderRequest.minRejectNoteLength(isMirror: true),
+        1,
+      );
+
+      final d = detail('satis', 9002);
+      expect(d.type, ApprovalType.fieldOrderProfit);
+      expect(d.row.isMirror, isTrue);
+      expect(d.minRejectNoteLength, 3);
+      expect(
+        () => store.decide(
+          p('satis'),
+          a(9002),
+          body({
+            'decision': 4,
+            'concurrencyToken': d.concurrencyToken,
+            'note': 'ok',
+          }),
+        ),
+        throwsA(fakeStatus(400, field: 'note')),
+      );
+      final result = store.decide(
+        p('satis'),
+        a(9002),
+        body({
+          'decision': 4,
+          'concurrencyToken': d.concurrencyToken,
+          'note': 'Kâr',
+        }),
+      );
+      expect(result['status'], ApprovalStatus.rejected.code);
+    });
+
     test('formda olmayan koşul anahtarı reddedilir', () {
       final token = detail('finans', 9001).concurrencyToken;
       expect(

@@ -1,5 +1,6 @@
-/// AkaryakıtNet design system — design language v3 "Akış": Plus Jakarta
-/// Sans, a calm graphite base with white cards floating on an off-white page,
+/// AkaryakıtNet design system — design language v3 "Akış", aligned with the
+/// web panel (F2GO look): Archivo, the panel's slate ink and hairlines, white
+/// cards on the panel's light page,
 /// the luminous orange header band and hero card of every home, Phosphor
 /// icons and lively, physical motion. Tokens, themes, motion, status,
 /// components and painters. Import this one file:
@@ -12,7 +13,7 @@
 /// * Theme: `AknTheme.light()` / `.dark()`; tokens via `context.akn`
 ///   ([AknColors]: plate / onPlate, ink, dim, brand marks, brandFill /
 ///   onBrandFill, chart tokens, `plateInk()`) and `context.aknText`
-///   ([AknTextStyles]: Plus Jakarta Sans, tabular figures); spacing
+///   ([AknTextStyles]: Archivo, tabular figures); spacing
 ///   [AknSpace], radii [AknRadius], shadows [AknShadows]; driver mode
 ///   [AknDriverMode].
 /// * Icons: `PhosphorIconsRegular` (line), `PhosphorIconsFill` (selected,

@@ -1,0 +1,35 @@
+{
+ "orderId": 8271,
+ "orderNumber": "AYN-20261028-000016",
+ "deliveryAddress": "İstanbul / Pendik — Organize Sanayi 5. Cad. No:12 Pendik/İstanbul",
+ "orderedLiters": 6000,
+ "acceptedLiters": 5950,
+ "canManage": false,
+ "canAccept": true,
+ "isOpen": true,
+ "completionHint": null,
+ "shipments": [
+  {
+   "id": 19,
+   "plannedLiters": 50,
+   "deliveredLiters": null,
+   "vehiclePlate": "34 TOL 002",
+   "driverName": "Yedek Şoför",
+   "scheduledAt": "2026-10-29T09:00:00",
+   "deliveryDocumentNo": null,
+   "status": 5,
+   "disputeNote": null
+  },
+  {
+   "id": 18,
+   "plannedLiters": 5950,
+   "deliveredLiters": 5950,
+   "vehiclePlate": "34 TOL 001",
+   "driverName": "Hüseyin Polat",
+   "scheduledAt": "2026-10-28T23:30:00",
+   "deliveryDocumentNo": "IRS-TOL-1",
+   "status": 3,
+   "disputeNote": null
+  }
+ ]
+}

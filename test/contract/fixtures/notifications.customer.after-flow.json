@@ -1,0 +1,53 @@
+{
+ "items": [
+  {
+   "id": 349,
+   "category": "payments",
+   "categoryLabel": "Ödemeler",
+   "eventCode": "payment.collected",
+   "title": "Ödeme alındı: AYN-20261028-000011",
+   "body": "Ödemeniz tahsil edildi olarak işaretlendi.",
+   "severity": 1,
+   "route": "/orders/8266",
+   "entityType": "Order",
+   "entityId": 8266,
+   "createdAt": "2026-10-28T19:51:24.368701+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 333,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.dispatched",
+   "title": "Yola çıktı: AYN-20261028-000011",
+   "body": "Motorin (Euro 5) 5.980 L teslimatınız yola çıktı.",
+   "severity": 0,
+   "route": "/orders/8266",
+   "entityType": "Shipment",
+   "entityId": 16,
+   "createdAt": "2026-10-28T19:51:24.31855+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 289,
+   "category": "approvals",
+   "categoryLabel": "Onaylar",
+   "eventCode": "approval.pending",
+   "title": "Onayınız bekleniyor: #74",
+   "body": "Şirket içi sipariş talebi. Karar vermek için dokunun.",
+   "severity": 2,
+   "route": "/approvals/72",
+   "entityType": "ApprovalRequest",
+   "entityId": 72,
+   "createdAt": "2026-10-28T19:49:13.577806+00:00",
+   "readAt": "2026-10-28T19:49:15.479864+00:00",
+   "isRead": true
+  }
+ ],
+ "totalCount": 42,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 2
+}

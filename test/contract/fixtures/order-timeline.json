@@ -1,0 +1,30 @@
+[
+ {
+  "fromStatus": 0,
+  "toStatus": 0,
+  "note": "Sipariş oluşturuldu",
+  "changedByUserId": null,
+  "changedAt": "2026-10-20T17:06:57.27261"
+ },
+ {
+  "fromStatus": 0,
+  "toStatus": 1,
+  "note": "Teklif bekleniyor",
+  "changedByUserId": null,
+  "changedAt": "2026-10-20T17:16:57.27261"
+ },
+ {
+  "fromStatus": 1,
+  "toStatus": 2,
+  "note": "Teklif gönderildi",
+  "changedByUserId": null,
+  "changedAt": "2026-10-20T17:51:57.27261"
+ },
+ {
+  "fromStatus": 2,
+  "toStatus": 3,
+  "note": "Onaylandı — sevkiyata hazır",
+  "changedByUserId": null,
+  "changedAt": "2026-10-20T20:06:57.27261"
+ }
+]

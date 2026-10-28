@@ -197,7 +197,7 @@ class LogoMarkPainter extends CustomPainter {
       old.trackOpacity != trackOpacity;
 }
 
-/// "Akaryakıt**Net**" wordmark (design v3), Plus Jakarta Sans 800 with tight
+/// "Akaryakıt**Net**" wordmark (design v3), Archivo 800 with tight
 /// tracking (−2.5 % of the size).
 ///
 /// * On white: "Akaryakıt" in ink, "Net" in the logo orange.

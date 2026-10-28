@@ -522,43 +522,75 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         'title',
         pad(
           top: 8,
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Büyük yazıda başlık ürün adından kırılır; litre birimiyle aynı satırda kalır.
-              Semantics(
-                header: true,
-                child: A2UnitText(
-                  orderTitle(d.productName, d.quantityLiters),
-                  style: t.display.copyWith(color: c.ink),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
+          // Web panelinin sayfa bandı: açık turuncu zemin, simge karosu, üst satır, başlık ve
+          // tek satırlık açıklama (nokta ve teslim günü).
+          DecoratedBox(
+            decoration: AknPageBand.decorationOf(c),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Icon(
-                      PhosphorIconsRegular.mapPinLine,
-                      size: 18,
-                      color: c.dim,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
+                  AknPageBand.tileOf(context, PhosphorIconsRegular.drop),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      [
-                        ?pointName,
-                        if (d.requestedDeliveryDate != null)
-                          '${dayMonthWeekday(d.requestedDeliveryDate)} teslim',
-                      ].join(', '),
-                      style: t.bodySmall.copyWith(color: c.dim),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          OrdersCopy.orderDetail,
+                          style: t.caption.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: c.brandInk,
+                          ),
+                        ),
+                        // Büyük yazıda başlık ürün adından kırılır; litre birimiyle aynı satırda
+                        // kalır.
+                        Semantics(
+                          header: true,
+                          child: A2UnitText(
+                            orderTitle(d.productName, d.quantityLiters),
+                            style: t.display.copyWith(
+                              fontSize: 24,
+                              height: 30 / 24,
+                              color: c.ink,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Icon(
+                                PhosphorIconsRegular.mapPinLine,
+                                size: 16,
+                                color: c.dim,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                [
+                                  ?pointName,
+                                  if (d.requestedDeliveryDate != null)
+                                    '${dayMonthWeekday(d.requestedDeliveryDate)} teslim',
+                                ].join(', '),
+                                style: t.label.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  color: c.dim,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -721,6 +753,20 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
             point: point,
             station: awaitingQuote ? null : station,
             canAccept: tracking?.canAcceptDeliveries ?? false,
+          ),
+        ),
+      // Kısmi teslim kabul edildi, açık sevkiyat yok: siparişin neden açık kaldığı (sunucunun notu;
+      // web "Sipariş henüz tamamlanmadı" uyarısı).
+      if (d.status == OrderStatus.approved && v.completionHint != null)
+        (
+          'completion',
+          pad(
+            AknBanner(
+              tone: AknTone.info,
+              icon: PhosphorIconsRegular.info,
+              title: 'Sipariş henüz tamamlanmadı',
+              message: v.completionHint!,
+            ),
           ),
         ),
       if (shipments.isNotEmpty)

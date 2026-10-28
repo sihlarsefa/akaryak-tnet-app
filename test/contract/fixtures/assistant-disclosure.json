@@ -1,0 +1,37 @@
+{
+ "version": "1",
+ "title": "Yapay zekâ asistanı aydınlatma metni",
+ "text": "Asistan ne yapar?\nAsistan, AkaryakıtNet uygulamasının kullanımıyla ilgili sorularınızı yanıtlar: sipariş, teklif, ödeme, teslimat, onay ve ekranların nasıl kullanıldığı. Yanıtlar yapay zekâ ile oluşturulur ve hatalı olabilir; işlem yapmadan önce ekrandaki bilgileri esas alın. Asistan hesabınızda işlem yapmaz, sipariş vermez ya da onay vermez.\n\nHangi bilgiler gönderilir?\nYazdığınız mesaj, aynı sohbetteki son mesajlarınız ve hesabınızla ilgili kısa bir özet: kullanıcı türünüz ve rolleriniz, son siparişlerinizin numarası, durumu, litresi ve tarihleri, açık teslimat ve bekleyen onay sayıları. Adınız, telefon numaranız, e-posta adresiniz, vergi / kimlik numaranız, adres bilgileriniz, bayi ve firma unvanları gönderilmez. Mesajınızda e-posta, telefon, kart ya da kimlik numarası yazarsanız bunlar gönderilmeden önce gizlenir.\n\nKime ve neden aktarılır?\nYanıtın oluşturulması için mesajınız ve özet bilgiler yapay zekâ hizmet sağlayıcısı OpenAI, L.L.C. şirketine (ABD) aktarılır. Yurt dışına aktarım, 6698 sayılı KVKK'nın 9. maddesindeki uygun güvencelere ve bu metni onaylayarak verdiğiniz açık rızaya dayanır. Sağlayıcı, API üzerinden gönderilen verileri varsayılan olarak model eğitiminde kullanmadığını beyan eder.\n\nNe kadar saklanır?\nSohbet kayıtlarınız (soru, yanıt, geri bildiriminiz) hizmetin güvenliği ve kalitesi için sunucularımızda 90 gün saklanır, ardından silinir. Hizmet sağlayıcı kötüye kullanımı önlemek için verileri en fazla 30 gün tutabilir. Hesabınızı silerseniz sohbet metinleriniz de silinir.\n\nDikkat edin\nKart numarası, şifre, SMS doğrulama kodu, kimlik ya da vergi numarası gibi bilgileri asistana yazmayın. Asistanı kullanmak isteğe bağlıdır; kullanmasanız da uygulamanın tüm özellikleri çalışır. Onayınızı Profil > Gizlilik bölümünden istediğiniz zaman geri alabilirsiniz.\n\nHaklarınız\nKVKK'nın 11. maddesindeki haklarınız (bilgi isteme, düzeltme, silme, itiraz ve diğerleri) ve başvuru yolları KVKK aydınlatma metninde yer alır. Başvurularınız en geç 30 gün içinde ücretsiz yanıtlanır.",
+ "sections": [
+  {
+   "title": "Asistan ne yapar?",
+   "body": "Asistan, AkaryakıtNet uygulamasının kullanımıyla ilgili sorularınızı yanıtlar: sipariş, teklif, ödeme, teslimat, onay ve ekranların nasıl kullanıldığı. Yanıtlar yapay zekâ ile oluşturulur ve hatalı olabilir; işlem yapmadan önce ekrandaki bilgileri esas alın. Asistan hesabınızda işlem yapmaz, sipariş vermez ya da onay vermez."
+  },
+  {
+   "title": "Hangi bilgiler gönderilir?",
+   "body": "Yazdığınız mesaj, aynı sohbetteki son mesajlarınız ve hesabınızla ilgili kısa bir özet: kullanıcı türünüz ve rolleriniz, son siparişlerinizin numarası, durumu, litresi ve tarihleri, açık teslimat ve bekleyen onay sayıları. Adınız, telefon numaranız, e-posta adresiniz, vergi / kimlik numaranız, adres bilgileriniz, bayi ve firma unvanları gönderilmez. Mesajınızda e-posta, telefon, kart ya da kimlik numarası yazarsanız bunlar gönderilmeden önce gizlenir."
+  },
+  {
+   "title": "Kime ve neden aktarılır?",
+   "body": "Yanıtın oluşturulması için mesajınız ve özet bilgiler yapay zekâ hizmet sağlayıcısı OpenAI, L.L.C. şirketine (ABD) aktarılır. Yurt dışına aktarım, 6698 sayılı KVKK'nın 9. maddesindeki uygun güvencelere ve bu metni onaylayarak verdiğiniz açık rızaya dayanır. Sağlayıcı, API üzerinden gönderilen verileri varsayılan olarak model eğitiminde kullanmadığını beyan eder."
+  },
+  {
+   "title": "Ne kadar saklanır?",
+   "body": "Sohbet kayıtlarınız (soru, yanıt, geri bildiriminiz) hizmetin güvenliği ve kalitesi için sunucularımızda 90 gün saklanır, ardından silinir. Hizmet sağlayıcı kötüye kullanımı önlemek için verileri en fazla 30 gün tutabilir. Hesabınızı silerseniz sohbet metinleriniz de silinir."
+  },
+  {
+   "title": "Dikkat edin",
+   "body": "Kart numarası, şifre, SMS doğrulama kodu, kimlik ya da vergi numarası gibi bilgileri asistana yazmayın. Asistanı kullanmak isteğe bağlıdır; kullanmasanız da uygulamanın tüm özellikleri çalışır. Onayınızı Profil > Gizlilik bölümünden istediğiniz zaman geri alabilirsiniz."
+  },
+  {
+   "title": "Haklarınız",
+   "body": "KVKK'nın 11. maddesindeki haklarınız (bilgi isteme, düzeltme, silme, itiraz ve diğerleri) ve başvuru yolları KVKK aydınlatma metninde yer alır. Başvurularınız en geç 30 gün içinde ücretsiz yanıtlanır."
+  }
+ ],
+ "provider": "OpenAI, L.L.C.",
+ "providerCountry": "ABD",
+ "retentionDays": 90,
+ "legalUrl": "http://127.0.0.1:5382/legal/ai",
+ "accepted": false,
+ "acceptedAt": null
+}

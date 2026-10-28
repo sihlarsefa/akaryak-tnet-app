@@ -1,0 +1,12 @@
+{
+ "title": "Geçersiz istek",
+ "status": 400,
+ "detail": "Lütfen işaretli alanları kontrol edin.",
+ "code": "validation",
+ "traceId": "b7cfebb0-ec97-4505-9314-34fec4066423",
+ "errors": {
+  "period": [
+   "Geçersiz dönem. Kullanılabilecek değerler: month, lastMonth, quarter, year."
+  ]
+ }
+}

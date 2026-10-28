@@ -1,0 +1,101 @@
+{
+ "options": {
+  "stationId": 221,
+  "customerId": 221,
+  "enabled": true,
+  "defaultMethodCode": null,
+  "methods": [
+   {
+    "code": "NAKIT",
+    "name": "Nakit (peşin)",
+    "shortName": "Nakit",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": null,
+    "documentRequired": false,
+    "allowsInstallments": false,
+    "installmentOptions": [],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [
+     {
+      "key": "note",
+      "label": "Tahsilat notu",
+      "type": "textarea",
+      "required": false,
+      "maxLength": 300,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     }
+    ],
+    "hint": "Teslimatta ya da öncesinde nakit tahsilat."
+   },
+   {
+    "code": "HAVALE",
+    "name": "Havale / EFT (peşin)",
+    "shortName": "Havale",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": 3,
+    "documentRequired": false,
+    "allowsInstallments": false,
+    "installmentOptions": [],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [
+     {
+      "key": "bank",
+      "label": "Banka",
+      "type": "text",
+      "required": false,
+      "maxLength": 80,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     },
+     {
+      "key": "transferDate",
+      "label": "Gönderim tarihi",
+      "type": "date",
+      "required": false,
+      "maxLength": null,
+      "options": null,
+      "placeholder": null,
+      "choices": null
+     }
+    ],
+    "hint": "Dekont yüklenince ödeme \"Belge yüklendi\" olur."
+   },
+   {
+    "code": "KART",
+    "name": "Kredi / banka kartı (POS)",
+    "shortName": "Kart",
+    "isDeferred": false,
+    "requiresFinance": false,
+    "documentKind": 4,
+    "documentRequired": false,
+    "allowsInstallments": true,
+    "installmentOptions": [
+     1,
+     3,
+     6
+    ],
+    "minTermDays": 0,
+    "maxTermDays": 0,
+    "defaultTermDays": 0,
+    "fields": [],
+    "hint": "Kart bilgisi saklanmaz; kârlılıkta kart komisyonu uygulanır."
+   }
+  ],
+  "blockedReason": null,
+  "advanceBalance": 0,
+  "linked": true
+ },
+ "unitPrices": {
+  "1": 42.4,
+  "2": 44.1
+ }
+}

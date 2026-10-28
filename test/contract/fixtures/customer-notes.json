@@ -1,0 +1,32 @@
+[
+ {
+  "id": 1,
+  "stationId": 221,
+  "customerId": 221,
+  "body": "Hafta sonu teslimat istemiyor; teslimatlar hafta içi 08:00–17:00 arasında yapılmalı.",
+  "createdAt": "2026-10-25T19:07:16.700102",
+  "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "createdByDisplay": "Walkthrough Bayi",
+  "canDelete": true
+ },
+ {
+  "id": 2,
+  "stationId": 221,
+  "customerId": 221,
+  "body": "Ekim ayında filoya 6 yeni çekici eklenecek; motorin hacmi artacak, limit artışı gündemde.",
+  "createdAt": "2026-10-16T18:07:16.700102",
+  "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "createdByDisplay": "Walkthrough Bayi",
+  "canDelete": true
+ },
+ {
+  "id": 3,
+  "stationId": 221,
+  "customerId": 221,
+  "body": "Rakip bayi litrede 0,30 ₺ indirim teklif etmiş; fiyat görüşmesi için ziyaret planlandı.",
+  "createdAt": "2026-10-07T17:07:16.700102",
+  "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "createdByDisplay": "Walkthrough Bayi",
+  "canDelete": true
+ }
+]

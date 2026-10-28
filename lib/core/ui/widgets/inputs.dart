@@ -943,7 +943,7 @@ class _NumberFieldState extends State<_NumberField> {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    // The figures (v3 §1): Plus Jakarta Sans 800 with tabular digits, so a
+    // The figures (v3 §1): Archivo 800 with tabular digits, so a
     // value never changes width as it is typed — 22/28 (driver mode 26/32).
     // They are large already, so they stop growing at 1.5× text scale; the
     // label, helper and error keep scaling.

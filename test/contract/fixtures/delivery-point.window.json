@@ -1,0 +1,18 @@
+{
+ "id": 1065,
+ "customerId": 223,
+ "name": "Denetim noktası 94348",
+ "city": "İstanbul",
+ "district": "Kadıköy",
+ "address": "Rıhtım Cad. No:1 Kadıköy/İstanbul",
+ "isActive": true,
+ "latitude": 40.990123,
+ "longitude": 29.02345,
+ "contactName": "Depo",
+ "contactPhone": "05320000002",
+ "deliveryWindowStart": "08:30:00",
+ "deliveryWindowEnd": "23:59:59",
+ "tankCapacityLiters": 20000,
+ "accessNotes": "Sözleşme denetimi",
+ "hasLocation": true
+}

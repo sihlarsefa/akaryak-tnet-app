@@ -24,10 +24,16 @@ class OrderView {
     this.documentTarget,
     this.documents = const [],
     this.advanceBalance,
+    this.completionHint,
   });
 
   final OrderDetail detail;
   final OrderTracking? tracking;
+
+  /// Kısmi teslim kabul edildi, açık sevkiyat yok ama sipariş hâlâ "Onaylandı"da: sunucunun müşteriye
+  /// notu (`shipments/order/{id}` → `completionHint`; eksik litre toleransı aşıyor, kalan litre bayinin
+  /// yeni sevkiyatıyla gelir). Yalnızca bu durumda okunur ([needsCompletionHint]).
+  final String? completionHint;
 
   /// Ödeme belgesi hedefi (çek / senet görseli, havale dekontu); belge gerekmiyorsa null.
   final PaymentUploadTarget? documentTarget;
@@ -82,6 +88,7 @@ class OrderView {
     'target': documentTarget?.toJson(),
     'documents': documentsRaw,
     'advanceBalance': advanceBalance,
+    'completionHint': completionHint,
   };
 
   static OrderView fromCache(Object? json) {
@@ -93,6 +100,7 @@ class OrderView {
       documentTarget: PaymentUploadTarget.tryParse(r['target']),
       documents: JsonReader.parseList(r['documents'], Attachment.fromJson),
       advanceBalance: r.decOrNull('advanceBalance'),
+      completionHint: r.nonEmpty('completionHint'),
     );
   }
 
@@ -102,7 +110,23 @@ class OrderView {
     documentTarget: documentTarget,
     documents: docs,
     advanceBalance: advanceBalance,
+    completionHint: completionHint,
   );
+
+  /// Sunucunun tamamlanma notu gerekebilir mi: onaylı sipariş, litrenin bir kısmı teslim alındı ve
+  /// açık (planlı, yolda, kabul bekleyen, itirazlı) sevkiyat yok (`FulfillmentService`
+  /// `CompletionHintAsync` koşulu). Takip okunamadıysa false.
+  static bool needsCompletionHint(OrderDetail d, OrderTracking? t) =>
+      d.status == OrderStatus.approved &&
+      t != null &&
+      t.acceptedLiters > 0 &&
+      t.acceptedLiters + 0.0005 < t.orderedLiters &&
+      t.inProcessLiters <= 0 &&
+      !t.shipments.any(
+        (s) =>
+            s.status != ShipmentStatus.accepted &&
+            s.status != ShipmentStatus.cancelled,
+      );
 }
 
 /// Teklif / takip yoklamasının açık olduğu durumlar (spec A.4: 30 sn).
@@ -249,6 +273,16 @@ class OrderViewController
         }
       }
 
+      // Kısmi teslimden sonra açık kalan sipariş: neden kapanmadığı (yalnızca bu durumda istenir).
+      String? completionHint;
+      if (OrderView.needsCompletionHint(detail, tracking)) {
+        try {
+          completionHint = (await repo.fulfillment(arg)).completionHint;
+        } on AppFailure catch (f) {
+          AppLog.debug('Teslimat özeti alınamadı: $f');
+        }
+      }
+
       double? advance;
       if (method == PaymentCodes.advance &&
           detail.status == OrderStatus.awaitingApproval) {
@@ -270,6 +304,7 @@ class OrderViewController
         documentTarget: target,
         documents: docs,
         advanceBalance: advance,
+        completionHint: completionHint,
       );
       state = Loadable(data: view, updatedAt: DateTime.now().toUtc());
       await cache.write(

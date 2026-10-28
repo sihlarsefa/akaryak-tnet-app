@@ -1,0 +1,41 @@
+{
+ "userId": "5739c4c8-fc65-45bd-b24d-deb93727146f",
+ "userName": "depo.demo",
+ "displayName": "Kadir Er",
+ "email": "depo.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****09",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "depot"
+ ],
+ "bayiRoleNames": [
+  "Depo / dolum"
+ ],
+ "pages": [
+  "StationOrders:Gorur",
+  "StationShipments:Gorur",
+  "StationShipments:Duzenler",
+  "StationShipmentBoard:Gorur"
+ ],
+ "capabilities": [
+  {
+   "code": "loading.record",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "dd005ecc2d567a0d"
+}

@@ -6,7 +6,7 @@ import '../../copy.dart';
 
 /// Büyük litre tuş takımı (eldivenle, güneş altında kullanılır; tasarım v3 §4–5): 1–9, virgül, 0,
 /// sil (basılı tutunca temizler). Rakam tuşları beyaz, r16, yumuşak kart gölgesi; virgül ve sil
-/// kuyu renginde. Rakamlar Plus Jakarta Sans 800 tablo rakamları. Basınca tuş 0,94'e küçülür,
+/// kuyu renginde. Rakamlar Archivo 800 tablo rakamları. Basınca tuş 0,94'e küçülür,
 /// gölgesi oturur ve zemini kuyu rengine döner (yaylı bırakış), her dokunuşta hafif titreşim.
 /// Sürücü kipinde en az 64 dp (§6.30), yazı büyüdükçe uzar.
 class LitreKeypad extends StatelessWidget {

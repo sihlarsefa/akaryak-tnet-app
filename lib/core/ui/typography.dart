@@ -4,12 +4,16 @@ import 'package:flutter/services.dart';
 
 import 'tokens.dart';
 
-/// The bundled face (design v3 §1): Plus Jakarta Sans 2.7.1 static TTFs
-/// (400–800), SIL OFL 1.1, unmodified upstream files in
-/// `assets/fonts/jakarta/`. One family for words and figures.
+/// The bundled face: Archivo 2.001 — the web panel's typeface, so the app
+/// and the panel read as one product (2026-10-28). Static TTFs (400–800,
+/// wdth 100, Latin + Latin Extended with ₺, every OpenType feature kept)
+/// instanced from the google/fonts variable font, SIL OFL 1.1, in
+/// `assets/fonts/archivo/` (recipe: `SOURCE.txt`). One family for words and
+/// figures.
 abstract final class AknFonts {
-  /// Words and figures (400, 500, 600, 700, 800).
-  static const String sans = 'PlusJakartaSans';
+  /// Words and figures (400, 500, 600, 700, 800). The one place that names
+  /// the family (with the pubspec `fonts:` entry): change both to switch.
+  static const String sans = 'Archivo';
 
   /// Deprecated: v3 has no condensed face; figures use [sans] with tabular
   /// digits ([AknNumerals.tabular]). Kept for API stability.
@@ -18,16 +22,19 @@ abstract final class AknFonts {
   /// Every style is shaped as Turkish (`locl`: İ/ı, Ş, Ğ …).
   static const Locale locale = Locale('tr', 'TR');
 
-  /// The bundled licence text (SIL OFL 1.1, no Reserved Font Name).
-  static const String licenseAsset = 'assets/fonts/jakarta/OFL.txt';
+  /// The family's name on the "Lisanslar" page.
+  static const String licenseName = 'Archivo';
 
-  /// Registers the Plus Jakarta Sans licence with [LicenseRegistry] so it
-  /// shows on the "Lisanslar" page (§1). Call once in `main()`, before
-  /// `runApp`; the text is read only when the licences are requested.
+  /// The bundled licence text (SIL OFL 1.1, no Reserved Font Name).
+  static const String licenseAsset = 'assets/fonts/archivo/OFL.txt';
+
+  /// Registers the typeface's licence with [LicenseRegistry] so it shows on
+  /// the "Lisanslar" page (§1). Call once in `main()`, before `runApp`; the
+  /// text is read only when the licences are requested.
   static void registerLicense() {
     LicenseRegistry.addLicense(() async* {
       yield LicenseEntryWithLineBreaks(const [
-        'Plus Jakarta Sans',
+        licenseName,
       ], await rootBundle.loadString(licenseAsset));
     });
   }
@@ -71,7 +78,7 @@ abstract final class AknNumerals {
   }
 }
 
-/// Type scale on Plus Jakarta Sans (design v3 §1):
+/// Type scale on Archivo (design v3 §1, panel tracking):
 ///
 /// * words: display 28/34 800, title 20/26 700, headline 17/22 700, body
 ///   15/22 400, bodySmall 14/20, label 13/18 600, caption 12/16 500;
@@ -79,9 +86,11 @@ abstract final class AknNumerals {
 ///   700, number 24/30 800, amountLarge 28/34 800, numberLarge 32/38 800 and
 ///   the hero card's `plateFigure` 46/52 800 + `plateUnit` 24/28 700.
 ///
-/// Hierarchy comes from size and weight; tight negative tracking on the big
-/// sizes, none on reading text. Every style sets `leadingDistribution: even`
-/// and the Turkish locale. Read with `context.aknText`.
+/// Hierarchy comes from size and weight. Archivo sets tighter than a
+/// geometric face, so tracking is the panel's: about −0.015 em on figures
+/// and big titles, −0.005 em on headings, none on reading text. Every style
+/// sets `leadingDistribution: even` and the Turkish locale. Read with
+/// `context.aknText`.
 @immutable
 class AknTextStyles extends ThemeExtension<AknTextStyles> {
   const AknTextStyles({
@@ -110,8 +119,8 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
   /// The scale coloured from [c]. Build it from `c.plateInk()` and every
   /// style prints black on the plate.
   ///
-  /// [platform] is ignored (kept for API stability): v3 always uses the
-  /// bundled Plus Jakarta Sans, never the platform face.
+  /// [platform] is ignored (kept for API stability): the app always uses the
+  /// bundled Archivo, never the platform face.
   factory AknTextStyles.from(AknColors c, {TargetPlatform? platform}) {
     TextStyle sans(
       double size,
@@ -145,43 +154,49 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
 
     final captionStrong = sans(12, 16, FontWeight.w700, color: c.dim);
     return AknTextStyles(
-      display: sans(28, 34, FontWeight.w800, tracking: -0.8, color: c.ink),
-      title: sans(20, 26, FontWeight.w700, tracking: -0.4, color: c.ink),
-      headline: sans(17, 22, FontWeight.w700, tracking: -0.2, color: c.ink),
+      display: sans(28, 34, FontWeight.w800, tracking: -0.4, color: c.ink),
+      title: sans(20, 26, FontWeight.w700, tracking: -0.2, color: c.ink),
+      headline: sans(17, 22, FontWeight.w700, tracking: -0.1, color: c.ink),
       body: sans(15, 22, FontWeight.w400, color: c.text),
-      bodyStrong: sans(15, 22, FontWeight.w600, tracking: -0.1, color: c.ink),
+      bodyStrong: sans(15, 22, FontWeight.w600, color: c.ink),
       bodySmall: sans(14, 20, FontWeight.w400, color: c.dim),
       label: sans(13, 18, FontWeight.w600, color: c.ink),
       caption: sans(12, 16, FontWeight.w500, color: c.dim),
       captionStrong: captionStrong,
       overline: captionStrong,
-      amount: figures(17, 22, FontWeight.w700, tracking: -0.3, color: c.ink),
+      amount: figures(17, 22, FontWeight.w700, tracking: -0.15, color: c.ink),
       amountLarge: figures(
         28,
         34,
         FontWeight.w800,
-        tracking: -0.8,
+        tracking: -0.4,
         color: c.ink,
       ),
-      number: figures(24, 30, FontWeight.w800, tracking: -0.6, color: c.ink),
-      numberLarge: figures(32, 38, FontWeight.w800, tracking: -1, color: c.ink),
-      button: sans(16, 20, FontWeight.w700, tracking: -0.1),
+      number: figures(24, 30, FontWeight.w800, tracking: -0.35, color: c.ink),
+      numberLarge: figures(
+        32,
+        38,
+        FontWeight.w800,
+        tracking: -0.5,
+        color: c.ink,
+      ),
+      button: sans(16, 20, FontWeight.w700),
       plateFigure: figures(
         46,
         52,
         FontWeight.w800,
-        tracking: -1.6,
+        tracking: -0.7,
         color: c.ink,
       ),
-      plateUnit: figures(24, 28, FontWeight.w700, tracking: -0.4, color: c.ink),
-      figureWord: sans(20, 24, FontWeight.w700, tracking: -0.3, color: c.ink),
+      plateUnit: figures(24, 28, FontWeight.w700, tracking: -0.2, color: c.ink),
+      figureWord: sans(20, 24, FontWeight.w700, tracking: -0.15, color: c.ink),
       readoutUnit: figures(14, 30, FontWeight.w700, color: c.ink),
       navLabel: sans(11, 14, FontWeight.w600, color: c.navInactive),
     );
   }
 
   /// Root page titles ("Siparişlerim") and object titles ("Motorin,
-  /// 8.000 L"): 28/34 800, −0.8.
+  /// 8.000 L"): 28/34 800, −0.4.
   final TextStyle display;
 
   /// Section, sheet and dialog titles: 20/26 700.
@@ -223,7 +238,7 @@ class AknTextStyles extends ThemeExtension<AknTextStyles> {
   /// Button labels: 16/20 700; the colour comes from the button.
   final TextStyle button;
 
-  /// The hero card's figure: 46/52 800, −1.6, tabular (driver 56/60).
+  /// The hero card's figure: 46/52 800, −0.7, tabular (driver 56/60).
   final TextStyle plateFigure;
 
   /// ₺, L, ₺/L, ",00" after [plateFigure] (gap 6): 24/28 700 (driver 28).

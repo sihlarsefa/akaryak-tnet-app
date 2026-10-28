@@ -180,6 +180,14 @@ class CustomerOrdersRepository {
   Future<Object?> trackingRaw(int id) =>
       api.get('orders/$id/tracking', parse: (j) => j);
 
+  /// Siparişin teslimat özeti (`FulfillmentDto`); müşteriye yalnızca `completionHint` için okunur
+  /// (kısmi teslim kabul edildi, açık sevkiyat yok: kalan litrenin bayinin yeni sevkiyatıyla geleceği).
+  Future<Fulfillment> fulfillment(int id) => api.get(
+    'shipments/order/$id',
+    parse: Fulfillment.fromJson,
+    quiet403: true,
+  );
+
   /// Teklif kararı. [expectedQuoteId] ekranda görülen teklif; son teklif değilse 409.
   Future<void> decide(
     int orderId,

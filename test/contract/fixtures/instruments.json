@@ -1,0 +1,82 @@
+{
+ "items": [
+  {
+   "kindLabel": "Senet",
+   "statusLabel": "Alındı",
+   "allowedTransitions": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "noteRequiredFor": [
+    5,
+    6
+   ],
+   "isOverdue": false,
+   "dueHint": "62 gün kaldı",
+   "createdAtUtc": "2026-10-28T17:07:17.908595+00:00",
+   "id": 2,
+   "stationId": 221,
+   "customerId": 224,
+   "customerTitle": "Marmara Filo Lojistik A.Ş.",
+   "orderId": 8247,
+   "orderNumber": "D4-1006",
+   "paymentGroupKey": "9717c6b1-d2ac-d431-8f33-600c665ec327",
+   "kind": 2,
+   "serialNo": null,
+   "bankName": null,
+   "branchName": null,
+   "drawerName": null,
+   "debtorName": "Marmara Filo Lojistik A.Ş.",
+   "guarantorName": "Hande Yıldırım",
+   "amount": 529200,
+   "dueDate": "2026-12-29T00:00:00",
+   "status": 1,
+   "note": null,
+   "createdAt": "2026-10-28T17:07:17.908595"
+  },
+  {
+   "kindLabel": "Çek",
+   "statusLabel": "Alındı",
+   "allowedTransitions": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "noteRequiredFor": [
+    5,
+    6
+   ],
+   "isOverdue": false,
+   "dueHint": "92 gün kaldı",
+   "createdAtUtc": "2026-10-28T16:07:17.908595+00:00",
+   "id": 1,
+   "stationId": 221,
+   "customerId": 224,
+   "customerTitle": "Marmara Filo Lojistik A.Ş.",
+   "orderId": 8246,
+   "orderNumber": "D4-1005",
+   "paymentGroupKey": "baaa8535-788c-b13e-898c-b7e29cf049da",
+   "kind": 1,
+   "serialNo": "MRM-0045871",
+   "bankName": "Türkiye İş Bankası",
+   "branchName": "Tuzla Şubesi",
+   "drawerName": "Marmara Filo Lojistik A.Ş.",
+   "debtorName": null,
+   "guarantorName": null,
+   "amount": 1285500,
+   "dueDate": "2027-01-28T00:00:00",
+   "status": 1,
+   "note": null,
+   "createdAt": "2026-10-28T16:07:17.908595"
+  }
+ ],
+ "totalCount": 2,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

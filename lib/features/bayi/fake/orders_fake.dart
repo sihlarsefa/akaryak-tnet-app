@@ -1,6 +1,7 @@
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
 import '../../../core/models/me_access.dart';
+import '../../../core/network/fake/fake_completion.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
@@ -86,17 +87,14 @@ void registerBayiOrderFakes(FakeServer s) {
       throw FakeResponse.notFound('Sipariş bulunamadı.');
     }
     if (st(o) == 7) return {'message': 'Sipariş tamamlandı.'};
-    if (st(o) != 3) {
-      throw FakeResponse.business(
-        'Yalnızca onaylanmış sipariş tamamlanabilir.',
-      );
-    }
-    final accepted = shipmentTotals(w, o['id'] as int).accepted;
-    if (accepted + 0.0005 < qty(o)) {
-      throw FakeResponse.business(
-        'Tüm litre teslim alınmadan sipariş tamamlanamaz.',
-      );
-    }
+    // Sunucu `OrderService.CompleteAsync` → `OrderCompletionRules.BlockReason` (teslim toleransı).
+    final reason = FakeCompletion.blockReason(
+      status: st(o),
+      hasAcceptedQuote: quotesOf(o).isNotEmpty,
+      ordered: qty(o),
+      shipments: w.shipmentsOfOrder(o['id'] as int),
+    );
+    if (reason != null) throw FakeResponse.business(reason);
     o['status'] = 7;
     addTimeline(w, o, 3, 7, p.userId, note: 'Bayi siparişi tamamladı.');
     return {'message': 'Sipariş tamamlandı.'};

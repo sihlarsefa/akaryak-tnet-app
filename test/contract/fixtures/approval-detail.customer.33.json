@@ -1,0 +1,147 @@
+{
+ "id": 33,
+ "type": 3,
+ "typeLabel": "Sipariş talebi",
+ "status": 0,
+ "statusLabel": "Bekliyor",
+ "isMirror": true,
+ "stationId": null,
+ "stationTitle": null,
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "subjectType": "CustomerOrderRequest",
+ "subjectId": 1,
+ "subjectNumber": "#1",
+ "title": "Şirket içi sipariş talebi · 2 satır",
+ "summaryText": "Kurşunsuz 95, Motorin (Euro 5) · 15.000 L · tahmini 646.500,00 ₺ · Not: Haftalık filo ikmali (eşik üstü toplam litre)",
+ "amount": 646500,
+ "liters": 15000,
+ "requestedByUserId": "031e976b-53fe-417c-9de2-0236b7888417",
+ "requestedByName": "Selin Aydın",
+ "createdAt": "2026-10-28T14:07:14.88076+00:00",
+ "dueAt": "2026-10-29T03:07:37.484751+00:00",
+ "slaState": 1,
+ "currentLevelNo": 1,
+ "levelCount": 1,
+ "canDecide": true,
+ "concurrencyToken": "574b31c8-bf30-4caf-81cf-b74241cf537e",
+ "contextJson": "{\"lines\":2}",
+ "decidedAt": null,
+ "decidedByUserId": null,
+ "decidedByName": null,
+ "decisionNote": null,
+ "steps": [
+  {
+   "id": 38,
+   "levelNo": 1,
+   "name": "Şirket onayı",
+   "capabilityCode": "approve.company.order",
+   "minAmount": null,
+   "status": 1,
+   "statusLabel": "Karar bekliyor",
+   "dueAt": "2026-10-29T03:07:37.484751",
+   "remindedAt": "2026-10-28T19:07:37.484751",
+   "escalatedAt": null,
+   "decidedByUserId": null,
+   "decidedByName": null,
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": null,
+   "note": null
+  }
+ ],
+ "events": [
+  {
+   "id": 58,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "031e976b-53fe-417c-9de2-0236b7888417",
+   "userName": "Selin Aydın",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T14:07:14.88076"
+  }
+ ],
+ "attachments": [],
+ "modes": [
+  1,
+  4
+ ],
+ "modeLabels": [
+  "Onayla",
+  "Reddet"
+ ],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "Sipariş talebi #1 · Selin Aydın",
+  "subline": "2 satır · 15.000 L · tahmini 646.500,00 ₺",
+  "amount": 646500,
+  "liters": 15000,
+  "facts": [
+   {
+    "label": "Talep eden",
+    "value": "Selin Aydın",
+    "tone": "neutral"
+   },
+   {
+    "label": "Durum",
+    "value": "Onay bekliyor",
+    "tone": "neutral"
+   },
+   {
+    "label": "Toplam miktar",
+    "value": "15.000 L",
+    "tone": "neutral"
+   },
+   {
+    "label": "Tahmini tutar",
+    "value": "646.500,00 ₺",
+    "tone": "neutral"
+   },
+   {
+    "label": "Onaylayana not",
+    "value": "Haftalık filo ikmali (eşik üstü toplam litre)",
+    "tone": "neutral"
+   },
+   {
+    "label": "Talep tarihi",
+    "value": "28.10.2026 17:07",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [
+   {
+    "title": "Motorin (Euro 5)",
+    "subtitle": "AkaryakıtNet Walkthrough İstasyonu · Merkez Depo (İstanbul / Üsküdar) · 31.10.2026",
+    "value": "12.000 L · 42,8500 ₺/L"
+   },
+   {
+    "title": "Kurşunsuz 95",
+    "subtitle": "AkaryakıtNet Walkthrough İstasyonu · Merkez Depo (İstanbul / Üsküdar) · 31.10.2026",
+    "value": "3.000 L · 44,1000 ₺/L"
+   }
+  ],
+  "warnings": [],
+  "band": null,
+  "links": {
+   "orderId": null,
+   "fieldOrderId": null,
+   "leadId": null,
+   "customerId": null,
+   "stationCustomerId": null,
+   "limitRequestId": null,
+   "companyRequestId": 1
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": null,
+ "decisionHint": null
+}

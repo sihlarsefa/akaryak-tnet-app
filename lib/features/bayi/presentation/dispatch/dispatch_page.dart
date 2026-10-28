@@ -65,6 +65,9 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
         : list.list.refreshing;
     return AppScaffold(
       title: 'Sevkiyat',
+      bandIcon: PhosphorIconsRegular.truck,
+      eyebrow: 'Bayi',
+      description: 'Plan, yol ve teslim',
       refreshing: refreshing,
       body: Column(
         children: [
@@ -368,13 +371,18 @@ class _BoardList extends ConsumerWidget {
                 children: [
                   KpiRow(
                     children: [
+                      // Web panelinin KPI kartları: simge karosu; sıra bayide (planlanacak)
+                      // turuncu, sorun (sürücüsüz) uyarı tonunda.
                       KpiTile(
                         label: 'Planlanacak',
+                        icon: PhosphorIconsRegular.calendarBlank,
+                        tone: b.orderTotal > 0 ? AknTone.brand : null,
                         value: b.orderTotal,
                         caption: liters(b.orderTotalLiters),
                       ),
                       KpiTile(
                         label: 'Planlı',
+                        icon: PhosphorIconsRegular.calendarCheck,
                         value: b.plannedCount,
                         caption: liters(b.plannedLiters),
                       ),
@@ -385,10 +393,16 @@ class _BoardList extends ConsumerWidget {
                     children: [
                       KpiTile(
                         label: 'Yolda',
+                        icon: PhosphorIconsRegular.truck,
                         value: b.inTransitCount,
                         caption: liters(b.inTransitLiters),
                       ),
-                      KpiTile(label: 'Sürücüsüz', value: b.unassignedCount),
+                      KpiTile(
+                        label: 'Sürücüsüz',
+                        icon: PhosphorIconsRegular.steeringWheel,
+                        tone: b.unassignedCount > 0 ? AknTone.warn : null,
+                        value: b.unassignedCount,
+                      ),
                     ],
                   ),
                 ],

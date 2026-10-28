@@ -1,0 +1,58 @@
+{
+ "options": {
+  "products": [
+   {
+    "value": "1",
+    "text": "Motorin (Euro 5)"
+   },
+   {
+    "value": "2",
+    "text": "Kurşunsuz 95"
+   },
+   {
+    "value": "3",
+    "text": "Kurşunsuz 98"
+   },
+   {
+    "value": "4",
+    "text": "LPG"
+   }
+  ],
+  "paymentMethods": [
+   {
+    "value": "NAKIT",
+    "text": "Nakit (peşin)"
+   },
+   {
+    "value": "HAVALE",
+    "text": "Havale / EFT (peşin)"
+   },
+   {
+    "value": "KART",
+    "text": "Kredi / banka kartı (POS)"
+   }
+  ],
+  "distributors": [
+   "Akpet",
+   "Alpet",
+   "Aytemiz",
+   "Belgin",
+   "Best Oil",
+   "BP",
+   "Bpet",
+   "City Petrol"
+  ],
+  "kvkkMethods": [
+   "Islak imzalı form",
+   "Ekranda onay (tablet / telefon)",
+   "E-posta ile onay",
+   "SMS ile onay",
+   "Sözlü (telefon kaydı)"
+  ]
+ },
+ "kvkkVersion": "1.0",
+ "kvkkText": "Firma yetkilisi, kişisel verilerinin cari açılışı, finansal değerlendirme (risk raporu dahil) ve iletişim amacıyla bayi ve AkaryakıtNet tarafından işlenmesine açık rıza verdi.",
+ "requiredKinds": [
+  10
+ ]
+}

@@ -1,0 +1,41 @@
+{
+ "customers": [
+  {
+   "id": 221,
+   "title": "Demo Filo Lojistik A.Ş.",
+   "count": 48
+  },
+  {
+   "id": 20,
+   "title": "Anadolu Nakliyat A.Ş.",
+   "count": 9
+  },
+  {
+   "id": 60,
+   "title": "Anadolu Nakliyat A.Ş.",
+   "count": 9
+  }
+ ],
+ "products": [
+  {
+   "id": 2,
+   "title": "Kurşunsuz 95",
+   "count": 307
+  },
+  {
+   "id": 3,
+   "title": "Kurşunsuz 98",
+   "count": 296
+  },
+  {
+   "id": 4,
+   "title": "LPG",
+   "count": 292
+  },
+  {
+   "id": 1,
+   "title": "Motorin (Euro 5)",
+   "count": 308
+  }
+ ]
+}

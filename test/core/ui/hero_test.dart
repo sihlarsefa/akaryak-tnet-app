@@ -52,7 +52,8 @@ void main() {
       expect(bar.backgroundColor, c.bg);
       expect(bar.systemOverlayStyle, AknTheme.overlayFor(b));
       // v3 §4: a root tab page (no back button) titles in `display`
-      // 28/34 800 (−0.8) at the 20 px edge, in a 60 px bar.
+      // 28/34 800 (−0.4, Archivo's panel tracking) at the 20 px edge, in a
+      // 60 px bar.
       expect(bar.toolbarHeight, AknTheme.rootBarHeight);
       expect(AknTheme.rootBarHeight, 60);
       expect(bar.titleSpacing, AknSpace.page);
@@ -61,9 +62,75 @@ void main() {
       expect(title.style!.fontWeight, FontWeight.w800);
       expect(title.style!.fontSize, 28);
       expect(title.style!.height, 34 / 28);
-      expect(title.style!.letterSpacing, -0.8);
+      expect(title.style!.letterSpacing, -0.4);
       expect(title.style!.fontFamily, AknFonts.sans);
       expect(find.byType(OnHero), findsNothing);
+    });
+
+    testBothThemes('root page band: the panel\'s page hero with the actions', (
+      tester,
+      b,
+    ) async {
+      await pumpUi(
+        tester,
+        AppScaffold(
+          title: 'Siparişler',
+          bandIcon: PhosphorIconsRegular.receipt,
+          eyebrow: 'Bayi',
+          description: 'Tüm müşteri siparişleri',
+          actions: [
+            AknIconButton(
+              icon: PhosphorIconsRegular.slidersHorizontal,
+              semanticLabel: 'Süzgeçler',
+              onPressed: () {},
+            ),
+          ],
+          body: const SizedBox.expand(),
+        ),
+        brightness: b,
+        scaffold: false,
+      );
+      final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
+      final band = find.byType(AknPageBand);
+      expect(band, findsOneWidget);
+      // Eyebrow (Pas 12 600), title (20 700 ink, the page header) and the
+      // one-line description (13 dim) next to the 40 px icon tile.
+      final eyebrow = tester.widget<Text>(find.text('Bayi')).style!;
+      expect(eyebrow.color, c.brandInk);
+      expect(eyebrow.fontSize, 12);
+      expect(eyebrow.fontWeight, FontWeight.w600);
+      final title = tester.widget<Text>(find.text('Siparişler')).style!;
+      expect(title.color, c.ink);
+      expect(title.fontSize, 20);
+      expect(title.fontWeight, FontWeight.w700);
+      final desc = tester.widget<Text>(find.text('Tüm müşteri siparişleri'));
+      expect(desc.style!.color, c.dim);
+      expect(desc.maxLines, 1);
+      expect(
+        tester.getSemantics(find.text('Siparişler')),
+        matchesSemantics(label: 'Siparişler', isHeader: true),
+      );
+      // The page actions sit inside the band, on its right.
+      expect(
+        find.descendant(
+          of: band,
+          matching: find.byIcon(PhosphorIconsRegular.slidersHorizontal),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byIcon(PhosphorIconsRegular.receipt), findsOneWidget);
+      // The bar is as tall as the band and its margins; the band spans the
+      // 20 px gutters.
+      final bar = tester.widget<AppBar>(find.byType(AppBar));
+      expect(
+        bar.toolbarHeight,
+        AknPageBand.heightFor(TextScaler.noScaling) + AknPageBand.margin * 2,
+      );
+      final rect = tester.getRect(band);
+      expect(rect.left, AknSpace.page);
+      final barWidth = tester.getSize(find.byType(AppBar)).width;
+      expect(barWidth - rect.right, AknSpace.page);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('pushed page bar: back button, headline title, 52 px', (
@@ -431,7 +498,7 @@ void main() {
       expect(find.text('1.234.567'), findsOneWidget);
       final style = tester.widget<Text>(find.byType(Text)).style!;
       // v3 §1: every figure is tabular (the count never changes width), in
-      // Plus Jakarta Sans `number` 24/30 800.
+      // Archivo `number` 24/30 800.
       expect(style.fontFeatures, contains(const FontFeature.tabularFigures()));
       expect(style.fontFamily, AknFonts.sans);
       expect(style.fontSize, 24);
@@ -601,13 +668,15 @@ void main() {
       },
     );
 
-    testWidgets('selected: ink 700 label and Fill icon on the brandSoft pill; '
-        'others navInactive 600, Regular', (tester) async {
+    testWidgets('selected: Pas 700 label and Fill icon on the brandSoft pill '
+        '(the panel\'s "you are here"); others navInactive 600, Regular', (
+      tester,
+    ) async {
       await pumpUi(tester, bar(badge: 0), size: const Size(390, 800));
       await tester.pump(const Duration(milliseconds: 400));
       const c = AknColors.light;
       final style = tester.widget<Text>(find.text('Ana sayfa')).style!;
-      expect(style.color, c.ink);
+      expect(style.color, c.brandInk);
       expect(style.fontWeight, FontWeight.w700);
       final other = tester.widget<Text>(find.text('Siparişler')).style!;
       expect(other.color, c.navInactive);
@@ -715,11 +784,11 @@ void main() {
         RoundedSuperellipseBorder shape(String label) =>
             deco(label).shape as RoundedSuperellipseBorder;
         const c = AknColors.light;
-        // Owner decision G: primary = the orange gradient (#FF7B35 →
-        // #E5530A) with a WHITE 16 px w700 label; v3 §4: the warm glow
-        // under it, a radius-16 superellipse.
-        expect(c.brandFillStart, const Color(0xFFFF7B35));
-        expect(c.brandFill, const Color(0xFFE5530A));
+        // Owner decision G: primary = the orange gradient (the panel's
+        // --grad-brand #D2450E → #B93A0B) with a WHITE 16 px w700 label;
+        // v3 §4: the warm glow under it, a radius-16 superellipse.
+        expect(c.brandFillStart, const Color(0xFFD2450E));
+        expect(c.brandFill, const Color(0xFFB93A0B));
         expect(deco('Gönder').gradient, c.buttonGradient);
         expect(deco('Gönder').shadows, AknShadows.button(c));
         expect(shape('Gönder').borderRadius, BorderRadius.circular(16));
@@ -852,8 +921,8 @@ void main() {
       expect(deco.border, isNull);
     });
 
-    testWidgets('filter chips: selected is an ink pill with a check, never '
-        'orange', (tester) async {
+    testWidgets('filter chips: selected is the panel\'s soft orange chip with '
+        'a check', (tester) async {
       await pumpUi(
         tester,
         FilterChips<int>(
@@ -885,29 +954,30 @@ void main() {
                 .first,
           )
           .opacity;
-      // v3 §4 Chips: selected = an ink pill with a page-coloured label and a
-      // check (never colour alone); at rest white with a 1 px `line` border
-      // and an ink label.
-      expect(deco('Bekleyen').color, c.ink);
-      expect((deco('Bekleyen').border! as Border).top.color, c.ink);
+      // Chips (the panel's `.chip`): selected = the soft orange well, its
+      // orange line, a Pas label and a check (never colour alone); at rest
+      // white with a 1 px `line` border and an ink label.
+      expect(deco('Bekleyen').color, c.brandSoft);
+      expect((deco('Bekleyen').border! as Border).top.color, c.brandLine);
       expect(deco('Bekleyen').borderRadius, AknRadius.chip);
-      expect(tester.widget<Text>(find.text('Bekleyen')).style!.color, c.bg);
+      expect(
+        tester.widget<Text>(find.text('Bekleyen')).style!.color,
+        c.brandInk,
+      );
       expect(check('Bekleyen'), 1);
       expect(deco('Biten').color, c.surface);
       expect((deco('Biten').border! as Border).top.color, c.line);
       expect(tester.widget<Text>(find.text('Biten')).style!.color, c.ink);
       expect(check('Biten'), 0);
-      // Never orange (the orange "your move" flavour is `tonal`).
-      for (final label in ['Bekleyen', 'Biten']) {
-        final d = deco(label);
-        for (final color in [d.color, (d.border! as Border).top.color]) {
-          expect(
-            color,
-            isNot(anyOf(c.brand, c.brandFill, c.brandSoft, c.brandLine)),
-          );
-        }
+      // The chip at rest is never orange; the selected label stays AA.
+      final rest = deco('Biten');
+      for (final color in [rest.color, (rest.border! as Border).top.color]) {
+        expect(
+          color,
+          isNot(anyOf(c.brand, c.brandFill, c.brandSoft, c.brandLine)),
+        );
       }
-      expect(contrast(c.bg, c.ink), greaterThanOrEqualTo(4.5));
+      expect(contrast(c.brandInk, c.brandSoft), greaterThanOrEqualTo(4.5));
       expect(contrast(c.ink, c.surface), greaterThanOrEqualTo(4.5));
     });
   });

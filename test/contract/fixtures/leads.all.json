@@ -1,0 +1,42 @@
+{
+ "items": [
+  {
+   "id": 6,
+   "leadNumber": "ONK-D4-000006",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": 2,
+   "companyTitle": "Karadeniz Akaryakıt Taşımacılık A.Ş.",
+   "taxNumber": "2477116868",
+   "city": "Ankara",
+   "salesRepName": "Gizem Şahin",
+   "requestedLimitAmount": 300000,
+   "monthlyLiters": 15000,
+   "existsElsewhere": true,
+   "createdAt": "2026-10-28T11:07:19.000676",
+   "submittedAt": "2026-10-28T11:32:19.000676",
+   "convertedAt": null
+  },
+  {
+   "id": 2,
+   "leadNumber": "ONK-D4-000002",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": 1,
+   "companyTitle": "Kocaeli Liman Hizmetleri A.Ş.",
+   "taxNumber": "3105131633",
+   "city": "Kocaeli",
+   "salesRepName": "Gizem Şahin",
+   "requestedLimitAmount": 1200000,
+   "monthlyLiters": 45000,
+   "existsElsewhere": false,
+   "createdAt": "2026-10-28T14:07:19.000676",
+   "submittedAt": "2026-10-28T14:32:19.000676",
+   "convertedAt": null
+  }
+ ],
+ "totalCount": 2,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

@@ -1,0 +1,199 @@
+{
+ "orderId": 229,
+ "status": 7,
+ "steps": [
+  {
+   "key": "received",
+   "label": "Sipariş alındı",
+   "icon": "fa-file-text-o",
+   "state": 2,
+   "at": "2026-10-18T17:06:57.27261",
+   "atIsDateOnly": false,
+   "detail": null
+  },
+  {
+   "key": "quote",
+   "label": "Teklif",
+   "icon": "fa-try",
+   "state": 2,
+   "at": "2026-10-18T18:01:57.27261",
+   "atIsDateOnly": false,
+   "detail": "42,85 TL/L"
+  },
+  {
+   "key": "approval",
+   "label": "Onay",
+   "icon": "fa-gavel",
+   "state": 2,
+   "at": "2026-10-18T20:06:57.27261",
+   "atIsDateOnly": false,
+   "detail": "Teklif onaylandı"
+  },
+  {
+   "key": "dispatch",
+   "label": "Yola çıktı",
+   "icon": "fa-truck",
+   "state": 2,
+   "at": "2026-10-23T00:00:00",
+   "atIsDateOnly": true,
+   "detail": "06 BRSA 203 · Ali Demir · 2 araç"
+  },
+  {
+   "key": "delivered",
+   "label": "Teslim edildi",
+   "icon": "fa-flag-checkered",
+   "state": 2,
+   "at": "2026-10-19T17:06:57.27261",
+   "atIsDateOnly": false,
+   "detail": "12.000 L teslim alındı"
+  }
+ ],
+ "shipments": [
+  {
+   "id": 6,
+   "code": "SVK-00000006",
+   "plannedLiters": 5400,
+   "deliveredLiters": 5400,
+   "vehiclePlate": "06 BRSA 203",
+   "driverName": "Ali Demir",
+   "scheduledAt": "2026-10-24T19:06:57.27261",
+   "status": 3,
+   "deliveryDocumentNo": "IRS-W00229-2",
+   "disputeNote": null,
+   "plannedAt": "2026-10-24T22:06:57.27261",
+   "dispatchedAt": null,
+   "deliveredAt": "2026-10-25T19:06:57.27261",
+   "acceptedAt": "2026-10-25T19:06:57.27261",
+   "disputedAt": null,
+   "cancelledAt": null,
+   "isDispatched": true
+  },
+  {
+   "id": 5,
+   "code": "SVK-00000005",
+   "plannedLiters": 6600,
+   "deliveredLiters": 6600,
+   "vehiclePlate": "34 ANK 103",
+   "driverName": "Mehmet Yılmaz",
+   "scheduledAt": "2026-10-23T19:06:57.27261",
+   "status": 3,
+   "deliveryDocumentNo": "IRS-W00229-1",
+   "disputeNote": null,
+   "plannedAt": "2026-10-23T22:06:57.27261",
+   "dispatchedAt": null,
+   "deliveredAt": "2026-10-24T19:06:57.27261",
+   "acceptedAt": "2026-10-24T19:06:57.27261",
+   "disputedAt": null,
+   "cancelledAt": null,
+   "isDispatched": true
+  }
+ ],
+ "events": [
+  {
+   "at": "2026-10-24T22:06:57.27261",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "06 BRSA 203 · Ali Demir · 5.400 L",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-25T19:06:57.27261",
+   "icon": "fa-map-marker",
+   "title": "Teslimat bildirildi",
+   "note": "5.400 L · irsaliye IRS-W00229-2",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-25T19:06:57.27261",
+   "icon": "fa-check",
+   "title": "Teslim alındı",
+   "note": "5.400 L · 06 BRSA 203 · Ali Demir",
+   "tone": "ok"
+  },
+  {
+   "at": "2026-10-23T22:06:57.27261",
+   "icon": "fa-calendar",
+   "title": "Sevkiyat planlandı",
+   "note": "34 ANK 103 · Mehmet Yılmaz · 6.600 L",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-24T19:06:57.27261",
+   "icon": "fa-map-marker",
+   "title": "Teslimat bildirildi",
+   "note": "6.600 L · irsaliye IRS-W00229-1",
+   "tone": "info"
+  },
+  {
+   "at": "2026-10-24T19:06:57.27261",
+   "icon": "fa-check",
+   "title": "Teslim alındı",
+   "note": "6.600 L · 34 ANK 103 · Mehmet Yılmaz",
+   "tone": "ok"
+  }
+ ],
+ "orderedLiters": 12000,
+ "acceptedLiters": 12000,
+ "inProcessLiters": 0,
+ "awaitingAcceptanceCount": 0,
+ "canAcceptDeliveries": false,
+ "expiryEnabled": false,
+ "priceComparison": {
+  "currentUnitPriceTry": 42.85,
+  "previous": [
+   {
+    "orderId": 8257,
+    "orderNumber": "AYN-20261028-000002",
+    "orderedAt": "2026-10-28T22:36:50.798606",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 8000,
+    "unitPriceTry": 41.75,
+    "diffPercent": 2.6
+   },
+   {
+    "orderId": 8236,
+    "orderNumber": "PFD-SB-01",
+    "orderedAt": "2026-10-26T19:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 12000,
+    "unitPriceTry": 42.85,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 8238,
+    "orderNumber": "PFD-SB-03",
+    "orderedAt": "2026-10-26T17:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 15000,
+    "unitPriceTry": 42.85,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 8240,
+    "orderNumber": "PFD-SB-05",
+    "orderedAt": "2026-10-26T15:07:17.057803",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 20000,
+    "unitPriceTry": 42.85,
+    "diffPercent": 0
+   },
+   {
+    "orderId": 395,
+    "orderNumber": "SIP-20261020-C0168",
+    "orderedAt": "2026-10-20T10:33:57.27261",
+    "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+    "quantityLiters": 32000,
+    "unitPriceTry": 44.9,
+    "diffPercent": -4.6
+   }
+  ],
+  "lastUnitPriceTry": 41.75,
+  "lastDiffPercent": 2.6,
+  "averageUnitPriceTry": 43.04,
+  "averageDiffPercent": -0.4,
+  "minUnitPriceTry": 41.75,
+  "maxUnitPriceTry": 44.9,
+  "hasHistory": true
+ },
+ "activeShipment": null
+}

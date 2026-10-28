@@ -1,0 +1,7 @@
+{
+ "title": "İş kuralı hatası",
+ "status": 400,
+ "detail": "Sipariş artık işlem yapılamaz durumda.",
+ "code": "business_rule",
+ "traceId": "16aabbb4-a3bc-4fa9-b447-0e351aab5c91"
+}

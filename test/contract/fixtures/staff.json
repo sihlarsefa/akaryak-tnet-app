@@ -1,0 +1,92 @@
+[
+ {
+  "userId": "fbfc6216-cdc8-4e45-a3ad-daef313e2a1c",
+  "displayName": "Aylin Çelik",
+  "email": "muhasebe.demo@akaryakitnet.local",
+  "phoneNumber": "905325550404",
+  "isActive": true,
+  "isFieldSales": false,
+  "permissionGroupId": null,
+  "permissionGroupName": null,
+  "salesRepresentativeId": null,
+  "portfolioCount": 0,
+  "createdAt": "2026-08-18T19:07:17.171043",
+  "lastLoginAt": "2026-10-28T19:39:34",
+  "bayiRoles": [
+   {
+    "userId": "fbfc6216-cdc8-4e45-a3ad-daef313e2a1c",
+    "userName": "Aylin Çelik",
+    "stationId": 221,
+    "roleId": 5,
+    "roleName": "Muhasebe",
+    "templateCode": "accounting",
+    "isMigrated": false,
+    "assignedAt": "2026-08-18T19:07:17.171043Z",
+    "roleIsActive": true,
+    "userIsActive": true
+   }
+  ],
+  "hasBayiRoles": true,
+  "hasMigratedRoles": false
+ },
+ {
+  "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+  "displayName": "Burak Demir",
+  "email": "finans.uzman.demo@akaryakitnet.local",
+  "phoneNumber": "905325550403",
+  "isActive": true,
+  "isFieldSales": false,
+  "permissionGroupId": null,
+  "permissionGroupName": null,
+  "salesRepresentativeId": null,
+  "portfolioCount": 0,
+  "createdAt": "2026-08-15T19:07:17.171043",
+  "lastLoginAt": "2026-10-28T19:39:34",
+  "bayiRoles": [
+   {
+    "userId": "29432842-f7ca-44fb-9743-71b65f309839",
+    "userName": "Burak Demir",
+    "stationId": 221,
+    "roleId": 4,
+    "roleName": "Finans / kredi uzmanı",
+    "templateCode": "finance_specialist",
+    "isMigrated": false,
+    "assignedAt": "2026-08-15T19:07:17.171043Z",
+    "roleIsActive": true,
+    "userIsActive": true
+   }
+  ],
+  "hasBayiRoles": true,
+  "hasMigratedRoles": false
+ },
+ {
+  "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+  "displayName": "Emre Yıldız",
+  "email": "saha1.demo@akaryakitnet.local",
+  "phoneNumber": "905325550301",
+  "isActive": true,
+  "isFieldSales": true,
+  "permissionGroupId": 4,
+  "permissionGroupName": "Saha Satış",
+  "salesRepresentativeId": 4,
+  "portfolioCount": 7,
+  "createdAt": "2026-07-30T19:07:13.20969",
+  "lastLoginAt": "2026-10-28T19:39:18",
+  "bayiRoles": [
+   {
+    "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+    "userName": "Emre Yıldız",
+    "stationId": 221,
+    "roleId": 7,
+    "roleName": "Saha satış temsilcisi",
+    "templateCode": "field_rep",
+    "isMigrated": true,
+    "assignedAt": "2026-10-28T19:07:17.33578Z",
+    "roleIsActive": true,
+    "userIsActive": true
+   }
+  ],
+  "hasBayiRoles": true,
+  "hasMigratedRoles": true
+ }
+]

@@ -206,7 +206,7 @@ void main() {
 
     test('bağlantı rengi değerleri (tasarım v3 §2: mürekkep + alt çizgi)', () {
       // Grafit mürekkep: asla mavi ya da turuncu değil.
-      expect(AknColors.light.link, const Color(0xFF15171A));
+      expect(AknColors.light.link, const Color(0xFF0F172A));
       expect(AknColors.dark.link, const Color(0xFFF2F3F5));
       expect(AknColors.light.link, AknColors.light.ink);
       expect(AknColors.dark.link, AknColors.dark.ink);

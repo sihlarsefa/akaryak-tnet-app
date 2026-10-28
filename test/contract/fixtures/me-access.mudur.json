@@ -1,0 +1,130 @@
+{
+ "userId": "3b7bc10d-a332-4a78-b394-81c422cebd69",
+ "userName": "mudur.demo",
+ "displayName": "Kemal Aksoy",
+ "email": "mudur.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****01",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "manager"
+ ],
+ "bayiRoleNames": [
+  "Bayi müdürü"
+ ],
+ "pages": [
+  "StationQuoteDesk:Gorur",
+  "StationQuoteDesk:Ekler",
+  "StationQuoteDesk:Duzenler",
+  "StationQuoteDesk:Siler",
+  "StationQuoteDesk:Inceler",
+  "StationQuotes:Gorur",
+  "StationQuotes:Ekler",
+  "StationQuotes:Duzenler",
+  "StationQuotes:Siler",
+  "StationQuotes:Inceler",
+  "StationOrders:Gorur",
+  "StationOrders:Ekler",
+  "StationOrders:Duzenler",
+  "StationOrders:Siler",
+  "StationOrders:Inceler",
+  "StationShipments:Gorur",
+  "StationShipments:Ekler",
+  "StationShipments:Duzenler",
+  "StationShipments:Siler",
+  "StationShipments:Inceler",
+  "StationShipmentBoard:Gorur",
+  "StationShipmentBoard:Ekler",
+  "StationShipmentBoard:Duzenler",
+  "StationShipmentBoard:Siler",
+  "StationShipmentBoard:Inceler",
+  "StationCustomers:Gorur",
+  "StationCustomers:Ekler",
+  "StationCustomers:Duzenler",
+  "StationCustomers:Siler",
+  "StationCustomers:Inceler",
+  "StationReports:Gorur",
+  "StationReports:Ekler",
+  "StationReports:Duzenler",
+  "StationReports:Siler",
+  "StationReports:Inceler",
+  "StationFieldOrders:Gorur",
+  "StationFieldOrders:Ekler",
+  "StationFieldOrders:Duzenler",
+  "StationFieldOrders:Siler",
+  "StationFieldOrders:Inceler",
+  "StationFieldApprovals:Gorur",
+  "StationFieldApprovals:Duzenler",
+  "StationFieldApprovals:Inceler",
+  "StationApprovals:Gorur",
+  "StationApprovals:Ekler",
+  "StationApprovals:Duzenler",
+  "StationApprovals:Siler",
+  "StationApprovals:Inceler",
+  "StationFinance:Gorur",
+  "StationLeads:Gorur",
+  "StationPayments:Gorur",
+  "StationStaff:Gorur",
+  "StationPricing:Gorur",
+  "StationPricing:Ekler",
+  "StationPricing:Duzenler",
+  "StationPricing:Siler",
+  "StationPricing:Inceler",
+  "StationProfitability:Gorur",
+  "StationProfitability:Ekler",
+  "StationProfitability:Duzenler",
+  "StationProfitability:Siler",
+  "StationProfitability:Inceler",
+  "StationRoles:Gorur",
+  "StationSettings:Gorur",
+  "StationSettings:Duzenler"
+ ],
+ "capabilities": [
+  {
+   "code": "approvals.delegate",
+   "limit": null
+  },
+  {
+   "code": "approve.field.manager",
+   "limit": null
+  },
+  {
+   "code": "approve.field.senior",
+   "limit": null
+  },
+  {
+   "code": "approve.finance.order",
+   "limit": null
+  },
+  {
+   "code": "approve.order.executive",
+   "limit": null
+  },
+  {
+   "code": "costs.view",
+   "limit": null
+  },
+  {
+   "code": "field.strategic.flag",
+   "limit": null
+  },
+  {
+   "code": "lead.viewAll",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "3cd8e8085e02e9de"
+}

@@ -1,4 +1,4 @@
-// AknTheme v3 "Akış": token extensions, Plus Jakarta Sans everywhere (no tabular figures on words),
+// AknTheme v3 "Akış" (panel-aligned): token extensions, Archivo everywhere (no tabular figures on words),
 // the component themes of v3 §4 — superellipse buttons (the primary an orange gradient with a WHITE
 // 16 px w700 label and a warm glow), white inputs with a 1.5 px control border and a soft orange
 // focus glow, white pill chips that turn ink with a check, orange tab, switch, checkbox and radio
@@ -39,7 +39,7 @@ void main() {
       ('light', AknTheme.light(), AknColors.light),
       ('dark', AknTheme.dark(), AknColors.dark),
     ]) {
-      test('$name carries the token extensions and Plus Jakarta Sans', () {
+      test('$name carries the token extensions and the UI face (Archivo)', () {
         final c = theme.extension<AknColors>();
         final t = theme.extension<AknTextStyles>();
         expect(c, colors);
@@ -293,7 +293,7 @@ void main() {
       );
 
       test(
-        '$name chips: white pills with a hairline; selected = ink fill, page label, a check',
+        '$name chips: white pills with a hairline; selected = the panel\'s soft orange chip, Pas label, a check',
         () {
           final ch = theme.chipTheme;
           expect(
@@ -302,28 +302,27 @@ void main() {
           );
           expect(AknRadius.chip, AknRadius.pillAll);
           expect(ch.color!.resolve(_none), colors.surface);
-          expect(ch.color!.resolve(_selected), colors.ink);
+          expect(ch.color!.resolve(_selected), colors.brandSoft);
           expect(ch.color!.resolve(_disabled), colors.surfaceAlt);
-          expect(ch.selectedColor, colors.ink);
+          expect(ch.selectedColor, colors.brandSoft);
           expect(ch.showCheckmark, isTrue);
-          expect(ch.checkmarkColor, colors.bg);
+          expect(ch.checkmarkColor, colors.brandInk);
           final rest = WidgetStateProperty.resolveAs<BorderSide?>(
             ch.side,
             _none,
           )!;
           expect(rest.color, colors.line);
           expect(rest.width, 1);
-          expect(
-            WidgetStateProperty.resolveAs<BorderSide?>(
-              ch.side,
-              _selected,
-            )!.width,
-            0,
-          );
+          final picked = WidgetStateProperty.resolveAs<BorderSide?>(
+            ch.side,
+            _selected,
+          )!;
+          expect(picked.color, colors.brandLine);
+          expect(picked.width, 1);
           final label = ch.labelStyle!;
           expect(
             WidgetStateProperty.resolveAs<Color?>(label.color, _selected),
-            colors.bg,
+            colors.brandInk,
           );
           expect(
             WidgetStateProperty.resolveAs<Color?>(label.color, _none),
@@ -340,15 +339,16 @@ void main() {
 
       test('$name tabs, switch, checkbox, radio: orange marks (v3 §4)', () {
         final tabs = theme.tabBarTheme;
-        expect(tabs.labelColor, colors.ink);
+        // The panel's "you are here": the selected tab in Pas, the accent bar.
+        expect(tabs.labelColor, colors.brandInk);
         expect(tabs.unselectedLabelColor, colors.dim);
         expect(tabs.labelStyle!.fontSize, 16);
         expect(tabs.labelStyle!.fontWeight, FontWeight.w700);
         // A 3 px logo-orange bar with round ends that follows the selection
         // on a spring.
-        expect(tabs.indicator, AknTabIndicator(color: colors.logo));
+        expect(tabs.indicator, AknTabIndicator(color: colors.brand));
         final ind = tabs.indicator! as AknTabIndicator;
-        expect(ind.borderSide.color, colors.logo);
+        expect(ind.borderSide.color, colors.brand);
         expect(ind.borderSide.width, 3);
         expect(ind.animate, isTrue);
         expect(tabs.indicatorSize, TabBarIndicatorSize.label);
@@ -423,17 +423,17 @@ void main() {
       });
 
       test(
-        '$name navigation bar: soft orange pill, ink active (w700), navInactive rest',
+        '$name navigation bar: soft orange pill, Pas active (w700), navInactive rest',
         () {
           final n = theme.navigationBarTheme;
           expect(n.backgroundColor, colors.surfaceRaised);
           expect(n.indicatorColor, colors.brandSoft);
           expect(n.indicatorShape, const StadiumBorder());
-          expect(n.iconTheme!.resolve(_selected)!.color, colors.ink);
+          expect(n.iconTheme!.resolve(_selected)!.color, colors.brandInk);
           expect(n.iconTheme!.resolve(_none)!.color, colors.navInactive);
           final active = n.labelTextStyle!.resolve(_selected)!;
           final rest = n.labelTextStyle!.resolve(_none)!;
-          expect(active.color, colors.ink);
+          expect(active.color, colors.brandInk);
           expect(active.fontWeight, FontWeight.w700);
           expect(rest.color, colors.navInactive);
           expect(rest.fontWeight, FontWeight.w600);

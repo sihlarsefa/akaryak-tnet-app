@@ -795,14 +795,14 @@ class PipelineUrgentLine extends StatefulWidget {
   final String actionLabel;
   final EdgeInsetsGeometry padding;
 
-  /// Masadaki süresi en yakın dolacak teklif (yoksa null).
+  /// Masadaki süresi en yakın dolacak teklif (yoksa null). Finans kararı bekleyen sipariş (müşteri
+  /// onayı limit aşımıyla finansa gitti) teklifle ilerlemez: satıra alınmaz.
   static DashboardOrderRow? mostUrgent(BayiDeskSection? desk) {
     if (desk == null || !desk.expiryEnabled) return null;
     if ((desk.expiringSoon ?? 0) <= 0) return null;
-    final rows = [
-      ...desk.expiring,
-      ...desk.awaitingQuoteList,
-    ].where((r) => r.msLeft > 0).toList();
+    final rows = [...desk.expiring, ...desk.awaitingQuoteList]
+        .where((r) => r.msLeft > 0 && !r.financeStatus.isAwaitingDecision)
+        .toList();
     if (rows.isEmpty) return null;
     rows.sort((a, b) => a.remaining().compareTo(b.remaining()));
     return rows.first;

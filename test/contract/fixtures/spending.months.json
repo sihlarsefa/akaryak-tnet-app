@@ -1,0 +1,158 @@
+{
+ "fromDate": "2026-05-01T00:00:00",
+ "toDate": "2026-10-28T00:00:00",
+ "months": [
+  {
+   "year": 2026,
+   "month": 5,
+   "orderCount": 7,
+   "liters": 96500,
+   "amount": 4169950,
+   "shortLabel": "May 2026",
+   "longLabel": "Mayıs 2026",
+   "avgUnitPrice": 43.2119
+  },
+  {
+   "year": 2026,
+   "month": 6,
+   "orderCount": 14,
+   "liters": 253300,
+   "amount": 10429574,
+   "shortLabel": "Haz 2026",
+   "longLabel": "Haziran 2026",
+   "avgUnitPrice": 41.1748
+  },
+  {
+   "year": 2026,
+   "month": 7,
+   "orderCount": 14,
+   "liters": 253300,
+   "amount": 10897694,
+   "shortLabel": "Tem 2026",
+   "longLabel": "Temmuz 2026",
+   "avgUnitPrice": 43.0229
+  },
+  {
+   "year": 2026,
+   "month": 8,
+   "orderCount": 14,
+   "liters": 253300,
+   "amount": 10564814,
+   "shortLabel": "Ağu 2026",
+   "longLabel": "Ağustos 2026",
+   "avgUnitPrice": 41.7087
+  },
+  {
+   "year": 2026,
+   "month": 9,
+   "orderCount": 29,
+   "liters": 522600,
+   "amount": 22206228,
+   "shortLabel": "Eyl 2026",
+   "longLabel": "Eylül 2026",
+   "avgUnitPrice": 42.4918
+  },
+  {
+   "year": 2026,
+   "month": 10,
+   "orderCount": 31,
+   "liters": 499800,
+   "amount": 21753546,
+   "shortLabel": "Eki 2026",
+   "longLabel": "Ekim 2026",
+   "avgUnitPrice": 43.5245
+  }
+ ],
+ "byProduct": [
+  {
+   "id": 1,
+   "name": "Motorin (Euro 5)",
+   "extra": "MOTORIN_E5",
+   "orderCount": 32,
+   "liters": 518400,
+   "amount": 22097146,
+   "amountShare": 27.6,
+   "avgUnitPrice": 42.6257
+  },
+  {
+   "id": 2,
+   "name": "Kurşunsuz 95",
+   "extra": "KURSUNSUZ_95",
+   "orderCount": 28,
+   "liters": 479400,
+   "amount": 20523932,
+   "amountShare": 25.6,
+   "avgUnitPrice": 42.8117
+  },
+  {
+   "id": 4,
+   "name": "LPG",
+   "extra": "LPG",
+   "orderCount": 25,
+   "liters": 474000,
+   "amount": 20066892,
+   "amountShare": 25.1,
+   "avgUnitPrice": 42.3352
+  },
+  {
+   "id": 3,
+   "name": "Kurşunsuz 98",
+   "extra": "KURSUNSUZ_98",
+   "orderCount": 24,
+   "liters": 407000,
+   "amount": 17333836,
+   "amountShare": 21.7,
+   "avgUnitPrice": 42.5893
+  }
+ ],
+ "byDeliveryPoint": [
+  {
+   "id": 837,
+   "name": "Merkez Depo",
+   "extra": "İstanbul",
+   "orderCount": 8,
+   "liters": 85000,
+   "amount": 3641510,
+   "amountShare": 4.6,
+   "avgUnitPrice": 42.8413
+  },
+  {
+   "id": 1006,
+   "name": "Anadolu Lojistik Üssü #170",
+   "extra": "İstanbul",
+   "orderCount": 1,
+   "liters": 35100,
+   "amount": 1580202,
+   "amountShare": 2,
+   "avgUnitPrice": 45.02
+  },
+  {
+   "id": 856,
+   "name": "Bornova Dağıtım Noktası #20",
+   "extra": "İzmir",
+   "orderCount": 1,
+   "liters": 35100,
+   "amount": 1580202,
+   "amountShare": 2,
+   "avgUnitPrice": 45.02
+  }
+ ],
+ "byStation": [
+  {
+   "id": 221,
+   "name": "AkaryakıtNet Walkthrough İstasyonu",
+   "extra": "STN-WALK-01",
+   "orderCount": 109,
+   "liters": 1878800,
+   "amount": 80021806,
+   "amountShare": 100,
+   "avgUnitPrice": 42.592
+  }
+ ],
+ "truncated": false,
+ "totalOrders": 109,
+ "totalLiters": 1878800,
+ "totalAmount": 80021806,
+ "avgUnitPrice": 42.592,
+ "isEmpty": false
+}

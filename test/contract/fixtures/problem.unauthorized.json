@@ -1,0 +1,7 @@
+{
+ "title": "Oturum gerekli",
+ "status": 401,
+ "detail": "Lütfen giriş yapın.",
+ "code": "unauthorized",
+ "traceId": "f2517310-9181-4aca-b99a-b1c39f7ac54c"
+}

@@ -1,0 +1,30 @@
+{
+ "userId": "80a86269-90ff-479e-95f2-51e7da7d032a",
+ "userName": "admin",
+ "displayName": "Head Office Yönetici",
+ "email": "admin@akaryakitnet.local",
+ "phoneMasked": null,
+ "persona": "platform",
+ "roles": [
+  "Admin",
+  "HeadOffice"
+ ],
+ "stationId": null,
+ "stationTitle": null,
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [],
+ "bayiRoleNames": [],
+ "pages": [
+  "HoApprovals:Gorur"
+ ],
+ "capabilities": [],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "26888229c7c50622"
+}

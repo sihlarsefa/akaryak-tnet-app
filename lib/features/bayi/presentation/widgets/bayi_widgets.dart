@@ -231,7 +231,11 @@ class BayiSectionHeader extends StatelessWidget {
     this.onAction,
     this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
     this.caption,
+    this.icon,
   });
+
+  /// Panelin nötr simge karosu (başlığın önünde).
+  final IconData? icon;
 
   final String title;
   final String? subtitle;
@@ -251,6 +255,7 @@ class BayiSectionHeader extends StatelessWidget {
       final drop = large && caption != null && subtitle == null;
       return SectionHeader(
         title: title,
+        icon: icon,
         subtitle: drop ? caption : subtitle,
         count: count,
         actionLabel: actionLabel,
@@ -265,6 +270,7 @@ class BayiSectionHeader extends StatelessWidget {
       children: [
         SectionHeader(
           title: title,
+          icon: icon,
           subtitle: subtitle,
           count: count,
           padding: padding,

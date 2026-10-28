@@ -1,0 +1,28 @@
+{
+ "links": [
+  {
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "status": {
+    "stationId": 221,
+    "customerId": 221,
+    "stationCustomerId": 221,
+    "canOrder": true,
+    "blockReason": null,
+    "isGrandfathered": true,
+    "profileStatus": 1,
+    "infoRequested": false,
+    "openApprovalRequestId": null
+   },
+   "requestId": null,
+   "requestStatus": null,
+   "requestStatusLabel": null,
+   "infoNote": null,
+   "requiredKind": null,
+   "requiredKindLabel": null,
+   "requestedAt": null,
+   "canReply": false
+  }
+ ],
+ "orders": []
+}

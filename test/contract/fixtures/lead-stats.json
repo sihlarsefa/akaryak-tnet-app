@@ -1,0 +1,34 @@
+{
+ "total": 6,
+ "submitted": 5,
+ "converted": 1,
+ "rejected": 1,
+ "draft": 1,
+ "inFinance": 3,
+ "cancelled": 0,
+ "conversionRatePercent": 20,
+ "byRep": [
+  {
+   "salesRepresentativeId": 5,
+   "repName": "Gizem Şahin",
+   "total": 3,
+   "converted": 1,
+   "conversionRatePercent": 33.3,
+   "stationId": 221,
+   "stationTitle": null,
+   "submitted": 3,
+   "rejected": 0
+  },
+  {
+   "salesRepresentativeId": 4,
+   "repName": "Emre Yıldız",
+   "total": 3,
+   "converted": 0,
+   "conversionRatePercent": 0,
+   "stationId": 221,
+   "stationTitle": null,
+   "submitted": 2,
+   "rejected": 1
+  }
+ ]
+}

@@ -1,8 +1,10 @@
-// Token facts (design v3 "Akış" §0–§3 + owner colour decisions G and 5): exact light and dark
-// values (graphite neutrals, the off-white page with white cards, Gece grafiti at night), the lit
-// header band, the button and hero-card gradients, the white hero card with its warm wash, the
-// plate palette (`plateInk()`), no purple, no blue, no navy, tinted tone wells, tone lookup, lerp /
-// copyWith / equality keep every token (incl. `heroGlow`), spacing, radii and the soft shadows.
+// Token facts (design v3 "Akış" §0–§3 aligned with the web panel 2026-10-28, + owner colour
+// decisions G and 5): exact light and dark values (the panel's slate neutrals, hairlines, accent
+// family and status palette on the light side; Gece grafiti at night), the lit header band, the
+// button (the panel's --grad-brand) and hero-card gradients, the white hero card with its warm wash,
+// the plate palette (`plateInk()`), no purple, no blue, no navy, tinted tone wells, tone lookup,
+// lerp / copyWith / equality keep every token (incl. `heroGlow`), spacing, radii and the shadows
+// (cards carry the panel's hairline).
 // WCAG pairs: contrast_test.dart.
 import 'package:akaryakitnet/core/ui/tokens.dart';
 import 'package:flutter/material.dart';
@@ -107,13 +109,15 @@ double _hueGap(Color a, Color b) {
 
 /// The tinted tone wells of v3 §2: (bg, line) per tone and theme.
 const _wells = {
+  // The panel's status wells: success / pending / danger / neutral soft + line,
+  // accent-soft + accent-line for "your move".
   Brightness.light: {
-    AknTone.ok: (Color(0xFFEAF7EF), Color(0xFFC3E8D1)),
-    AknTone.warn: (Color(0xFFFDF5E3), Color(0xFFF1DDAE)),
-    AknTone.danger: (Color(0xFFFDEFEE), Color(0xFFF6CBC7)),
-    AknTone.info: (Color(0xFFEFF0F2), Color(0xFFE1E3E7)),
-    AknTone.neutral: (Color(0xFFF1F2F4), Color(0xFFE3E5E8)),
-    AknTone.brand: (Color(0xFFFFF1EA), Color(0xFFFFD6C2)),
+    AknTone.ok: (Color(0xFFECFDF5), Color(0xFFA7F3D0)),
+    AknTone.warn: (Color(0xFFFFFBEB), Color(0xFFFDE68A)),
+    AknTone.danger: (Color(0xFFFEF2F2), Color(0xFFFECACA)),
+    AknTone.info: (Color(0xFFF1F5F9), Color(0xFFE2E8F0)),
+    AknTone.neutral: (Color(0xFFF1F5F9), Color(0xFFE2E8F0)),
+    AknTone.brand: (Color(0xFFFFF1E8), Color(0xFFFED0B8)),
   },
   Brightness.dark: {
     AknTone.ok: (Color(0xFF13251B), Color(0xFF1F3B2A)),
@@ -128,7 +132,9 @@ const _wells = {
 const _black = Color(0xFF000000);
 const _white = Color(0xFFFFFFFF);
 const _plaka = Color(0xFFFF5001);
-const _plakaNight = Color(0xFFE64800);
+// The panel's accent (marks) and accent-fill (pressed marks).
+const _accent = Color(0xFFF05E21);
+const _accentFill = Color(0xFFCF4711);
 
 void main() {
   for (final (name, c) in [
@@ -160,37 +166,54 @@ void main() {
         }
       });
 
-      test('graphite neutrals (v3 §0.1): every grey has saturation < 0.2', () {
-        for (final (label, color) in [
-          ('bg', c.bg),
-          ('homeBg', c.homeBg),
-          ('surface', c.surface),
-          ('surfaceAlt', c.surfaceAlt),
-          ('surfaceRaised', c.surfaceRaised),
-          ('ink', c.ink),
-          ('dim', c.dim),
-          ('faint', c.faint),
-          ('line', c.line),
-          ('lineSoft', c.lineSoft),
-          ('lineStrong', c.lineStrong),
-          ('navInactive', c.navInactive),
-          ('chartContext', c.chartContext),
-          ('chartTrack', c.chartTrack),
-          ('skeleton', c.skeleton),
-          ('skeletonHighlight', c.skeletonHighlight),
-          ('inverse', c.inverse),
-          ('info.bg', c.info.bg),
-          ('info.line', c.info.line),
-          ('neutral.bg', c.neutral.bg),
-          ('neutral.line', c.neutral.line),
-        ]) {
-          expect(
-            HSVColor.fromColor(color).saturation,
-            lessThan(0.2),
-            reason: '$label ($color)',
-          );
-        }
-      });
+      test(
+        'neutrals: the panel\'s slate by day, graphite at night, never a tinted surface',
+        () {
+          // Surfaces, hairlines, wells and tracks are barely tinted.
+          for (final (label, color) in [
+            ('bg', c.bg),
+            ('homeBg', c.homeBg),
+            ('surface', c.surface),
+            ('surfaceAlt', c.surfaceAlt),
+            ('surfaceRaised', c.surfaceRaised),
+            ('line', c.line),
+            ('lineSoft', c.lineSoft),
+            ('chartTrack', c.chartTrack),
+            ('skeleton', c.skeleton),
+            ('skeletonHighlight', c.skeletonHighlight),
+            ('info.bg', c.info.bg),
+            ('info.line', c.info.line),
+            ('neutral.bg', c.neutral.bg),
+            ('neutral.line', c.neutral.line),
+          ]) {
+            expect(
+              HSVColor.fromColor(color).saturation,
+              lessThan(c.isDark ? 0.2 : 0.1),
+              reason: '$label ($color)',
+            );
+          }
+          // Inks and control greys: slate (hue 210–225, the panel's family)
+          // by day — text only, never blue by the owner's rule (checked
+          // above) — and graphite (saturation < 0.2) at night; the inverse
+          // surfaces stay charcoal.
+          for (final (label, color) in [
+            ('ink', c.ink),
+            ('dim', c.dim),
+            ('faint', c.faint),
+            ('lineStrong', c.lineStrong),
+            ('navInactive', c.navInactive),
+            ('chartContext', c.chartContext),
+          ]) {
+            final hsv = HSVColor.fromColor(color);
+            if (c.isDark) {
+              expect(hsv.saturation, lessThan(0.2), reason: '$label ($color)');
+            } else {
+              expect(hsv.hue, inInclusiveRange(210, 225), reason: label);
+            }
+          }
+          expect(HSVColor.fromColor(c.inverse).saturation, lessThan(0.2));
+        },
+      );
 
       test(
         'the band tokens (decision G): white content on the lit band, white-20 % glass',
@@ -213,9 +236,9 @@ void main() {
           expect(band.begin, Alignment.topLeft);
           expect(band.end, Alignment.bottomRight);
           expect(c.buttonGradient.colors, [c.brandFillStart, c.brandFill]);
-          // Settles into brandFill by the middle: the centred white label
-          // always sits on ≥ 3:1.
-          expect(c.buttonGradient.stops, const [0.0, 0.5]);
+          // The panel's --grad-brand runs across the whole button; the white
+          // label sits on ≥ 4.5:1 from end to end.
+          expect(c.buttonGradient.stops, const [0.0, 1.0]);
           expect(c.plateGradient.colors, [c.plateTint, c.plate]);
           expect(c.plateGradient.stops, const [0.0, 0.55]);
           expect(c.plateGradient.begin, Alignment.topCenter);
@@ -241,11 +264,11 @@ void main() {
         expect(c.tone(AknTone.info), c.info);
         expect(c.tone(AknTone.neutral), c.neutral);
         expect(c.tone(AknTone.brand), c.brandTone);
-        // "Your move": Pas text, logo-orange dot, brandSoft well.
+        // "Your move": Pas text, the accent dot, brandSoft well.
         expect(c.brandTone.fg, c.brandInk);
         expect(c.brandTone.bg, c.brandSoft);
         expect(c.brandTone.line, c.brandLine);
-        expect(c.brandTone.solid, c.logo);
+        expect(c.brandTone.solid, c.brand);
         expect(c.brandTone.onSolid, _black);
       });
 
@@ -263,7 +286,8 @@ void main() {
               reason: '${t.name}: border vs well',
             );
           }
-          // Status wells carry their tone's hue: green, ochre, red, orange …
+          // Status wells carry their tone's hue: green, amber, red, orange …
+          // (the panel's amber well is a touch yellower than its dot: < 20°).
           for (final t in [
             AknTone.ok,
             AknTone.warn,
@@ -273,7 +297,7 @@ void main() {
             for (final well in [c.tone(t).bg, c.tone(t).line]) {
               expect(
                 _hueGap(well, c.tone(t).solid),
-                lessThan(10),
+                lessThan(20),
                 reason: '${t.name} well $well',
               );
             }
@@ -293,8 +317,13 @@ void main() {
       });
 
       test('the primary button: orange gradient, white label (decision G)', () {
-        expect(c.brandFillStart, const Color(0xFFFF7B35));
-        expect(c.brandFill, const Color(0xFFE5530A));
+        // The panel's --grad-brand: #D2450E → #B93A0B (at night it ends on
+        // the accent fill #CF4711).
+        expect(c.brandFillStart, const Color(0xFFD2450E));
+        expect(
+          c.brandFill,
+          c.isDark ? const Color(0xFFCF4711) : const Color(0xFFB93A0B),
+        );
         expect(c.onBrandFill, _white);
         expect(c.buttonGradient.begin, Alignment.topLeft);
         expect(c.buttonGradient.end, Alignment.bottomRight);
@@ -302,95 +331,102 @@ void main() {
           c.brandFill,
           c.brandFillPressed,
         ]);
-        expect(c.chartHighlight, _plaka);
+        expect(c.chartHighlight, _accent);
       });
     });
   }
 
-  test('light tokens are the spec values (v3 §2)', () {
+  test('light tokens are the web panel\'s values (v3 §2, 2026-10-28)', () {
     const l = AknColors.light;
     expect(l.brightness, Brightness.light);
-    expect(l.brand, _plaka);
-    expect(l.brandPressed, _plakaNight);
+    // Accent family (akaryakitnet-v3.css :root): marks #F05E21, pressed
+    // #CF4711, orange text #C2410C, soft #FFF1E8, line #FED0B8; the logo
+    // keeps its #FF5001.
+    expect(l.brand, _accent);
+    expect(l.brandPressed, _accentFill);
     expect(l.brandInk, const Color(0xFFC2410C));
-    expect(l.brandSoft, const Color(0xFFFFF1EA));
-    expect(l.brandLine, const Color(0xFFFFD6C2));
-    expect(l.brandFill, const Color(0xFFE5530A));
-    expect(l.brandFillStart, const Color(0xFFFF7B35));
-    expect(l.brandFillPressed, const Color(0xFFCC4708));
+    expect(l.brandSoft, const Color(0xFFFFF1E8));
+    expect(l.brandLine, const Color(0xFFFED0B8));
+    // The primary: --grad-brand #D2450E → #B93A0B, pressed #A53309.
+    expect(l.brandFill, const Color(0xFFB93A0B));
+    expect(l.brandFillStart, const Color(0xFFD2450E));
+    expect(l.brandFillPressed, const Color(0xFFA53309));
     expect(l.onBrandFill, _white);
     expect(l.brandBright, _plaka);
     expect(l.logo, _plaka);
-    // The header band (135°): #FF8A3D → #F2581A → #D9440A, lit by #FFC59E.
+    // The header band (135°): #FF8A3D → #F2581A → #D9440A, lit by #FFC59E
+    // (decision G, unchanged).
     expect(l.heroStart, const Color(0xFFFF8A3D));
     expect(l.heroMid, const Color(0xFFF2581A));
     expect(l.heroEnd, const Color(0xFFD9440A));
     expect(l.heroGlow, const Color(0xFFFFC59E));
     expect(l.onHero, _white);
     expect(l.onHeroDim, const Color(0xEBFFFFFF));
-    // Off-white page, white cards, graphite wells.
-    expect(l.bg, const Color(0xFFF5F6F7));
-    expect(l.homeBg, const Color(0xFFF5F6F7));
+    // The panel's surface-2 page, white cards, surface-3 wells.
+    expect(l.bg, const Color(0xFFF8FAFC));
+    expect(l.homeBg, const Color(0xFFF8FAFC));
     expect(l.surface, _white);
-    expect(l.surfaceAlt, const Color(0xFFEFF0F2));
+    expect(l.surfaceAlt, const Color(0xFFF1F5F9));
     expect(l.surfaceRaised, _white);
-    expect(l.ink, const Color(0xFF15171A));
-    expect(l.text, const Color(0xFF15171A));
-    expect(l.link, const Color(0xFF15171A));
-    expect(l.dim, const Color(0xFF5F646C));
-    expect(l.faint, const Color(0xFF9A9FA6));
-    expect(l.line, const Color(0xFFE6E8EB));
-    expect(l.lineSoft, const Color(0xFFEEF0F2));
-    expect(l.lineStrong, const Color(0xFF858B93));
-    expect(l.navInactive, const Color(0xFF6B7079));
-    // Tones: fg / bg / line / solid / onSolid.
+    // Slate ink #0F172A (text only), muted #64748B a hair deeper for AA on
+    // the wells, faint #94A3B8, hairlines #E6EAF0 / #EDF1F6.
+    expect(l.ink, const Color(0xFF0F172A));
+    expect(l.text, const Color(0xFF0F172A));
+    expect(l.link, const Color(0xFF0F172A));
+    expect(l.dim, const Color(0xFF5F6E83));
+    expect(l.faint, const Color(0xFF94A3B8));
+    expect(l.line, const Color(0xFFE6EAF0));
+    expect(l.lineSoft, const Color(0xFFEDF1F6));
+    expect(l.lineStrong, const Color(0xFF7D8CA1));
+    expect(l.navInactive, const Color(0xFF64748B));
+    // Status (panel): fg = -ink, bg = -soft, line = -line, solid = the dot.
     expect(
       l.ok,
       const ToneColors(
-        fg: Color(0xFF0F7A43),
-        bg: Color(0xFFEAF7EF),
-        line: Color(0xFFC3E8D1),
-        solid: Color(0xFF15803D),
+        fg: Color(0xFF047857),
+        bg: Color(0xFFECFDF5),
+        line: Color(0xFFA7F3D0),
+        solid: Color(0xFF059669),
         onSolid: _white,
       ),
     );
     expect(
       l.warn,
       const ToneColors(
-        fg: Color(0xFF8A5A00),
-        bg: Color(0xFFFDF5E3),
-        line: Color(0xFFF1DDAE),
-        solid: Color(0xFF9A6700),
+        fg: Color(0xFFB45309),
+        bg: Color(0xFFFFFBEB),
+        line: Color(0xFFFDE68A),
+        solid: Color(0xFFD97706),
         onSolid: _white,
       ),
     );
     expect(
       l.danger,
       const ToneColors(
-        fg: Color(0xFFC0261C),
-        bg: Color(0xFFFDEFEE),
-        line: Color(0xFFF6CBC7),
-        solid: Color(0xFFD92D20),
+        fg: Color(0xFFB91C1C),
+        bg: Color(0xFFFEF2F2),
+        line: Color(0xFFFECACA),
+        solid: Color(0xFFDC2626),
         onSolid: _white,
       ),
     );
     expect(
       l.info,
       const ToneColors(
-        fg: Color(0xFF15171A),
-        bg: Color(0xFFEFF0F2),
-        line: Color(0xFFE1E3E7),
-        solid: Color(0xFF15171A),
+        fg: Color(0xFF0F172A),
+        bg: Color(0xFFF1F5F9),
+        line: Color(0xFFE2E8F0),
+        solid: Color(0xFF0F172A),
         onSolid: _white,
       ),
     );
     expect(
       l.neutral,
       const ToneColors(
-        fg: Color(0xFF5F646C),
-        bg: Color(0xFFF1F2F4),
-        line: Color(0xFFE3E5E8),
-        solid: Color(0xFF5F646C),
+        fg: Color(0xFF5F6E83),
+        bg: Color(0xFFF1F5F9),
+        line: Color(0xFFE2E8F0),
+        solid: Color(0xFF64748B),
         onSolid: _white,
       ),
     );
@@ -398,33 +434,33 @@ void main() {
       l.brandTone,
       const ToneColors(
         fg: Color(0xFFC2410C),
-        bg: Color(0xFFFFF1EA),
-        line: Color(0xFFFFD6C2),
-        solid: _plaka,
+        bg: Color(0xFFFFF1E8),
+        line: Color(0xFFFED0B8),
+        solid: _accent,
         onSolid: _black,
       ),
     );
-    expect(l.dangerFill, const Color(0xFFC0261C));
+    expect(l.dangerFill, const Color(0xFFDC2626));
     expect(l.onDangerFill, _white);
-    // Scrim ink 45 %, shadow ink 16 %.
-    expect(l.scrim, const Color(0x7315171A));
-    expect(l.shadow, const Color(0x2915171A));
-    expect(l.skeleton, const Color(0xFFECEEF0));
-    expect(l.skeletonHighlight, const Color(0xFFF8F9FA));
+    // The panel's overlay: slate ink 45 %; shadows in slate ink.
+    expect(l.scrim, const Color(0x730F172A));
+    expect(l.shadow, const Color(0x290F172A));
+    expect(l.skeleton, const Color(0xFFEEF2F6));
+    expect(l.skeletonHighlight, const Color(0xFFF8FAFC));
     // The hero card (decision G): white with a warm wash at the top.
     expect(l.plate, _white);
-    expect(l.onPlate, const Color(0xFF15171A));
+    expect(l.onPlate, const Color(0xFF0F172A));
     expect(l.plateTint, const Color(0xFFFFF4EE));
     expect(l.plateBorder, const Color(0xFFF5E3D8));
-    expect(l.plateAccent, const Color(0xFFE5530A));
+    expect(l.plateAccent, _accent);
     expect(l.plateIconFill, const Color(0xFFFFEDE3));
-    expect(l.deltaFill, const Color(0xFFFFF1EA));
-    // Past bars: #FF5001 at 24 %.
-    expect(l.plateContext, const Color(0x3DFF5001));
+    expect(l.deltaFill, const Color(0xFFFFF1E8));
+    // Past bars: the accent at 24 %.
+    expect(l.plateContext, const Color(0x3DF05E21));
     expect(l.plateLine, const Color(0xFFF3E4DB));
-    expect(l.chartHighlight, _plaka);
-    expect(l.chartContext, const Color(0xFF858B93));
-    expect(l.chartTrack, const Color(0xFFEEF0F2));
+    expect(l.chartHighlight, _accent);
+    expect(l.chartContext, const Color(0xFF7D8CA1));
+    expect(l.chartTrack, const Color(0xFFEDF1F6));
     expect(l.inverse, const Color(0xFF1B1D21));
     expect(l.onInverse, _white);
   });
@@ -433,15 +469,17 @@ void main() {
     const d = AknColors.dark;
     const night = Color(0xFF0E0F11);
     expect(d.brightness, Brightness.dark);
-    expect(d.brand, _plaka);
-    expect(d.brandPressed, _plakaNight);
+    expect(d.brand, _accent);
+    expect(d.brandPressed, _accentFill);
     expect(d.brandInk, const Color(0xFFFF7A3D));
     expect(d.brandSoft, const Color(0xFF33201A));
     expect(d.brandLine, const Color(0xFF5A2A12));
-    // The primary keeps its gradient with a white label; the band deepens.
-    expect(d.brandFill, const Color(0xFFE5530A));
-    expect(d.brandFillStart, const Color(0xFFFF7B35));
-    expect(d.brandFillPressed, const Color(0xFFC2410C));
+    // The primary keeps the panel's gradient start with a white label and
+    // ends on the accent fill (a mark ≥ 3:1 on the dark card); the band
+    // deepens.
+    expect(d.brandFill, const Color(0xFFCF4711));
+    expect(d.brandFillStart, const Color(0xFFD2450E));
+    expect(d.brandFillPressed, const Color(0xFFA53309));
     expect(d.onBrandFill, _white);
     expect(d.brandBright, _plaka);
     expect(d.logo, _plaka);
@@ -522,7 +560,7 @@ void main() {
         fg: Color(0xFFFF7A3D),
         bg: Color(0xFF33201A),
         line: Color(0xFF5A2A12),
-        solid: _plaka,
+        solid: _accent,
         onSolid: _black,
       ),
     );
@@ -541,10 +579,10 @@ void main() {
     expect(d.plateAccent, const Color(0xFFFF7A3D));
     expect(d.plateIconFill, const Color(0xFF3A2116));
     expect(d.deltaFill, const Color(0xFF3A2116));
-    // Past bars: #FF5001 at 40 %.
-    expect(d.plateContext, const Color(0x66FF5001));
+    // Past bars: the accent at 40 %.
+    expect(d.plateContext, const Color(0x66F05E21));
     expect(d.plateLine, const Color(0xFF3A2A21));
-    expect(d.chartHighlight, _plaka);
+    expect(d.chartHighlight, _accent);
     expect(d.chartContext, const Color(0xFF7D838B));
     expect(d.chartTrack, const Color(0xFF26292E));
     expect(d.inverse, const Color(0xFF2C2F35));
@@ -576,7 +614,7 @@ void main() {
         for (final t in AknTone.values) {
           expect(p.tone(t), base.tone(t), reason: t.name);
         }
-        // Charts: the orange accent — past bars #FF5001 at 24 % (40 % at
+        // Charts: the orange accent — past bars #F05E21 at 24 % (40 % at
         // night), this month plateAccent, tracks the icon-tile orange.
         expect(p.chartHighlight, base.plateAccent);
         expect(p.chartContext, base.plateContext);
@@ -731,32 +769,46 @@ void main() {
     expect(AknRadius.header, BorderRadius.zero);
   });
 
-  test('depth by role (v3 §3): cards float, brand moments glow warm', () {
+  test('depth by role: hairline cards (panel), brand moments glow warm', () {
     const l = AknColors.light;
     const d = AknColors.dark;
-    // Resting cards: 0 1 2 ink 4 % + 0 8 24 −6 ink 8 % (dark: black 40 %).
-    expect(AknShadows.card(l), const [
-      BoxShadow(color: Color(0x0A15171A), offset: Offset(0, 1), blurRadius: 2),
-      BoxShadow(
-        color: Color(0x1415171A),
-        offset: Offset(0, 8),
-        blurRadius: 24,
-        spreadRadius: -6,
+    // Resting cards: the panel's 1 px line as a crisp ring + 0 1 2 ink 5 % +
+    // 0 6 16 −8 ink 8 % (dark: black 40 %, dark cards keep their own line).
+    final ring = AknShadows.hairline(l);
+    expect(ring, const BoxShadow(color: Color(0xFFE6EAF0), spreadRadius: 1));
+    expect(AknShadows.card(l), [
+      ring,
+      const BoxShadow(
+        color: Color(0x0D0F172A),
+        offset: Offset(0, 1),
+        blurRadius: 2,
+      ),
+      const BoxShadow(
+        color: Color(0x140F172A),
+        offset: Offset(0, 6),
+        blurRadius: 16,
+        spreadRadius: -8,
       ),
     ]);
     expect(AknShadows.card(d), const [
       BoxShadow(color: Color(0x66000000), offset: Offset(0, 1), blurRadius: 2),
     ]);
-    // Pressed cards settle onto the page: only the contact shadow.
-    expect(AknShadows.pressed(l), [AknShadows.card(l).first]);
+    // Pressed cards settle onto the page: the ring and the contact shadow.
+    expect(AknShadows.pressed(l), AknShadows.card(l).take(2).toList());
     expect(AknShadows.pressed(d), isEmpty);
-    // Sheets, menus, toasts, dialogs: 0 2 6 ink 6 % + 0 24 48 −12 ink 24 %.
+    // Sheets, menus, toasts, dialogs (the panel's pop shadow): 0 2 6 −2 ink
+    // 8 % + 0 14 34 −12 ink 25 %.
     expect(AknShadows.raised(l), const [
-      BoxShadow(color: Color(0x0F15171A), offset: Offset(0, 2), blurRadius: 6),
       BoxShadow(
-        color: Color(0x3D15171A),
-        offset: Offset(0, 24),
-        blurRadius: 48,
+        color: Color(0x140F172A),
+        offset: Offset(0, 2),
+        blurRadius: 6,
+        spreadRadius: -2,
+      ),
+      BoxShadow(
+        color: Color(0x400F172A),
+        offset: Offset(0, 14),
+        blurRadius: 34,
         spreadRadius: -12,
       ),
     ]);
@@ -772,7 +824,7 @@ void main() {
     expect(AknShadows.plate(l), const [
       BoxShadow(color: Color(0x0FE5530A), offset: Offset(0, 2), blurRadius: 6),
       BoxShadow(
-        color: Color(0x2915171A),
+        color: Color(0x290F172A),
         offset: Offset(0, 18),
         blurRadius: 36,
         spreadRadius: -10,
@@ -788,7 +840,7 @@ void main() {
     ]);
     expect(AknShadows.plateBehind(l), const [
       BoxShadow(
-        color: Color(0x1A15171A),
+        color: Color(0x1A0F172A),
         offset: Offset(0, 6),
         blurRadius: 14,
         spreadRadius: -6,
@@ -804,20 +856,21 @@ void main() {
       ),
     ]);
     expect(AknShadows.band(d).single.color, const Color(0x80000000));
-    // The primary's warm glow: 0 8 18 −6 #E5530A 55 % (dark 35 %).
+    // The primary's warm glow, calmer (the panel's buttons are flat):
+    // 0 6 14 −6 #B93A0B 45 % (dark 35 %).
     expect(AknShadows.button(l), const [
       BoxShadow(
-        color: Color(0x8CE5530A),
-        offset: Offset(0, 8),
-        blurRadius: 18,
+        color: Color(0x73B93A0B),
+        offset: Offset(0, 6),
+        blurRadius: 14,
         spreadRadius: -6,
       ),
     ]);
-    expect(AknShadows.button(d).single.color, const Color(0x59E5530A));
+    expect(AknShadows.button(d).single.color, const Color(0x59B93A0B));
     // The bottom bar lifts off the content: 0 −8 24 ink 6 % (dark black 35 %).
     expect(AknShadows.bar(l), const [
       BoxShadow(
-        color: Color(0x0F15171A),
+        color: Color(0x0F0F172A),
         offset: Offset(0, -8),
         blurRadius: 24,
       ),
@@ -827,9 +880,9 @@ void main() {
       expect(AknShadows.dragged(c), AknShadows.raised(c));
       expect(AknShadows.hero(c), AknShadows.plate(c));
       // Every shadow falls downwards (the bar's lifts upwards), none is
-      // flat any more.
+      // flat — apart from the cards' hairline ring.
       for (final s in [
-        ...AknShadows.card(c),
+        ...AknShadows.card(c).where((s) => s != AknShadows.hairline(c)),
         ...AknShadows.raised(c),
         ...AknShadows.plate(c),
         ...AknShadows.plateBehind(c),

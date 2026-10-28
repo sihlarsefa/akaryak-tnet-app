@@ -67,9 +67,10 @@ class AknCenterAction {
 /// hairline (dark mode keeps a faint top edge, as dark cards do).
 ///
 /// * Items share the width. At rest: the Phosphor Regular icon (24) and the
-///   label in `navLabel` 11/14 w600 `navInactive`. Active: the Fill icon
-///   cross-fades in and pops (1 → 1.14 → 1), the label turns ink w700, and
-///   the **pill** — a 56 × 32 `brandSoft` capsule behind the icon — slides
+///   label in `navLabel` 11/14 w600 `navInactive`. Active — the panel's
+///   "you are here": the Fill icon cross-fades in and pops (1 → 1.14 → 1),
+///   icon and label turn Pas (`brandInk`, label w700), and the **pill** — a
+///   56 × 32 `brandSoft` capsule behind the icon — slides
 ///   to it on [AknMotion.spring] ([AknMotion.needle]), stretching toward its
 ///   destination like a drop and settling with a small overshoot. Labels
 ///   clamp at 1.2× (long-press shows the full name).
@@ -639,7 +640,7 @@ class _NavButtonState extends State<_NavButton>
 
     // Regular → Fill cross-fade; the colour eases with it.
     Widget icon = TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: selected ? c.ink : c.navInactive),
+      tween: ColorTween(end: selected ? c.brandInk : c.navInactive),
       duration: swap,
       curve: AknMotion.standard,
       builder: (context, color, child) => IconTheme.merge(
@@ -685,7 +686,7 @@ class _NavButtonState extends State<_NavButton>
       fontWeight: FontWeight.w600,
     );
     final active = t.navLabel.copyWith(
-      color: c.ink,
+      color: c.brandInk,
       fontWeight: FontWeight.w700,
     );
     final label = TweenAnimationBuilder<double>(

@@ -1,0 +1,98 @@
+{
+ "fromDate": "2025-11-01T00:00:00",
+ "toDate": "2026-10-28T00:00:00",
+ "months": [
+  {
+   "year": 2025,
+   "month": 11,
+   "orderCount": 0,
+   "liters": 0,
+   "amount": 0,
+   "shortLabel": "Kas 2025",
+   "longLabel": "Kasım 2025",
+   "avgUnitPrice": null
+  },
+  {
+   "year": 2025,
+   "month": 12,
+   "orderCount": 0,
+   "liters": 0,
+   "amount": 0,
+   "shortLabel": "Ara 2025",
+   "longLabel": "Aralık 2025",
+   "avgUnitPrice": null
+  },
+  {
+   "year": 2026,
+   "month": 5,
+   "orderCount": 2,
+   "liters": 35200,
+   "amount": 1524896,
+   "shortLabel": "May 2026",
+   "longLabel": "Mayıs 2026",
+   "avgUnitPrice": 43.3209
+  }
+ ],
+ "byProduct": [
+  {
+   "id": 1,
+   "name": "Motorin (Euro 5)",
+   "extra": "MOTORIN_E5",
+   "orderCount": 32,
+   "liters": 518400,
+   "amount": 22097146,
+   "amountShare": 100,
+   "avgUnitPrice": 42.6257
+  }
+ ],
+ "byDeliveryPoint": [
+  {
+   "id": 837,
+   "name": "Merkez Depo",
+   "extra": "İstanbul",
+   "orderCount": 5,
+   "liters": 70000,
+   "amount": 2980010,
+   "amountShare": 13.5,
+   "avgUnitPrice": 42.5716
+  },
+  {
+   "id": 1005,
+   "name": "Filo Tank Sahası #169",
+   "extra": "İstanbul",
+   "orderCount": 1,
+   "liters": 32000,
+   "amount": 1436800,
+   "amountShare": 6.5,
+   "avgUnitPrice": 44.9
+  },
+  {
+   "id": 945,
+   "name": "Nilüfer Merkez Depo #109",
+   "extra": "Bursa",
+   "orderCount": 1,
+   "liters": 32000,
+   "amount": 1398400,
+   "amountShare": 6.3,
+   "avgUnitPrice": 43.7
+  }
+ ],
+ "byStation": [
+  {
+   "id": 221,
+   "name": "AkaryakıtNet Walkthrough İstasyonu",
+   "extra": "STN-WALK-01",
+   "orderCount": 32,
+   "liters": 518400,
+   "amount": 22097146,
+   "amountShare": 100,
+   "avgUnitPrice": 42.6257
+  }
+ ],
+ "truncated": false,
+ "totalOrders": 32,
+ "totalLiters": 518400,
+ "totalAmount": 22097146,
+ "avgUnitPrice": 42.6257,
+ "isEmpty": false
+}

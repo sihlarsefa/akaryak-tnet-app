@@ -1,0 +1,42 @@
+{
+ "id": 75,
+ "concurrencyToken": "794683b9-0af9-456f-aa66-914c99b8c123",
+ "customerId": 221,
+ "requestedByUserId": "031e976b-53fe-417c-9de2-0236b7888417",
+ "requestedByName": "Selin Aydın",
+ "status": 0,
+ "statusLabel": "Onay bekliyor",
+ "totalLiters": 15000,
+ "estimatedAmount": 636000,
+ "note": "Sözleşme denetimi: talep",
+ "decidedByName": null,
+ "decidedAt": null,
+ "decisionNote": null,
+ "createdOrderIds": [],
+ "createdAt": "2026-10-28T20:01:21.675369",
+ "lines": [
+  {
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "productName": "Motorin (Euro 5)",
+   "deliveryPointName": "Anadolu Lojistik Üssü #02 (İstanbul / Pendik)",
+   "orderId": null,
+   "orderNumber": null,
+   "error": null,
+   "stationId": 221,
+   "productId": 1,
+   "deliveryPointId": 838,
+   "quantityLiters": 15000,
+   "requestedDeliveryDate": "2026-10-31T00:00:00",
+   "estimatedUnitPrice": 42.4
+  }
+ ],
+ "canDecide": false,
+ "canCancel": true,
+ "paymentMethodCode": "NAKIT",
+ "paymentMethodName": "Nakit",
+ "paymentTermDays": 0,
+ "paymentInstallments": null,
+ "paymentDetailJson": null,
+ "paymentDisplay": "Nakit",
+ "paymentDetails": []
+}

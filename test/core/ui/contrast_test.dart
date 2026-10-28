@@ -77,11 +77,12 @@ void main() {
         expect(c.onHero, _white);
         expect(c.onNavy, _white);
         expect(c.onBrandFill, _white);
-        // The 16 px w700 primary label: ≥ 3.5 on the gradient's end colour
-        // (3.77) and ≥ 3 across its middle (3.12).
-        expect(wcag(_white, c.brandFill), greaterThanOrEqualTo(3.5));
+        // The 16 px w700 primary label on the panel's --grad-brand: AA text
+        // contrast (≥ 4.5) at both ends and across the middle.
+        expect(wcag(_white, c.brandFill), greaterThanOrEqualTo(4.5));
+        expect(wcag(_white, c.brandFillStart), greaterThanOrEqualTo(4.5));
         final mid = Color.lerp(c.brandFillStart, c.brandFill, 0.5)!;
-        expect(wcag(_white, mid), greaterThanOrEqualTo(3.0));
+        expect(wcag(_white, mid), greaterThanOrEqualTo(4.5));
         // The band's deep end ≥ 3.5 (light 4.39, dark 9.71), its middle ≥ 3
         // (light 3.39, dark 7.03).
         expect(wcag(_white, c.heroEnd), greaterThanOrEqualTo(3.5));
@@ -124,16 +125,22 @@ void main() {
       });
 
       test('status tones, links and nav labels stay AA', () {
+        // Glyphs on a tone's solid disc (checks, "!", step icons) are
+        // graphics: 3:1 (WCAG 1.4.11) — the panel's bright status dots
+        // (#059669, #D97706) carry white glyphs.
         _expectAll([
-          for (final tone in AknTone.values) ...[
-            ('${tone.name} fg/bg', c.tone(tone).fg, c.tone(tone).bg),
-            ('${tone.name} fg/surface', c.tone(tone).fg, c.surface),
-            ('${tone.name} fg/page', c.tone(tone).fg, c.bg),
+          for (final tone in AknTone.values)
             (
               '${tone.name} onSolid/solid',
               c.tone(tone).onSolid,
               c.tone(tone).solid,
             ),
+        ], 3);
+        _expectAll([
+          for (final tone in AknTone.values) ...[
+            ('${tone.name} fg/bg', c.tone(tone).fg, c.tone(tone).bg),
+            ('${tone.name} fg/surface', c.tone(tone).fg, c.surface),
+            ('${tone.name} fg/page', c.tone(tone).fg, c.bg),
           ],
           ('link/surface', c.link, c.surface),
           ('link/bg', c.link, c.bg),
@@ -197,57 +204,60 @@ void main() {
     });
   }
 
-  test('published ratios (v3 §2)', () {
+  test('published ratios (v3 §2, the panel\'s values 2026-10-28)', () {
     const l = AknColors.light;
     const d = AknColors.dark;
     void ratio(Color fg, Color bg, double expected) =>
         expect(wcag(fg, bg), closeTo(expected, 0.015), reason: '$fg on $bg');
-    ratio(l.ink, _white, 17.96);
-    ratio(l.ink, l.bg, 16.60);
-    ratio(l.dim, _white, 5.96);
-    ratio(l.dim, l.bg, 5.50);
-    ratio(l.dim, l.surfaceAlt, 5.22);
+    ratio(l.ink, _white, 17.85);
+    ratio(l.ink, l.bg, 17.06);
+    ratio(l.dim, _white, 5.19);
+    ratio(l.dim, l.bg, 4.96);
+    ratio(l.dim, l.surfaceAlt, 4.74);
     ratio(l.brandInk, _white, 5.18);
-    ratio(l.brandInk, l.surfaceAlt, 4.54);
-    ratio(l.navInactive, _white, 4.98);
-    ratio(l.navInactive, l.bg, 4.60);
-    ratio(l.lineStrong, _white, 3.44);
-    ratio(l.lineStrong, l.bg, 3.18);
-    ratio(l.ok.fg, _white, 5.41);
-    ratio(l.warn.fg, _white, 5.93);
-    ratio(l.danger.fg, _white, 5.94);
-    ratio(_white, l.dangerFill, 5.94);
+    ratio(l.brandInk, l.surfaceAlt, 4.73);
+    ratio(l.navInactive, _white, 4.76);
+    ratio(l.navInactive, l.bg, 4.55);
+    ratio(l.lineStrong, _white, 3.42);
+    ratio(l.lineStrong, l.bg, 3.27);
+    ratio(l.ok.fg, _white, 5.48);
+    ratio(l.warn.fg, _white, 5.02);
+    ratio(l.danger.fg, _white, 6.47);
+    ratio(_white, l.dangerFill, 4.83);
     ratio(_white, const Color(0xFF1D4AB4), 7.80); // TR plate strip
     ratio(_black, l.logo, 6.40);
-    ratio(_black, d.brandPressed, 5.29);
-    ratio(_white, l.brandFillPressed, 4.70);
-    // Decision G pairs.
-    ratio(_white, l.brandFill, 3.77);
+    ratio(_black, d.brandPressed, 4.56);
+    ratio(_white, l.brandFillPressed, 6.82);
+    // Decision G pairs; the primary is the panel's --grad-brand.
+    ratio(_white, l.brandFillStart, 4.57);
+    ratio(_white, l.brandFill, 5.72);
     ratio(_white, l.heroEnd, 4.39);
     ratio(_white, l.heroMid, 3.39);
     ratio(_white, d.heroStart, 5.18);
     ratio(_white, d.heroEnd, 9.71);
     ratio(l.brandInk, l.deltaFill, 4.69);
     ratio(d.brandInk, d.deltaFill, 5.75);
-    ratio(l.onPlate, l.plateTint, 16.61);
-    ratio(l.dim, l.plateTint, 5.51);
+    ratio(l.onPlate, l.plateTint, 16.52);
+    ratio(l.dim, l.plateTint, 4.80);
     ratio(d.onPlate, d.plateTint, 14.58);
-    ratio(l.plateAccent, l.plate, 3.77);
+    ratio(l.plateAccent, l.plate, 3.32);
     ratio(d.plateAccent, d.plate, 6.85);
     ratio(l.logo, _white, 3.28);
-    ratio(l.logo, l.bg, 3.03);
+    ratio(l.logo, l.bg, 3.14);
     ratio(d.ink, d.bg, 17.27);
     ratio(d.dim, d.surface, 7.34);
     ratio(d.brandInk, d.bg, 7.40);
     ratio(d.chartContext, d.surface, 4.64);
     ratio(d.lineStrong, d.surface, 3.61);
     ratio(d.lineStrong, d.bg, 3.90);
-    ratio(d.brand, d.bg, 5.84);
-    // Orange marks never sit on the wells (2.88:1).
+    ratio(d.brand, d.bg, 5.78);
+    // The logo orange never sits on the wells (2.99:1); the accent marks
+    // just reach 3:1 there.
     expect(wcag(l.logo, l.surfaceAlt), lessThan(3));
+    expect(wcag(l.brand, l.surfaceAlt), greaterThanOrEqualTo(3));
     // Orange is never text (3.28:1 on white).
     expect(wcag(l.brandBright, _white), lessThan(4.5));
-    // faint is disabled text only (2.66:1 on white, 2.46:1 on the page).
+    // faint is disabled text only (2.56:1 on white).
     expect(wcag(l.faint, _white), lessThan(4.5));
   });
 }

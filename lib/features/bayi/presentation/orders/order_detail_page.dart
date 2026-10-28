@@ -122,6 +122,7 @@ class _Body extends ConsumerWidget {
     final expires = expiryOn ? o.expiresAt : null;
     final finance = o.financeStatus;
     final financeWait = finance.isAwaitingDecision && openStatus;
+    final completionHint = bundle.fulfillment?.completionHint;
     final lamp = financeWait
         ? StatusLamp(
             tone: finance.statusStyle.tone,
@@ -158,56 +159,81 @@ class _Body extends ConsumerWidget {
             offset: 10,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nesne başlığı büyük yazıda en çok 1,5× (kök başlıklar gibi); kalan metin ölçeklenir.
-                  MediaQuery.withClampedTextScaling(
-                    maxScaleFactor: 1.5,
-                    child: Semantics(
-                      header: true,
-                      child: Text(
-                        keepUnits(
-                          '${o.productName}, ${Fmt.liters(o.quantityLiters)}',
-                        ),
-                        style: t.display.copyWith(
-                          color: c.ink,
-                          fontFeatures: AknNumerals.tabular,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    o.customerTitle,
-                    style: t.bodyStrong.copyWith(color: c.ink),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
+              // Web panelinin sayfa bandı: açık turuncu zemin, simge karosu; üst satırda cari,
+              // başlık ve tek satırlık açıklama (nokta ve teslim günü).
+              child: DecoratedBox(
+                decoration: AknPageBand.decorationOf(c),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Icon(
-                          PhosphorIconsRegular.mapPin,
-                          size: 16,
-                          color: c.dim,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
+                      AknPageBand.tileOf(context, PhosphorIconsRegular.drop),
+                      const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          [
-                            o.deliveryPointName,
-                            if (requested != null)
-                              '${dayMonthLong(requested)} ${Fmt.weekday(requested)} teslim',
-                          ].join(', '),
-                          style: t.bodySmall.copyWith(color: c.dim),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              o.customerTitle,
+                              style: t.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: c.brandInk,
+                              ),
+                            ),
+                            // Nesne başlığı büyük yazıda en çok 1,5× (kök başlıklar gibi); kalan
+                            // metin ölçeklenir.
+                            MediaQuery.withClampedTextScaling(
+                              maxScaleFactor: 1.5,
+                              child: Semantics(
+                                header: true,
+                                child: Text(
+                                  keepUnits(
+                                    '${o.productName}, ${Fmt.liters(o.quantityLiters)}',
+                                  ),
+                                  style: t.display.copyWith(
+                                    fontSize: 24,
+                                    height: 30 / 24,
+                                    color: c.ink,
+                                    fontFeatures: AknNumerals.tabular,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 1),
+                                  child: Icon(
+                                    PhosphorIconsRegular.mapPin,
+                                    size: 16,
+                                    color: c.dim,
+                                  ),
+                                ),
+                                const SizedBox(width: 5),
+                                Expanded(
+                                  child: Text(
+                                    [
+                                      o.deliveryPointName,
+                                      if (requested != null)
+                                        '${dayMonthLong(requested)} ${Fmt.weekday(requested)} teslim',
+                                    ].join(', '),
+                                    style: t.label.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                      color: c.dim,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -398,6 +424,19 @@ class _Body extends ConsumerWidget {
                   ).push(AppRoutes.customer(o.customerId)),
                 ),
               ),
+            ),
+          // Kısmi teslim kabul edildi, açık sevkiyat yok: siparişin neden kapanmadığı ve ne
+          // yapılacağı (web "Sipariş henüz tamamlanmadı" uyarısı). "Tamamla" çağrısı yalnızca
+          // tamamlayabilene.
+          if (o.status == OrderStatus.approved &&
+              completionHint != null &&
+              (!bundle.fulfillment!.invitesCompletion || g.completeOrder))
+            PageWell(
+              top: 16,
+              tone: AknTone.info,
+              icon: PhosphorIconsRegular.info,
+              title: 'Sipariş henüz tamamlanmadı',
+              message: completionHint,
             ),
           stagger(_ShipmentsSection(bundle: bundle)),
           if (bundle.timeline.isNotEmpty || bundle.timelineFailed)
@@ -793,8 +832,9 @@ class _ShipmentsSection extends ConsumerWidget {
 enum _OrderAction { quote, plan, complete }
 
 /// Yetki + durum: Teklif ver (StationQuotes:Ekler; engel ve finans beklemesi yokken), Sevkiyat planla
-/// (StationShipments:Ekler; onaylı ve kalan litre var), Tamamla (StationOrders:Duzenler; tüm litre teslim
-/// alındı).
+/// (StationShipments:Ekler; onaylı ve kalan litre var), Tamamla (StationOrders:Duzenler; sunucunun
+/// tamamlama kuralı, [BayiOrderBundle.completion]: tüm litre ya da teslim toleransı içinde teslim
+/// alındı, ya da sevkiyatsız eski sipariş).
 Set<_OrderAction> _availableActions(
   BayiGrants g,
   BayiOrderBundle b, {
@@ -813,11 +853,7 @@ Set<_OrderAction> _availableActions(
         b.fulfillment != null &&
         b.remainingLiters > 0)
       _OrderAction.plan,
-    if (g.completeOrder &&
-        o.status == OrderStatus.approved &&
-        b.fulfillment != null &&
-        b.acceptedLiters + 0.0005 >= o.quantityLiters)
-      _OrderAction.complete,
+    if (g.completeOrder && b.completion != null) _OrderAction.complete,
   };
 }
 
@@ -835,12 +871,18 @@ class _ActionsState extends ConsumerState<_Actions> {
   bool _completing = false;
 
   Future<void> _complete() async {
-    final o = widget.bundle.order;
+    final b = widget.bundle;
+    final o = b.order;
+    final why = switch (b.completion) {
+      BayiCompletion.withinTolerance =>
+        'Teslim alınan ${Fmt.liters(b.acceptedLiters)} / ${Fmt.liters(o.quantityLiters)} teslim toleransı içinde. ',
+      BayiCompletion.noShipments => '',
+      _ => 'Tüm litre teslim alındı. ',
+    };
     final ok = await showConfirmSheet(
       context,
       title: 'Sipariş tamamlansın mı?',
-      message:
-          'Tüm litre teslim alındı. ${o.orderNumber} tamamlandı olarak işaretlenir.',
+      message: keepUnits('$why${o.orderNumber} tamamlandı olarak işaretlenir.'),
       confirmLabel: 'Tamamla',
       icon: PhosphorIconsFill.checkCircle,
       tone: AknTone.ok,

@@ -364,6 +364,48 @@ class BayiOrderBundle {
 
   /// Carinin teslim aldığı litre.
   double get acceptedLiters => fulfillment?.acceptedLiters ?? 0;
+
+  /// Sipariş "Tamamla" ile kapatılabilir mi ve neden (null: kapatılamaz). Sunucunun kuralı
+  /// (`OrderCompletionRules.CanComplete`; `orders/{id}/complete` aynı kuralla doğrular), API'nin
+  /// gösterdiği kadarıyla:
+  /// - tüm litre teslim alındı;
+  /// - açık sevkiyat yok ve kabul edilen litre teslim toleransı içinde: tolerans değeri istemcide
+  ///   yok, sunucu `completionHint` ile "Tamamla"ya çağırır ([Fulfillment.invitesCompletion]);
+  /// - sevkiyat kaydı tutulmamış eski sipariş: hiç (iptal dışı) sevkiyat ve teklif kaydı yok.
+  ///   Teklifli eski siparişler (kabul edilen teklif kaydından önce) istemcide yenilerinden
+  ///   ayrılamaz; onlar web panelinden kapatılır.
+  /// Yetki ([BayiGrants.completeOrder]) ayrıca denetlenir.
+  BayiCompletion? get completion {
+    final f = fulfillment;
+    if (order.status != OrderStatus.approved || f == null || !f.isOpen) {
+      return null;
+    }
+    if (f.acceptedLiters + 0.0005 >= order.quantityLiters) {
+      return BayiCompletion.fullyAccepted;
+    }
+    final active = f.shipments.where(
+      (s) => s.status != ShipmentStatus.cancelled,
+    );
+    if (active.isEmpty) {
+      return order.quotes.isEmpty ? BayiCompletion.noShipments : null;
+    }
+    if (!f.hasOpenShipments && f.acceptedLiters > 0 && f.invitesCompletion) {
+      return BayiCompletion.withinTolerance;
+    }
+    return null;
+  }
+}
+
+/// Siparişin "Tamamla" ile kapatılabilme nedeni ([BayiOrderBundle.completion]).
+enum BayiCompletion {
+  /// Tüm litre teslim alındı.
+  fullyAccepted,
+
+  /// Açık sevkiyat yok; kabul edilen litre teslim toleransı içinde (eksik teslim).
+  withinTolerance,
+
+  /// Sevkiyat kaydı tutulmamış, teklifsiz eski sipariş.
+  noShipments,
 }
 
 /// Ödeme yöntemi kodunun varsayılan adı (`PaymentMethodCodes.DefaultName`).

@@ -427,7 +427,11 @@ class _PipelineBlock extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          HomeCardHeader(title: 'Sipariş hattı', caption: caption),
+          HomeCardHeader(
+            title: 'Sipariş hattı',
+            icon: PhosphorIconsRegular.flowArrow,
+            caption: caption,
+          ),
           OrderPipeline(stops: stops),
           if (urgent != null)
             PipelineUrgentLine(

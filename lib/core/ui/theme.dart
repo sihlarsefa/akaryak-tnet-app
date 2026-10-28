@@ -586,33 +586,35 @@ abstract final class AknTheme {
       // Chips (§4 Chips): white pills (36 high) with a 1 px `line`, ink
       // 14/18 600 labels; selected = an ink fill with a page-coloured label
       // and a check that slides in.
+      // Chips (the panel's `.chip`): white pills with a hairline; selected =
+      // the soft orange well, its orange line, a Pas label and check.
       chipTheme: ChipThemeData(
         color: WidgetStateProperty.resolveWith(
           (s) => _selected(s) && !_disabled(s)
-              ? c.ink
+              ? c.brandSoft
               : _disabled(s)
               ? c.surfaceAlt
               : c.surface,
         ),
         backgroundColor: c.surface,
-        selectedColor: c.ink,
+        selectedColor: c.brandSoft,
         disabledColor: c.surfaceAlt,
-        checkmarkColor: c.bg,
+        checkmarkColor: c.brandInk,
         deleteIconColor: c.dim,
         labelStyle: chipLabel.copyWith(
           color: WidgetStateColor.resolveWith(
             (s) => _disabled(s)
                 ? c.faint
                 : _selected(s)
-                ? c.bg
+                ? c.brandInk
                 : c.ink,
           ),
         ),
-        secondaryLabelStyle: chipLabel.copyWith(color: c.bg),
+        secondaryLabelStyle: chipLabel.copyWith(color: c.brandInk),
         iconTheme: IconThemeData(color: c.ink, size: 18),
         side: WidgetStateBorderSide.resolveWith(
           (s) => _selected(s) && !_disabled(s)
-              ? const BorderSide(color: transparent, width: 0)
+              ? BorderSide(color: c.brandLine)
               : BorderSide(color: c.line),
         ),
         shape: const RoundedRectangleBorder(borderRadius: AknRadius.chip),
@@ -690,19 +692,20 @@ abstract final class AknTheme {
         minLeadingWidth: 24,
         shape: const RoundedRectangleBorder(),
       ),
-      // Top tabs (§4 Tabs): 16/20 w700 labels, selected ink, others dim; a
-      // 3 px logo-orange bar with round ends as wide as the label that
-      // follows the selection on a spring ([AknTabIndicator]: it stretches
-      // in flight, overshoots a touch and settles); a hairline under the bar.
+      // Top tabs (§4 Tabs, the panel's `.tab`): 16/20 w700 labels, selected
+      // Pas (the panel's "you are here"), others dim; a 3 px accent bar with
+      // round ends as wide as the label that follows the selection on a
+      // spring ([AknTabIndicator]: it stretches in flight, overshoots a touch
+      // and settles); a hairline under the bar.
       tabBarTheme: TabBarThemeData(
-        labelColor: c.ink,
+        labelColor: c.brandInk,
         unselectedLabelColor: c.dim,
         labelStyle: primaryLabel(t),
         unselectedLabelStyle: primaryLabel(t),
         labelPadding: const EdgeInsets.symmetric(horizontal: 14),
         indicatorSize: TabBarIndicatorSize.label,
-        indicatorColor: c.logo,
-        indicator: AknTabIndicator(color: c.logo),
+        indicatorColor: c.brand,
+        indicator: AknTabIndicator(color: c.brand),
         // The spring does the stretching; the controller's path stays plain.
         indicatorAnimation: TabIndicatorAnimation.linear,
         dividerColor: c.line,
@@ -1000,8 +1003,9 @@ abstract final class AknTheme {
         ),
         padding: const EdgeInsets.symmetric(horizontal: 5),
       ),
-      // Docked bottom bar (§4): raised surface; the active item sits on a
-      // soft orange pill (ink icon + label w700), the rest `navInactive`.
+      // Docked bottom bar (§4): raised surface; the active item is the
+      // panel's "you are here" — a soft orange pill with a Pas icon + label
+      // (w700); the rest `navInactive`.
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: c.surfaceRaised,
         surfaceTintColor: transparent,
@@ -1014,13 +1018,13 @@ abstract final class AknTheme {
         overlayColor: const WidgetStatePropertyAll<Color>(transparent),
         iconTheme: WidgetStateProperty.resolveWith(
           (s) => IconThemeData(
-            color: _selected(s) ? c.ink : c.navInactive,
+            color: _selected(s) ? c.brandInk : c.navInactive,
             size: 24,
           ),
         ),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (s) => t.navLabel.copyWith(
-            color: _selected(s) ? c.ink : c.navInactive,
+            color: _selected(s) ? c.brandInk : c.navInactive,
             fontWeight: _selected(s) ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
@@ -1030,17 +1034,17 @@ abstract final class AknTheme {
         elevation: 0,
         indicatorColor: c.brandSoft,
         indicatorShape: const StadiumBorder(),
-        selectedIconTheme: IconThemeData(color: c.ink, size: 24),
+        selectedIconTheme: IconThemeData(color: c.brandInk, size: 24),
         unselectedIconTheme: IconThemeData(color: c.navInactive, size: 24),
         selectedLabelTextStyle: t.navLabel.copyWith(
-          color: c.ink,
+          color: c.brandInk,
           fontWeight: FontWeight.w700,
         ),
         unselectedLabelTextStyle: t.navLabel,
       ),
       // Material's SegmentedButton, kept close to `AknSegmented` (§4): pill
-      // segments on `surfaceAlt`, the selected one white with an ink w700
-      // label, the others dim w600.
+      // segments on `surfaceAlt`, the selected one white with a Pas w700
+      // label (the panel's `.seg-btn`), the others dim w600.
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           textStyle: WidgetStateProperty.resolveWith(
@@ -1057,7 +1061,7 @@ abstract final class AknTheme {
             (s) => _disabled(s)
                 ? c.faint
                 : _selected(s)
-                ? c.ink
+                ? c.brandInk
                 : c.dim,
           ),
           side: WidgetStatePropertyAll<BorderSide>(BorderSide(color: c.line)),

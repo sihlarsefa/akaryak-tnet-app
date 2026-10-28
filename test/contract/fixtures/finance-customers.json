@@ -1,0 +1,62 @@
+{
+ "items": [
+  {
+   "stationCustomerId": 224,
+   "profileId": 31,
+   "customerId": 3,
+   "customerTitle": "Akdeniz İnşaat A.Ş.",
+   "taxNumber": "2000000003",
+   "status": 1,
+   "isGrandfathered": true,
+   "riskClass": 2,
+   "limitAmount": 115000,
+   "limitUsed": 1640240,
+   "limitUnit": "TL",
+   "nextReviewDate": "2027-10-28T00:00:00",
+   "isStrategicPricing": false,
+   "hasBouncedCheque": false,
+   "hasProtestedNote": false,
+   "overdueAmount": null
+  },
+  {
+   "stationCustomerId": 240,
+   "profileId": 47,
+   "customerId": 23,
+   "customerTitle": "Akdeniz İnşaat A.Ş.",
+   "taxNumber": "2000000023",
+   "status": 1,
+   "isGrandfathered": true,
+   "riskClass": 2,
+   "limitAmount": 215000,
+   "limitUsed": 0,
+   "limitUnit": "TL",
+   "nextReviewDate": "2027-10-28T00:00:00",
+   "isStrategicPricing": false,
+   "hasBouncedCheque": false,
+   "hasProtestedNote": false,
+   "overdueAmount": null
+  },
+  {
+   "stationCustomerId": 256,
+   "profileId": 63,
+   "customerId": 43,
+   "customerTitle": "Akdeniz İnşaat A.Ş.",
+   "taxNumber": "2000000043",
+   "status": 1,
+   "isGrandfathered": true,
+   "riskClass": 2,
+   "limitAmount": 315000,
+   "limitUsed": 0,
+   "limitUnit": "TL",
+   "nextReviewDate": "2027-10-28T00:00:00",
+   "isStrategicPricing": false,
+   "hasBouncedCheque": false,
+   "hasProtestedNote": false,
+   "overdueAmount": null
+  }
+ ],
+ "totalCount": 203,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 9
+}

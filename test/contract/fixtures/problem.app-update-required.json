@@ -1,0 +1,8 @@
+{
+ "title": "Güncelleme gerekli",
+ "status": 426,
+ "detail": "Devam etmek için uygulamanın yeni sürümünü yükleyin.",
+ "code": "app_update_required",
+ "traceId": "8ca50e21-1ccc-40c2-814a-6b8d0f1b89fd",
+ "minBuild": 1
+}

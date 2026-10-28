@@ -1,0 +1,9 @@
+[
+ {
+  "orderId": 8266,
+  "outcome": "quoted",
+  "outcomeLabel": "Teklif gönderildi",
+  "success": true,
+  "message": "Teklif gönderildi."
+ }
+]

@@ -1,0 +1,67 @@
+{
+ "paymentGroupKey": null,
+ "details": {
+  "note": "sözleşme denetimi"
+ },
+ "detailLines": [
+  {
+   "label": "Tahsilat notu",
+   "value": "sözleşme denetimi"
+  }
+ ],
+ "history": [
+  {
+   "attachmentPublicId": null,
+   "fromStatusLabel": "Belirtilmemiş",
+   "toStatusLabel": "Bekliyor",
+   "changedAtUtc": "2026-10-28T19:50:56.237482+00:00",
+   "fromStatus": 0,
+   "toStatus": 1,
+   "note": "Sipariş oluşturuldu · Nakit · vade 29.10.2026",
+   "attachmentId": null,
+   "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+   "changedByDisplay": "Ayşe Demir",
+   "changedAt": "2026-10-28T19:50:56.237482"
+  }
+ ],
+ "instrument": null,
+ "allowedTransitions": [
+  2,
+  3,
+  6
+ ],
+ "noteRequiredFor": [
+  6
+ ],
+ "concurrencyToken": "0e4c3b1c-28a7-4e84-b36a-f9b83910d5ad",
+ "canEditInstrument": false,
+ "documents": [],
+ "documentKind": null,
+ "documentKindLabel": null,
+ "documentRequired": false,
+ "notice": null,
+ "paymentStatusLabel": "Bekliyor",
+ "financeLabel": "Finans onaylandı",
+ "orderStatusLabel": "Tamamlandı",
+ "paymentLine": "Nakit (peşin) · vade 29.10.2026",
+ "dueHint": "1 gün kaldı",
+ "overdueDays": 0,
+ "orderId": 8266,
+ "orderNumber": "AYN-20261028-000011",
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 221,
+ "customerTitle": "Demo Filo Lojistik A.Ş.",
+ "orderStatus": 7,
+ "methodCode": "NAKIT",
+ "methodName": "Nakit (peşin)",
+ "termDays": 0,
+ "dueDate": "2026-10-29T00:00:00",
+ "installments": null,
+ "paymentStatus": 1,
+ "financeStatus": 2,
+ "estimatedAmount": 254400,
+ "amount": 247500,
+ "isOverdue": false,
+ "createdAt": "2026-10-28T22:50:56.220346"
+}

@@ -1,0 +1,61 @@
+{
+ "profile": {
+  "id": 28,
+  "stationCustomerId": 221,
+  "stationId": 221,
+  "customerId": 221,
+  "customerTitle": "Demo Filo Lojistik A.Ş.",
+  "taxNumber": "9876543210",
+  "status": 1,
+  "isGrandfathered": true,
+  "riskClass": 2,
+  "approvedLimitAmount": 500000,
+  "limitUsage": {
+   "hasLimit": true,
+   "limitType": "Tutar",
+   "limitPeriod": "Aylık",
+   "limitAmount": 500000,
+   "used": 81469680,
+   "requested": 0,
+   "available": 0,
+   "wouldExceed": true,
+   "overrunAmount": 80969680,
+   "unit": "TL",
+   "invalidReason": null
+  },
+  "allowedMethodCodes": [],
+  "maxTermDays": 30,
+  "collateralRatioPercent": 0,
+  "suggestedCollateralRatioPercent": 0,
+  "isStrategicPricing": false,
+  "firstNOrdersRequireFinance": null,
+  "openBalance": null,
+  "overdueAmount": null,
+  "hasBouncedCheque": false,
+  "hasProtestedNote": false,
+  "nextReviewDate": "2027-10-28T00:00:00",
+  "lastRiskReportId": null,
+  "notes": "Dalga 4 öncesi cari: mevcut çalışma koşullarıyla otomatik onaylandı (sistem). Risk sınıfını, limiti, vadeyi ve teminatı ilk gözden geçirmede doğrulayın.",
+  "decidedByUserId": null,
+  "decidedAt": "2026-10-28T19:07:39.295441",
+  "collaterals": [],
+  "concurrencyToken": "dadc13a8-5376-4518-bd6e-736f468d6905"
+ },
+ "reviews": [
+  {
+   "id": 36,
+   "subjectType": "StationCustomer",
+   "subjectId": 221,
+   "stationId": 221,
+   "customerId": 221,
+   "approvalRequestId": null,
+   "decision": 1,
+   "conditionsJson": null,
+   "note": "Dalga 4 öncesi cari: mevcut çalışma koşullarıyla otomatik onaylandı (sistem). Risk B, en uzun vade 30 gün (saha formu geçmişi), teminat %0, izinli yöntemler bayinin açtıkları, limit 500.000,00 ₺. İlk gözden geçirme 28.10.2027.",
+   "decidedByUserId": null,
+   "decidedByDisplay": null,
+   "decidedAt": "2026-10-28T19:07:39.295441"
+  }
+ ],
+ "riskReports": []
+}

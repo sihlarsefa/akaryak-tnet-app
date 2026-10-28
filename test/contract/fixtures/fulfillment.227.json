@@ -1,0 +1,35 @@
+{
+ "orderId": 227,
+ "orderNumber": "WALK-AP-001",
+ "deliveryAddress": "Merkez Depo — Filo Mah. Depo Sok. No:12 Üsküdar/İstanbul",
+ "orderedLiters": 3000,
+ "acceptedLiters": 0,
+ "canManage": true,
+ "canAccept": false,
+ "isOpen": true,
+ "completionHint": null,
+ "shipments": [
+  {
+   "id": 2,
+   "plannedLiters": 1350,
+   "deliveredLiters": null,
+   "vehiclePlate": "16 BUR 401",
+   "driverName": "Can Öztürk",
+   "scheduledAt": "2026-10-30T19:06:57.27261",
+   "deliveryDocumentNo": null,
+   "status": 0,
+   "disputeNote": null
+  },
+  {
+   "id": 1,
+   "plannedLiters": 1650,
+   "deliveredLiters": 1617,
+   "vehiclePlate": "35 IZM 301",
+   "driverName": "Hasan Kaya",
+   "scheduledAt": "2026-10-28T19:06:57.27261",
+   "deliveryDocumentNo": "IRS-W00227-A",
+   "status": 2,
+   "disputeNote": null
+  }
+ ]
+}

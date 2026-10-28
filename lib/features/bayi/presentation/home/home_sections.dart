@@ -34,7 +34,30 @@ class KpiGrid extends StatelessWidget {
   );
 }
 
-/// Bölüm kartının içindeki başlık ([HomeCardHeader]).
+/// Bölüm kartlarının web panelindeki gibi nötr simge karoları (başlığa göre, tek yerde).
+const Map<String, IconData> _sectionIcons = {
+  'Süresi yaklaşanlar': PhosphorIconsRegular.hourglassMedium,
+  'En eski teklif bekleyenler': PhosphorIconsRegular.invoice,
+  'Sürücü bekleyenler': PhosphorIconsRegular.steeringWheel,
+  'Yolda': PhosphorIconsRegular.truck,
+  'Açık itirazlar': PhosphorIconsRegular.warningCircle,
+  'Bugün': PhosphorIconsRegular.calendarBlank,
+  'Sevkiyatlar': PhosphorIconsRegular.truck,
+  'Onaylarım': PhosphorIconsRegular.checkCircle,
+  'Tahsilat': PhosphorIconsRegular.wallet,
+  'Vadesi yaklaşan çek / senetler': PhosphorIconsRegular.calendarCheck,
+  'Finans kartları': PhosphorIconsRegular.bank,
+  'İlgi bekleyen kartlar': PhosphorIconsRegular.flag,
+  'Ön kayıtlar': PhosphorIconsRegular.userPlus,
+  'Saha formları': PhosphorIconsRegular.clipboardText,
+  'Son formlar': PhosphorIconsRegular.clipboardText,
+  'En çok alan cariler': PhosphorIconsRegular.trophy,
+  'Limitine yaklaşanlar': PhosphorIconsRegular.gauge,
+  'Kurulum uyarıları': PhosphorIconsRegular.wrench,
+};
+
+/// Bölüm kartının içindeki başlık ([HomeCardHeader]); simge [_sectionIcons]'tan ("Son 30 gün"
+/// gibi dönem başlıkları: çubuk grafik).
 Widget _header(
   String title, {
   int? count,
@@ -44,6 +67,9 @@ Widget _header(
   String? caption,
 }) => HomeCardHeader(
   title: title,
+  icon:
+      _sectionIcons[title] ??
+      (title.startsWith('Son ') ? PhosphorIconsRegular.chartBar : null),
   count: count,
   subtitle: subtitle,
   actionLabel: actionLabel,
@@ -140,7 +166,9 @@ class DeskSectionView extends ConsumerWidget {
 }
 
 /// Teklif bekleyen sipariş satırı (§7.7 masa satırının sade hâli): cari, sipariş no + ürün + litre,
-/// lamba "Teklif verin" ya da "Revize istendi" ve sağda geri sayım.
+/// lamba "Teklif verin" ya da "Revize istendi" ve sağda geri sayım. Müşterinin teklif onayı limit
+/// aşımıyla finans onayına gitmişse (`financeStatus` bekliyor / ek bilgi) satır "Finans onayında"
+/// der ve geri sayım göstermez (sipariş ayrıntısıyla aynı).
 class HomeOrderRow extends StatelessWidget {
   const HomeOrderRow({
     super.key,
@@ -159,13 +187,16 @@ class HomeOrderRow extends StatelessWidget {
     final deadline = TrTime.now().add(left);
     final revision = row.status == OrderStatus.revisionRequested;
     final decision = row.status == OrderStatus.awaitingApproval;
+    final held = row.financeStatus.isAwaitingDecision;
     final lamp = AknLamp(
-      label: revision
+      label: held
+          ? row.financeStatus.label
+          : revision
           ? 'Revize istendi'
           : decision
           ? 'Müşteri kararında'
           : 'Teklif verin',
-      tone: decision ? AknTone.info : AknTone.brand,
+      tone: decision || held ? AknTone.info : AknTone.brand,
     );
     final total = row.latestTotalAmountTry;
     return AknListTile(
@@ -182,7 +213,7 @@ class HomeOrderRow extends StatelessWidget {
           : Fmt.unitPrice(row.latestUnitPriceTry),
       status: AknStatusLine(
         lamp: lamp,
-        trailing: countdown && row.msLeft > 0
+        trailing: countdown && !held && row.msLeft > 0
             ? CountdownBadge(
                 deadline: deadline,
                 showRing: false,

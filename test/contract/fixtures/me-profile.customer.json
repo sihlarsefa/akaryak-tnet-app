@@ -1,0 +1,15 @@
+{
+ "userId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+ "userName": "musteri.demo",
+ "email": "musteri.demo@akaryakitnet.local",
+ "displayName": "Ayşe Demir",
+ "phoneNumber": "905325550202",
+ "role": "Customer",
+ "roleLabel": "Müşteri (cari)",
+ "organizationTitle": "Demo Filo Lojistik A.Ş.",
+ "organizationCode": "CH-WALK-001",
+ "lastLoginAtUtc": "2026-10-28T19:36:54.054021",
+ "createdAtUtc": "2026-10-28T19:06:57.34908",
+ "emailConfirmed": true,
+ "twoFactorRequired": false
+}

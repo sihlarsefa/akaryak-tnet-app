@@ -1,0 +1,12 @@
+{
+  "status": "ok",
+  "tokens": {
+    "accessToken": "redacted-accessToken",
+    "accessExpiresAt": "2026-10-28T19:54:40+00:00",
+    "refreshToken": "sandbox-refresh-token-redacted-000000000000",
+    "refreshExpiresAt": "2026-10-29T19:39:40+00:00",
+    "userId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+    "displayName": "Ayşe Demir"
+  },
+  "challenge": null
+}

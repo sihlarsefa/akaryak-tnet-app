@@ -1,0 +1,12 @@
+{
+ "title": "Geçersiz istek",
+ "status": 400,
+ "detail": "Bu işlem için Idempotency-Key başlığı gerekli.",
+ "code": "validation",
+ "traceId": "f56a44fd-72be-4655-b6c0-dba608c7f00e",
+ "errors": {
+  "Idempotency-Key": [
+   "Bu işlem için Idempotency-Key başlığı gerekli."
+  ]
+ }
+}

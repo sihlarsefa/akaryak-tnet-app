@@ -285,9 +285,13 @@ class HomeSectionHeader extends StatelessWidget {
     this.actionLabel,
     this.onAction,
     this.top = 20,
+    this.icon,
   });
 
   final String title;
+
+  /// Web panelindeki kart başlığı gibi nötr simge karosu.
+  final IconData? icon;
   final int? count;
   final String? subtitle;
   final String? actionLabel;
@@ -309,6 +313,7 @@ class HomeSectionHeader extends StatelessWidget {
     final large = MediaQuery.textScalerOf(context).scale(10) >= 16;
     return SectionHeader(
       title: title,
+      icon: icon,
       count: large ? null : count,
       subtitle: subtitle,
       actionLabel: actionLabel,
@@ -701,6 +706,11 @@ String? deliveryDayPhrase(DateTime? instant) {
 /// "Tümü". Satır: turuncu kuyuda teklif karosu, "Demir Petrol teklifi" ve tablo rakamlı tutar,
 /// ürün / litre / nokta ve ₺/L; içeriden bir çizginin altında teslim günü ve geri sayım (karar
 /// verebilen için turuncu, "sıra sizde").
+///
+/// Teklif onayı limit aşımıyla bayinin finans onayına gitmiş sipariş (`financeStatus` bekliyor /
+/// ek bilgi) de "Onay bekliyor"da kalır, ama karar finansındır: sipariş listesi ve ayrıntısındaki
+/// gibi finans lambası gösterilir, geri sayım ve "sıra sizde" yoktur. En acil satır önce müşterinin
+/// karar verebileceği teklifler arasından seçilir.
 class DecisionsSection extends ConsumerWidget {
   const DecisionsSection({
     super.key,
@@ -728,13 +738,27 @@ class DecisionsSection extends ConsumerWidget {
     final config = ref.watch(orderingConfigValueProvider);
     final expiry = config.expiryEnabled(expiryEnabled);
     final r = _mostUrgent(rows);
-    final deadline = expiry && r.expiresAt != null
+    // Finans kararı bekleyen teklif: karar müşterinin değil (sunucu onayı reddeder).
+    final finance = r.financeStatus;
+    final held = finance.isAwaitingDecision;
+    final yourMove = canDecide && !held;
+    final deadline = !held && expiry && r.expiresAt != null
         ? config.deviceDeadline(r.expiresAt!)
         : null;
     final day = deliveryDayPhrase(
       r.latestDeliveryDate ?? r.requestedDeliveryDate,
     );
     final left = deadline?.difference(TrTime.now());
+    final heldLamp = held
+        ? StatusLamp(
+            tone: AknTone.info,
+            label: finance == OrderFinanceStatus.infoRequested
+                ? 'Finans ek bilgi istedi'
+                : 'Finans onayında',
+            icon: AknStatus.finance(finance).icon,
+            stage: AknStage.talep,
+          )
+        : null;
     final spoken = [
       HomeCopy.quoteTitle(r.stationTitle),
       r.orderNumber,
@@ -744,11 +768,14 @@ class DecisionsSection extends ConsumerWidget {
       if (r.latestTotalAmountTry != null) Fmt.money(r.latestTotalAmountTry),
       if (r.latestUnitPriceTry != null)
         'litresi ${Fmt.unitPrice(r.latestUnitPriceTry)}',
+      ?heldLamp?.label,
       ?day,
       if (left != null && left > Duration.zero)
         'teklif ${CountdownBadge.spoken(left)} içinde sona eriyor',
     ].join(', ');
-    final lamp = deadline == null
+    final lamp = heldLamp != null
+        ? AknLamp.status(heldLamp)
+        : deadline == null
         ? AknLamp.status(
             AknStatus.orderLamp(
               OrderStatus.awaitingApproval,
@@ -763,6 +790,7 @@ class DecisionsSection extends ConsumerWidget {
       children: [
         HomeSectionHeader(
           top: headerTop,
+          icon: PhosphorIconsRegular.gavel,
           title: HomeCopy.decisions,
           count: total,
           actionLabel: total > 1 ? HomeCopy.all : null,
@@ -790,7 +818,7 @@ class DecisionsSection extends ConsumerWidget {
               padding: homeFirstRow(action: total > 1),
               leading: _Tile(
                 icon: PhosphorIconsRegular.invoice,
-                tone: canDecide ? AknTone.brand : null,
+                tone: yourMove ? AknTone.brand : null,
               ),
               titleStyle: _rowTitle(context),
               title: title,
@@ -819,7 +847,7 @@ class DecisionsSection extends ConsumerWidget {
                         ? null
                         : CountdownBadge(
                             deadline: deadline,
-                            yourMove: canDecide,
+                            yourMove: yourMove,
                             subject: 'Teklif',
                           ),
                   ),
@@ -837,7 +865,13 @@ class DecisionsSection extends ConsumerWidget {
     );
   }
 
-  static DashboardOrderRow _mostUrgent(List<DashboardOrderRow> rows) {
+  /// En yakın süre sonu; önce müşterinin karar verebileceği (finans kararı beklemeyen) satırlar.
+  static DashboardOrderRow _mostUrgent(List<DashboardOrderRow> all) {
+    final open = [
+      for (final r in all)
+        if (!r.financeStatus.isAwaitingDecision) r,
+    ];
+    final rows = open.isEmpty ? all : open;
     var best = rows.first;
     for (final r in rows.skip(1)) {
       final a = best.expiresAt;
@@ -871,6 +905,7 @@ class PendingDocumentsSection extends StatelessWidget {
       children: [
         HomeSectionHeader(
           top: headerTop,
+          icon: PhosphorIconsRegular.fileText,
           title: HomeCopy.documents,
           count: documents.length,
           subtitle: HomeCopy.documentsHint,
@@ -953,6 +988,7 @@ class ActiveDeliveryCard extends StatelessWidget {
       children: [
         HomeSectionHeader(
           top: headerTop,
+          icon: PhosphorIconsRegular.truck,
           title: inTransit ? HomeCopy.inTransit : HomeCopy.delivery,
           actionLabel: many ? HomeCopy.all : HomeCopy.track,
           onAction: many ? () => context.push(AppRoutes.shipments) : open,
@@ -1257,6 +1293,9 @@ class CompanyRequestsSection extends ConsumerWidget {
       children: [
         HomeSectionHeader(
           top: headerTop,
+          icon: approver
+              ? PhosphorIconsRegular.checkCircle
+              : PhosphorIconsRegular.listChecks,
           title: approver ? HomeCopy.companyApprovals : HomeCopy.myRequests,
           count: total,
           actionLabel: action ? HomeCopy.all : null,
@@ -1390,6 +1429,7 @@ class LimitsSection extends StatelessWidget {
       children: [
         HomeSectionHeader(
           top: headerTop,
+          icon: PhosphorIconsRegular.gauge,
           title: HomeCopy.limits,
           actionLabel: HomeCopy.all,
           onAction: () => context.push(limitsRoute),
@@ -1433,6 +1473,7 @@ class TemplatesSection extends StatelessWidget {
     children: [
       HomeSectionHeader(
         top: headerTop,
+        icon: PhosphorIconsRegular.bookmarks,
         title: HomeCopy.templates,
         actionLabel: HomeCopy.all,
         onAction: () => context.push(templatesRoute),
@@ -1487,6 +1528,7 @@ class SpendingSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         HomeSectionHeader(
+          icon: PhosphorIconsRegular.chartLineUp,
           title: HomeCopy.spending,
           actionLabel: 'Rapor',
           onAction: () => context.push(AppRoutes.spending),
@@ -1618,7 +1660,11 @@ class StationSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        HomeSectionHeader(title: HomeCopy.station, top: headerTop),
+        HomeSectionHeader(
+          title: HomeCopy.station,
+          icon: PhosphorIconsRegular.gasPump,
+          top: headerTop,
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(_gutter, 12, _gutter, 0),
           child: Column(

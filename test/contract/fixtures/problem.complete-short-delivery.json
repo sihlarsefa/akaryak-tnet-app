@@ -1,0 +1,7 @@
+{
+ "title": "İş kuralı hatası",
+ "status": 400,
+ "detail": "Teslim alınan 5.400 L, sipariş 6.000 L: eksik 600 L, teslim toleransını (%1; en az 5.940 L) aşıyor. Kalan litre için sevkiyat planlayın; tüm litre ya da tolerans içindeki miktar teslim alınınca sipariş otomatik tamamlanır.",
+ "code": "business_rule",
+ "traceId": "16f1b8ba-105a-4742-81d9-8b05a5ef6c52"
+}

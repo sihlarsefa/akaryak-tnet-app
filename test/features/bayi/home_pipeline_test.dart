@@ -2,8 +2,12 @@
 // dokununca süzülmüş liste, büyük yazıda dikey liste), acil satır ve "Teklif ver", Tüpraş şeridi
 // (§6.18; yetki yoksa gizli), Türkçe tamlayan eki.
 import 'package:akaryakitnet/core/auth/access_policy.dart';
+import 'package:akaryakitnet/core/models/models.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
+import 'package:akaryakitnet/features/bayi/data/home_models.dart';
 import 'package:akaryakitnet/features/bayi/presentation/desk/quote_desk_page.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/home_atoms.dart';
+import 'package:akaryakitnet/features/bayi/presentation/home/home_sections.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/order_pipeline.dart';
 import 'package:akaryakitnet/features/field/api.dart';
 import 'package:akaryakitnet/features/field/field_fake.dart';
@@ -33,6 +37,96 @@ void main() {
         trGenitive('Marmara İnşaat Taahhüt Ltd. Şti.'),
         'Marmara İnşaat Taahhüt Ltd. Şti.’nin',
       );
+    });
+  });
+
+  group('finans kararı bekleyen panel satırı (financeStatus)', () {
+    DashboardOrderRow row(
+      int id, {
+      required OrderStatus status,
+      required int msLeft,
+      OrderFinanceStatus finance = OrderFinanceStatus.notRequired,
+    }) => DashboardOrderRow(
+      orderId: id,
+      orderNumber: 'SIP-$id',
+      status: status,
+      quantityLiters: 8000,
+      customerTitle: 'Cari $id',
+      financeStatus: finance,
+      msLeft: msLeft,
+      receivedAt: DateTime.now().toUtc(),
+    );
+
+    test('acil satır finansta bekleyen siparişi atlar', () {
+      final held = row(
+        1,
+        status: OrderStatus.awaitingApproval,
+        msLeft: 5 * 60000,
+        finance: OrderFinanceStatus.pending,
+      );
+      final open = row(
+        2,
+        status: OrderStatus.awaitingQuote,
+        msLeft: 50 * 60000,
+      );
+      expect(
+        PipelineUrgentLine.mostUrgent(
+          BayiDeskSection(
+            expiryEnabled: true,
+            expiringSoon: 2,
+            expiring: [held, open],
+          ),
+        )?.orderId,
+        2,
+      );
+      expect(
+        PipelineUrgentLine.mostUrgent(
+          BayiDeskSection(
+            expiryEnabled: true,
+            expiringSoon: 1,
+            expiring: [held],
+          ),
+        ),
+        isNull,
+      );
+    });
+
+    testWidgets('masa satırı: "Finans onayında", geri sayım yok', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AknTheme.light(),
+          home: Scaffold(
+            body: Column(
+              children: [
+                HomeOrderRow(
+                  row: row(
+                    1,
+                    status: OrderStatus.awaitingApproval,
+                    msLeft: 30 * 60000,
+                    finance: OrderFinanceStatus.pending,
+                  ),
+                  countdown: true,
+                  onTap: () {},
+                ),
+                HomeOrderRow(
+                  row: row(
+                    2,
+                    status: OrderStatus.awaitingApproval,
+                    msLeft: 30 * 60000,
+                  ),
+                  countdown: true,
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Finans onayında'), findsOneWidget);
+      expect(find.text('Müşteri kararında'), findsOneWidget);
+      expect(find.byType(CountdownBadge), findsOneWidget);
     });
   });
 

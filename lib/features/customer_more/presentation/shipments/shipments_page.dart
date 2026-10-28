@@ -41,6 +41,9 @@ class ShipmentsPage extends ConsumerWidget {
     final awaiting = c.reported;
     return AppScaffold(
       title: CmCopy.shipmentsTitle,
+      bandIcon: PhosphorIconsRegular.truck,
+      eyebrow: 'Müşteri',
+      description: 'Yoldaki ve planlanan yakıt',
       refreshing: s.page.refreshing,
       body: Column(
         children: [

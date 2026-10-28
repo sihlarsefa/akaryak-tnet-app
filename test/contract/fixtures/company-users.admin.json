@@ -1,0 +1,16 @@
+[
+ {
+  "userId": "10a1c820-75e3-442c-b97c-80ca75990c4c",
+  "displayName": "Hande Yıldırım",
+  "email": "filo.demo@akaryakitnet.local",
+  "phoneNumber": "905325550411",
+  "role": 3,
+  "roleLabel": "Yönetici",
+  "isActive": true,
+  "isSelf": true,
+  "createdAt": "2026-09-18T19:07:17.572462",
+  "lastLoginAt": "2026-10-28T19:39:33",
+  "invitationPending": false,
+  "invitationQueued": false
+ }
+]

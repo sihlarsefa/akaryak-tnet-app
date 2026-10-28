@@ -119,6 +119,9 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           ].join(', ');
     return AppScaffold(
       title: 'Teklif masası',
+      bandIcon: PhosphorIconsRegular.invoice,
+      eyebrow: 'Bayi',
+      description: 'Teklif bekleyen siparişler',
       refreshing: s.list.refreshing,
       actions: [
         FilterButton(

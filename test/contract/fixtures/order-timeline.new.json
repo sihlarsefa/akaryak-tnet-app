@@ -1,0 +1,37 @@
+[
+ {
+  "fromStatus": 0,
+  "toStatus": 1,
+  "note": "Finans onayına gönderildi: Limit aşımı 81.853.780 TL",
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T22:50:56.234666"
+ },
+ {
+  "fromStatus": 1,
+  "toStatus": 1,
+  "note": "Finans onayladı: Sözleşme denetimi: finans onayı",
+  "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "changedAt": "2026-10-28T22:50:56.496536"
+ },
+ {
+  "fromStatus": 1,
+  "toStatus": 2,
+  "note": null,
+  "changedByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+  "changedAt": "2026-10-28T22:51:08.321721"
+ },
+ {
+  "fromStatus": 2,
+  "toStatus": 3,
+  "note": null,
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T22:51:08.414248"
+ },
+ {
+  "fromStatus": 3,
+  "toStatus": 7,
+  "note": "Teslim toleransı içinde tamamlandı: 5.980 / 6.000 L teslim alındı (eksik 20 L, tolerans %1).",
+  "changedByUserId": "4a0fd69a-a6bb-480e-a0f9-aba5eca03563",
+  "changedAt": "2026-10-28T22:51:14.50259"
+ }
+]

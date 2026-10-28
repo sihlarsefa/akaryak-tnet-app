@@ -1,0 +1,38 @@
+{
+ "id": 1,
+ "customerId": 221,
+ "name": "Haftalık filo ikmali",
+ "lastUsedAt": "2026-10-25T19:07:16.700102",
+ "createdAt": "2026-09-13T19:07:16.700102",
+ "updatedAt": null,
+ "lines": [
+  {
+   "id": 1,
+   "productId": 1,
+   "productCode": "MOTORIN_E5",
+   "productName": "Motorin (Euro 5)",
+   "deliveryPointId": 837,
+   "deliveryPointName": "Merkez Depo",
+   "deliveryPointAddress": "Filo Mah. Depo Sok. No:12 Üsküdar/İstanbul, Üsküdar, İstanbul",
+   "quantityLiters": 10000,
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "isAvailable": true,
+   "unavailableReason": null
+  },
+  {
+   "id": 2,
+   "productId": 2,
+   "productCode": "KURSUNSUZ_95",
+   "productName": "Kurşunsuz 95",
+   "deliveryPointId": 837,
+   "deliveryPointName": "Merkez Depo",
+   "deliveryPointAddress": "Filo Mah. Depo Sok. No:12 Üsküdar/İstanbul, Üsküdar, İstanbul",
+   "quantityLiters": 3000,
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "isAvailable": true,
+   "unavailableReason": null
+  }
+ ]
+}

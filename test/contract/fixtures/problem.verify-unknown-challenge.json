@@ -1,0 +1,7 @@
+{
+ "title": "İş kuralı hatası",
+ "status": 400,
+ "detail": "Kodun süresi doldu. Lütfen yeni kod isteyin.",
+ "code": "business_rule",
+ "traceId": "0052b4a6-7ef4-4d2b-bee5-1c1b6f97119e"
+}

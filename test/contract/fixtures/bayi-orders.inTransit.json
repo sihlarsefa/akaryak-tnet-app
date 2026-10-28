@@ -1,0 +1,38 @@
+{
+ "items": [
+  {
+   "id": 8237,
+   "orderNumber": "PFD-SB-02",
+   "status": 3,
+   "statusLabel": "Onaylandı",
+   "customerId": 221,
+   "customerTitle": "Demo Filo Lojistik A.Ş.",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 8000,
+   "requestedDeliveryDate": "2026-10-28T00:00:00+03:00",
+   "expiresAt": null,
+   "unitPrice": 44.1,
+   "totalAmount": 352800,
+   "paymentMethodCode": null,
+   "paymentMethodName": null,
+   "paymentStatus": 0,
+   "paymentStatusLabel": "Belirtilmemiş",
+   "financeStatus": 0,
+   "financeLabel": "Gerekmiyor",
+   "shipmentState": "inTransit",
+   "shipmentStateLabel": "Yolda",
+   "createdAt": "2026-10-26T18:07:17.057803+03:00",
+   "productId": 2,
+   "deliveryPointName": "Anadolu Lojistik Üssü #02",
+   "deliveryCity": "İstanbul",
+   "quoteVersion": 1,
+   "paymentDueDate": null,
+   "acceptedLiters": 0,
+   "remainingLiters": 0
+  }
+ ],
+ "totalCount": 1,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

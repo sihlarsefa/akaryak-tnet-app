@@ -1,0 +1,31 @@
+{
+ "items": [
+  {
+   "id": 5,
+   "formNumber": "SSF-DEMO-1005",
+   "stationId": 221,
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "customerId": 2,
+   "customerTitle": "Marmara Taşımacılık A.Ş.",
+   "salesRepresentativeName": "Emre Yıldız",
+   "status": 0,
+   "paymentTermDays": 0,
+   "lineCount": 1,
+   "totalLiters": 5000,
+   "totalAmount": 215950,
+   "totalProfit": null,
+   "marginPercent": null,
+   "minLineMarginPercent": null,
+   "requiredApprovalLevel": null,
+   "createdAt": "2026-10-28T16:07:13.640849",
+   "submittedAt": null,
+   "decidedAt": null,
+   "pricingModel": 0,
+   "financeStatus": 0,
+   "paymentMethodCode": null,
+   "minProfitPercent": null
+  }
+ ],
+ "totalCount": 1,
+ "includeCosts": false
+}

@@ -1,0 +1,45 @@
+{
+ "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+ "userName": "saha1.demo",
+ "displayName": "Emre Yıldız",
+ "email": "saha1.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****01",
+ "persona": "bayi",
+ "roles": [
+  "FieldSales",
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "field_rep"
+ ],
+ "bayiRoleNames": [
+  "Saha satış temsilcisi"
+ ],
+ "pages": [
+  "StationFieldOrders:Gorur",
+  "StationFieldOrders:Ekler",
+  "StationFieldOrders:Duzenler",
+  "StationApprovals:Gorur",
+  "StationLeads:Gorur",
+  "StationLeads:Ekler",
+  "StationLeads:Duzenler"
+ ],
+ "capabilities": [
+  {
+   "code": "lead.create",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": true,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "81c03fd8683114d3"
+}

@@ -1,0 +1,105 @@
+{
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "generatedAt": "2026-10-28T19:39:50.226027+00:00",
+ "sections": {
+  "desk": null,
+  "shipments": null,
+  "approvals": {
+   "toMe": 1,
+   "overdue": 0
+  },
+  "collections": null,
+  "finance": null,
+  "leads": {
+   "periodLabel": "Bu ay",
+   "stats": {
+    "total": 3,
+    "submitted": 2,
+    "converted": 0,
+    "rejected": 1,
+    "draft": 1,
+    "inFinance": 1,
+    "cancelled": 0,
+    "conversionRatePercent": 0,
+    "byRep": [
+     {
+      "salesRepresentativeId": 4,
+      "repName": "Emre Yıldız",
+      "total": 3,
+      "converted": 0,
+      "conversionRatePercent": 0,
+      "stationId": 221,
+      "stationTitle": null,
+      "submitted": 2,
+      "rejected": 1
+     }
+    ]
+   }
+  },
+  "field": {
+   "drafts": 1,
+   "pending": 5,
+   "rejected": 0,
+   "converted": 4,
+   "approvalsToMe": 0,
+   "portfolioCount": 7,
+   "recent": [
+    {
+     "id": 26,
+     "formNumber": "SSF-D4-0006",
+     "customerTitle": "Marmara Filo Lojistik A.Ş.",
+     "status": 1,
+     "statusLabel": "Onay bekliyor",
+     "totalLiters": 30000,
+     "totalAmount": 1093197,
+     "createdAt": "2026-10-28T18:07:18.721745+00:00"
+    },
+    {
+     "id": 5,
+     "formNumber": "SSF-DEMO-1005",
+     "customerTitle": "Marmara Taşımacılık A.Ş.",
+     "status": 0,
+     "statusLabel": "Taslak",
+     "totalLiters": 5000,
+     "totalAmount": 215950,
+     "createdAt": "2026-10-28T16:07:13.640849+00:00"
+    },
+    {
+     "id": 1,
+     "formNumber": "SSF-DEMO-1001",
+     "customerTitle": "Demo Filo Lojistik A.Ş.",
+     "status": 1,
+     "statusLabel": "Onay bekliyor",
+     "totalLiters": 8000,
+     "totalAmount": 339840,
+     "createdAt": "2026-10-28T16:07:13.640849+00:00"
+    },
+    {
+     "id": 22,
+     "formNumber": "SSF-D4-0002",
+     "customerTitle": "Marmara Filo Lojistik A.Ş.",
+     "status": 1,
+     "statusLabel": "Onay bekliyor",
+     "totalLiters": 12000,
+     "totalAmount": 441058.8,
+     "createdAt": "2026-10-28T15:07:18.721745+00:00"
+    },
+    {
+     "id": 23,
+     "formNumber": "SSF-D4-0003",
+     "customerTitle": "Marmara Filo Lojistik A.Ş.",
+     "status": 1,
+     "statusLabel": "Onay bekliyor",
+     "totalLiters": 18000,
+     "totalAmount": 738124.2,
+     "createdAt": "2026-10-28T13:07:18.721745+00:00"
+    }
+   ]
+  },
+  "setup": null,
+  "sales": null
+ },
+ "failedSections": [],
+ "isFieldSales": true
+}

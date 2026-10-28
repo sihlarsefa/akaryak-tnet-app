@@ -1,0 +1,15 @@
+{
+ "userId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+ "userName": "istasyon.demo",
+ "email": "istasyon.demo@akaryakitnet.local",
+ "displayName": "Walkthrough Bayi",
+ "phoneNumber": "905325550101",
+ "role": "Station",
+ "roleLabel": "Bayi",
+ "organizationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "organizationCode": "STN-WALK-01",
+ "lastLoginAtUtc": "2026-10-28T19:39:18",
+ "createdAtUtc": "2026-10-28T19:06:57.331816",
+ "emailConfirmed": true,
+ "twoFactorRequired": false
+}

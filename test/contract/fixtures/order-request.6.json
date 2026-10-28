@@ -1,0 +1,58 @@
+{
+ "id": 6,
+ "concurrencyToken": "f7a28513-ffd6-434e-8d17-4b006824a98c",
+ "customerId": 221,
+ "requestedByUserId": "031e976b-53fe-417c-9de2-0236b7888417",
+ "requestedByName": "Selin Aydın",
+ "status": 1,
+ "statusLabel": "Onaylandı",
+ "totalLiters": 13000,
+ "estimatedAmount": 499250,
+ "note": "Acil ikmal — motorin ve LPG",
+ "decidedByName": "Murat Kaya",
+ "decidedAt": "2026-10-27T15:07:14.88076",
+ "decisionNote": "Onaylandı.",
+ "createdOrderIds": [
+  8209
+ ],
+ "createdAt": "2026-10-27T13:07:14.88076",
+ "lines": [
+  {
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "productName": "Motorin (Euro 5)",
+   "deliveryPointName": "Merkez Depo (İstanbul / Üsküdar)",
+   "orderId": 8209,
+   "orderNumber": "PFD-TLP-221-61",
+   "error": null,
+   "stationId": 221,
+   "productId": 1,
+   "deliveryPointId": 837,
+   "quantityLiters": 9000,
+   "requestedDeliveryDate": "2026-10-29T00:00:00",
+   "estimatedUnitPrice": 42.85
+  },
+  {
+   "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+   "productName": "LPG",
+   "deliveryPointName": "Merkez Depo (İstanbul / Üsküdar)",
+   "orderId": null,
+   "orderNumber": null,
+   "error": "Limit yetersiz: dönemlik kullanılabilir tutar aşılıyor.",
+   "stationId": 221,
+   "productId": 4,
+   "deliveryPointId": 837,
+   "quantityLiters": 4000,
+   "requestedDeliveryDate": "2026-10-29T00:00:00",
+   "estimatedUnitPrice": 28.4
+  }
+ ],
+ "canDecide": false,
+ "canCancel": false,
+ "paymentMethodCode": null,
+ "paymentMethodName": null,
+ "paymentTermDays": null,
+ "paymentInstallments": null,
+ "paymentDetailJson": null,
+ "paymentDisplay": null,
+ "paymentDetails": []
+}

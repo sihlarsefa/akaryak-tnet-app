@@ -1,0 +1,37 @@
+[
+ {
+  "category": "orders",
+  "label": "Siparişler",
+  "pushEnabled": true
+ },
+ {
+  "category": "quotes",
+  "label": "Teklifler",
+  "pushEnabled": true
+ },
+ {
+  "category": "shipments",
+  "label": "Teslimatlar",
+  "pushEnabled": true
+ },
+ {
+  "category": "payments",
+  "label": "Ödemeler",
+  "pushEnabled": true
+ },
+ {
+  "category": "approvals",
+  "label": "Onaylar",
+  "pushEnabled": true
+ },
+ {
+  "category": "field",
+  "label": "Saha",
+  "pushEnabled": true
+ },
+ {
+  "category": "system",
+  "label": "Sistem",
+  "pushEnabled": true
+ }
+]

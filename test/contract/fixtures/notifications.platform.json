@@ -1,0 +1,38 @@
+{
+ "items": [
+  {
+   "id": 690,
+   "category": "approvals",
+   "categoryLabel": "Onaylar",
+   "eventCode": "approval.pending",
+   "title": "Onayınız bekleniyor: #11",
+   "body": "Limit talebi · Merkez Tekstil A.Ş.. Karar vermek için dokunun.",
+   "severity": 2,
+   "route": "/approvals/97",
+   "entityType": "ApprovalRequest",
+   "entityId": 97,
+   "createdAt": "2026-10-28T20:11:13.553727+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 657,
+   "category": "approvals",
+   "categoryLabel": "Onaylar",
+   "eventCode": "approval.pending",
+   "title": "Onayınız bekleniyor: #10",
+   "body": "Limit talebi · Marmara Filo Lojistik A.Ş.. Karar vermek için dokunun.",
+   "severity": 2,
+   "route": "/approvals/95",
+   "entityType": "ApprovalRequest",
+   "entityId": 95,
+   "createdAt": "2026-10-28T20:02:31.943529+00:00",
+   "readAt": null,
+   "isRead": false
+  }
+ ],
+ "totalCount": 2,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

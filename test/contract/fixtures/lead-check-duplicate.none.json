@@ -1,0 +1,12 @@
+{
+ "linkedInThisStation": true,
+ "existingCustomerCode": "CH-WALK-001",
+ "openLeadNumber": null,
+ "existsElsewhere": false,
+ "existingCustomerId": null,
+ "blocksSubmit": true,
+ "messages": [
+  "Bu VKN ile cari bayinizde kayıtlı (CH-WALK-001)."
+ ],
+ "formatError": "VKN doğrulanamadı; numarayı kontrol edin."
+}

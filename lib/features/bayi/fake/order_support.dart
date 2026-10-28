@@ -89,7 +89,8 @@ String shipmentState(FakeWorld w, JsonMap o) {
   if (ships.contains(1)) return 'inTransit';
   if (ships.contains(0)) return 'planned';
   final accepted = shipmentTotals(w, o['id'] as int).accepted;
-  return accepted + 0.0005 >= qty(o) ? 'delivered' : 'partial';
+  // Sunucu `BayiOrderRules`: tamamlanmış siparişte kısmi teslim (tolerans içinde) "Teslim alındı".
+  return accepted + 0.0005 >= qty(o) || st(o) == 7 ? 'delivered' : 'partial';
 }
 
 const shipmentStateLabels = {

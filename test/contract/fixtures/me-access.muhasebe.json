@@ -1,0 +1,53 @@
+{
+ "userId": "fbfc6216-cdc8-4e45-a3ad-daef313e2a1c",
+ "userName": "muhasebe.demo",
+ "displayName": "Aylin Çelik",
+ "email": "muhasebe.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****04",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "accounting"
+ ],
+ "bayiRoleNames": [
+  "Muhasebe"
+ ],
+ "pages": [
+  "StationQuotes:Gorur",
+  "StationOrders:Gorur",
+  "StationOrders:Inceler",
+  "StationCustomers:Gorur",
+  "StationReports:Gorur",
+  "StationApprovals:Gorur",
+  "StationFinance:Gorur",
+  "StationPayments:Gorur",
+  "StationPayments:Ekler",
+  "StationPayments:Duzenler",
+  "StationPayments:Siler",
+  "StationPayments:Inceler"
+ ],
+ "capabilities": [
+  {
+   "code": "payment.instrument.manage",
+   "limit": null
+  },
+  {
+   "code": "payment.status.update",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "f44a129d3c67f2b0"
+}

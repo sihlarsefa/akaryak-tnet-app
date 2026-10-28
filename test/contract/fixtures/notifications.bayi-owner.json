@@ -1,0 +1,53 @@
+{
+ "items": [
+  {
+   "id": 347,
+   "category": "orders",
+   "categoryLabel": "Siparişler",
+   "eventCode": "order.completed",
+   "title": "Sipariş tamamlandı: AYN-20261028-000011",
+   "body": "Demo Filo Lojistik A.Ş. siparişinin tüm teslimatları kabul edildi.",
+   "severity": 1,
+   "route": "/bayi/orders/8266",
+   "entityType": "Order",
+   "entityId": 8266,
+   "createdAt": "2026-10-28T19:51:24.361674+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 341,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.accepted",
+   "title": "Teslimat kabul edildi: AYN-20261028-000011",
+   "body": "Demo Filo Lojistik A.Ş. teslimatı kabul etti.",
+   "severity": 1,
+   "route": "/bayi/orders/8266",
+   "entityType": "Shipment",
+   "entityId": 16,
+   "createdAt": "2026-10-28T19:51:24.352158+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 257,
+   "category": "payments",
+   "categoryLabel": "Ödemeler",
+   "eventCode": "payment.document_uploaded",
+   "title": "Ödeme belgesi yüklendi: AYN-20261028-000003",
+   "body": "Demo Filo Lojistik A.Ş. ödeme belgesini yükledi. Kontrol edip durumu güncelleyin.",
+   "severity": 0,
+   "route": "/payments/8258",
+   "entityType": "Order",
+   "entityId": 8258,
+   "createdAt": "2026-10-28T19:47:33.023839+00:00",
+   "readAt": "2026-10-28T19:47:35.265969+00:00",
+   "isRead": true
+  }
+ ],
+ "totalCount": 33,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 2
+}

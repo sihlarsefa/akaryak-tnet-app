@@ -1,0 +1,7 @@
+{
+ "title": "Asistan kapalı",
+ "status": 503,
+ "detail": "Asistan şu an kullanılamıyor.",
+ "code": "assistant_disabled",
+ "traceId": "59dc5bd7-7770-4532-9a4f-52feb25dade3"
+}

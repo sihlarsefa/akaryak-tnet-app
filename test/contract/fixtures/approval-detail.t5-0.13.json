@@ -1,0 +1,238 @@
+{
+ "id": 13,
+ "type": 5,
+ "typeLabel": "Saha finans",
+ "status": 0,
+ "statusLabel": "Bekliyor",
+ "isMirror": false,
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": 225,
+ "customerTitle": "Kuzey Marmara İnşaat ve Hafriyat A.Ş.",
+ "subjectType": "FieldOrderForm",
+ "subjectId": 24,
+ "subjectNumber": "SSF-D4-0004",
+ "title": "Saha formu finans onayı · SSF-D4-0004",
+ "summaryText": "Kuzey Marmara İnşaat ve Hafriyat A.Ş. · 25.000 L · 1.080.645,00 TL · Çek 90 gün · Gerekçe: Vadeli yöntem (Çek, 90 gün)",
+ "amount": 1080645,
+ "liters": 25000,
+ "requestedByUserId": "a94f753b-6f00-4c09-a5f3-f511bd904514",
+ "requestedByName": "Gizem Şahin",
+ "createdAt": "2026-10-28T13:43:18.721745+00:00",
+ "dueAt": "2026-10-29T13:43:18.721745+00:00",
+ "slaState": 1,
+ "currentLevelNo": 1,
+ "levelCount": 2,
+ "canDecide": true,
+ "concurrencyToken": "eb0b96b7-8924-41ec-b303-11361731559e",
+ "contextJson": "{\"reasons\":\"Vadeli y\\u00F6ntem (\\u00C7ek, 90 g\\u00FCn)\",\"limitOverrun\":false,\"method\":\"CEK\",\"termDays\":90}",
+ "decidedAt": null,
+ "decidedByUserId": null,
+ "decidedByName": null,
+ "decisionNote": null,
+ "steps": [
+  {
+   "id": 15,
+   "levelNo": 1,
+   "name": "Finans uzmanı",
+   "capabilityCode": "approve.finance.order",
+   "minAmount": 0,
+   "status": 1,
+   "statusLabel": "Karar bekliyor",
+   "dueAt": "2026-10-29T13:43:18.721745",
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": null,
+   "decidedByName": null,
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": null,
+   "note": null
+  },
+  {
+   "id": 16,
+   "levelNo": 2,
+   "name": "Finans müdürü",
+   "capabilityCode": "approve.finance.order",
+   "minAmount": 1000000,
+   "status": 0,
+   "statusLabel": "Sırada",
+   "dueAt": null,
+   "remindedAt": null,
+   "escalatedAt": null,
+   "decidedByUserId": null,
+   "decidedByName": null,
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "decidedAt": null,
+   "note": null
+  }
+ ],
+ "events": [
+  {
+   "id": 28,
+   "eventType": 1,
+   "label": "Oluşturuldu",
+   "stepId": null,
+   "userId": "a94f753b-6f00-4c09-a5f3-f511bd904514",
+   "userName": "Gizem Şahin",
+   "onBehalfOfUserId": null,
+   "onBehalfOfName": null,
+   "attachmentPublicId": null,
+   "attachmentFileName": null,
+   "note": null,
+   "occurredAt": "2026-10-28T13:43:18.721745"
+  }
+ ],
+ "attachments": [],
+ "modes": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "modeLabels": [
+  "Onayla",
+  "Koşullu onayla",
+  "Ek bilgi iste",
+  "Reddet"
+ ],
+ "onBehalfOfUserId": null,
+ "onBehalfOfName": null,
+ "canProvideInfo": false,
+ "canResumeInfo": false,
+ "summary": {
+  "headline": "SSF-D4-0004 · Kuzey Marmara İnşaat ve Hafriyat A.Ş.",
+  "subline": "Finans kararı forma döner: kâr onayı da tamamsa form siparişe dönüşür ve siparişler yeniden finansa düşmez.",
+  "amount": 1080645,
+  "liters": 25000,
+  "facts": [
+   {
+    "label": "Form no",
+    "value": "SSF-D4-0004",
+    "tone": "neutral"
+   },
+   {
+    "label": "Cari",
+    "value": "Kuzey Marmara İnşaat ve Hafriyat A.Ş.",
+    "tone": "neutral"
+   },
+   {
+    "label": "Temsilci",
+    "value": "Gizem Şahin",
+    "tone": "neutral"
+   }
+  ],
+  "lines": [
+   {
+    "title": "Motorin (Euro 5)",
+    "subtitle": "Arnavutköy Şantiye (Arnavutköy / İstanbul) · 01.11.2026",
+    "value": "25.000 L · 43,2258 ₺/L"
+   }
+  ],
+  "warnings": [],
+  "band": {
+   "key": "risk-b",
+   "label": "Risk B",
+   "tone": "info"
+  },
+  "links": {
+   "orderId": null,
+   "fieldOrderId": 24,
+   "leadId": null,
+   "customerId": 225,
+   "stationCustomerId": 423,
+   "limitRequestId": null,
+   "companyRequestId": null
+  }
+ },
+ "customerView": false,
+ "infoRequest": null,
+ "conditionForm": {
+  "fields": [
+   {
+    "key": "methodCode",
+    "label": "Ödeme yöntemi",
+    "type": "method",
+    "required": false,
+    "min": null,
+    "max": null,
+    "current": "CEK",
+    "currentLabel": "Çek",
+    "suggestion": null,
+    "suggestionLabel": null,
+    "hint": "Boş bırakılırsa yöntem değişmez."
+   },
+   {
+    "key": "termDays",
+    "label": "Vade (gün)",
+    "type": "int",
+    "required": false,
+    "min": 0,
+    "max": 365,
+    "current": "90",
+    "currentLabel": "90 gün",
+    "suggestion": null,
+    "suggestionLabel": null,
+    "hint": "İzin verilen vade: DBS 1–90 gün · Çek 1–180 gün · Senet 1–180 gün · Açık hesap (cari vadeli) 7–90 gün · Teminat mektubu karşılığı 1–90 gün · Taşıt tanıma / filo kartı en çok 90 gün · Nakit (peşin) / Havale / EFT (peşin) / Kredi / banka kartı (POS) / Ön ödemeli bakiye vadesiz."
+   }
+  ],
+  "methodOptions": [
+   {
+    "code": "NAKIT",
+    "name": "Nakit (peşin)",
+    "isDeferred": false,
+    "minTermDays": 0,
+    "maxTermDays": 0
+   },
+   {
+    "code": "HAVALE",
+    "name": "Havale / EFT (peşin)",
+    "isDeferred": false,
+    "minTermDays": 0,
+    "maxTermDays": 0
+   },
+   {
+    "code": "KART",
+    "name": "Kredi / banka kartı (POS)",
+    "isDeferred": false,
+    "minTermDays": 0,
+    "maxTermDays": 0
+   }
+  ],
+  "periodOptions": [
+   {
+    "code": "Aylık",
+    "label": "Aylık"
+   },
+   {
+    "code": "Haftalık",
+    "label": "Haftalık"
+   },
+   {
+    "code": "Günlük",
+    "label": "Günlük"
+   }
+  ],
+  "riskClassOptions": [
+   {
+    "code": "1",
+    "label": "A (düşük risk)"
+   },
+   {
+    "code": "2",
+    "label": "B"
+   },
+   {
+    "code": "3",
+    "label": "C"
+   },
+   {
+    "code": "4",
+    "label": "D (yüksek risk)"
+   }
+  ],
+  "hint": "Boş bırakılan alan değişmez; değişiklik forma ve oluşacak siparişlere geçer."
+ },
+ "decisionHint": null
+}

@@ -1,0 +1,24 @@
+{
+ "orderId": 8266,
+ "orderNumber": "AYN-20261028-000011",
+ "deliveryAddress": "İstanbul / Pendik — Organize Sanayi 5. Cad. No:12 Pendik/İstanbul",
+ "orderedLiters": 6000,
+ "acceptedLiters": 0,
+ "canManage": true,
+ "canAccept": false,
+ "isOpen": true,
+ "completionHint": null,
+ "shipments": [
+  {
+   "id": 16,
+   "plannedLiters": 6000,
+   "deliveredLiters": null,
+   "vehiclePlate": "34 KNT 734",
+   "driverName": "Hüseyin Polat",
+   "scheduledAt": "2026-10-28T23:00:00",
+   "deliveryDocumentNo": null,
+   "status": 0,
+   "disputeNote": null
+  }
+ ]
+}

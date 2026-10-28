@@ -172,6 +172,7 @@ JsonMap _dashboardOrder(FakeWorld w, JsonMap o) {
     'latestTotalAmountTry': q?['totalAmountTry'],
     'latestDeliveryDate': q?['deliveryDate'],
     'revisionNote': q?['revisionNote'],
+    'financeStatus': (o['financeStatus'] as num?)?.toInt() ?? 0,
     'msLeft': expires == null
         ? 0
         : expires.difference(TrTime.now()).inMilliseconds,

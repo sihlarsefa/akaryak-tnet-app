@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
 import '../../../core/network/fake/core_fakes.dart';
+import '../../../core/network/fake/fake_completion.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
@@ -45,7 +46,15 @@ void registerCmShipmentFakes(FakeServer s) {
     sh['acceptedAt'] = FakeWorld.local(DateTime.now());
     sh['acceptedByUserId'] = p.userId;
     sh['acceptedByName'] = p.displayName;
-    if ((delivered - qty).abs() < 0.0001) order['status'] = 7;
+    // Sunucu `FulfillmentService.AcceptAsync`: tüm litre ya da (açık sevkiyat kalmadıysa) teslim
+    // toleransı içindeki miktar kabul edilince sipariş kendiliğinden tamamlanır.
+    if (order['status'] == 3 &&
+        FakeCompletion.isFulfilled(
+          qty,
+          w.shipmentsOfOrder(order['id'] as int),
+        )) {
+      order['status'] = 7;
+    }
     _notifyBayi(
       w,
       sh,

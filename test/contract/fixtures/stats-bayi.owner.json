@@ -1,0 +1,237 @@
+{
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "scope": "station",
+ "generatedAt": "2026-10-28T19:39:52.408406+00:00",
+ "period": {
+  "key": "month",
+  "label": "Bu ay",
+  "from": "2026-10-01",
+  "to": "2026-10-28",
+  "compareLabel": "Geçen ayın aynı dönemi",
+  "compareFrom": "2026-09-01",
+  "compareTo": "2026-09-28"
+ },
+ "sales": {
+  "orders": 464,
+  "liters": 6700250,
+  "amount": 43053249.4,
+  "prevOrders": 586,
+  "prevLiters": 9131050,
+  "prevAmount": 35706138,
+  "avgUnitPrice": 6.43,
+  "prevAvgUnitPrice": 3.91,
+  "activeCustomers": 105,
+  "newCustomers": 0
+ },
+ "months": [
+  {
+   "year": 2026,
+   "month": 5,
+   "label": "May",
+   "orders": 21,
+   "liters": 372700,
+   "amount": 15948810
+  },
+  {
+   "year": 2026,
+   "month": 6,
+   "label": "Haz",
+   "orders": 27,
+   "liters": 500500,
+   "amount": 20869949
+  },
+  {
+   "year": 2026,
+   "month": 7,
+   "label": "Tem",
+   "orders": 654,
+   "liters": 12622000,
+   "amount": 23993934
+  },
+  {
+   "year": 2026,
+   "month": 8,
+   "label": "Ağu",
+   "orders": 580,
+   "liters": 11799900,
+   "amount": 21156579
+  },
+  {
+   "year": 2026,
+   "month": 9,
+   "label": "Eyl",
+   "orders": 666,
+   "liters": 11231800,
+   "amount": 36402863
+  },
+  {
+   "year": 2026,
+   "month": 10,
+   "label": "Eki",
+   "orders": 464,
+   "liters": 6700250,
+   "amount": 43053249.4
+  }
+ ],
+ "products": [
+  {
+   "productId": 1,
+   "name": "Motorin (Euro 5)",
+   "liters": 1183100,
+   "amount": 13075780.6,
+   "share": 0.3037
+  },
+  {
+   "productId": 2,
+   "name": "Kurşunsuz 95",
+   "liters": 2233700,
+   "amount": 11449655.8,
+   "share": 0.2659
+  },
+  {
+   "productId": 4,
+   "name": "LPG",
+   "liters": 1693250,
+   "amount": 10030975,
+   "share": 0.233
+  },
+  {
+   "productId": 3,
+   "name": "Kurşunsuz 98",
+   "liters": 1590200,
+   "amount": 8496838,
+   "share": 0.1974
+  }
+ ],
+ "topCustomers": [
+  {
+   "customerId": 221,
+   "title": "Demo Filo Lojistik A.Ş.",
+   "orders": 31,
+   "liters": 499800,
+   "amount": 21753546,
+   "share": 0.5053
+  },
+  {
+   "customerId": 224,
+   "title": "Marmara Filo Lojistik A.Ş.",
+   "orders": 7,
+   "liters": 55500,
+   "amount": 2262193.4,
+   "share": 0.0525
+  },
+  {
+   "customerId": 91,
+   "title": "Kapadokya Sanayi A.Ş.",
+   "orders": 4,
+   "liters": 61450,
+   "amount": 1704480,
+   "share": 0.0396
+  },
+  {
+   "customerId": 174,
+   "title": "Gap Filo Yönetimi A.Ş.",
+   "orders": 1,
+   "liters": 40200,
+   "amount": 1686390,
+   "share": 0.0392
+  },
+  {
+   "customerId": 84,
+   "title": "Karadeniz Turizm A.Ş.",
+   "orders": 2,
+   "liters": 40100,
+   "amount": 1482975,
+   "share": 0.0344
+  }
+ ],
+ "funnel": {
+  "requests": 1673,
+  "quoted": 105,
+  "accepted": 464,
+  "rejected": 236,
+  "expired": 236,
+  "conversionRate": 0.2773,
+  "avgFirstQuoteMinutes": 34
+ },
+ "deliveries": {
+  "delivered": 7,
+  "deliveredLiters": 35662,
+  "onTimeRate": 0.4286,
+  "inTransit": 1,
+  "planned": 4,
+  "disputes": 1
+ },
+ "collections": {
+  "collectedAmount": 742975,
+  "collectedCount": 4,
+  "overdueAmount": 742218.4,
+  "overdueCount": 2,
+  "dueSoonAmount": 0,
+  "dueSoonCount": 0,
+  "dueSoonDays": 7
+ },
+ "team": [
+  {
+   "userId": "c5d379dc-d2bd-4dad-9821-7dcc7fd17723",
+   "name": "Emre Yıldız",
+   "forms": 9,
+   "converted": 4,
+   "liters": 61000
+  },
+  {
+   "userId": "a94f753b-6f00-4c09-a5f3-f511bd904514",
+   "name": "Gizem Şahin",
+   "forms": 6,
+   "converted": 1,
+   "liters": 9000
+  }
+ ],
+ "risk": {
+  "nearLimitCount": 111,
+  "nearLimit": [
+   {
+    "customerId": 221,
+    "title": "Demo Filo Lojistik A.Ş.",
+    "usageRate": 162.939
+   },
+   {
+    "customerId": 3,
+    "title": "Akdeniz İnşaat A.Ş.",
+    "usageRate": 14.263
+   },
+   {
+    "customerId": 151,
+    "title": "Kapadokya Sanayi A.Ş.",
+    "usageRate": 12.094
+   },
+   {
+    "customerId": 201,
+    "title": "Ege Lojistik A.Ş.",
+    "usageRate": 11.51
+   },
+   {
+    "customerId": 101,
+    "title": "Ege Lojistik A.Ş.",
+    "usageRate": 10.745
+   },
+   {
+    "customerId": 204,
+    "title": "Karadeniz Turizm A.Ş.",
+    "usageRate": 10.379
+   },
+   {
+    "customerId": 156,
+    "title": "Palandöken Depolama A.Ş.",
+    "usageRate": 9.923
+   },
+   {
+    "customerId": 108,
+    "title": "Yıldız Enerji A.Ş.",
+    "usageRate": 9.729
+   }
+  ]
+ },
+ "failedSections": []
+}

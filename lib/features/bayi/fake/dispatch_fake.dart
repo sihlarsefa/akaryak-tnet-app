@@ -2,6 +2,7 @@ import '../../../core/auth/permissions.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/json.dart';
 import '../../../core/models/me_access.dart';
+import '../../../core/network/fake/fake_completion.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
@@ -753,7 +754,9 @@ Object _byOrder(FakeRequest req) {
         throw FakeResponse.notFound('Sipariş bulunamadı.');
       }
       ownOnly = isOwnOnly(p);
-      canManage = !ownOnly && p.can(Pg.stationShipments, Perm.create);
+      // Sunucu (`FulfillmentService.GetCoreAsync`): bayinin kendi teslimatlarıyla sınırlı olmayan
+      // her personeli yönetir (eylem yetkileri ayrıca denetlenir).
+      canManage = !ownOnly;
     case Persona.customer:
       requireAny(p, const [
         (Pg.customerShipments, Perm.view),
@@ -764,12 +767,13 @@ Object _byOrder(FakeRequest req) {
       }
       canAccept = p.can(Pg.customerShipments, Perm.edit);
     case Persona.platform:
-      break;
+      canManage = true;
     case Persona.unknown:
       throw FakeResponse.forbidden();
   }
+  final all = w.shipmentsOfOrder(o['id'] as int);
   final ships = [
-    for (final x in w.shipmentsOfOrder(o['id'] as int))
+    for (final x in all)
       if (!ownOnly || x['driverUserId'] == p.userId) x,
   ]..sort((a, b) => (a['id'] as int).compareTo(b['id'] as int));
   if (ownOnly && ships.isEmpty) throw FakeResponse.forbidden();
@@ -782,6 +786,13 @@ Object _byOrder(FakeRequest req) {
     'canManage': canManage,
     'canAccept': canAccept,
     'isOpen': st(o) == 3,
+    'completionHint': FakeCompletion.hint(
+      status: st(o),
+      hasAcceptedQuote: quotesOf(o).isNotEmpty,
+      ordered: qty(o),
+      shipments: all,
+      canManage: canManage,
+    ),
     'shipments': [
       for (final x in ships)
         {

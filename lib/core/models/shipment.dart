@@ -56,6 +56,7 @@ class Fulfillment {
     this.canManage = false,
     this.canAccept = false,
     this.isOpen = false,
+    this.completionHint,
     this.shipments = const [],
   });
 
@@ -70,6 +71,7 @@ class Fulfillment {
       canManage: r.boolean('canManage'),
       canAccept: r.boolean('canAccept'),
       isOpen: r.boolean('isOpen'),
+      completionHint: r.nonEmpty('completionHint'),
       shipments: List.unmodifiable(r.list('shipments', Shipment.fromJson)),
     );
   }
@@ -82,7 +84,28 @@ class Fulfillment {
   final bool canManage;
   final bool canAccept;
   final bool isOpen;
+
+  /// Kısmi teslim kabul edildi, açık sevkiyat yok ama sipariş hâlâ "Onaylandı"da: neden kapanmadığı
+  /// (`FulfillmentService.CompletionHintAsync`). Yönetene (bayi): tolerans dışı eksikte "kalan litre
+  /// için sevkiyat planlayın", tolerans içindeyse "Tamamla" ile kapatma çağrısı; müşteriye: kalan
+  /// litrenin bayinin yeni sevkiyatıyla geleceği (tolerans içindeyse null). Diğer durumlarda null.
+  final String? completionHint;
   final List<Shipment> shipments;
+
+  /// Açık sevkiyat var mı (planlı, yolda, kabul bekleyen, itirazlı; iptal ve kabul edilen dışında).
+  bool get hasOpenShipments => shipments.any(
+    (s) =>
+        s.status != ShipmentStatus.cancelled &&
+        s.status != ShipmentStatus.accepted,
+  );
+
+  /// Sunucu siparişi "Tamamla" ile kapatmaya çağırıyor: kabul edilen litre teslim toleransı içinde
+  /// (Sistem Ayarları › "Teslim toleransı (%)"; uygulama bu değeri bilmez). Yalnızca yönetene giden
+  /// çağrı metni "Tamamla" der; engel metinleri ("… otomatik tamamlanır") demez.
+  bool get invitesCompletion =>
+      canManage &&
+      completionHint != null &&
+      RegExp(r'\bTamamla\b').hasMatch(completionHint!);
 
   /// Planlanmamış (kalan) litre: sipariş − (iptal dışındaki planlar).
   double get remainingToPlan {

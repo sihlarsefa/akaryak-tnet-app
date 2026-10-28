@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -111,6 +112,12 @@ class NotificationBell extends StatelessWidget {
 ///   soft shadow (200 ms), never a hairline.
 /// * The offline line slides down and fades in under the bar.
 ///   [largeTitle] overrides the root / pushed detection.
+/// * **Page band** (the web panel's `.page-hero`): a root page with a
+///   [bandIcon] trades the big title for the panel's band — a soft orange
+///   tinted card with a 1 px orange-tinted line, the icon in a white tile,
+///   a sentence-case [eyebrow] (Pas), the title (20 700) and a one-line
+///   [description]; the page actions and the bell sit at its right
+///   ([AknPageBand]).
 /// * [hero] / [navy] are deprecated and render the normal bar.
 class AppScaffold extends StatefulWidget {
   const AppScaffold({
@@ -135,6 +142,9 @@ class AppScaffold extends StatefulWidget {
     this.appBar = true,
     this.homeHeader,
     this.largeTitle,
+    this.bandIcon,
+    this.eyebrow,
+    this.description,
   });
 
   final Widget body;
@@ -177,6 +187,17 @@ class AppScaffold extends StatefulWidget {
   /// Forces the root (`display` title, 60 px) or pushed (`headline`, 52 px)
   /// bar; null detects it from the route (a back button means pushed).
   final bool? largeTitle;
+
+  /// The page band's icon (root pages): with it the root bar becomes the
+  /// panel's page band ([AknPageBand]).
+  final IconData? bandIcon;
+
+  /// The band's eyebrow over the title (sentence case: "Müşteri", "Bayi").
+  final String? eyebrow;
+
+  /// The band's one-line description under the title ([subtitle] when
+  /// null).
+  final String? description;
 
   /// Deprecated: always false visually (kept for API stability).
   bool get isHero => hero || navy;
@@ -226,6 +247,42 @@ class _AppScaffoldState extends State<AppScaffold> {
       final scaler = MediaQuery.textScalerOf(context);
       final t = context.aknText;
       final driver = context.isDriverMode;
+      final bandIcon = widget.bandIcon;
+      final pageTitle = widget.title;
+      if (root && bandIcon != null && pageTitle != null) {
+        final description = widget.description ?? widget.subtitle;
+        final band = AknPageBand(
+          icon: bandIcon,
+          title: pageTitle,
+          eyebrow: widget.eyebrow,
+          description: description,
+          actions: [
+            ...widget.actions,
+            if (widget.showBell) const NotificationBell(),
+          ],
+        );
+        bar = _AknAppBar(
+          root: true,
+          toolbarHeight:
+              AknPageBand.heightFor(
+                scaler,
+                eyebrow: widget.eyebrow != null,
+                description: description != null,
+              ) +
+              AknPageBand.margin * 2,
+          titleScale: AknPageBand.maxTextScale,
+          scrolled: _scrolled,
+          title: null,
+          titleWidget: band,
+          titleIsBand: true,
+          subtitle: null,
+          leading: widget.leading,
+          automaticallyImplyLeading: widget.automaticallyImplyLeading,
+          background: pageColor,
+          actions: const [],
+          bottom: widget.bottom,
+        );
+      }
       final titleStyle = root ? t.display : t.headline;
       final titleScale = root ? 1.5 : 1.6;
       final line =
@@ -243,7 +300,7 @@ class _AppScaffoldState extends State<AppScaffold> {
               driver ? 60.0 : AknTheme.pushedBarHeight,
               200.0,
             );
-      bar = _AknAppBar(
+      bar ??= _AknAppBar(
         root: root,
         toolbarHeight: toolbar,
         titleScale: titleScale,
@@ -368,7 +425,12 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.background,
     required this.actions,
     required this.bottom,
+    this.titleIsBand = false,
   });
+
+  /// [titleWidget] is an [AknPageBand]: it spans the bar between the page
+  /// gutters and marks its own title as the header.
+  final bool titleIsBand;
 
   final bool root;
   final double toolbarHeight;
@@ -439,6 +501,8 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
     if (lead != null && circled) lead = _BarLeading(child: lead);
     final titled = titleBlock == null
         ? null
+        : titleIsBand
+        ? titleBlock
         : Semantics(header: true, child: titleBlock);
 
     return _FrostedTop(
@@ -446,6 +510,9 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
       page: background,
       builder: (context, fill) => AppBar(
         toolbarHeight: toolbarHeight,
+        // The band marks its own title as the header; its buttons stay
+        // separate nodes.
+        excludeHeaderSemantics: titleIsBand,
         title: titled,
         centerTitle: false,
         titleSpacing: lead == null ? AknSpace.page : (circled ? 8 : 0),
@@ -800,6 +867,156 @@ class ActionBar extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The web panel's page band (`.page-hero`, design law: soft orange tint,
+/// icon tile, title, one-line description, sentence-case eyebrow) on a
+/// mobile root page: a card with the 90° wash `brandInk` 8 % → 3 % → surface,
+/// a 1 px line tinted 14 % toward `brandInk`, radius 16; the [icon] in a
+/// 40 px white tile with a 22 % tinted line and a Pas glyph; the [eyebrow]
+/// in Pas 12/16 600, the [title] 20/24 700 ink (the page's header for
+/// screen readers) and the [description] 13/18 dim, one line each; the
+/// [actions] (icon buttons, the bell) at the right. Text grows up to
+/// [maxTextScale]; [heightFor] gives its height for the bar.
+class AknPageBand extends StatelessWidget {
+  const AknPageBand({
+    super.key,
+    required this.icon,
+    required this.title,
+    this.eyebrow,
+    this.description,
+    this.actions = const [],
+  });
+
+  final IconData icon;
+  final String title;
+  final String? eyebrow;
+  final String? description;
+  final List<Widget> actions;
+
+  /// Space above and below the band inside the bar.
+  static const double margin = 8;
+
+  /// The band's texts clamp at 1.5× (like the root titles).
+  static const double maxTextScale = 1.5;
+
+  static const double _padding = 10;
+  static const double _tile = 40;
+
+  /// The band's height (border included) at [scaler].
+  static double heightFor(
+    TextScaler scaler, {
+    bool eyebrow = true,
+    bool description = true,
+  }) {
+    final s = scaler.clamp(maxScaleFactor: maxTextScale);
+    final lines =
+        (eyebrow ? s.scale(12) * 16 / 12 : 0) +
+        s.scale(20) * 24 / 20 +
+        (description ? s.scale(13) * 18 / 13 : 0);
+    return math.max(lines, AknSpace.minTap) + _padding * 2 + 2;
+  }
+
+  /// The band's card: the 90° wash `brandInk` 8 % → 3 % → surface (at night
+  /// a flat 6 % tint), a 1 px line tinted 14 % toward `brandInk`, radius 16.
+  /// Detail pages wrap their object title in it too.
+  static BoxDecoration decorationOf(AknColors c) => BoxDecoration(
+    borderRadius: const BorderRadius.all(Radius.circular(16)),
+    border: Border.all(color: Color.lerp(c.line, c.brandInk, 0.14)!),
+    color: c.isDark ? Color.lerp(c.surface, c.brandInk, 0.06) : null,
+    gradient: c.isDark
+        ? null
+        : LinearGradient(
+            colors: [
+              Color.lerp(c.surface, c.brandInk, 0.08)!,
+              Color.lerp(c.surface, c.brandInk, 0.03)!,
+              c.surface,
+            ],
+            stops: const [0, 0.55, 1],
+          ),
+  );
+
+  /// The band's 40 px icon tile: white, a 22 % tinted line, a Pas glyph.
+  /// Decorative.
+  static Widget tileOf(BuildContext context, IconData icon) {
+    final c = context.akn;
+    return ExcludeSemantics(
+      child: Container(
+        width: _tile,
+        height: _tile,
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: const BorderRadius.all(Radius.circular(12)),
+          border: Border.all(color: Color.lerp(c.line, c.brandInk, 0.22)!),
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 20, color: c.brandInk),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final hero = c.brandInk;
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (eyebrow != null)
+          Text(
+            eyebrow!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.caption.copyWith(fontWeight: FontWeight.w600, color: hero),
+          ),
+        Semantics(
+          header: true,
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.title.copyWith(height: 24 / 20, color: c.ink),
+          ),
+        ),
+        if (description != null)
+          Text(
+            description!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim),
+          ),
+      ],
+    );
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: maxTextScale,
+      child: DecoratedBox(
+        decoration: decorationOf(c),
+        // Keep the title (header) and every action its own node.
+        child: Padding(
+          padding: EdgeInsetsDirectional.fromSTEB(
+            12,
+            _padding,
+            actions.isEmpty ? 14 : 2,
+            _padding,
+          ),
+          child: Semantics(
+            container: true,
+            explicitChildNodes: true,
+            child: Row(
+              children: [
+                tileOf(context, icon),
+                const SizedBox(width: 12),
+                Expanded(child: text),
+                ...actions,
+              ],
             ),
           ),
         ),

@@ -1,0 +1,58 @@
+[
+ {
+  "deviceId": "95e2ea59-1b4f-4e56-996e-f541700840a4",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:39:17.879589+00:00",
+  "current": false
+ },
+ {
+  "deviceId": "531f49ee-5d3a-4d04-b690-89c5a7846cb5",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:33:48+00:00",
+  "current": true
+ },
+ {
+  "deviceId": "8498c24b-c01a-4a9e-977d-79c21d3a425a",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:32:31+00:00",
+  "current": false
+ },
+ {
+  "deviceId": "92e194a9-12aa-42a8-80cd-f2f75d8de056",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:32:11+00:00",
+  "current": false
+ },
+ {
+  "deviceId": "92ba6102-793f-4c65-8543-30cdfd5e617b",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:27:34.638147+00:00",
+  "current": false
+ },
+ {
+  "deviceId": "013e1127-d22f-4d46-bed6-81386c8c855a",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:23:03+00:00",
+  "current": false
+ },
+ {
+  "deviceId": "cd2cc3bc-15e8-41ae-9312-a25ac77b49ae",
+  "platform": "ios",
+  "model": "akn-e2e",
+  "appVersion": "1.0.0",
+  "lastSeenAt": "2026-10-28T19:12:49+00:00",
+  "current": false
+ }
+]

@@ -1,0 +1,53 @@
+{
+ "items": [
+  {
+   "id": 335,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.accepted",
+   "title": "Teslimat kabul edildi: AYN-20261028-000011",
+   "body": "Müşteri teslimatınızı kabul etti.",
+   "severity": 1,
+   "route": "/driver/shipments/16",
+   "entityType": "Shipment",
+   "entityId": 16,
+   "createdAt": "2026-10-28T19:51:24.352158+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 327,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.planned",
+   "title": "Yeni teslimat: AYN-20261028-000011",
+   "body": "Demo Filo Lojistik A.Ş. · 6.000 L · 28.10.2026",
+   "severity": 0,
+   "route": "/driver/shipments/16",
+   "entityType": "Shipment",
+   "entityId": 16,
+   "createdAt": "2026-10-28T19:51:14.239944+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 229,
+   "category": "shipments",
+   "categoryLabel": "Teslimatlar",
+   "eventCode": "shipment.accepted",
+   "title": "Teslimat kabul edildi: AYN-20261028-000003",
+   "body": "Müşteri teslimatınızı kabul etti.",
+   "severity": 1,
+   "route": "/driver/shipments/15",
+   "entityType": "Shipment",
+   "entityId": 15,
+   "createdAt": "2026-10-28T19:46:52.795695+00:00",
+   "readAt": "2026-10-28T19:46:55.489422+00:00",
+   "isRead": true
+  }
+ ],
+ "totalCount": 10,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

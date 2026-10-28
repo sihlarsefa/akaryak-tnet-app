@@ -28,7 +28,7 @@ import 'support/a2_support.dart';
 void main() {
   late A2Env env;
 
-  // Gerçek yüz (Plus Jakarta Sans): plaka göstergeleri, KPI kutuları ve büyük yazı yerleşimi cihazdaki
+  // Gerçek yüz (Archivo): plaka göstergeleri, KPI kutuları ve büyük yazı yerleşimi cihazdaki
   // gibi ölçülür (tasarım v3 §1). Dosyalar yoksa test yazı tipiyle sürer.
   setUpAll(loadRealFonts);
 

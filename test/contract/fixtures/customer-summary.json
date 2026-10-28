@@ -1,0 +1,253 @@
+{
+ "customerId": 221,
+ "stationCustomerId": 221,
+ "title": "Demo Filo Lojistik A.Ş.",
+ "taxNumberMasked": "98******10",
+ "city": "İstanbul",
+ "district": "Üsküdar",
+ "contacts": [
+  {
+   "name": "Ayşe Demir",
+   "role": "Yetkili",
+   "phone": "05325550202",
+   "email": "musteri.demo@akaryakitnet.local"
+  },
+  {
+   "name": "Mustafa Çetin",
+   "role": "Teslimat sorumlusu · Anadolu Lojistik Üssü #02",
+   "phone": "0532 555 01 11",
+   "email": null
+  }
+ ],
+ "deliveryPoints": [
+  {
+   "id": 838,
+   "name": "Anadolu Lojistik Üssü #02",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:12 Pendik/İstanbul",
+   "hasCoordinates": true,
+   "windowStart": "09:00",
+   "windowEnd": "18:00",
+   "tankCapacityLiters": 50000,
+   "contactName": "Mustafa Çetin",
+   "contactPhone": "0532 555 01 11",
+   "latitude": 41.0576,
+   "longitude": 28.929,
+   "accessNotes": "Şantiye içi yol dar; 18 m³ üzeri araç giremez."
+  },
+  {
+   "id": 846,
+   "name": "Anadolu Lojistik Üssü #10",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:20 Pendik/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  },
+  {
+   "id": 942,
+   "name": "Anadolu Lojistik Üssü #106",
+   "city": "İstanbul",
+   "district": "Pendik",
+   "address": "Organize Sanayi 5. Cad. No:36 Pendik/İstanbul",
+   "hasCoordinates": false,
+   "windowStart": null,
+   "windowEnd": null,
+   "tankCapacityLiters": null,
+   "contactName": null,
+   "contactPhone": null,
+   "latitude": null,
+   "longitude": null,
+   "accessNotes": null
+  }
+ ],
+ "limit": {
+  "amount": 500000,
+  "used": 81469680,
+  "period": "Aylık",
+  "periodLabel": "Bu ay",
+  "usagePct": 16293.9,
+  "unit": "TL",
+  "remaining": 0,
+  "limitType": "Tutar",
+  "tone": "danger"
+ },
+ "finance": {
+  "status": 1,
+  "label": "Onaylı",
+  "canOrder": true,
+  "blockReason": null
+ },
+ "openOrders": [
+  {
+   "id": 8256,
+   "orderNumber": "AYN-20261028-000001",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 5000,
+   "totalAmount": 212500,
+   "createdAt": "2026-10-28T22:17:30.390673+03:00"
+  },
+  {
+   "id": 387,
+   "orderNumber": "SIP-20261028-C0160",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 5400,
+   "totalAmount": 237276,
+   "createdAt": "2026-10-28T18:41:57.27261+03:00"
+  },
+  {
+   "id": 8194,
+   "orderNumber": "SSF-DEMO-1007-2",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 3000,
+   "totalAmount": 130380,
+   "createdAt": "2026-10-27T17:48:13.640849+03:00"
+  }
+ ],
+ "lastOrders": [
+  {
+   "id": 8257,
+   "orderNumber": "AYN-20261028-000002",
+   "status": 7,
+   "statusLabel": "Tamamlandı",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 8000,
+   "totalAmount": 334000,
+   "createdAt": "2026-10-28T22:36:50.798606+03:00"
+  },
+  {
+   "id": 8256,
+   "orderNumber": "AYN-20261028-000001",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 5000,
+   "totalAmount": 212500,
+   "createdAt": "2026-10-28T22:17:30.390673+03:00"
+  },
+  {
+   "id": 387,
+   "orderNumber": "SIP-20261028-C0160",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 5400,
+   "totalAmount": 237276,
+   "createdAt": "2026-10-28T18:41:57.27261+03:00"
+  },
+  {
+   "id": 8194,
+   "orderNumber": "SSF-DEMO-1007-2",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Kurşunsuz 95",
+   "quantityLiters": 3000,
+   "totalAmount": 130380,
+   "createdAt": "2026-10-27T17:48:13.640849+03:00"
+  },
+  {
+   "id": 8193,
+   "orderNumber": "SSF-DEMO-1007-1",
+   "status": 2,
+   "statusLabel": "Onay bekleniyor",
+   "productName": "Motorin (Euro 5)",
+   "quantityLiters": 10000,
+   "totalAmount": 419200,
+   "createdAt": "2026-10-27T17:48:13.640849+03:00"
+  }
+ ],
+ "openForms": [
+  {
+   "id": 1,
+   "formNumber": "SSF-DEMO-1001",
+   "customerTitle": "Demo Filo Lojistik A.Ş.",
+   "status": 1,
+   "statusLabel": "Onay bekliyor",
+   "totalLiters": 8000,
+   "totalAmount": 339840,
+   "createdAt": "2026-10-28T16:07:13.640849+00:00"
+  }
+ ],
+ "notes": [
+  {
+   "id": 1,
+   "stationId": 221,
+   "customerId": 221,
+   "body": "Hafta sonu teslimat istemiyor; teslimatlar hafta içi 08:00–17:00 arasında yapılmalı.",
+   "createdAt": "2026-10-25T19:07:16.700102",
+   "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "createdByDisplay": "Walkthrough Bayi",
+   "canDelete": true
+  },
+  {
+   "id": 2,
+   "stationId": 221,
+   "customerId": 221,
+   "body": "Ekim ayında filoya 6 yeni çekici eklenecek; motorin hacmi artacak, limit artışı gündemde.",
+   "createdAt": "2026-10-16T18:07:16.700102",
+   "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "createdByDisplay": "Walkthrough Bayi",
+   "canDelete": true
+  },
+  {
+   "id": 3,
+   "stationId": 221,
+   "customerId": 221,
+   "body": "Rakip bayi litrede 0,30 ₺ indirim teklif etmiş; fiyat görüşmesi için ziyaret planlandı.",
+   "createdAt": "2026-10-07T17:07:16.700102",
+   "createdByUserId": "b00c6d86-6731-4898-9b68-02b515c22a4d",
+   "createdByDisplay": "Walkthrough Bayi",
+   "canDelete": true
+  }
+ ],
+ "actions": {
+  "canAddNote": true,
+  "canRequestLimit": false,
+  "canCreateFieldForm": true,
+  "canQuote": true,
+  "canViewNotes": true
+ },
+ "collections": {
+  "overdueCount": 0,
+  "overdueAmount": 0,
+  "openInstruments": 0,
+  "nextInstrumentDue": null,
+  "advanceBalance": 0
+ },
+ "financeCard": {
+  "stationCustomerId": 221,
+  "status": 1,
+  "statusLabel": "Onaylı",
+  "riskClass": 2,
+  "riskClassLabel": "B",
+  "nextReviewDate": "2027-10-28",
+  "hasBouncedCheque": false,
+  "hasProtestedNote": false,
+  "hasProfile": true,
+  "isGrandfathered": true
+ },
+ "pendingLimitRequest": {
+  "id": 1,
+  "limitType": "Tutar",
+  "period": "Aylık",
+  "amount": 750000,
+  "createdAt": "2026-10-28T13:07:14.750319+00:00"
+ },
+ "isPortfolioView": false,
+ "code": "CH-WALK-001",
+ "isActive": true
+}

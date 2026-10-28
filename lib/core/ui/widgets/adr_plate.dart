@@ -7,7 +7,7 @@ import '../typography.dart';
 /// The orange ADR hazard plate of a tanker (design v3 §4): 48 × 36 (4 : 3,
 /// like the real 40 × 30 cm plate), retro-reflective orange with a soft
 /// sheen from the top, a black border (2.5, r3.5) and a black middle rule,
-/// the hazard number over the UN number in Plus Jakarta Sans 800 with
+/// the hazard number over the UN number in Archivo 800 with
 /// tabular figures ("30" over "1202"). It sits on the surface with a small
 /// contact shadow (dark mode: a hairline ring keeps its black border
 /// visible). Driver and dispatch load lines only — never decorative.

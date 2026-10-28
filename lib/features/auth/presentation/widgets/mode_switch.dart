@@ -178,8 +178,9 @@ class _ModeSwitchState<T> extends State<ModeSwitch<T>>
                                       style: t.label.copyWith(
                                         fontSize: 14,
                                         height: 20 / 14,
-                                        // dim, surfaceAlt üzerinde 5,2:1 (AA).
-                                        color: i == index ? c.ink : c.dim,
+                                        // Seçili: panelin "buradasınız"ı (Pas); dim,
+                                        // surfaceAlt üzerinde AA.
+                                        color: i == index ? c.brandInk : c.dim,
                                         fontWeight: i == index
                                             ? FontWeight.w700
                                             : FontWeight.w600,

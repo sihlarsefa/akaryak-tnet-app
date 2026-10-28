@@ -1,0 +1,7 @@
+{
+ "title": "Yetkisiz işlem",
+ "status": 403,
+ "detail": "İtiraz fotoğrafını yalnızca yükleyen kişi, itiraz göndermeden önce silebilir.",
+ "code": "forbidden",
+ "traceId": "37796b4c-b283-433a-8a24-ce4a109e74a9"
+}

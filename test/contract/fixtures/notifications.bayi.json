@@ -1,0 +1,38 @@
+{
+ "items": [
+  {
+   "id": 19,
+   "category": "approvals",
+   "categoryLabel": "Onaylar",
+   "eventCode": "approval.pending",
+   "title": "Onayınız bekleniyor: AYN-20261028-000002",
+   "body": "Sipariş finans onayı · Demo Filo Lojistik A.Ş.. Karar vermek için dokunun.",
+   "severity": 2,
+   "route": "/approvals/62",
+   "entityType": "ApprovalRequest",
+   "entityId": 62,
+   "createdAt": "2026-10-28T19:36:59.554599+00:00",
+   "readAt": null,
+   "isRead": false
+  },
+  {
+   "id": 4,
+   "category": "approvals",
+   "categoryLabel": "Onaylar",
+   "eventCode": "approval.pending",
+   "title": "Onayınız bekleniyor: AYN-20261028-000001",
+   "body": "Sipariş finans onayı · Demo Filo Lojistik A.Ş.. Karar vermek için dokunun.",
+   "severity": 2,
+   "route": "/approvals/61",
+   "entityType": "ApprovalRequest",
+   "entityId": 61,
+   "createdAt": "2026-10-28T19:17:35.373336+00:00",
+   "readAt": null,
+   "isRead": false
+  }
+ ],
+ "totalCount": 2,
+ "pageNumber": 1,
+ "pageSize": 25,
+ "totalPages": 1
+}

@@ -1,0 +1,68 @@
+{
+ "userId": "a41bb05b-1ca6-4fcf-a8df-7a89c15fd5fb",
+ "userName": "satis.mudur.demo",
+ "displayName": "Murat Öztürk",
+ "email": "satis.mudur.demo@akaryakitnet.local",
+ "phoneMasked": "9053*****05",
+ "persona": "bayi",
+ "roles": [
+  "Station"
+ ],
+ "stationId": 221,
+ "stationTitle": "AkaryakıtNet Walkthrough İstasyonu",
+ "customerId": null,
+ "customerTitle": null,
+ "customerUserRole": null,
+ "customerUserRoleLabel": null,
+ "bayiRoleCodes": [
+  "sales_manager"
+ ],
+ "bayiRoleNames": [
+  "Satış müdürü"
+ ],
+ "pages": [
+  "StationQuotes:Gorur",
+  "StationOrders:Gorur",
+  "StationCustomers:Gorur",
+  "StationCustomers:Duzenler",
+  "StationCustomers:Inceler",
+  "StationReports:Gorur",
+  "StationFieldOrders:Gorur",
+  "StationFieldOrders:Ekler",
+  "StationFieldOrders:Duzenler",
+  "StationFieldOrders:Siler",
+  "StationFieldOrders:Inceler",
+  "StationFieldApprovals:Gorur",
+  "StationFieldApprovals:Duzenler",
+  "StationApprovals:Gorur",
+  "StationApprovals:Ekler",
+  "StationLeads:Gorur",
+  "StationLeads:Ekler",
+  "StationLeads:Duzenler",
+  "StationLeads:Siler",
+  "StationLeads:Inceler",
+  "StationStaff:Gorur",
+  "StationPricing:Gorur",
+  "StationProfitability:Gorur"
+ ],
+ "capabilities": [
+  {
+   "code": "approve.field.manager",
+   "limit": null
+  },
+  {
+   "code": "costs.view",
+   "limit": null
+  },
+  {
+   "code": "lead.viewAll",
+   "limit": null
+  }
+ ],
+ "delegations": [],
+ "isFieldSales": false,
+ "isStationOwner": false,
+ "assignedOpenShipments": 0,
+ "phoneVerified": false,
+ "accessVersion": "6c5f1d14c7772f29"
+}

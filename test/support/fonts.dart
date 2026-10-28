@@ -3,18 +3,28 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-/// Gerçek yazı tipleri bulunur mu: arayüzün Plus Jakarta Sans dosyaları (`assets/fonts/jakarta/`) ya
-/// da Flutter SDK önbelleğindeki Roboto. Testin `skip` değeri için eşzamanlı.
+/// Gerçek yazı tipleri bulunur mu: arayüzün Archivo dosyaları (`assets/fonts/archivo/`) ya da Flutter
+/// SDK önbelleğindeki Roboto. Testin `skip` değeri için eşzamanlı.
 bool realFontsAvailable() => uiFontAvailable() || _robotoAvailable();
 
-/// Arayüz yazı tipi Plus Jakarta Sans (tasarım v3 §1) depoda mı.
+/// Arayüz yazı tipi Archivo (web paneliyle aynı yüz) depoda mı.
 bool uiFontAvailable() {
-  final dir = _jakartaDir();
+  final dir = _uiFontDir();
   return dir != null &&
       File(
-        '${dir.path}${Platform.pathSeparator}PlusJakartaSans-Regular.ttf',
+        '${dir.path}${Platform.pathSeparator}${_uiFontFiles.first}',
       ).existsSync();
 }
+
+/// Arayüz yazı tipinin aile adı (uygulamadaki `AknFonts.sans`) ve statik dosyaları (400–800).
+const _uiFamily = 'Archivo';
+const _uiFontFiles = [
+  'Archivo-Regular.ttf',
+  'Archivo-Medium.ttf',
+  'Archivo-SemiBold.ttf',
+  'Archivo-Bold.ttf',
+  'Archivo-ExtraBold.ttf',
+];
 
 /// Eski ad (tasarım v2): artık arayüz yazı tipine bakar ([uiFontAvailable]).
 bool monaSansAvailable() => uiFontAvailable();
@@ -55,12 +65,12 @@ Directory? _packageRoot() {
   return null;
 }
 
-/// `assets/fonts/jakarta/`.
-Directory? _jakartaDir() {
+/// `assets/fonts/archivo/`.
+Directory? _uiFontDir() {
   final root = _packageRoot();
   if (root == null) return null;
   final sep = Platform.pathSeparator;
-  final dir = Directory([root.path, 'assets', 'fonts', 'jakarta'].join(sep));
+  final dir = Directory([root.path, 'assets', 'fonts', 'archivo'].join(sep));
   return dir.existsSync() ? dir : null;
 }
 
@@ -103,19 +113,13 @@ Future<bool> _family(Directory dir, String name, List<String> files) async {
   return any;
 }
 
-/// Arayüz yazı tipi `PlusJakartaSans` (400–800), uygulamanın kullandığı aile adıyla. Varsayılan
-/// test yazı tipi her harfi 1 em kare çizer; ölçü ve ekran görüntüsü testleri cihazdaki yüzü görmek
-/// için bunu yükler. Dosyalar bulunamazsa false.
+/// Arayüz yazı tipi `Archivo` (400–800), uygulamanın kullandığı aile adıyla. Varsayılan test yazı
+/// tipi her harfi 1 em kare çizer; ölçü ve ekran görüntüsü testleri cihazdaki yüzü görmek için bunu
+/// yükler. Dosyalar bulunamazsa false.
 Future<bool> loadUiFont() async {
-  final dir = _jakartaDir();
+  final dir = _uiFontDir();
   if (dir == null) return false;
-  return _family(dir, 'PlusJakartaSans', const [
-    'PlusJakartaSans-Regular.ttf',
-    'PlusJakartaSans-Medium.ttf',
-    'PlusJakartaSans-SemiBold.ttf',
-    'PlusJakartaSans-Bold.ttf',
-    'PlusJakartaSans-ExtraBold.ttf',
-  ]);
+  return _family(dir, _uiFamily, _uiFontFiles);
 }
 
 /// Eski ad (tasarım v2): artık arayüz yazı tipini yükler ([loadUiFont]).
@@ -135,7 +139,7 @@ Future<bool> loadPhosphorIcons() async {
   return regular;
 }
 
-/// Gerçek yazı tipleri: Plus Jakarta Sans (arayüz), Phosphor simgeleri, Roboto (PDF'ler ve eski
+/// Gerçek yazı tipleri: Archivo (arayüz), Phosphor simgeleri, Roboto (PDF'ler ve eski
 /// ölçüler) ve Material simgeleri (Flutter SDK önbelleğinden). Düğme etiketinin satıra sığıp
 /// sığmadığını ölçen testler cihazdakine yakın ölçü için bunu yükler. Hiçbir gerçek yazı tipi
 /// bulunamazsa false.
