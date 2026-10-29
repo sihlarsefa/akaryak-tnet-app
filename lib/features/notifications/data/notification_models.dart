@@ -44,7 +44,8 @@ abstract final class NotificationCategory {
     payments => 'Belge yükleme, tahsilat ve vadesi yaklaşan ödemeler',
     approvals => 'Kararınızı bekleyen talepler ve sonuçları',
     field => 'Saha formu ve ön kayıt kararları',
-    system => 'Hesap ve uygulama duyuruları',
+    // Merkezin panelden gönderdiği duyurular da bu kategoridedir (kapatılırsa push gelmez, kutuda kalır).
+    system => 'Merkez duyuruları, kampanyalar ve hesap bildirimleri',
     _ => '',
   };
 

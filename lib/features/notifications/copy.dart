@@ -71,4 +71,15 @@ abstract final class NotificationsCopy {
   static String testSent(int sent) => 'Test bildirimi $sent cihaza gönderildi.';
   static const testInboxOnly =
       'Test bildirimi bildirim kutunuza eklendi. Bu cihazda anlık bildirim açık değil.';
+
+  // ------------------------------------------------------------------ Duyurular (merkez push'u)
+  // Türlerin adları paneldeki "Bildirim tipi" listesiyle aynıdır (Yönetim > Push bildirimleri).
+  static const kindGeneral = 'Genel';
+  static const kindNotice = 'Duyuru';
+  static const kindCampaign = 'Kampanya';
+  static const kindMaintenance = 'Bakım / Kesinti';
+  static const kindPrice = 'Fiyat güncellemesi';
+
+  /// Duyurunun tam metnini kapatan düğme.
+  static const announcementDone = 'Tamam';
 }

@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../application/announcements.dart';
 import '../../application/notification_display.dart';
 import '../../copy.dart';
 import '../../data/notification_models.dart';
@@ -18,6 +19,10 @@ import '../../data/notification_models.dart';
 ///   eylem satırı "yeni" değil "sıra sizde" demektir (v4 A9, B17).
 /// * Okunmamış: saatin önünde 8 dp sabit marka noktası (satırdaki tek turuncu; nefes almaz —
 ///   listeler durgun durur, v4 §6).
+///
+/// * Merkez duyurusu ([Announcements]; panelden gönderilen push): karoda megafon, başlık ve metin
+///   yazıldığı gibi (iç kod temizliği yok) ve metnin altında duyurunun türü ("Kampanya", 13/18 600
+///   soluk; hap ya da renk değil). Eylem satırı yoktur; dokununca tam metin açılır.
 ///
 /// Okundu olunca satır sakinleşir: nokta küçülerek kaybolur, başlık incelir; iş artık görüntüleyeni
 /// beklemiyorsa eylem satırı katlanır.
@@ -61,9 +66,10 @@ class NotificationTile extends StatelessWidget {
   /// Kullanılmıyor (v4: satırlar defterle birlikte bir kez dökülür, [AknLedger.pour]); API için.
   final int? revealIndex;
 
-  /// Satırın simgesi: olayın kategorisi (uyarı / tehlikede tonlu karo).
-  static IconData iconOf(UserNotification n) =>
-      NotificationCategory.icon(n.category);
+  /// Satırın simgesi: duyuruda megafon, diğerlerinde olayın kategorisi (uyarı / tehlikede tonlu karo).
+  static IconData iconOf(UserNotification n) => Announcements.isAnnouncement(n)
+      ? PhosphorIconsFill.megaphone
+      : NotificationCategory.icon(n.category);
 
   /// Görünen okunmamış noktası (testler: satır başına bir nokta).
   static const unreadDotKey = ValueKey<String>('notification.unreadDot');
@@ -71,18 +77,29 @@ class NotificationTile extends StatelessWidget {
   /// Eylem satırı ("Talebi incele ›").
   static const actionKey = ValueKey<String>('notification.action');
 
+  /// Duyurunun tür satırı ("Kampanya").
+  static const kindKey = ValueKey<String>('notification.kind');
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
     final n = notification;
     final unread = !n.isRead;
-    final title = NotificationDisplay.clean(n.title);
-    final body = NotificationDisplay.clean(n.body);
+    final announcement = Announcements.isAnnouncement(n);
+    // Duyuru merkezin yazdığı gibi kalır ("YAZ-25" bir kampanya kodu olabilir, iç kod değil).
+    final title = announcement
+        ? n.title.trim()
+        : NotificationDisplay.clean(n.title);
+    final body = announcement
+        ? n.body.trim()
+        : NotificationDisplay.clean(n.body);
+    final kind = announcement ? Announcements.kindOf(n.eventCode).label : null;
     final action = actionFor(n, waiting: waiting, canQuote: canQuote);
     final when = Fmt.relative(n.createdAt, now: now);
     final semantics = [
       if (unread) NotificationsCopy.unreadPrefix,
+      ?kind,
       title,
       if (body.isNotEmpty) body,
       when,
@@ -201,6 +218,16 @@ class NotificationTile extends StatelessWidget {
                       body,
                       style: t.bodySmall.copyWith(color: c.dim),
                       maxLines: large ? 6 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (kind != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      kind,
+                      key: NotificationTile.kindKey,
+                      style: t.label.copyWith(color: c.dim),
+                      maxLines: large ? 2 : 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],

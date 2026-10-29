@@ -9,6 +9,7 @@ import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/push/push_payload.dart';
 import '../../../core/push/unread_count_provider.dart';
 import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
@@ -16,11 +17,13 @@ import '../../../core/routing/route_access.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
+import '../application/announcements.dart';
 import '../application/inbox_controller.dart';
 import '../application/notification_display.dart';
 import '../copy.dart';
 import '../data/notification_models.dart';
 import '../notifications_paths.dart';
+import 'widgets/announcement_sheet.dart';
 import 'widgets/notification_tile.dart';
 
 /// Bildirimler (spec A.4 A8; tasarım v4 §5 10): bantta "Bildirimler" ve canlı durum satırı ("3 okunmamış"),
@@ -28,6 +31,10 @@ import 'widgets/notification_tile.dart';
 /// liste günlere göre birer defter ([AknLedger], satırlar ince çizgiyle; satırlar bir kez dökülür).
 /// Kaydırınca okundu, dokununca derin bağlantı (erişim yoksa burada kalır ve açıklar). Bu oturumda
 /// açılan bir kaydın bildirimleri okundu sayılır ([InboxController], v4 §3.5).
+///
+/// Merkez duyurusunun ([Announcements]) sayfası yoktur: satıra dokununca okundu olur ve tam metni
+/// alttan açılır ([showAnnouncementSheet]). Duyuru push'una dokunan kişi buraya gelir ve aynı sayfa
+/// kendiliğinden açılır ([announcementTapProvider]).
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
@@ -65,6 +72,8 @@ class NotificationsPage extends ConsumerWidget {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Duyuru push'una dokunulduysa duyurunun tam metni (görünmez, yer kaplamaz).
+          const _AnnouncementTapOpener(),
           const SizedBox(height: 4),
           AknSegmented<bool>(
             segments: [
@@ -271,6 +280,12 @@ class _Body extends ConsumerWidget {
     bool waiting = false,
     bool canQuote = true,
   }) {
+    // Merkez duyurusunun sayfası yok: okundu olur, tam metni alttan açılır.
+    if (Announcements.isAnnouncement(n)) {
+      unawaited(_markRead(ref, n));
+      unawaited(showAnnouncementSheet(context, n));
+      return;
+    }
     // Eylem satırı görünürken (sıra görüntüleyende) dokunuş o eylemin bloğunu açar: "Teklif ver"
     // teklif bloğuna kayar ve parlar (`?focus=quote`, v4 §3.5, B17).
     final live =
@@ -294,6 +309,64 @@ class _Body extends ConsumerWidget {
       live ? NotificationDisplay.withFocus(n, target) : target,
     );
   }
+}
+
+/// Duyuru push'una dokunulduysa ([announcementTapProvider]) duyurunun tam metnini açar: gelen kutusu
+/// yüklenince (ya da push'la başlayan tazeleme bitince) duyuru listede bulunur, okundu işaretlenir ve
+/// sayfası açılır. Listede yoksa (çevrimdışı, yüklenemedi, "Okunmamış" süzgeci) başlık ve metin
+/// push'tan gelir. Her dokunuş bir kez açılır.
+class _AnnouncementTapOpener extends ConsumerStatefulWidget {
+  const _AnnouncementTapOpener();
+
+  @override
+  ConsumerState<_AnnouncementTapOpener> createState() =>
+      _AnnouncementTapOpenerState();
+}
+
+class _AnnouncementTapOpenerState
+    extends ConsumerState<_AnnouncementTapOpener> {
+  bool _scheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.listenManual<PushPayload?>(announcementTapProvider, (_, next) {
+      if (next != null) _schedule();
+    }, fireImmediately: true);
+    ref.listenManual<InboxState>(inboxControllerProvider, (_, _) {
+      if (ref.read(announcementTapProvider) != null) _schedule();
+    });
+  }
+
+  /// Çerçeve bitince bakar (derleme sırasında sağlayıcı değiştirilmez, sayfa açılmaz).
+  void _schedule() {
+    if (_scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (mounted) _open();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _open() {
+    final tap = ref.read(announcementTapProvider);
+    if (tap == null) return;
+    final inbox = ref.read(inboxControllerProvider);
+    final found = inbox.items
+        .where((n) => n.id == tap.notificationId)
+        .firstOrNull;
+    // Liste yükleniyor ya da push'la tazeleniyor: duyuru yeni sayfayla gelir.
+    if (found == null && (inbox.loading || inbox.refreshing)) return;
+    ref.read(announcementTapProvider.notifier).take();
+    final n = found ?? Announcements.fromPush(tap);
+    if (n == null) return;
+    if (found != null) unawaited(_Body._markRead(ref, found));
+    unawaited(showAnnouncementSheet(context, n));
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 /// Son kaydedilen listenin zamanı: "Son güncelleme 09:58" (soluk, saat simgesiyle).

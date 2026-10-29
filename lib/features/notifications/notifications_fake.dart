@@ -25,6 +25,57 @@ class NotificationsFakeControls {
   int readCalls = 0;
 }
 
+/// Demo duyurusu: merkezin yönetim panelinden (Yönetim > Push bildirimleri) gönderdiği push'un gelen
+/// kutusu satırı, sunucudaki gibi (kategori `system`, olay kodu `system.announcement.<tür>`, rota yok,
+/// `PushCampaign`).
+abstract final class DemoAnnouncement {
+  static const eventCode = 'system.announcement.announcement';
+  static const title = 'Duyurular artık burada';
+  static const body =
+      'AkaryakıtNet merkezinin duyurularını, kampanyalarını ve bakım bilgilerini bu ekranda '
+      'görürsünüz. Bir duyuruya dokunduğunuzda metnin tamamı açılır.';
+  static const campaignId = 1;
+}
+
+/// Demo duyurusunu her personanın gelen kutusuna bir kez ekler: okunmuş ve kişinin en eski satırı
+/// (listenin sonuna). Okunmamış sayıları, listelerin ilk satırı ve diğer bildirimlerin sırası değişmez.
+/// Dünya baştan yüklenince (geliştirici menüsü) bir sonraki listede yeniden eklenir.
+void seedDemoAnnouncement(FakeWorld w) {
+  final mark = w.bag<_DemoAnnouncementMark>(
+    'notifications.demoAnnouncement',
+    _DemoAnnouncementMark.new,
+  );
+  if (mark.seeded) return;
+  mark.seeded = true;
+  for (final p in fakePersonas) {
+    var oldest = w.seededAt;
+    for (final n in w.notifications) {
+      if (n['userId'] != p.userId) continue;
+      final at = DateTime.tryParse('${n['createdAt']}');
+      if (at != null && at.isBefore(oldest)) oldest = at;
+    }
+    final at = oldest.subtract(const Duration(hours: 2)).toUtc();
+    w.notifications.add({
+      'id': w.nextId('notification', start: 50001),
+      'userId': p.userId,
+      'category': NotificationCategory.system,
+      'eventCode': DemoAnnouncement.eventCode,
+      'title': DemoAnnouncement.title,
+      'body': DemoAnnouncement.body,
+      'severity': 0,
+      'route': null,
+      'entityType': 'PushCampaign',
+      'entityId': DemoAnnouncement.campaignId,
+      'createdAt': at.toIso8601String(),
+      'readAt': at.toIso8601String(),
+    });
+  }
+}
+
+class _DemoAnnouncementMark {
+  bool seeded = false;
+}
+
 /// Bildirimler sahte uçları (sahibi A8; spec B.4). Ortak dünyadaki `world.notifications`
 /// kayıtlarını okur ve günceller (çekirdeğin `notifications/unread-count` ucu aynı kayıtları sayar):
 /// - `GET notifications?page&pageSize&unreadOnly` → `PagedResult<UserNotificationDto>` (yeni önce),
@@ -32,8 +83,11 @@ class NotificationsFakeControls {
 /// - `GET|PUT notifications/preferences` → `[{category, label, pushEnabled}]` (görüntüleyicide
 ///   Siparişler ve Teklifler varsayılan kapalı),
 /// - `POST notifications/test` → `{devices, sent}` (saatte 3; gelen kutusuna "Test bildirimi" düşer).
+///
+/// Her personanın gelen kutusunda bir demo duyurusu vardır ([seedDemoAnnouncement]).
 void registerNotificationsFakes(FakeServer s) {
   final ctl = NotificationsFakeControls.of(s);
+  seedDemoAnnouncement(s.world);
 
   JsonMap dto(JsonMap n) {
     final category = '${n['category'] ?? NotificationCategory.system}';
@@ -66,6 +120,7 @@ void registerNotificationsFakes(FakeServer s) {
   s.get('notifications', (req) {
     final p = req.requireUser();
     ctl.listCalls++;
+    seedDemoAnnouncement(req.world);
     final unreadOnly = req.queryBool('unreadOnly') ?? false;
     final all = [
       for (final n in mine(req.world, p.userId))
