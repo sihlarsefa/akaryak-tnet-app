@@ -12,7 +12,8 @@ import '../data/server_gate.dart';
 /// Giriş ekranı açılınca `app/config` yoklanır (spec A.4 A1): bakım ya da uyumsuz sunucu varsa giriş
 /// formu yerine "Bakımdayız" / "Sunucu güncel değil" gösterilir. Çekirdek yapılandırma modeli bakım ve
 /// sözleşme alanlarını taşımadığından ham yanıt burada okunur. Ekrandan çıkınca bırakılır; sonraki
-/// açılışta yeniden yoklanır.
+/// açılışta yeniden yoklanır. Hep formun konuştuğu sunucuyu anlatır: test derlemesinde demo oturumu
+/// açılıp kapanınca o dünyanın sunucusu yeniden yoklanır.
 final serverGateProvider =
     AsyncNotifierProvider.autoDispose<ServerGateController, ServerGate>(
       ServerGateController.new,
@@ -21,10 +22,16 @@ final serverGateProvider =
 class ServerGateController extends AutoDisposeAsyncNotifier<ServerGate> {
   bool _alive = true;
 
+  /// Yoklamanın kuşağı: her kurulumda (ortam değişince) artar. Önceki dünyada başlayan "Tekrar dene"
+  /// yanıtı yeni dünyanın durumunun üstüne yazılmaz.
+  int _generation = 0;
+
   @override
   Future<ServerGate> build() {
     _alive = true;
+    _generation++;
     ref.onDispose(() => _alive = false);
+    ref.watch(appEnvProvider);
     return _probe();
   }
 
@@ -41,10 +48,11 @@ class ServerGateController extends AutoDisposeAsyncNotifier<ServerGate> {
 
   /// "Tekrar dene": yeniden yoklar, çekirdek yapılandırmayı da tazeler.
   Future<void> recheck() async {
+    final generation = _generation;
     state = const AsyncLoading<ServerGate>().copyWithPrevious(state);
     unawaited(ref.read(appConfigProvider.notifier).load());
     final next = await _probe();
-    if (_alive) state = AsyncData(next);
+    if (_alive && generation == _generation) state = AsyncData(next);
   }
 }
 

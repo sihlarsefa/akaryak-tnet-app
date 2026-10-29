@@ -8,6 +8,7 @@ import '../core/auth/session_controller.dart';
 import '../core/env/app_config_controller.dart';
 import '../core/offline/connectivity.dart';
 import '../core/offline/outbox_providers.dart';
+import '../core/offline/outbox_runner.dart';
 import '../core/offline/pending_ops_chip.dart';
 import '../core/push/app_badge.dart';
 import '../core/push/push_providers.dart';
@@ -46,9 +47,11 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     AppToast.navigatorKey = rootNavigatorKey;
     _messages = ref.read(appMessengerProvider).stream.listen(_showMessage);
-    // Arka plan hizmetleri: push, bekleyen işlemler, rozetler.
+    // Arka plan hizmetleri: push, bekleyen işlemler, rozetler. Gönderici dinlenir (yalnızca okunmaz):
+    // test derlemesinde demo oturumu açılıp kapanınca API yığınıyla birlikte hemen yeniden kurulur,
+    // zamanlayıcısı ve oturum dinleyicisi yeni dünyada sürer.
     ref.read(pushCoordinatorProvider);
-    ref.read(outboxRunnerProvider);
+    ref.listenManual<OutboxRunner>(outboxRunnerProvider, (_, _) {});
     ref.read(unreadCountProvider);
     // Uygulama simgesi rozeti = okunmamış bildirim (çıkışta oturum temizliği sıfırlar).
     ref.listenManual<int>(unreadCountProvider.select((u) => u.notifications), (

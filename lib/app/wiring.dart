@@ -13,7 +13,8 @@ import 'fakes.dart';
 /// Uygulama katmanının sağlayıcı bağlantıları: sahte sunucu (tüm özellik sahteleriyle) ve özelliklerin
 /// bekleyen işlem işleyicileri. `bootstrap` ve uygulama testleri kullanır.
 List<Override> appWiringOverrides({FakeServer? fakeServer}) => [
-  // Canlı derlemede (API_MODE=live / AKN_ENV=prod) özellik sahteleri derlemeye girmez.
+  // Canlı derlemede (AKN_ENV=prod) özellik sahteleri derlemeye girmez. Test derlemesinde sahte dünya
+  // ilk demo oturumunda (giriş ekranındaki demo kartı) kurulur; açılışta kurulmaz.
   if (kFakeApiCompiled)
     fakeServerProvider.overrideWith((ref) => fakeServer ?? buildFakeServer()),
   outboxHandlersProvider.overrideWith(

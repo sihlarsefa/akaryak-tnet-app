@@ -68,7 +68,8 @@ class PushCoordinator {
     _subs.add(push.events.listen(_onEvent));
     _subs.add(
       push.tokenRefreshes.listen((t) {
-        if (ref.read(currentUserIdProvider) != null) unawaited(_register(t));
+        final user = ref.read(currentUserIdProvider);
+        if (user != null) unawaited(_register(user, t));
       }),
     );
     ref.listen<SessionState>(sessionControllerProvider, (prev, next) {
@@ -77,7 +78,7 @@ class PushCoordinator {
           user != null &&
           user != _registeredFor) {
         _registeredFor = user;
-        unawaited(_register());
+        unawaited(_register(user));
       }
       if (next is SessionUnauthenticated && prev?.access != null) {
         _registeredFor = null;
@@ -87,12 +88,15 @@ class PushCoordinator {
     await push.start();
   }
 
-  Future<void> _register([String? token]) async {
+  /// [user] için cihaz kaydı. Kayıt, başladığı oturumun API'sine gider: push belirteci beklenirken oturum
+  /// değişirse (çıkış; test derlemesinde demo oturumunun bitişi) gönderilmez. Demo oturumunda kayıt sahte
+  /// sunucuya gider; canlı sunucuya hiçbir şey kaydedilmez.
+  Future<void> _register(String user, [String? token]) async {
     try {
+      final repo = ref.read(authRepositoryProvider);
       final t = token ?? await _push.token();
-      await ref
-          .read(authRepositoryProvider)
-          .registerDevice(pushToken: t, pushEnabled: t != null);
+      if (ref.read(currentUserIdProvider) != user) return;
+      await repo.registerDevice(pushToken: t, pushEnabled: t != null);
     } catch (e) {
       AppLog.debug('Cihaz kaydı güncellenemedi: $e');
     }

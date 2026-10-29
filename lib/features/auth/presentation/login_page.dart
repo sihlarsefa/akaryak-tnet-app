@@ -42,7 +42,10 @@ enum LoginMode { password, phone }
 /// "Şifremi unuttum" (portal), "Hesabım yok" ve alt bilgide "Gizlilik · KVKK · Koşullar". Sunucu bakımda
 /// ya da uyumsuzsa form yerine durum ekranı gösterilir. Sahte kipte (demo derlemesi) bandın hemen
 /// altında, formun üstünde demo hesapları Müşteri / Bayi / Merkez kartlarıyla durur; bir karta dokunmak
-/// o hesapla giriş yapar (sahip kararı 2026-10-21). Canlı derlemede bölüm hiç derlenmez.
+/// o hesapla giriş yapar (sahip kararı 2026-10-21). Test derlemesinde (TestFlight, canlı API) kartlar
+/// aynı yerde durur, form canlı API'ye gider; kart o oturum için uygulamayı sahte dünyaya geçirir
+/// ([demoSessionProvider]; çıkışta canlıya döner). Canlı sunucu bakımda ya da uyumsuzken kartlar kalır,
+/// yalnızca canlı form durum notuyla yer değiştirir. Canlı derlemede bölüm hiç derlenmez.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -165,13 +168,16 @@ class _LoginPageState extends ConsumerState<LoginPage>
   // ------------------------------------------------------------------ Şifreyle giriş
 
   /// [demoCode] verilirse (demo kartı) iki adımlı doğrulama kodu da kendiliğinden girilir: tek dokunuş
-  /// = oturum açık. Demo girişinde parola yöneticisine kaydet denmez.
-  Future<void> _loginWithPassword({
+  /// = oturum açık. Demo girişinde parola yöneticisine kaydet denmez. [otherWorld]: giriş, bekleme
+  /// süresini koyan sunucuya değil sahte dünyaya gider (test derlemesinde demo oturumu); canlı sunucunun
+  /// kilitlenmesi onu bekletmez. Döner: oturum açıldı mı.
+  Future<bool> _loginWithPassword({
     String? user,
     String? password,
     String? demoCode,
+    bool otherWorld = false,
   }) async {
-    if (_busy) return;
+    if (_busy) return false;
     final u = (user ?? _user.text).trim();
     final p = password ?? _password.text;
     setState(() {
@@ -183,13 +189,14 @@ class _LoginPageState extends ConsumerState<LoginPage>
       AknHaptics.warning();
       (u.isEmpty ? _userFocus : _passwordFocus).requestFocus();
       _announce(u.isEmpty ? AuthCopy.userRequired : AuthCopy.passwordRequired);
-      return;
+      return false;
     }
-    if (ref
-            .read(authThrottleProvider.notifier)
-            .active(ThrottleScope.password) !=
-        null) {
-      return;
+    if (!otherWorld &&
+        ref
+                .read(authThrottleProvider.notifier)
+                .active(ThrottleScope.password) !=
+            null) {
+      return false;
     }
     FocusScope.of(context).unfocus();
     final container = ProviderScope.containerOf(context, listen: false);
@@ -204,7 +211,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
           demoCode,
         );
       }
-      if (outcome is LoginSucceeded) {
+      final signedIn = outcome is LoginSucceeded;
+      if (signedIn) {
         unawaited(
           afterInteractiveLogin(
             container,
@@ -213,7 +221,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
           ),
         );
       }
-      if (!mounted) return;
+      if (!mounted) return signedIn;
       setState(() => _busy = false);
       if (outcome is LoginNeedsCode) {
         await context.push(
@@ -226,10 +234,12 @@ class _LoginPageState extends ConsumerState<LoginPage>
           ),
         );
       }
+      return signedIn;
     } on AppFailure catch (f) {
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => _busy = false);
       _onFailure(f, ThrottleScope.password);
+      return false;
     }
   }
 
@@ -344,12 +354,23 @@ class _LoginPageState extends ConsumerState<LoginPage>
   Widget build(BuildContext context) {
     final gate = ref.watch(serverGateProvider).valueOrNull;
     final blocked = gate != null && gate.blocks;
+    // Test derlemesi (TestFlight, canlı API): demo kartları canlı sunucuya bağlı değildir (sahip kuralı:
+    // her TestFlight derlemesinde giriş ekranında demo hesapları). Canlı sunucu bakımda ya da uyumsuzken
+    // sayfa kalır; yalnızca canlı form durum notuyla yer değiştirir ([_liveGateNotice]). Demo
+    // derlemesinde (baştan sahte kip) durum ekranı bugünkü gibi bütün sayfayı alır.
+    final liveGate =
+        blocked &&
+            kFakeApiCompiled &&
+            ref.watch(appEnvProvider).demoOnDemand &&
+            ref.watch(demoLoginsEnabledProvider)
+        ? gate
+        : null;
     return AppScaffold(
       appBar: false,
       showBell: false,
       showOfflineBanner: false,
       body: FadeThroughSwitcher(
-        child: blocked
+        child: blocked && liveGate == null
             ? KeyedSubtree(
                 key: ValueKey(gate.kind),
                 child: UpdateGateBody(
@@ -359,7 +380,33 @@ class _LoginPageState extends ConsumerState<LoginPage>
                   maintenanceMessage: gate.maintenanceMessage,
                 ),
               )
-            : KeyedSubtree(key: const ValueKey('login'), child: _form(context)),
+            : KeyedSubtree(
+                key: const ValueKey('login'),
+                child: _form(context, liveGate: liveGate),
+              ),
+      ),
+    );
+  }
+
+  /// Test derlemesinde canlı sunucu bakımda ya da bu sürümle uyumsuz (`app/config`): canlı form yerine
+  /// durum notu ve "Tekrar dene". Demo kartları sahte dünyaya gittiğinden üstte kalır.
+  Widget _liveGateNotice(ServerGate gate) {
+    final maintenance = gate.kind == ServerGateKind.maintenance;
+    return AuthReveal(
+      index: 3,
+      child: AknBanner(
+        key: const ValueKey('login.liveGate'),
+        tone: maintenance ? AknTone.info : AknTone.warn,
+        icon: maintenance
+            ? PhosphorIconsRegular.wrench
+            : PhosphorIconsRegular.arrowsClockwise,
+        title: maintenance ? AuthCopy.maintenanceTitle : AuthCopy.serverTitle,
+        message: maintenance
+            ? (gate.maintenanceMessage ?? AuthCopy.maintenanceBody)
+            : AuthCopy.serverBody,
+        actionLabel: AuthCopy.tryAgain,
+        onAction: () =>
+            unawaited(ref.read(serverGateProvider.notifier).recheck()),
       ),
     );
   }
@@ -367,10 +414,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
   /// Giriş (tasarım v3 "Akış"): ışıklı turuncu bant (süzülen logo, yazı markası, başlık), üstüne binen
   /// beyaz sayfa (r28) ve içinde sırayla beliren bölümler: "Hoş geldiniz", demo kartları (demo
   /// derlemesi), "Şifre ile / Numara ile" anahtarı, etiketi üstte alanlar, birincil "Giriş yap" ve
-  /// "Hesabınız yok mu? Bayinizden davet isteyin".
-  Widget _form(BuildContext context) {
-    // Derleme zamanı koruması: canlı derlemede `kFakeApiCompiled` sabit false; demo bölümü ve
-    // personalar derlemeye girmez.
+  /// "Hesabınız yok mu? Bayinizden davet isteyin". [liveGate]: test derlemesinde canlı sunucu girişi
+  /// kapatıyor; canlı form yerine durum notu durur, demo kartları kalır.
+  Widget _form(BuildContext context, {ServerGate? liveGate}) {
+    // Derleme zamanı koruması: canlı derlemede (`AKN_ENV=prod`) `kFakeApiCompiled` sabit false; demo
+    // bölümü ve personalar derlemeye girmez. Demo ve test derlemesinde bölüm aynı yerde ve aynı sırada.
     final demo = kFakeApiCompiled && ref.watch(demoLoginsEnabledProvider);
     final otpEnabled = ref.watch(otpLoginEnabledProvider);
     final mode = otpEnabled ? _mode : LoginMode.password;
@@ -521,91 +569,15 @@ class _LoginPageState extends ConsumerState<LoginPage>
                                     AknSpace.page,
                                     0,
                                   ),
-                                  child: AutofillGroup(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        if (!demo) noticeBlock,
-                                        // Şifre ile / Numara ile: akan başparmaklı anahtar, alanlar yatay
-                                        // geçişle değişir.
-                                        if (otpEnabled) ...[
-                                          AuthReveal(
-                                            index: 3,
-                                            child: ModeSwitch<LoginMode>(
-                                              semanticLabel:
-                                                  AuthCopy.loginTitle,
-                                              value: mode,
-                                              onChanged: (m) {
-                                                if (_busy || m == mode) return;
-                                                _setMode(m);
-                                              },
-                                              // v4: yalın anahtar (simge yok).
-                                              options: const [
-                                                (
-                                                  value: LoginMode.password,
-                                                  label: AuthCopy.modePassword,
-                                                  icon: null,
-                                                ),
-                                                (
-                                                  value: LoginMode.phone,
-                                                  label: AuthCopy.modePhone,
-                                                  icon: null,
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 18),
-                                        ],
-                                        AuthReveal(
-                                          index: 4,
-                                          child: SharedAxisSwitcher(
-                                            reverse: mode == LoginMode.password,
-                                            child: mode == LoginMode.password
-                                                ? KeyedSubtree(
-                                                    key: const ValueKey(
-                                                      'password',
-                                                    ),
-                                                    child: _passwordFields(),
-                                                  )
-                                                : KeyedSubtree(
-                                                    key: const ValueKey(
-                                                      'phone',
-                                                    ),
-                                                    child: _phoneFields(),
-                                                  ),
-                                          ),
+                                  child: liveGate != null
+                                      ? _liveGateNotice(liveGate)
+                                      : _liveForm(
+                                          context,
+                                          demo: demo,
+                                          otpEnabled: otpEnabled,
+                                          mode: mode,
+                                          noticeBlock: noticeBlock,
                                         ),
-                                        const SizedBox(height: 20),
-                                        AuthReveal(
-                                          key: _submitKey,
-                                          index: 5,
-                                          child: HoldAwareButton(
-                                            scope: mode == LoginMode.password
-                                                ? ThrottleScope.password
-                                                : ThrottleScope.otp,
-                                            label: mode == LoginMode.password
-                                                ? AuthCopy.loginButton
-                                                : AuthCopy.sendCode,
-                                            busyLabel:
-                                                mode == LoginMode.password
-                                                ? AuthCopy.loggingIn
-                                                : AuthCopy.sendingCode,
-                                            busy: _busy && _demoBusy == null,
-                                            onPressed: _busy ? null : _submit,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        AuthReveal(
-                                          index: 6,
-                                          child: _NoAccountLine(
-                                            onTap: () =>
-                                                showNoAccountSheet(context),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
                                 ),
                               ),
                             ),
@@ -623,6 +595,85 @@ class _LoginPageState extends ConsumerState<LoginPage>
     );
   }
 
+  /// Canlı hesapla giriş: "Şifre ile / Numara ile" anahtarı, etiketi üstte alanlar, birincil "Giriş yap"
+  /// ve "Hesabınız yok mu? Bayinizden davet isteyin".
+  Widget _liveForm(
+    BuildContext context, {
+    required bool demo,
+    required bool otpEnabled,
+    required LoginMode mode,
+    required Widget noticeBlock,
+  }) => AutofillGroup(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!demo) noticeBlock,
+        // Şifre ile / Numara ile: akan başparmaklı anahtar, alanlar yatay geçişle değişir.
+        if (otpEnabled) ...[
+          AuthReveal(
+            index: 3,
+            child: ModeSwitch<LoginMode>(
+              semanticLabel: AuthCopy.loginTitle,
+              value: mode,
+              onChanged: (m) {
+                if (_busy || m == mode) return;
+                _setMode(m);
+              },
+              // v4: yalın anahtar (simge yok).
+              options: const [
+                (
+                  value: LoginMode.password,
+                  label: AuthCopy.modePassword,
+                  icon: null,
+                ),
+                (value: LoginMode.phone, label: AuthCopy.modePhone, icon: null),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+        ],
+        AuthReveal(
+          index: 4,
+          child: SharedAxisSwitcher(
+            reverse: mode == LoginMode.password,
+            child: mode == LoginMode.password
+                ? KeyedSubtree(
+                    key: const ValueKey('password'),
+                    child: _passwordFields(),
+                  )
+                : KeyedSubtree(
+                    key: const ValueKey('phone'),
+                    child: _phoneFields(),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        AuthReveal(
+          key: _submitKey,
+          index: 5,
+          child: HoldAwareButton(
+            scope: mode == LoginMode.password
+                ? ThrottleScope.password
+                : ThrottleScope.otp,
+            label: mode == LoginMode.password
+                ? AuthCopy.loginButton
+                : AuthCopy.sendCode,
+            busyLabel: mode == LoginMode.password
+                ? AuthCopy.loggingIn
+                : AuthCopy.sendingCode,
+            busy: _busy && _demoBusy == null,
+            onPressed: _busy ? null : _submit,
+          ),
+        ),
+        const SizedBox(height: 4),
+        AuthReveal(
+          index: 6,
+          child: _NoAccountLine(onTap: () => showNoAccountSheet(context)),
+        ),
+      ],
+    ),
+  );
+
   /// "Tümünü gör": tüm demo hesapları açıklamalarıyla, gruplu bir sayfada.
   Future<void> _pickDemo(BuildContext context) async {
     if (_busy) return;
@@ -639,21 +690,38 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
   /// Demo kartı: tek dokunuşla o personayla giriş (şifre `demo`; merkezin SMS kodu `123456`
   /// kendiliğinden girilir). Form alanları doldurulmaz (parola yöneticisi demo hesabını kaydetmez).
+  ///
+  /// Test derlemesinde (canlı API) dokunuş önce demo oturumunu açar: etkin ortam sahte kipe geçer, API
+  /// yığını sahte sunucuyla yeniden kurulur; giriş, kod ve oturumun bütün istekleri uygulama içi sahte
+  /// dünyaya gider (canlı API'ye istek gitmez). Giriş olmazsa uygulama canlı kipe döner. Demo
+  /// derlemesinde (baştan sahte kip) bir şey değişmez.
   void _loginAsDemo(FakePersona p) {
     if (_busy) return;
     AknHaptics.selection();
     _setMode(LoginMode.password);
     setState(() => _demoBusy = p.key);
     _announce(AuthCopy.demoSigningIn(p.displayName));
-    unawaited(
-      _loginWithPassword(
+    final demo = ref.read(demoSessionProvider.notifier);
+    final started = demo.start();
+    unawaited(_demoLogin(p, endOnFailure: started ? demo : null));
+  }
+
+  Future<void> _demoLogin(
+    FakePersona p, {
+    DemoSessionController? endOnFailure,
+  }) async {
+    var signedIn = false;
+    try {
+      signedIn = await _loginWithPassword(
         user: p.key,
         password: FakeAuth.password,
         demoCode: FakeAuth.code,
-      ).whenComplete(() {
-        if (mounted) setState(() => _demoBusy = null);
-      }),
-    );
+        otherWorld: endOnFailure != null,
+      );
+    } finally {
+      if (!signedIn) endOnFailure?.end();
+      if (mounted) setState(() => _demoBusy = null);
+    }
   }
 
   List<Widget> _notices(BuildContext context, LoginMode mode) {

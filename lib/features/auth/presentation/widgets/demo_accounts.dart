@@ -12,12 +12,15 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 
-/// Giriş ekranında demo hesapları gösterilir mi: yalnızca sahte API'nin derlendiği ve sahte kipte
-/// açılan derlemelerde. Çağıran ayrıca `kFakeApiCompiled && …` ile korur; canlı derlemede bölüm ve
-/// demo personaları derlemeye hiç girmez (ağaç sallama). Testler canlı kipi taklit etmek için ezer.
-final demoLoginsEnabledProvider = Provider<bool>(
-  (ref) => kFakeApiCompiled && ref.watch(appEnvProvider).isFake,
-);
+/// Giriş ekranında demo hesapları gösterilir mi (sahip kararı): sahte API'nin derlendiği derlemelerde,
+/// sahte kipte (geliştirme / demo derlemesi) ve test derlemesinde (canlı API; kart o oturum için sahte
+/// dünyaya geçer, [demoSessionProvider]). Çağıran ayrıca `kFakeApiCompiled && …` ile korur; canlı
+/// derlemede (`AKN_ENV=prod`) bölüm ve demo personaları derlemeye hiç girmez (ağaç sallama). Testler canlı
+/// kipi taklit etmek için ezer.
+final demoLoginsEnabledProvider = Provider<bool>((ref) {
+  final env = ref.watch(appEnvProvider);
+  return kFakeApiCompiled && (env.isFake || env.demoOnDemand);
+});
 
 /// Demo hesabının tarafı (sahip kararı 2026-10-21: Müşteri / Bayi / Merkez).
 enum DemoGroup {

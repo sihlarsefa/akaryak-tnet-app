@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
+import '../../../core/env/app_env.dart';
 import '../../../core/ui/ui.dart';
 import '../application/biometric.dart';
 import '../application/login_effects.dart';
@@ -100,7 +101,11 @@ class _LockedPageState extends ConsumerState<LockedPage> {
     if (_signingOut) return;
     setState(() => _signingOut = true);
     final session = ref.read(sessionControllerProvider);
-    ref.read(loginPrefillProvider.notifier).set(session.access?.userName);
+    // Test derlemesinin demo oturumunda kullanıcı adı forma yazılmaz: çıkışla uygulama canlı kipe döner
+    // ve form canlı API'ye gider (demo hesabı kartla yeniden açılır).
+    if (!ref.read(appEnvProvider).demoSession) {
+      ref.read(loginPrefillProvider.notifier).set(session.access?.userName);
+    }
     await ref
         .read(sessionControllerProvider.notifier)
         .signOut(

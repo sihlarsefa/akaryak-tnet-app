@@ -82,7 +82,9 @@ Future<void> bootstrap() async {
     runApp(
       ProviderScope(
         overrides: [
-          appEnvProvider.overrideWithValue(env),
+          // Derleme ortamı; etkin ortam (`appEnvProvider`) test derlemesinde demo oturumunda sahte kipe
+          // geçer ve çıkışta buna döner.
+          buildEnvProvider.overrideWithValue(env),
           appInfoProvider.overrideWithValue(info),
           prefsStoreProvider.overrideWithValue(PrefsStore(prefs)),
           secureStoreProvider.overrideWithValue(secure),

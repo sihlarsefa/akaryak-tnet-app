@@ -67,7 +67,9 @@ final routerProvider = Provider<GoRouter>(
 class AppRouter {
   AppRouter(this.ref) {
     final env = ref.read(appEnvProvider);
-    _devRoutes = env.isFake || env.isDev;
+    // Geliştirici menüsü (`/dev`): geliştirme ortamında ve sahte kipte. Demo oturumu sunan test
+    // derlemesinde rota tablosunda durur ama yalnızca demo oturumu sürerken açılır ([_devRoutesOpen]).
+    _devRoutes = env.isFake || env.isDev || env.demoOnDemand;
     _layout = ref.read(navLayoutProvider);
     _config = ValueNotifier(_routingConfig(_layout));
     router = GoRouter.routingConfig(
@@ -101,6 +103,22 @@ class AppRouter {
       ref.listen<String?>(pendingDeepLinkProvider, (_, next) {
         if (next != null) _consumePendingLink();
       }),
+      // Test derlemesinde demo oturumu açılıp kapanınca bir dünyada istenen konum (oturum açılmadan
+      // dokunulan canlı push, bağlantı) öbür dünyada açılmaz.
+      ref.listen<AppEnv>(appEnvProvider, (prev, next) {
+        if (prev == null || prev.isFake == next.isFake) return;
+        _deferred = null;
+        _pendingPush = null;
+        Future.microtask(() {
+          try {
+            if (ref.read(pendingDeepLinkProvider) != null) {
+              ref.read(pendingDeepLinkProvider.notifier).set(null);
+            }
+          } on Object {
+            // Yönlendiriciyle birlikte kapandı.
+          }
+        });
+      }),
     ]);
   }
 
@@ -118,6 +136,14 @@ class AppRouter {
   final List<ProviderSubscription<Object?>> _subs = [];
   late final bool _devRoutes;
   late NavLayout _layout;
+
+  /// `/dev` şu an açık mı: geliştirme ortamı ya da sahte kip (test derlemesinde yalnızca demo oturumu;
+  /// canlı oturumda kapalı).
+  bool get _devRoutesOpen {
+    if (!_devRoutes) return false;
+    final env = ref.read(appEnvProvider);
+    return env.isFake || env.isDev;
+  }
 
   /// Oturum açılmadan istenen konum (giriş sonrası açılır).
   String? _deferred;
@@ -155,7 +181,7 @@ class AppRouter {
       // bağlantı eski (oturumsuz) yetkiyle reddedilirdi.
       policy: AccessPolicy(session.access),
       features: ref.read(appConfigProvider).features,
-      devRoutesEnabled: _devRoutes,
+      devRoutesEnabled: _devRoutesOpen,
       deferred: _deferred ?? pending,
       // Oturum açılmadan dokunulan push: izin yoksa gelen kutusu (spec C.4).
       deferredFallback: pushLink ? AppRoutes.notifications : null,

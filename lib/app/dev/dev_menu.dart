@@ -16,8 +16,9 @@ import '../../core/routing/app_routes.dart';
 import '../../core/ui/gallery/gallery_route.dart';
 import '../../core/ui/ui.dart';
 
-/// Geliştirici menüsü (yalnızca sahte kip / geliştirme ortamı; `/dev`): demo hesabı değiştirme, hata
-/// enjeksiyonu, gecikme, belirteç düşürme, sahte verileri sıfırlama, tasarım galerisi.
+/// Geliştirici menüsü (yalnızca sahte kip / geliştirme ortamı; test derlemesinde demo oturumu sürerken;
+/// `/dev`): demo hesabı değiştirme, hata enjeksiyonu, gecikme, belirteç düşürme, sahte verileri
+/// sıfırlama, tasarım galerisi.
 ///
 /// Tasarım v3: her grup 20 px kenar boşluğunda beyaz, gölgeli bir kart (satırlar arasında içeriden
 /// ince çizgi); bölümler sırayla yükselerek gelir; seçili hata kipinin işareti zıplayarak değişir.
@@ -29,11 +30,15 @@ class DevMenuPage extends ConsumerStatefulWidget {
 }
 
 class _DevMenuPageState extends ConsumerState<DevMenuPage> {
+  /// Demo hesabı değişimi. Test derlemesinin demo oturumunda değişim sahte dünyada kalır: çıkış demo
+  /// oturumunu bitirmez, demo şifresi canlı API'ye gitmez; giriş olmazsa uygulama canlı kipe döner.
   Future<void> _switchTo(FakePersona p) async {
     final session = ref.read(sessionControllerProvider.notifier);
+    final demo = ref.read(demoSessionProvider.notifier);
+    final inDemoSession = ref.read(appEnvProvider).demoSession;
     final router = GoRouter.of(context);
     if (ref.read(sessionControllerProvider) is! SessionUnauthenticated) {
-      await session.signOut();
+      await session.signOut(endDemoSession: false);
     }
     try {
       final outcome = await session.loginWithPassword(p.key, FakeAuth.password);
@@ -41,6 +46,7 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
         await session.verifyCode(outcome.challenge.challengeId, FakeAuth.code);
       }
     } on AppFailure catch (f) {
+      if (inDemoSession) demo.end();
       AppToast.error(f.message);
       router.go(AppRoutes.login);
     }

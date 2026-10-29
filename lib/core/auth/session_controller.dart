@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../env/app_config_controller.dart';
+import '../env/app_env.dart';
 import '../models/auth_models.dart';
 import '../models/me_access.dart';
 import '../network/app_failure.dart';
 import '../network/interceptors/auth_interceptor.dart';
 import '../network/network_providers.dart';
 import '../offline/cache_store.dart';
+import '../offline/outbox_store.dart';
 import '../storage/prefs_store.dart';
 import '../storage/user_drafts.dart';
 import '../utils/app_messenger.dart';
@@ -30,6 +33,8 @@ import 'session_state.dart';
 /// - Yetkiler öne gelince, 15 dakikada bir ve 403 sonrası yeniden okunur ([refreshAccess]).
 /// - Yenileme başarısızsa "Oturumunuz sona erdi" ile çıkış; 426'da güncelleme ekranı.
 /// - Biyometrik kilit açıksa açılışta ve arka planda 60 sn'den uzun kalınca kilitlenir.
+/// - Test derlemesinin demo oturumu ([demoSessionProvider]): belirteçleri demo olarak yazılır, çıkışla
+///   uygulama canlı kipe döner; soğuk açılışta kalan demo oturumu sürdürülmez, silinir ([restore]).
 final sessionControllerProvider =
     NotifierProvider<SessionController, SessionState>(SessionController.new);
 
@@ -99,9 +104,26 @@ class SessionController extends Notifier<SessionState> {
   // ------------------------------------------------------------------ Açılış
 
   /// Kayıtlı oturumu geri yükler. Hata fırlatmaz.
+  ///
+  /// Önceki çalıştırmadan kalan demo oturumu (test derlemesi; uygulama demo oturumundayken kapandı)
+  /// sürdürülmez: belirteci belleğe hiç alınmaz ([TokenStore.load]); demo kullanıcısının yerel verisi ve
+  /// bekleyen işlemleri ağa çıkmadan silinir; giriş ekranı canlı kipte açılır. Sürdürmek yerine silmenin
+  /// nedeni: açılıştaki her hizmet (yapılandırma, push, bekleyen işlemler, rozetler, yönlendirici) bugünkü
+  /// gibi yalnızca canlı kipte başlar; sahte dünya bellekte olduğundan yeniden açılışta zaten sıfırdan
+  /// kurulur (demo verisindeki değişiklikler gitmiştir); şüpheli her durum belirteci göndermekle değil
+  /// silmekle biter. Demo hesabı giriş ekranında tek dokunuş uzaklıktadır.
   Future<void> restore() async {
     final tokens = ref.read(tokenStoreProvider);
     await tokens.load();
+    if (tokens.staleDemo) {
+      try {
+        await _discardDemoSession(tokens.userId);
+      } catch (e) {
+        AppLog.debug('Önceki demo oturumu temizlenemedi: $e');
+      }
+      state = const SessionUnauthenticated();
+      return;
+    }
     if (!tokens.hasRefreshToken) {
       state = const SessionUnauthenticated();
       return;
@@ -165,7 +187,8 @@ class SessionController extends Notifier<SessionState> {
     }
     final tokens = ref.read(tokenStoreProvider);
     final previousUser = tokens.userId;
-    await tokens.save(t);
+    // Demo oturumunun belirteci demo olarak yazılır: soğuk açılışta yüklenmez, canlı API'ye gitmez.
+    await tokens.save(t, demo: ref.read(appEnvProvider).demoSession);
     try {
       final access = await _repo.meAccess();
       if (previousUser != null && previousUser != access.userId) {
@@ -232,18 +255,29 @@ class SessionController extends Notifier<SessionState> {
   ///
   /// Erişim belirteci dolmuşsa yalnızca çıkmak için yenileme yapılmaz: yenileme belirteci anonim
   /// `auth/revoke` ile iptal edilir (spec B.3, D.7). "Tüm cihazlardan çık" oturum ister (`auth/logout`).
+  ///
+  /// Test derlemesinin demo oturumunda sunucu çağrıları sahte sunucuya gider; yerel veri silindikten
+  /// sonra demo kullanıcısının bekleyen işlemleri silinir ve uygulama canlı kipe döner (giriş formu ve
+  /// sunucu yoklaması yeniden canlı API'ye gider). [endDemoSession] false: geliştirici menüsünde persona
+  /// değişimi (demo oturumu sürer, sonraki giriş de sahte dünyaya gider).
   Future<void> signOut({
     String? message,
     bool allDevices = false,
     bool callServer = true,
     SignOutReason reason = SignOutReason.explicit,
+    bool endDemoSession = true,
   }) async {
     if (_signingOut) return;
     _signingOut = true;
     try {
       final tokens = ref.read(tokenStoreProvider);
+      final env = ref.read(appEnvProvider);
+      final demo = env.demoSession || tokens.isDemo;
+      final userId = tokens.userId;
       final refresh = tokens.refreshToken;
-      if (callServer && refresh != null && refresh.isNotEmpty) {
+      // Demo oturumunun belirteci yalnızca sahte sunucuya gider (canlı yığın zaten reddeder).
+      final reachable = !tokens.isDemo || env.isFake;
+      if (callServer && reachable && refresh != null && refresh.isNotEmpty) {
         try {
           final expired = tokens.accessExpiresWithin(
             AuthInterceptor.refreshMargin,
@@ -256,13 +290,43 @@ class SessionController extends Notifier<SessionState> {
           // Sunucuya ulaşılamasa da yerel oturum kapanır.
         }
       }
-      await _clearLocal(
-        tokens.userId,
-        keepDrafts: reason.keepsDrafts && !allDevices,
-      );
+      await _clearLocal(userId, keepDrafts: reason.keepsDrafts && !allDevices);
+      if (demo && endDemoSession) {
+        if (userId != null) await _discardOutbox(userId);
+        // Sıra önemli: belirteçler silindikten sonra ortam canlıya döner, sonra giriş ekranı açılır.
+        ref.read(demoSessionProvider.notifier).end();
+      }
       state = SessionUnauthenticated(message: message);
     } finally {
       _signingOut = false;
+    }
+  }
+
+  /// Önceki çalıştırmanın demo oturumu: yerel veri ([_clearLocal]; belirteçler dahil) ve bekleyen
+  /// işlemler silinir. Ağa çıkılmaz (ne sahte ne canlı sunucuya).
+  Future<void> _discardDemoSession(String? userId) async {
+    await _clearLocal(userId);
+    if (userId != null) await _discardOutbox(userId);
+  }
+
+  /// Demo kullanıcısının bekleyen işlemleri ve dosyaları silinir: sahte dünyaya aittir, canlı oturumda
+  /// çalışmaz (gönderici yalnızca oturumdaki kullanıcının işlemlerini çalıştırır; bu yalnızca temizliktir).
+  Future<void> _discardOutbox(String userId) async {
+    try {
+      final store = ref.read(outboxStoreProvider);
+      for (final op in await store.list(userId)) {
+        await store.delete(op.id);
+        for (final path in op.files) {
+          try {
+            final f = File(path);
+            if (f.existsSync()) f.deleteSync();
+          } catch (_) {
+            // Dosya zaten yok.
+          }
+        }
+      }
+    } catch (e) {
+      AppLog.debug('Demo bekleyen işlemleri silinemedi: $e');
     }
   }
 
