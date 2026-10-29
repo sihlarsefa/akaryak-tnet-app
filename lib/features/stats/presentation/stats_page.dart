@@ -24,7 +24,8 @@ import '../data/stats_models.dart';
 import 'charts/bar_chart.dart';
 import 'charts/line_chart.dart';
 import 'charts/mix_chart.dart';
-import 'deck/deck_cards.dart' show usageColor, usageTone;
+import 'deck/deck_cards.dart'
+    show bayiDeckCards, customerDeckCards, usageColor, usageTone;
 import 'stats_format.dart';
 import 'stats_pdf.dart';
 import 'widgets/stats_atoms.dart';
@@ -89,6 +90,53 @@ class _StatsPageState extends ConsumerState<StatsPage> {
     }
   }
 
+  /// "Nasıl hesaplanır?" (v4 §4: (i) /stats'ta): sayfadaki her ölçünün nasıl hesaplandığı, destenin
+  /// kart metinleriyle (`DeckCardSpec.howTo`) ve genel yöntem notuyla.
+  Future<void> _showHowTo(Object data, StatsScope scope) async {
+    final specs = data is BayiStats
+        ? bayiDeckCards(
+            context,
+            data,
+            own: data.isOwn || scope == StatsScope.own,
+          )
+        : customerDeckCards(context, data as CustomerStats);
+    final seen = <String>{};
+    final items = [
+      for (final spec in specs)
+        if (seen.add(spec.title)) (spec.title, spec.howTo),
+    ];
+    await showAppSheet<void>(
+      context: context,
+      title: StatsCopy.deckHowTo,
+      builder: (ctx) {
+        final c = ctx.akn;
+        final t = ctx.aknText;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (title, text) in items) ...[
+              Semantics(
+                header: true,
+                child: Text(title, style: t.bodyStrong.copyWith(color: c.ink)),
+              ),
+              const SizedBox(height: 4),
+              Text(text, style: t.bodySmall.copyWith(color: c.dim)),
+              const SizedBox(height: 16),
+            ],
+            Text(
+              StatsCopy.methodology,
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w500,
+                color: c.dim,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scope = ref.watch(statsScopeProvider);
@@ -138,7 +186,15 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       refreshing: refreshing,
       showBell: false,
       actions: [
-        if (scope != StatsScope.none)
+        if (scope != StatsScope.none) ...[
+          // v4 §4: "Nasıl hesaplanır?" destenin ⋯ menüsünden buraya (i) olarak taşındı.
+          AknIconButton(
+            icon: PhosphorIconsRegular.info,
+            semanticLabel: StatsCopy.deckHowTo,
+            onPressed: shareable == null
+                ? null
+                : () => unawaited(_showHowTo(shareable, scope)),
+          ),
           AknIconButton(
             icon: PhosphorIconsRegular.export,
             semanticLabel: StatsCopy.share,
@@ -146,6 +202,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
                 ? null
                 : () => unawaited(_share(shareable, scope)),
           ),
+        ],
       ],
       body: Column(
         children: [
@@ -194,7 +251,23 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       return ('loading', const _PageSkeleton());
     }
     final bottom = MediaQuery.paddingOf(context).bottom;
-    final children = sections(d);
+    final failed = d is BayiStats
+        ? d.failedSections
+        : (d as CustomerStats).failedSections;
+    final generatedAt = d is BayiStats
+        ? d.generatedAt
+        : (d as CustomerStats).generatedAt;
+    // v4 §5 12: dönem plakanın başlığında; "güncellendi" sayfanın sonundaki notta.
+    final children = [
+      ...sections(d),
+      _Footer(
+        failed: failed,
+        generatedAt: generatedAt,
+        updatedAt: s.updatedAt ?? generatedAt,
+        fromCache: s.fromCache,
+        error: s.error,
+      ),
+    ];
     // Bölümler ilk açılışta sırayla belirir (StaggerItem); plaka kendi yükselişiyle gelir. Bölümler
     // tek bir sütundadır: kaydırırken üstteki bölüm görünmez olsa bile sayfa bir bütün kalır.
     return (
@@ -206,16 +279,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: EdgeInsets.only(bottom: 32 + bottom),
             children: [
-              _Caption(
-                period: d is BayiStats ? d.period : (d as CustomerStats).period,
-                updatedAt:
-                    s.updatedAt ??
-                    (d is BayiStats
-                        ? d.generatedAt
-                        : (d as CustomerStats).generatedAt),
-                fromCache: s.fromCache,
-                error: s.error,
-              ),
+              const SizedBox(height: 4),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -276,7 +340,6 @@ class _BayiSections {
     final children = <Widget>[
       if (sales != null)
         _HeadlinePlate(
-          icon: PhosphorIconsRegular.chartBar,
           title: own ? StatsCopy.cardSalesOwn : StatsCopy.kpiSales,
           period: d.period,
           summary: sales,
@@ -346,7 +409,6 @@ class _BayiSections {
         _RiskSection(risk: d.risk!, nav: nav),
       if (d.sales != null && d.sales!.isEmpty && d.products.isEmpty)
         const _EmptyPeriod(customer: false),
-      _Footer(failed: d.failedSections, generatedAt: d.generatedAt),
     ];
     return children;
   }
@@ -395,7 +457,6 @@ class _CustomerSections {
     final children = <Widget>[
       if (spend != null)
         _HeadlinePlate(
-          icon: PhosphorIconsRegular.money,
           title: StatsCopy.kpiSpending,
           period: d.period,
           summary: spend,
@@ -498,7 +559,6 @@ class _CustomerSections {
         ),
       if (spend != null && spend.isEmpty && d.products.isEmpty)
         const _EmptyPeriod(customer: true),
-      _Footer(failed: d.failedSections, generatedAt: d.generatedAt),
     ];
     return children;
   }
@@ -581,94 +641,17 @@ class _Picker<T> extends StatelessWidget {
   }
 }
 
-/// "1–21 Ekim, güncellendi 10:41"; önbellekten ya da tazelenemeyen veride "Son güncelleme".
-class _Caption extends StatelessWidget {
-  const _Caption({
-    required this.period,
-    required this.updatedAt,
-    required this.fromCache,
-    required this.error,
-  });
-
-  final StatsPeriodInfo period;
-  final DateTime? updatedAt;
-  final bool fromCache;
-  final AppFailure? error;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    final range = period.from == null
-        ? period.title
-        : StatsFmt.rangeShort(period.from, period.to);
-    final at = updatedAt;
-    final stale = at != null && (fromCache || error != null);
-    final style = t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim);
-    final offline =
-        fromCache || error is OfflineFailure || error is TimeoutFailure;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            at == null || stale
-                ? range
-                : StatsCopy.updated(range, Fmt.time(at)),
-            style: style,
-          ),
-          if (stale)
-            Semantics(
-              liveRegion: true,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Row(
-                  children: [
-                    Icon(
-                      offline
-                          ? PhosphorIconsRegular.clockCounterClockwise
-                          : PhosphorIconsRegular.cloudWarning,
-                      size: 16,
-                      color: c.dim,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        offline
-                            ? StatsCopy.lastUpdate(
-                                Fmt.time(at),
-                                TurkishText.lower(Fmt.relative(at)),
-                              )
-                            : StatsCopy.notRefreshed(
-                                TurkishText.lower(Fmt.relative(at)),
-                              ),
-                        style: style,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sayfanın tek plakası (tasarım v3 §4 hero kartı): dönemin başlık ölçüsü (bayide Satış, müşteride
-/// Harcama), fark çipi, kural ve okumalar; çubuk yok (tam grafik aşağıda). Sayfa açılınca yükselerek
-/// ve hafifçe büyüyerek gelir; rakam döner, okumalar sayaç gibi yerine oturur.
+/// Sayfanın tek plakası (tasarım v4 §5 12): başlık ve dönem tek satırda ("Harcama  1–28 Ekim"),
+/// fark çipi sağda (`PlateHead.trailing`), rakam döner, altında üç okuma; simge kutusu yok. Sayfa
+/// açılınca yükselerek ve hafifçe büyüyerek gelir; okumalar sayaç gibi yerine oturur.
 class _HeadlinePlate extends StatelessWidget {
   const _HeadlinePlate({
-    required this.icon,
     required this.title,
     required this.period,
     required this.summary,
     required this.readouts,
   });
 
-  final IconData icon;
   final String title;
   final StatsPeriodInfo period;
   final StatsSummary summary;
@@ -685,29 +668,30 @@ class _HeadlinePlate extends StatelessWidget {
       child: AknPlate(
         margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
         head: PlateHead(
-          icon: icon,
           title: title,
           period: period.from == null
               ? period.title
               : StatsFmt.rangeShort(period.from, period.to),
+          trailing: pct == null
+              ? null
+              : Semantics(
+                  label: '${StatsFmt.deltaSpoken(pct)}, $compare',
+                  excludeSemantics: true,
+                  child: AknDeltaChip(
+                    label: StatsFmt.deltaPercent(pct),
+                    direction: pct.abs() < StatsFmt.flatThreshold
+                        ? AknDeltaDirection.flat
+                        : pct > 0
+                        ? AknDeltaDirection.up
+                        : AknDeltaDirection.down,
+                  ),
+                ),
         ),
         figure: PlateFigure(
           value: StatsFmt.count(summary.amount),
           unit: '₺',
           semanticLabel: StatsFmt.moneyWholeSpoken(summary.amount),
         ),
-        delta: pct == null
-            ? null
-            : PlateDelta(
-                change: StatsFmt.deltaPercent(pct),
-                direction: pct.abs() < StatsFmt.flatThreshold
-                    ? AknDeltaDirection.flat
-                    : pct > 0
-                    ? AknDeltaDirection.up
-                    : AknDeltaDirection.down,
-                sentence: compare,
-                semanticLabel: '${StatsFmt.deltaSpoken(pct)}, $compare',
-              ),
         below: PlateReadouts(items: readouts),
       ),
     );
@@ -780,31 +764,15 @@ class _MonthlySection extends StatelessWidget {
           ? StatsCopy.lastTwelveMonths
           : StatsCopy.lastSixMonths,
       children: [
-        const SizedBox(height: 4),
         Semantics(
           container: true,
           label: StatsCopy.metricSemantics,
-          child: _Picker<_Metric>(
-            dense: true,
-            options: const [
-              FilterOption(
-                value: _Metric.amount,
-                label: StatsCopy.metricAmount,
-              ),
-              FilterOption(
-                value: _Metric.liters,
-                label: StatsCopy.metricLiters,
-              ),
-              FilterOption(
-                value: _Metric.orders,
-                label: StatsCopy.metricOrders,
-              ),
-            ],
-            value: metric,
-            onChanged: onMetric,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: _MetricTabs(value: metric, onChanged: onMetric),
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AknAnimatedSize(
@@ -846,13 +814,16 @@ class _MonthlySection extends StatelessWidget {
                       ].join(', '),
                       emptyHint: StatsCopy.emptyPeriod,
                       maxBarWidth: months.length > 6 ? 12 : 16,
+                      // v4 §5 12: yalnızca bu ay etiketli; tahmin altındaki cümlede.
+                      labelExtreme: false,
+                      labelProjection: false,
                     ),
             ),
           ),
         ),
         const SizedBox(height: 6),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.fromLTRB(20, 0, 8, 0),
           child: Wrap(
             alignment: WrapAlignment.spaceBetween,
             crossAxisAlignment: WrapCrossAlignment.center,
@@ -867,9 +838,9 @@ class _MonthlySection extends StatelessWidget {
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
-                        StatsCopy.projectionLegend(legend(proj)),
+                        StatsCopy.projectionFooter(legend(proj)),
                         style: t.label.copyWith(
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                           color: c.ink,
                         ),
                       ),
@@ -878,14 +849,137 @@ class _MonthlySection extends StatelessWidget {
                 )
               else
                 const SizedBox.shrink(),
-              AknInlineLink(
-                label: table ? StatsCopy.chartShow : StatsCopy.tableShow,
-                onTap: onTable,
+              AknButton.ghost(
+                label: table ? StatsCopy.chartShort : StatsCopy.tableShort,
+                semanticLabel: table
+                    ? StatsCopy.chartShow
+                    : StatsCopy.tableShow,
+                size: AknButtonSize.small,
+                onPressed: onTable,
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Kartın içindeki ölçü sekmeleri (tasarım v4 §5 12): "Tutar · Litre · Sipariş" metin sekmeleri
+/// (seçili mürekkep 700, diğerleri soluk 600) ve seçilenin altında yaylanarak kayan 2 dp turuncu çizgi;
+/// dolu iz yok (ekranın tek dolu izi dönem seçicisi). Her sekme ≥ 48 dp hedef, ekran okuyucuda seçili
+/// düğme; sığmazsa (büyük yazı) tümü birlikte küçülür.
+class _MetricTabs extends StatelessWidget {
+  const _MetricTabs({required this.value, required this.onChanged});
+
+  final _Metric value;
+  final ValueChanged<_Metric> onChanged;
+
+  static String _label(_Metric m) => switch (m) {
+    _Metric.amount => StatsCopy.metricAmount,
+    _Metric.liters => StatsCopy.metricLiters,
+    _Metric.orders => StatsCopy.metricOrders,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final scaler = MediaQuery.textScalerOf(context);
+    final base = t.label.copyWith(fontSize: 14, height: 18 / 14);
+    final on = base.copyWith(fontWeight: FontWeight.w700, color: c.ink);
+    final off = base.copyWith(fontWeight: FontWeight.w600, color: c.dim);
+    final duration = AknMotion.of(context, AknMotion.thumb);
+    double measure(String text) {
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: on),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final w = tp.width.ceilToDouble();
+      tp.dispose();
+      return w;
+    }
+
+    const metrics = _Metric.values;
+    final texts = [for (final m in metrics) measure(_label(m))];
+    // Her sekme en az 48 dp; yazılar arasında 6'şar dp iç boşluk.
+    final tabs = [for (final w in texts) math.max(48.0, w + 12)];
+    final xs = <double>[];
+    var x = 0.0;
+    for (final w in tabs) {
+      xs.add(x);
+      x += w + 8;
+    }
+    final total = x - 8;
+    final i = metrics.indexOf(value);
+    final row = SizedBox(
+      width: total,
+      height: 48,
+      child: Stack(
+        children: [
+          for (var k = 0; k < metrics.length; k++)
+            Positioned(
+              left: xs[k],
+              width: tabs[k],
+              top: 0,
+              bottom: 0,
+              child: Semantics(
+                button: true,
+                selected: k == i,
+                inMutuallyExclusiveGroup: true,
+                label: _label(metrics[k]),
+                excludeSemantics: true,
+                onTap: () => onChanged(metrics[k]),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    if (k == i) return;
+                    AknHaptics.selection();
+                    onChanged(metrics[k]);
+                  },
+                  child: Center(
+                    child: AnimatedDefaultTextStyle(
+                      duration: duration,
+                      curve: AknMotion.standard,
+                      style: k == i ? on : off,
+                      child: Text(
+                        _label(metrics[k]),
+                        maxLines: 1,
+                        softWrap: false,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          AnimatedPositioned(
+            duration: duration,
+            curve: AknMotion.spring,
+            left: xs[i] + (tabs[i] - texts[i]) / 2,
+            width: texts[i],
+            bottom: 8,
+            height: 2,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: c.brand,
+                  borderRadius: const BorderRadius.all(Radius.circular(1)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: AlignmentDirectional.centerStart,
+        child: row,
+      ),
     );
   }
 }
@@ -1487,15 +1581,31 @@ class _EmptyPeriod extends StatelessWidget {
 }
 
 class _Footer extends StatelessWidget {
-  const _Footer({required this.failed, required this.generatedAt});
+  const _Footer({
+    required this.failed,
+    required this.generatedAt,
+    this.updatedAt,
+    this.fromCache = false,
+    this.error,
+  });
 
   final Set<String> failed;
   final DateTime? generatedAt;
+
+  /// Verinin alındığı an (v4 §5 12: "güncellendi" sayfanın sonundaki notta).
+  final DateTime? updatedAt;
+  final bool fromCache;
+  final AppFailure? error;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
+    final at = updatedAt ?? generatedAt;
+    final stale = at != null && (fromCache || error != null);
+    final offline =
+        fromCache || error is OfflineFailure || error is TimeoutFailure;
+    final style = t.caption.copyWith(color: c.dim);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
       child: Column(
@@ -1509,14 +1619,44 @@ class _Footer extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          Text(StatsCopy.methodology, style: t.caption.copyWith(color: c.dim)),
-          if (generatedAt != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              StatsCopy.computed(TurkishText.lower(Fmt.relative(generatedAt))),
-              style: t.caption.copyWith(color: c.dim),
+          if (stale)
+            Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      offline
+                          ? PhosphorIconsRegular.clockCounterClockwise
+                          : PhosphorIconsRegular.cloudWarning,
+                      size: 16,
+                      color: c.dim,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        offline
+                            ? StatsCopy.lastUpdate(
+                                Fmt.time(at),
+                                TurkishText.lower(Fmt.relative(at)),
+                              )
+                            : StatsCopy.notRefreshed(
+                                TurkishText.lower(Fmt.relative(at)),
+                              ),
+                        style: style,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else if (at != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(StatsCopy.updatedAt(Fmt.time(at)), style: style),
             ),
-          ],
+          Text(StatsCopy.methodology, style: style),
         ],
       ),
     );

@@ -4,7 +4,7 @@ import '../../../core/models/models.dart';
 
 /// Siparişlerim bölümleri (`CustomerOrderSegments`).
 enum OrderSegment {
-  decision('decision', 'Karar bekleyen'),
+  decision('decision', 'Onay bekleyen'),
   active('active', 'Aktif'),
   history('history', 'Geçmiş');
 

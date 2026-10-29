@@ -1,6 +1,8 @@
-// Siparişlerim (spec A.4): Karar bekleyen / Aktif / Geçmiş bölümleri, sunucu araması, boş arama →
-// "Filtreleri temizle", satır → ayrıntı, çevrimdışı ilk sayfa ("Son güncelleme"), şablonlar
-// kısayolu ve C.7 erişilebilirlik (360×640, %100 / %200, açık / koyu).
+// Siparişler (spec A.4; tasarım v4 §5 ekran 04): bant "Siparişler" + canlı durum satırı + ⌕, tek
+// anahtar (Onay bekleyen / Aktif / Geçmiş), tek defter (karo ve hap yok; sıra sizdeyken Pas iş
+// satırı ve kısa geri sayım; Aktif'te Akış bölütleri), banttaki ⌕ ile sunucu araması, boş arama →
+// "Filtreleri temizle", satır → ayrıntı, çevrimdışı ilk sayfa ("Son güncelleme") ve C.7
+// erişilebilirlik (360×640, %100 / %200, açık / koyu).
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -60,6 +62,11 @@ void main() {
   }
 
   Future<void> typeSearch(WidgetTester tester, String text) async {
+    if (find.byType(TextField).evaluate().isEmpty) {
+      // Arama banttaki ⌕ ile açılır.
+      await tester.tap(find.bySemanticsLabel('Siparişlerde ara'));
+      await tester.pump(const Duration(milliseconds: 300));
+    }
     await tester.enterText(find.byType(TextField).first, text);
     await tester.pump(const Duration(milliseconds: 350)); // arama gecikmesi
     await pumpReal(tester);
@@ -92,44 +99,40 @@ void main() {
   );
 
   testWidgets(
-    'sipariş kartı (v3): ürün + litre başlık, izleyiciye göre lamba, geri sayım; sekme sayısı ve dip cümlesi',
+    'satır (v4): ürün + litre başlık, belge eksikken tek iş satırı "Çek görselini yükleyin", '
+    'kısa Pas geri sayım; hap, karo ve dip cümlesi yok; bant durum satırı',
     (tester) async {
       final decision = rowOf((o) => o['status'] == 2);
       await open(tester, waitFor: decision);
-      final row = find.descendant(of: decision, matching: find.byType(Text));
       expect(
         find.descendant(of: decision, matching: titleText('Motorin, 8.000 L')),
         findsOneWidget,
       );
-      expect(row, findsWidgets);
+      // Tek lamba: karar ve eksik belge tek iş satırında (Pas).
       expect(
         find.descendant(
           of: decision,
-          matching: find.text('Kararınızı bekliyor'),
+          matching: find.text('Çek görselini yükleyin'),
         ),
         findsOneWidget,
       );
-      expect(
-        find.descendant(of: decision, matching: find.byType(CountdownBadge)),
-        findsOneWidget,
+      expect(find.text('Kararınızı bekliyor'), findsNothing);
+      expect(find.text('Ödeme belgesi bekleniyor'), findsNothing);
+      expect(find.byType(AknLamp), findsNothing, reason: 'hap yok');
+      final badge = find.descendant(
+        of: decision,
+        matching: find.byType(CountdownBadge),
       );
-      expect(
-        tester
-            .widget<CountdownBadge>(
-              find.descendant(
-                of: decision,
-                matching: find.byType(CountdownBadge),
-              ),
-            )
-            .yourMove,
-        isTrue,
-        reason: 'sıra müşteride: Pas geri sayım',
-      );
-      expect(
-        find.bySemanticsLabel(RegExp(r'^Karar bekleyen, \d+ sipariş$')),
-        findsOneWidget,
-      );
-      expect(find.text(OrdersCopy.decisionFooter), findsOneWidget);
+      expect(badge, findsOneWidget);
+      expect(tester.widget<CountdownBadge>(badge).yourMove, isTrue);
+      expect(tester.widget<CountdownBadge>(badge).compact, isTrue);
+      // Tek anahtar: AknSegmented; sayı yalnızca onay bekleyende.
+      expect(find.byType(AknSegmented<OrderSegment>), findsOneWidget);
+      expect(find.text('Onay bekleyen'), findsOneWidget);
+      // Bant: sekmenin kelimesi ve canlı durum; arama kuyusu yok (⌕ bantta).
+      expect(find.text(OrdersCopy.myOrders), findsOneWidget);
+      expect(find.text('1 teklif onayınızı bekliyor'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
 
       await tapTab(tester, 'Aktif');
       final transit = rowOf(
@@ -142,24 +145,35 @@ void main() {
       );
       await pumpUntil(tester, transit);
       expect(
-        find.descendant(of: transit, matching: find.byType(TruckRoute)),
+        find.descendant(of: transit, matching: find.byType(AknFlowPips)),
         findsOneWidget,
-        reason: 'yoldaki siparişte rota çizgisi',
+        reason: 'Aktif satırda Akış bölütleri',
       );
-      // v3 kartları daha yüksek: dip cümlesi listenin sonunda, ilk ekranın altında kalır.
-      final list = find
-          .ancestor(of: transit, matching: find.byType(Scrollable))
-          .evaluate()
-          .first;
-      await tester.scrollUntilVisible(
-        find.text(OrdersCopy.activeFooter),
-        200,
-        scrollable: find.byElementPredicate((e) => identical(e, list)),
+      expect(
+        find.descendant(of: transit, matching: find.text('Yolda')),
+        findsOneWidget,
       );
-      expect(find.text(OrdersCopy.activeFooter), findsOneWidget);
       await tearDownUi(tester);
     },
   );
+
+  testWidgets('ilk satır bandın ve anahtarın hemen altında (≤ 210 dp)', (
+    tester,
+  ) async {
+    final decision = rowOf((o) => o['status'] == 2);
+    final c = (await tester.runAsync(() => env.signedIn('musteri')))!;
+    addTearDown(c.dispose);
+    await pumpA2(
+      tester,
+      c,
+      initialLocation: '/orders?segment=decision',
+      size: const Size(390, 844),
+    );
+    await pumpUntil(tester, decision);
+    await pumpReal(tester);
+    expect(tester.getRect(decision).top, lessThanOrEqualTo(210));
+    await tearDownUi(tester);
+  });
 
   testWidgets('geçmiş güne göre gruplanır', (tester) async {
     final history = rowOf(
@@ -202,8 +216,8 @@ void main() {
       expect(pendik, findsNothing);
 
       await typeSearch(tester, 'zzzz-yok');
-      await pumpUntil(tester, find.text(OrdersCopy.emptyFiltered));
-      expect(find.text(OrdersCopy.emptyFiltered), findsOneWidget);
+      await pumpUntil(tester, find.text(OrdersCopy.noResults('zzzz-yok')));
+      expect(find.text(OrdersCopy.noResults('zzzz-yok')), findsOneWidget);
       await tester.tap(find.text(OrdersCopy.clearFilters));
       await pumpUntil(tester, pendik);
       expect(pendik, findsOneWidget);
@@ -218,16 +232,22 @@ void main() {
     await tester.tap(decision);
     await pumpUntil(tester, find.byType(AknPlate));
     expect(find.text('Demir Petrol teklifi'), findsOneWidget);
-    expect(find.text(OrdersCopy.approve), findsOneWidget);
+    expect(find.text('Çek görselini yükle'), findsOneWidget);
     await tearDownUi(tester);
   });
 
-  testWidgets('şablonlar kısayolu Şablonlarım sayfasını açar', (tester) async {
-    final decision = rowOf((o) => o['status'] == 2);
-    await open(tester, waitFor: decision);
-    await tester.tap(find.bySemanticsLabel(OrdersCopy.templates));
-    await pumpUntil(tester, find.text('Haftalık motorin – Pendik'));
-    expect(find.text('Haftalık motorin – Pendik'), findsOneWidget);
+  testWidgets('Geçmiş boşsa açıklayıcı boş durum (dip cümlesi yerine)', (
+    tester,
+  ) async {
+    env.world.orders.removeWhere(
+      (o) => const {4, 6, 7}.contains(o['status']) && o['customerId'] == 101,
+    );
+    await open(
+      tester,
+      location: '/orders?segment=history',
+      waitFor: find.text(OrdersCopy.emptyHistoryTitle),
+    );
+    expect(find.text(OrdersCopy.emptyHistoryMessage), findsOneWidget);
     await tearDownUi(tester);
   });
 

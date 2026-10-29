@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/models.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -42,12 +43,57 @@ class DispatchPage extends ConsumerStatefulWidget {
 class _DispatchPageState extends ConsumerState<DispatchPage> {
   late _Segment _segment = _initialSegment();
 
+  /// Uygulanan son `?lane=` (aynı bağlantı tekrar uygulanmaz; elle seçim korunur).
+  String? _linked;
+
   _Segment _initialSegment() {
     final access = ref.read(sessionControllerProvider).access;
     final depot = access?.bayiRoleCodes.contains(BayiRoleCodes.depot) ?? false;
     final g = ref.read(bayiGrantsProvider);
     if (!g.viewBoard) return _Segment.list;
     return depot ? _Segment.list : _Segment.board;
+  }
+
+  /// `?lane=` (v4 §3.5): plan / driver → pano; disputed → itirazlı sevkiyatlar; transit → yoldakiler;
+  /// loadings → bugünkü yüklemeler.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final lane = queryParamOf(context, 'lane');
+    if (lane == _linked) return;
+    _linked = lane;
+    if (lane == null) return;
+    final g = ref.read(bayiGrantsProvider);
+    final list = ref.read(shipmentListProvider.notifier);
+    switch (lane) {
+      case 'plan' || 'driver' when g.viewBoard:
+        _segment = _Segment.board;
+      case 'disputed' when g.viewShipments:
+        _segment = _Segment.list;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final f = ref.read(shipmentListProvider).filter;
+          if (!f.hasDispute) list.toggleDisputes();
+        });
+      case 'transit' when g.viewShipments:
+        _segment = _Segment.list;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final f = ref.read(shipmentListProvider).filter;
+          if (!(f.statuses.length == 1 &&
+              f.statuses.contains(ShipmentStatus.inTransit))) {
+            list.toggleStatus(ShipmentStatus.inTransit);
+          }
+        });
+      case 'loadings' when g.viewShipments:
+        _segment = _Segment.list;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (!ref.read(shipmentListProvider).filter.todayLoadings) {
+            list.toggleTodayLoadings();
+          }
+        });
+    }
   }
 
   @override
@@ -63,18 +109,28 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
     final refreshing = _segment == _Segment.board
         ? board.refreshing
         : list.list.refreshing;
+    // Durum satırı (v4 §3.2): "4 sipariş planlanmayı bekliyor".
+    final toPlan = board.data?.orderTotal ?? 0;
+    final Object? status = board.data == null
+        ? null
+        : toPlan > 0 && g.planShipment
+        ? AknStatusClause.yourMove(
+            '${Fmt.integer(toPlan)} sipariş planlanmayı bekliyor',
+          )
+        : toPlan > 0
+        ? '${Fmt.integer(toPlan)} sipariş planlanmayı bekliyor'
+        : 'Planlanacak sipariş yok';
     return AppScaffold(
       title: 'Sevkiyat',
       bandIcon: PhosphorIconsRegular.truck,
-      eyebrow: 'Bayi',
-      description: 'Plan, yol ve teslim',
+      status: status,
       refreshing: refreshing,
       body: Column(
         children: [
           if (segments.length > 1)
             Padding(
               padding: const EdgeInsets.only(top: 4, bottom: 4),
-              child: BayiSegmented<_Segment>(
+              child: AknSegmented<_Segment>(
                 segments: segments,
                 value: _segment,
                 onChanged: (v) => setState(() => _segment = v),
@@ -792,7 +848,9 @@ class _ListViewState extends ConsumerState<_ListView> {
         title: f.todayLoadings
             ? BayiCopy.todayLoadingsEmpty
             : BayiCopy.shipmentsEmptyTitle,
-        message: f.todayLoadings ? null : BayiCopy.shipmentsEmptyMessage,
+        message: f.todayLoadings
+            ? BayiCopy.todayLoadingsEmptyMessage
+            : BayiCopy.shipmentsEmptyMessage,
         illustration: AknIllustration.delivery,
       ),
       itemBuilder: (context, row, _) => ShipmentListCard(item: row),

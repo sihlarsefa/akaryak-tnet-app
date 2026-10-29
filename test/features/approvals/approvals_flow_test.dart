@@ -4,6 +4,8 @@
 // talep sonucu ve "Merkeze ilet".
 import 'package:akaryakitnet/core/models/enums.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
+import 'package:akaryakitnet/features/approvals/copy.dart';
 import 'package:akaryakitnet/features/approvals/fake/a5_fake_store.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -108,7 +110,7 @@ void main() {
       persona: 'finans',
       location: '/approvals/9001',
     );
-    await tapText(tester, 'Diğer');
+    // v4 karar rıhtımı: "Ek bilgi iste" çerçevesiz ikincil düğme ("Diğer"de değil).
     await tapText(tester, 'Ek bilgi iste');
     await tapText(tester, 'Ek bilgi iste', last: true);
     expect(find.text('Ne istediğinizi yazın.'), findsOneWidget);
@@ -302,12 +304,12 @@ void main() {
         expect(fields['kind'], '${AttachmentKind.chequeImage.code}');
         expect(find.textContaining('İstenen belge eklendi'), findsOneWidget);
         await typeInto(tester, 'Yanıtınız', 'Çek görseli eklendi.');
-        await tapText(tester, 'Yanıtla');
+        await tapText(tester, ApprovalsCopy.sendInfo);
         final reply = app.log.last('POST', 'approvals/9005/provide-info')!;
         expect((reply.data as Map)['note'], 'Çek görseli eklendi.');
         expect((reply.data as Map)['resume'], isFalse);
         await pumpFor(tester);
-        expect(find.text('Bayi değerlendirmesi'), findsWidgets);
+        expect(find.text('Bayinizde inceleniyor'), findsWidgets);
         expect(find.text('Sizden ek bilgi istendi'), findsNothing);
         await finish(tester);
       },
@@ -320,7 +322,7 @@ void main() {
         location: '/approvals/9005',
       );
       await typeInto(tester, 'Yanıtınız', 'Görseli yarın ileteceğiz.');
-      await tapText(tester, 'Yanıtla');
+      await tapText(tester, ApprovalsCopy.sendInfo);
       expect(find.text('İstenen belge eklenmedi'), findsOneWidget);
       await tapText(tester, 'Vazgeç');
       expect(app.log.all('POST', 'provide-info'), isEmpty);
@@ -421,13 +423,19 @@ void main() {
     tester,
   ) async {
     final app = await pumpA5(tester, persona: 'finans', location: '/approvals');
-    await tapText(tester, 'Ön kayıt');
+    // v4: tür süzgeci bandın Filtre sayfasında.
+    await tapFinder(tester, find.byType(AknFilterButton));
+    await tapFinder(tester, inSheet(find.text('Ön kayıt')));
     final req = app.log.last('GET', '/approvals')!;
     expect(req.queryParameters['type'], ApprovalType.leadFinance.code);
+    Navigator.of(tester.element(find.byType(AppSheet))).pop();
+    await pumpFor(tester);
     expect(find.textContaining('Akdeniz Gıda'), findsWidgets);
-    // Satır başlığı "Ön kayıt: Akdeniz Gıda …" (tür: karşı taraf, tasarım v2 §7.13).
+    // Satır başlığı karşı taraf ("Akdeniz Gıda"), altında tür ("Ön kayıt · …").
     await tapFinder(tester, find.textContaining('Akdeniz Gıda').first);
-    expect(find.text('Ön kayıt finans onayı'), findsWidgets);
+    // Ayrıntı: çubukta nesnenin türü, gövdenin başında tür adı.
+    expect(find.text(ApprovalsCopy.detailTitle), findsWidgets);
+    expect(find.text('Ön kayıt'), findsWidgets);
     await finish(tester);
   });
 

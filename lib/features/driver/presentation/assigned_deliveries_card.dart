@@ -12,7 +12,7 @@ import '../copy.dart';
 import '../driver_paths.dart';
 
 /// Kendisi de teslimat yapan bayi personeli (ör. sahibi) için ana sayfa kartı (tasarım v3: beyaz
-/// kart, yumuşak turuncu tır kuyusu, basınca küçülür): "Size atanmış 2 teslimat" → Teslimatlarım.
+/// kart, yumuşak turuncu tır kuyusu, basınca küçülür): "Size atanmış 2 teslimat" → Teslimatlar.
 /// Yalnızca şoför olanlarda (sekmeleri zaten var), sevkiyat yetkisi olmayanlarda ya da atanmış açık
 /// teslimat yokken hiçbir şey çizmez. Bayi ana sayfası (A4) yerleştirebilir.
 class AssignedDeliveriesCard extends ConsumerWidget {

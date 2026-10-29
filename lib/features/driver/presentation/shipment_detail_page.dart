@@ -154,7 +154,9 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
     final dockHasNavigate = row.isInTransit || (ops?.startWaiting ?? false);
 
     return AppScaffold(
-      title: d.code,
+      // v4 §3.2: itilen sayfa nesnenin türüyle adlanır; kaydırınca bar müşteriyi gösterir.
+      title: DriverCopy.detailTitle,
+      collapsedTitle: row.customerTitle,
       refreshing: state.refreshing,
       showBell: false,
       body: PullToRefresh(
@@ -302,7 +304,12 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
                 ? DriverCopy.readoutPlan
                 : DriverCopy.readoutPlanOn(TurkishText.lower(day)),
             value: Fmt.time(at),
-          ),
+            caption: row.windowLabel == null
+                ? null
+                : DriverCopy.windowCaption(row.windowLabel!),
+          )
+        else if (row.windowLabel != null)
+          StopReadout(label: DriverCopy.readoutWindow, value: row.windowLabel!),
         if (dist != null)
           distanceReadout(dist)
         else if (d.tankCapacityLiters != null)
@@ -311,8 +318,6 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
             value: Fmt.number(d.tankCapacityLiters),
             unit: 'L',
           ),
-        if (row.windowLabel != null)
-          StopReadout(label: DriverCopy.readoutWindow, value: row.windowLabel!),
       ],
     );
   }
@@ -480,7 +485,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
   }
 
   Widget _skeleton() => const AppScaffold(
-    title: DriverCopy.title,
+    title: DriverCopy.detailTitle,
     showBell: false,
     body: Shimmer(
       child: Padding(
@@ -526,7 +531,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
       ),
     };
     return AppScaffold(
-      title: DriverCopy.title,
+      title: DriverCopy.detailTitle,
       showBell: false,
       body: Center(child: SingleChildScrollView(child: body)),
     );
@@ -615,52 +620,43 @@ class _Head extends StatelessWidget {
       ?(row.district ?? row.city),
     ].join(', ');
     final dispatched = detail.dispatchedAt;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Durak adı 24/30; büyük yazıda en çok 1,6× (başlıklar gibi).
-          MediaQuery.withClampedTextScaling(
-            maxScaleFactor: 1.6,
-            child: Semantics(
-              header: true,
-              child: Text(
-                row.customerTitle ?? row.code,
-                style: AknDriverMode.stopName(t).copyWith(
-                  color: c.ink,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.6,
-                ),
-              ),
-            ),
+    final lamps = [
+      AknLamp.style(style),
+      if (row.isInTransit && dispatched != null)
+        Text(
+          DriverCopy.dispatchedMeta(Fmt.time(dispatched)),
+          style: t.bodySmall.copyWith(
+            color: c.dim,
+            fontFeatures: AknNumerals.tabular,
           ),
-          if (place.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(place, style: t.body.copyWith(color: c.dim)),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
+        ),
+      if (row.isOverdue(TrTime.now()))
+        const AknLamp(label: DriverCopy.overdue, tone: AknTone.danger),
+      if (op != null) OpStatusChip(op: op),
+    ];
+    // v4 §4: nesnenin başı (kutu ve karo yok): müşteri, yer ve kopyalanabilir kod; altında durum.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.6,
+          child: AknObjectHeader(
+            title: row.customerTitle ?? row.code,
+            line: place.isEmpty ? null : place,
+            caption: row.customerTitle == null ? null : row.code,
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Wrap(
             spacing: 10,
             runSpacing: 8,
             crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              AknLamp.style(style),
-              if (row.isInTransit && dispatched != null)
-                Text(
-                  DriverCopy.dispatchedMeta(Fmt.time(dispatched)),
-                  style: t.bodySmall.copyWith(
-                    color: c.dim,
-                    fontFeatures: AknNumerals.tabular,
-                  ),
-                ),
-              if (row.isOverdue(TrTime.now()))
-                const AknLamp(label: DriverCopy.overdue, tone: AknTone.danger),
-              if (op != null) OpStatusChip(op: op),
-            ],
+            children: lamps,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

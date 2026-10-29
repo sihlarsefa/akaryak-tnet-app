@@ -60,8 +60,12 @@ class ProfilePage extends ConsumerWidget {
     // yeni bölüm doğmaz, açılıştaki sıralı giriş bir kez oynar.
     Widget reveal(Widget child) => SettingsReveal(index: order++, child: child);
 
+    // v4 §3.2: sekme kökünde (şoför, merkez) bant — sekmenin simgesi ve adı, tek durum satırı; Diğer'den
+    // itildiğinde bar "Profil" der (durum satırı yalnızca bantta).
     return AppScaffold(
       title: ProfileCopy.title,
+      bandIcon: PhosphorIconsRegular.user,
+      status: ProfileCopy.bandStatus,
       body: SingleChildScrollView(
         padding: EdgeInsets.only(
           top: 4,
@@ -361,10 +365,17 @@ class _ProfileHeader extends StatelessWidget {
     );
     final edit = _EditButton(onPressed: () => context.push(ProfilePaths.edit));
     final avatar = _RingAvatar(name: access.displayName);
+    // v4 §4: plaka yalnızca ana sayfaların kahramanıdır; burada beyaz kart (r20, ince gölge; koyu
+    // temada 1 px çizgi) — gece renkli bir levha yok.
     return Padding(
       padding: const EdgeInsets.fromLTRB(AknSpace.page, 8, AknSpace.page, 0),
       child: DecoratedBox(
-        decoration: c.plateDecoration(),
+        decoration: BoxDecoration(
+          color: c.surface,
+          borderRadius: AknRadius.card,
+          border: c.isDark ? Border.all(color: c.line) : null,
+          boxShadow: c.isDark ? null : AknShadows.card(c),
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(18, 18, 14, 6),
           child: Column(
@@ -388,14 +399,10 @@ class _ProfileHeader extends StatelessWidget {
                 ),
               if (facts.isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Divider(height: 1, thickness: 1, color: c.plateLine),
+                Divider(height: 1, thickness: 1, color: c.lineSoft),
                 for (final (icon, label, value) in facts)
-                  SettingsFactLine(
-                    icon: icon,
-                    label: label,
-                    value: value,
-                    warm: true,
-                  ),
+                  // v4 P5: turuncu yalnızca eylem ve "buradasınız" içindir; bilgi karoları nötr.
+                  SettingsFactLine(icon: icon, label: label, value: value),
               ] else
                 const SizedBox(height: 12),
             ],
@@ -444,7 +451,7 @@ class _RingAvatar extends StatelessWidget {
                 padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: c.plate,
+                  color: c.surface,
                 ),
                 child: AknAvatar(name: name, size: 56),
               ),
@@ -488,10 +495,9 @@ class _EditButton extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: c.plate,
+                    color: c.surface,
                     shape: BoxShape.circle,
-                    border: Border.all(color: c.plateBorder),
-                    boxShadow: AknShadows.card(c),
+                    border: Border.all(color: c.line),
                   ),
                   alignment: Alignment.center,
                   child: Icon(

@@ -1,4 +1,5 @@
-// Teklif masası: "Önerileri uygula", "Seçilenlere aynı fiyat/tarih", toplu gönderim ve satır başına sonuç
+// Teklifler (teklif masası, v4 §5 13): "Önerilen fiyatları yaz", "Seçilenlere aynı fiyat/tarih", toplu
+// gönderim ve satır başına sonuç
 // (finansa giden uyarı tonunda), gönderim sonrası tazeleme, geri sayımın yalnızca süre dolumu açıkken
 // görünmesi, teklif engeli ve görüntüleme yetkisi.
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -38,9 +39,13 @@ void main() {
         findsWidgets,
         reason: 'süre dolumu açık',
       );
+      // v4: "Süresi yaklaşan" Filtre sayfasında (tek anahtar: Tümü | Yeni | Revize).
+      expect(find.text('Süresi yaklaşan'), findsNothing);
+      await scrollTap(tester, find.bySemanticsLabel('Filtre'));
       expect(find.text('Süresi yaklaşan'), findsOneWidget);
+      await scrollTap(tester, find.text('Tamam'));
 
-      await scrollTap(tester, find.text('Önerileri uygula'));
+      await scrollTap(tester, find.text('Önerilen fiyatları yaz'));
       final s = app.container.read(quoteDeskProvider);
       final withSuggestion = rows
           .where((r) => r.suggestedUnitPrice != null)
@@ -50,9 +55,15 @@ void main() {
         s.draftOf(rows.first.orderId).price,
         rows.first.suggestedUnitPrice,
       );
-      expect(find.text('Teklifleri gönder ($withSuggestion)'), findsOneWidget);
+      expect(
+        find.textContaining('Teklifleri gönder ($withSuggestion) · '),
+        findsOneWidget,
+      );
 
-      await scrollTap(tester, find.text('Teklifleri gönder ($withSuggestion)'));
+      await scrollTap(
+        tester,
+        find.textContaining('Teklifleri gönder ($withSuggestion)'),
+      );
       expect(find.text('Teklif sonuçları'), findsOneWidget);
       expect(find.textContaining('finans onayına gönderildi'), findsWidgets);
       final financeChip = tester.widget<StatusChip>(
@@ -122,7 +133,7 @@ void main() {
       await tester.enterText(_rowField(target).first, '41,5');
       await BayiTestApp.settle(tester);
       expect(app.container.read(quoteDeskProvider).selected, {target});
-      await scrollTap(tester, find.text('Teklifleri gönder (1)'));
+      await scrollTap(tester, find.textContaining('Teklifleri gönder (1)'));
       expect(
         find.widgetWithText(StatusChip, 'Başka bir işlemle güncellendi'),
         findsWidgets,
@@ -156,7 +167,7 @@ void main() {
     await tester.enterText(_rowField(rows[0].orderId).first, '41,25');
     await BayiTestApp.settle(tester);
     await scrollTap(tester, _rowCheck(rows[1].orderId));
-    await scrollTap(tester, find.text('Teklifleri gönder (2)'));
+    await scrollTap(tester, find.textContaining('Teklifleri gönder (2)'));
     final s = app.container.read(quoteDeskProvider);
     expect(s.rowErrors[rows[1].orderId], 'Birim fiyat girin.');
     expect(find.text('Teklif sonuçları'), findsNothing);
@@ -190,7 +201,7 @@ void main() {
     );
     expect(find.text('Yeni teklif verilemez'), findsOneWidget);
     expect(find.byType(Checkbox), findsNothing);
-    expect(find.text('Önerileri uygula'), findsNothing);
+    expect(find.text('Önerilen fiyatları yaz'), findsNothing);
     expect(find.byType(DeskRowCard), findsWidgets);
     await app.finish(tester);
   });
@@ -234,7 +245,7 @@ void main() {
         size: const Size(360, 640),
       );
       expect(find.text('Toplu işlemler'), findsOneWidget);
-      expect(find.text('Önerileri uygula'), findsNothing);
+      expect(find.text('Önerilen fiyatları yaz'), findsNothing);
       // Çubuk ekranın yarısından azını kaplar.
       final bar = tester.getRect(
         find
@@ -248,18 +259,61 @@ void main() {
 
       await tester.tap(find.text('Toplu işlemler'));
       await BayiTestApp.settle(tester);
-      expect(find.text('Önerileri uygula'), findsOneWidget);
+      expect(find.text('Önerilen fiyatları yaz'), findsOneWidget);
       expect(find.text('Tümünü seç'), findsOneWidget);
-      await tester.tap(find.text('Önerileri uygula'));
+      await tester.tap(find.text('Önerilen fiyatları yaz'));
       await BayiTestApp.settle(tester);
       final s = app.container.read(quoteDeskProvider);
       expect(s.selected, isNotEmpty, reason: 'öneriler yazıldı ve seçildi');
       expect(
-        find.text('Önerileri uygula'),
+        find.text('Önerilen fiyatları yaz'),
         findsNothing,
         reason: 'sayfa kapandı',
       );
       expect(tester.takeException(), isNull);
+      await app.finish(tester);
+    },
+  );
+
+  testWidgets(
+    'v4: bant durumu ve tek anahtar; satırda hap yok; fiyat yazınca birincil gelir; son alımlar',
+    (tester) async {
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'siparis',
+        location: '/quote-desk',
+        size: const Size(390, 844),
+      );
+      expect(
+        find.textContaining('sipariş teklif bekliyor', findRichText: true),
+        findsOneWidget,
+      );
+      expect(find.byType(AknSegmented<DeskView>), findsOneWidget);
+      expect(find.byType(FilterChips<DeskView>), findsNothing);
+      // Satırda durum hapı yok; ilk kart 260 dp'nin üstünde başlar (bant + anahtar + Tümünü seç).
+      expect(
+        find.descendant(
+          of: find.byType(DeskRowCard),
+          matching: find.byType(AknLamp),
+        ),
+        findsNothing,
+      );
+      expect(tester.getRect(find.byType(DeskRowCard).first).top, lessThan(260));
+      // Fiyat yazılana kadar birincil yok; yazınca "Teklifleri gönder (1) · tutar" gelir.
+      expect(find.textContaining('Teklifleri gönder'), findsNothing);
+      final rows = app.container.read(quoteDeskProvider).rows;
+      await tester.enterText(_rowField(rows.first.orderId).first, '41,5');
+      await BayiTestApp.settle(tester);
+      expect(find.textContaining('Teklifleri gönder (1) · '), findsOneWidget);
+      // "Son: …" dokununca son alımlar sayfası.
+      final last = find.descendant(
+        of: _card(rows.first.orderId),
+        matching: find.textContaining('Son: '),
+      );
+      if (last.evaluate().isNotEmpty) {
+        await scrollTap(tester, last.first);
+        expect(find.text('Son alımlar'), findsOneWidget);
+      }
       await app.finish(tester);
     },
   );

@@ -112,7 +112,7 @@ class StepPayment extends ConsumerWidget {
                 margin: const EdgeInsets.fromLTRB(20, 0, 20, 10),
                 title: method.displayName,
                 subtitle: method.termLabel,
-                leading: A2IconTile(
+                leading: AknIconBox(
                   icon: paymentMethodIcon(method.code),
                   tone: d.payment.methodCode == method.code
                       ? AknTone.brand
@@ -383,7 +383,7 @@ class _MethodDetailState extends ConsumerState<_MethodDetail> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         WizardHeading('${m.displayName} ayrıntıları', top: 16),
-        A2Card(
+        AknCard(
           margin: const EdgeInsets.symmetric(horizontal: 20),
           padding: const EdgeInsets.fromLTRB(18, 6, 18, 14),
           child: Column(

@@ -8,7 +8,7 @@ import 'bayi_json.dart';
 enum BayiOrderSegment {
   awaitingQuote('awaitingQuote', 'Teklif bekleyen'),
   revisionRequested('revisionRequested', 'Revize istenen'),
-  awaitingCustomer('awaitingCustomer', 'Cari kararında'),
+  awaitingCustomer('awaitingCustomer', 'Müşteri kararında'),
   financeHeld('financeHeld', 'Finans onayında'),
   toPlan('toPlan', 'Planlanacak'),
   inTransit('inTransit', 'Yolda'),

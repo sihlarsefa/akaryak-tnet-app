@@ -2,7 +2,9 @@ import 'dart:typed_data';
 
 import '../../models/json.dart';
 import '../../models/me_access.dart';
+import '../../utils/format.dart';
 import '../../utils/tr_time.dart';
+import '../../utils/turkish_text.dart';
 import 'fake_personas.dart';
 
 /// Belge yüklendi dinleyicisi ([FakeWorld.addAttachmentListener]).
@@ -1092,6 +1094,10 @@ class FakeWorld {
     final field = approvals.firstWhere((a) => a['type'] == 1);
     final company = approvals.firstWhere((a) => a['type'] == 3);
 
+    // v4 (§4): bildirim metinlerinde kod (SIP-, SVK-) ve tutar (₺) yok; kim, ne, nerede ve ne
+    // zamana kadar — doğal cümleyle.
+    String litres(Object? v) => Fmt.liters((v as num?) ?? 0);
+    String product(Object? v) => TurkishText.lower('${v ?? 'yakıt'}');
     void n(
       List<String> keys,
       String category,
@@ -1127,7 +1133,8 @@ class FakeWorld {
       'shipments',
       'shipment.dispatched',
       'Aracınız yola çıktı',
-      '${o3['orderNumber']} siparişinizin 10.000 L teslimatı yolda.',
+      '${litres(o3['quantityLiters'])} ${product(o3['productName'])}, '
+          '${o3['deliveryPointName']} için yolda.',
       '/orders/${o3['id']}',
       entityType: 'Order',
       entityId: o3['id'] as int,
@@ -1139,7 +1146,8 @@ class FakeWorld {
       'shipments',
       'shipment.reported',
       'Teslimatı onaylayın',
-      '${reported['orderNumber']} için 11.950 L teslim edildi. Kontrol edip onaylayın.',
+      '${reported['stationName']} ${litres(reported['deliveredLiters'] ?? reported['plannedLiters'])} '
+          '${product(reported['productName'])} teslim etti. Kontrol edip onaylayın.',
       '/shipments/${reported['id']}',
       severity: 2,
       entityType: 'Shipment',
@@ -1152,7 +1160,9 @@ class FakeWorld {
       'order.quote_ready',
       'Teklif hazır',
       // Bildirim metninde tutar yok (spec A.5: kilit ekranında görünür).
-      '${o2['orderNumber']}: bayiniz teklifini gönderdi. Süresi dolmadan karar verin.',
+      '${o2['stationTitle']}, ${o2['deliveryPointName']} için '
+          '${litres(o2['quantityLiters'])} ${product(o2['productName'])} teklifini gönderdi. '
+          'Süresi dolmadan karar verin.',
       '/orders/${o2['id']}',
       severity: 1,
       entityType: 'Order',
@@ -1165,7 +1175,7 @@ class FakeWorld {
       // Sunucu şirket içi talep için ayrı olay göndermez; onaylayanlara approval.pending gider (spec A.5).
       'approval.pending',
       'Onayınızı bekleyen talep',
-      'Burak Yılmaz 30.000 L Motorin talep etti.',
+      'Burak Yılmaz 30.000 L motorin talep etti.',
       '/approvals/${company['id']}',
       entityType: 'ApprovalRequest',
       entityId: company['id'] as int,
@@ -1176,7 +1186,8 @@ class FakeWorld {
       'orders',
       'order.created',
       'Yeni sipariş',
-      '${newest['customerTitle']}, ${newest['orderNumber']}, 10.000 L Motorin',
+      '${newest['customerTitle']} ${litres(newest['quantityLiters'])} '
+          '${product(newest['productName'])} sipariş etti.',
       '/bayi/orders/${newest['id']}',
       entityType: 'Order',
       entityId: newest['id'] as int,
@@ -1187,7 +1198,7 @@ class FakeWorld {
       'approvals',
       'approval.pending',
       'Finans onayı bekliyor',
-      '${finance['subjectNumber']}, Marmara İnşaat: çek, 60 gün vade',
+      'Marmara İnşaat çekle, 60 gün vadeli ödemek istiyor.',
       '/approvals/${finance['id']}',
       severity: 2,
       entityType: 'ApprovalRequest',
@@ -1199,7 +1210,7 @@ class FakeWorld {
       'approvals',
       'approval.pending',
       'Saha formu onayı bekliyor',
-      'Deniz Koç, Ege Tarım Kooperatifi, 18.000 L',
+      'Deniz Koç, Ege Tarım Kooperatifi için 18.000 L form gönderdi.',
       '/approvals/${field['id']}',
       entityType: 'ApprovalRequest',
       entityId: field['id'] as int,
@@ -1210,7 +1221,8 @@ class FakeWorld {
       'shipments',
       'shipment.assigned',
       'Yeni teslimat atandı',
-      '${planned['orderNumber']}, bugün 14:00, 8.000 L, İzmit Şantiye',
+      'Bugün ${Fmt.time(TrTime.parseLocal(planned['scheduledAt'] as String?))}, '
+          '${planned['deliveryPointName']}: ${litres(planned['plannedLiters'])}.',
       '/driver/shipments/${planned['id']}',
       entityType: 'Shipment',
       entityId: planned['id'] as int,
@@ -1221,7 +1233,8 @@ class FakeWorld {
       'orders',
       'order.approved',
       'Sipariş onaylandı',
-      '${o3['orderNumber']} için 10.000 L planlanmayı bekliyor.',
+      '${o3['customerTitle']} siparişi onaylandı; '
+          '${litres(o3['quantityLiters'])} planlanmayı bekliyor.',
       '/dispatch',
       severity: 1,
       entityType: 'Order',
@@ -1233,7 +1246,7 @@ class FakeWorld {
       'payments',
       'payment.bounced',
       'Ödeme durumu güncellendi',
-      'Körfez Nakliyat: çek durumu güncellendi; Tahsilat\'ta inceleyin.',
+      'Körfez Nakliyat\'ın çeki karşılıksız çıktı. Tahsilat\'ta inceleyin.',
       '/payments',
       severity: 3,
       hoursAgo: 6,

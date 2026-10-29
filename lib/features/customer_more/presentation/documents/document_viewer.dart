@@ -133,7 +133,7 @@ class DocumentTile extends ConsumerWidget {
         ? 'PDF olarak oluşturulur'
         : '${CmCopy.savedOnDevice}, ${Fmt.dateTime(cached.savedAt)}';
     return AknListTile(
-      leading: CmIconTile(icon: iconOf(request.kind)),
+      leadingIcon: iconOf(request.kind),
       titleStyle: cmRowTitle(context),
       title: request.label,
       subtitle: sub,

@@ -221,7 +221,7 @@ void main() {
       lamp(
         AknStatus.lampFor(s, approver),
         AknTone.brand,
-        'Kararınızı bekliyor',
+        'Teklifi onaylayın',
         stage: AknStage.karar,
       );
       lamp(AknStatus.lampFor(s, requester), AknTone.info, 'Onay bekleniyor');
@@ -344,11 +344,28 @@ void main() {
     });
 
     test('company request and approval center', () {
+      // v4 §3.2: the viewer's move is an imperative.
       lamp(
         AknStatus.lampFor(CustomerOrderRequestStatus.pending, approver),
         AknTone.brand,
-        'Onayınızı bekliyor',
+        'Talebi onaylayın',
         stage: AknStage.onay,
+      );
+      expect(
+        AknStatus.companyRequestLamp(
+          CustomerOrderRequestStatus.pending,
+          approver,
+          requester: 'Burak Yılmaz',
+        ).label,
+        "Burak Yılmaz'ın talebini onaylayın",
+      );
+      expect(
+        AknStatus.companyRequestLamp(
+          CustomerOrderRequestStatus.pending,
+          requester,
+          actor: 'Selin Aydın',
+        ).label,
+        'Şirket onayında · Selin Aydın',
       );
       lamp(
         AknStatus.lampFor(CustomerOrderRequestStatus.pending, requester),
@@ -359,7 +376,7 @@ void main() {
       lamp(
         AknStatus.lampFor(ApprovalStatus.pending, finance),
         AknTone.brand,
-        'Onayınızı bekliyor',
+        'Karar verin',
       );
       lamp(
         AknStatus.lampFor(ApprovalStatus.pending, viewer),
@@ -402,7 +419,7 @@ void main() {
           approver,
           serverLabel: 'Onay bekleniyor',
         ).label,
-        'Kararınızı bekliyor',
+        'Teklifi onaylayın',
       );
     });
 
@@ -422,8 +439,43 @@ void main() {
       final l = AknStatus.lampFor(OrderStatus.awaitingApproval, approver);
       expect(l.stageIndex(), 2);
       expect(l.stageIndex(companyApproval: true), 3);
-      expect(l.style.label, 'Kararınızı bekliyor');
+      expect(l.style.label, 'Teklifi onaylayın');
       expect(l.style.tone, AknTone.brand);
+    });
+
+    test('v4 stops on the » line (customer and bayi words)', () {
+      expect(
+        [for (final s in AknStage.values) s.customerStop],
+        [0, 0, 1, 2, 3, 3, 4],
+      );
+      expect(
+        [for (final s in AknStage.values) s.bayiStop],
+        [0, 0, 0, 1, 2, 2, 3],
+      );
+      // One lamp covers the decision and its missing document.
+      expect(
+        AknStatus.orderLamp(
+          OrderStatus.awaitingApproval,
+          approver,
+          missingDocument: AknStatus.uploadPhrase(AttachmentKind.chequeImage),
+        ).label,
+        'Çek görselini yükleyin',
+      );
+      expect(
+        AknStatus.uploadAction(AttachmentKind.transferReceipt),
+        'Dekontu yükle',
+      );
+      expect(
+        AknStatus.orderLamp(
+          OrderStatus.awaitingQuote,
+          approver,
+          actor: 'Demir Petrol',
+        ).label,
+        'Demir Petrol teklif hazırlıyor',
+      );
+      expect(AknStatus.withGenitive('Selin Aydın'), "Selin Aydın'ın");
+      expect(AknStatus.withGenitive('Elif Demir'), "Elif Demir'in");
+      expect(AknStatus.withGenitive('Ali'), "Ali'nin");
     });
   });
 

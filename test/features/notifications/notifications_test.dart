@@ -5,12 +5,16 @@ import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/env/app_config_controller.dart';
 import 'package:akaryakitnet/core/models/json.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
+import 'package:akaryakitnet/core/push/local_read_marks.dart';
 import 'package:akaryakitnet/core/push/unread_count_provider.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/notifications/application/inbox_controller.dart';
+import 'package:akaryakitnet/features/notifications/application/notification_display.dart';
 import 'package:akaryakitnet/features/notifications/application/preferences_controller.dart';
 import 'package:akaryakitnet/features/notifications/data/notification_models.dart';
 import 'package:akaryakitnet/features/notifications/presentation/notifications_page.dart';
+import 'package:akaryakitnet/features/notifications/presentation/widgets/notification_tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -98,6 +102,70 @@ void main() {
         dayLabel(TrTime.fromWall(2025, 12, 30, 9), now: now),
         '30 Aralık 2025',
       );
+    });
+  });
+
+  group('v4 görünüm kuralları', () {
+    test('iç kodlar başlık ve metinden çıkar, cümle düzgün kalır', () {
+      final clean = NotificationDisplay.clean;
+      expect(
+        clean('Teklif süresi doluyor: SIP-20261028-12002'),
+        'Teklif süresi doluyor',
+      );
+      expect(
+        clean('SIP-20261028-12002: bayiniz teklifini gönderdi.'),
+        'Bayiniz teklifini gönderdi.',
+      );
+      expect(
+        clean('SIP-20261027-12003 siparişinizin 10.000 L teslimatı yolda.'),
+        'Siparişinizin 10.000 L teslimatı yolda.',
+      );
+      expect(
+        clean('SIP-20261026-12008 için 11.950 L teslim edildi.'),
+        '11.950 L teslim edildi.',
+      );
+      expect(
+        clean(
+          'SIP-20261026-12008, Anadolu Lojistik: müşteri onayı bekleniyor.',
+        ),
+        'Anadolu Lojistik: müşteri onayı bekleniyor.',
+      );
+      expect(
+        clean('Körfez Nakliyat SIP-20261028-12002 siparişinde ödeme değişti.'),
+        'Körfez Nakliyat siparişinde ödeme değişti.',
+      );
+      expect(clean('Onayınız bekleniyor · TLP-00031'), 'Onayınız bekleniyor');
+      // Kod yoksa metin aynen kalır (saat aralığı, ürün adları).
+      const plain = 'Bugün 09:00, 08:00–18:00 arası: 10.000 L motorin.';
+      expect(clean(plain), plain);
+      expect(
+        clean('Burak Yılmaz 30.000 L motorin talep etti.'),
+        'Burak Yılmaz 30.000 L motorin talep etti.',
+      );
+    });
+
+    test('eylem satırı yalnızca sıra görüntüleyendeyken', () {
+      UserNotification n(String code, String route) => UserNotification(
+        id: 1,
+        category: 'orders',
+        eventCode: code,
+        title: 't',
+        body: 'b',
+        route: route,
+        createdAt: DateTime.utc(2026, 10, 29),
+      );
+      final action = NotificationDisplay.actionOf;
+      expect(action(n('order.quote_ready', '/orders/12002')), 'Teklifi aç');
+      expect(action(n('order.quote_ready', '/bayi/orders/12002')), isNull);
+      expect(
+        action(n('shipment.reported', '/shipments/7')),
+        'Teslimatı onayla',
+      );
+      expect(action(n('shipment.reported', '/bayi/orders/12002')), isNull);
+      expect(action(n('approval.pending', '/approvals/31')), 'Talebi incele');
+      expect(action(n('order.finance_info', '/orders/5')), 'Bilgi gönder');
+      expect(action(n('shipment.dispatched', '/orders/5')), isNull);
+      expect(action(n('system.test', '/notifications')), isNull);
     });
   });
 
@@ -206,6 +274,49 @@ void main() {
         isFalse,
       );
     });
+
+    test(
+      'v4 §3.5: bu oturumda açılan kaydın bildirimi okundu sayılır (sunucu ve rozet)',
+      () async {
+        final h = await A8Harness.create();
+        seed(h, 'onay', 2, route: '/orders/77');
+        final c = await signedInContainer(h, 'onay');
+        addTearDown(c.dispose);
+        await c.read(unreadCountProvider.notifier).refresh();
+        final before = unreadOf(h, 'onay');
+        // Sipariş açıldı (yönlendirici işaretler).
+        c.read(localReadMarksProvider.notifier).mark('/orders/77');
+        c.listen(inboxControllerProvider, (_, _) {});
+        await until(() => !c.read(inboxControllerProvider).loading);
+        await until(() => unreadOf(h, 'onay') == before - 2);
+        final items = c.read(inboxControllerProvider).items;
+        expect(
+          items.where((n) => n.route == '/orders/77').every((n) => n.isRead),
+          isTrue,
+        );
+        expect(unreadOf(h, 'onay'), before - 2);
+        // Gelen kutusu açıkken başka bir kayıt açılınca onun bildirimleri de okundu olur.
+        seed(h, 'onay', 1, route: '/orders/88');
+        await c.read(inboxControllerProvider.notifier).refresh();
+        final n88 = c
+            .read(inboxControllerProvider)
+            .items
+            .firstWhere((n) => n.route == '/orders/88');
+        expect(n88.isRead, isFalse);
+        c.read(localReadMarksProvider.notifier).mark('/orders/88');
+        expect(
+          c
+              .read(inboxControllerProvider)
+              .items
+              .firstWhere((n) => n.id == n88.id)
+              .isRead,
+          isTrue,
+          reason: 'iyimser: hemen okundu',
+        );
+        await until(() => unreadOf(h, 'onay') == before - 2);
+        expect(unreadOf(h, 'onay'), before - 2);
+      },
+    );
 
     test('çevrimdışı: son kaydedilen ilk sayfa gösterilir', () async {
       final h = await A8Harness.create();
@@ -319,6 +430,143 @@ void main() {
       );
       await pumpFor(tester, const Duration(milliseconds: 300));
       expect(find.text('Teklifler'), findsOneWidget);
+    });
+
+    testWidgets(
+      'v4: bant "n okunmamış", tek anahtar, gün başına bir defter; okunmamış satırda tek nokta, '
+      'kategori yazısı yok, eylem satırı mürekkep rengi',
+      (tester) async {
+        setPhoneSize(tester, const Size(390, 844));
+        final h = await A8Harness.create();
+        h.server.world.notifications.clear();
+        // Saat sabit (fixClock: a8Now); gün başlıkları ona göre.
+        final now = a8Now;
+        h.server.world
+          ..addNotification(
+            userId: 'u-onay',
+            category: 'approvals',
+            eventCode: 'approval.pending',
+            title: 'Onayınızı bekleyen talep',
+            body: 'Burak Yılmaz 30.000 L motorin talep etti.',
+            route: '/approvals/31',
+            at: now.subtract(const Duration(minutes: 30)),
+          )
+          ..addNotification(
+            userId: 'u-onay',
+            category: 'shipments',
+            eventCode: 'shipment.dispatched',
+            title: 'Aracınız yola çıktı',
+            body: 'SIP-20261027-12003 siparişinizin 10.000 L teslimatı yolda.',
+            route: '/orders/12003',
+            at: now.subtract(const Duration(minutes: 40)),
+            read: true,
+          )
+          ..addNotification(
+            userId: 'u-onay',
+            category: 'quotes',
+            eventCode: 'order.quote_ready',
+            title: 'Teklif hazır',
+            body: 'Demir Petrol teklifini gönderdi.',
+            route: '/orders/12002',
+            at: now.subtract(const Duration(days: 1)),
+          );
+        await pumpA8(tester, '/notifications', harness: h, persona: 'onay');
+        await pumpFor(tester, const Duration(milliseconds: 600));
+        // Zilden açılan (itilen) sayfa: başlık sekmenin adı; eyebrow / açıklama yok. Okunmamış sayısı
+        // anahtarda ("Okunmamış 2"); bant ve durum satırı sekme kökünde (şoför, merkez).
+        expect(find.text('Bildirimler'), findsWidgets);
+        expect(
+          find.descendant(
+            of: find.byType(AknSegmented<bool>),
+            matching: find.text('2'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Hesabım'), findsNothing);
+        expect(find.text('Son gelişmeler'), findsNothing);
+        expect(find.byType(AknSegmented<bool>), findsOneWidget);
+        expect(find.byType(FilterChips<bool>), findsNothing);
+        // Gün başına bir defter.
+        expect(find.byType(AknLedger), findsNWidgets(2));
+        expect(find.byType(AknLedgerGroup), findsNWidgets(2));
+        // Okunmamış satır başına bir nokta; okunmuşta yok.
+        final tiles = find.byType(NotificationTile);
+        expect(tiles, findsNWidgets(3));
+        for (var i = 0; i < 3; i++) {
+          final tile = tester.widget<NotificationTile>(tiles.at(i));
+          expect(
+            find.descendant(
+              of: tiles.at(i),
+              matching: find.byKey(NotificationTile.unreadDotKey),
+            ),
+            tile.notification.isRead ? findsNothing : findsOneWidget,
+            reason: tile.notification.title,
+          );
+        }
+        // Kategori yazısı ve hapı yok; metinde kod yok.
+        for (final label in ['Onaylar', 'Teslimatlar', 'Teklifler']) {
+          expect(
+            find.descendant(of: tiles, matching: find.text(label)),
+            findsNothing,
+            reason: label,
+          );
+        }
+        expect(find.textContaining('SIP-'), findsNothing);
+        expect(
+          find.text('Siparişinizin 10.000 L teslimatı yolda.'),
+          findsOneWidget,
+        );
+        // Sıra sizde olanlarda eylem satırı (mürekkep, turuncu değil).
+        expect(find.text('Talebi incele'), findsOneWidget);
+        expect(find.text('Teklifi aç'), findsOneWidget);
+        final ctx = tester.element(find.text('Talebi incele'));
+        final style = tester.widget<Text>(find.text('Talebi incele')).style!;
+        expect(style.color, ctx.akn.ink);
+        await finish(tester);
+      },
+    );
+
+    testWidgets(
+      'çevrimdışı ve kayıtlı liste: liste kalır, altında "Son güncelleme" notu',
+      (tester) async {
+        setPhoneSize(tester, const Size(390, 844));
+        final h = await A8Harness.create();
+        seed(h, 'onay', 2);
+        await pumpA8(tester, '/notifications', harness: h, persona: 'onay');
+        expect(find.textContaining('Son güncelleme'), findsNothing);
+        h.server.failureMode = FakeFailureMode.offline;
+        // Görünüm değişince ilk sayfa yeniden istenir; "Tümü"de son kaydedilen liste gelir.
+        await tester.tap(find.text('Okunmamış'));
+        await pumpFor(tester, const Duration(milliseconds: 600));
+        await tester.tap(find.text('Tümü'));
+        await pumpFor(tester, const Duration(milliseconds: 800));
+        expect(find.text('Teklif hazır 0'), findsOneWidget);
+        expect(find.textContaining('Son güncelleme'), findsOneWidget);
+        h.server.failureMode = FakeFailureMode.none;
+        await finish(tester);
+      },
+    );
+
+    testWidgets('v4: okunmamış yokken "Tümünü okundu say" görünmez', (
+      tester,
+    ) async {
+      setPhoneSize(tester);
+      final h = await A8Harness.create();
+      seed(h, 'onay', 2);
+      await pumpA8(tester, '/notifications', harness: h, persona: 'onay');
+      expect(find.byTooltip('Tümünü okundu say'), findsOneWidget);
+      final segmentCount = find.descendant(
+        of: find.byType(AknSegmented<bool>),
+        matching: find.text('${unreadOf(h, 'onay')}'),
+      );
+      expect(segmentCount, findsOneWidget);
+      await tester.tap(find.byTooltip('Tümünü okundu say'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.byTooltip('Tümünü okundu say'), findsNothing);
+      expect(segmentCount, findsNothing);
+      expect(find.byKey(NotificationTile.unreadDotKey), findsNothing);
+      expect(find.byKey(NotificationTile.actionKey), findsNothing);
+      await finish(tester);
     });
 
     testWidgets('dokununca okundu olur ve rotasına gider', (tester) async {

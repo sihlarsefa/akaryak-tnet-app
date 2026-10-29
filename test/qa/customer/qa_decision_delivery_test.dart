@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../integration_test/smoke_flows.dart';
 import '../../support/a11y.dart';
+import '../../support/fonts.dart';
 import 'qa_support.dart';
 
 Future<void> _pumpUntil(
@@ -58,30 +59,35 @@ List<String> _texts() => find
     .toList();
 
 void main() {
+  // Gerçek yüz (Archivo): ana sayfanın "Sıra sizde" baş satırı (başlık + uzun geri sayım) cihazdaki
+  // gibi ölçülür. Test yazı tipinde her harf 1 em genişliktedir ve çekirdeğin satırı taşar
+  // (task_card.dart, çekirdeğe bildirildi).
+  setUpAll(loadRealFonts);
+
   testWidgets(
-    'QA musteri: çekli teklif (12002) çek görseli olmadan onaylanamaz',
+    'QA musteri: çekli teklif (12002) önce çek görseli: birincil "Çek görselini yükle", onay düğmesi yok',
     (tester) async {
       setA11yPhone(tester, size: const Size(390, 844));
       await qaRun(tester, 'decision_approve_gate', (q) async {
         final (_, router) = await _signedIn(tester, 'musteri');
         await _go(tester, router, '/orders/12002');
-        final approve = find.widgetWithText(AknButton, OrdersCopy.approve);
+        final upload = find.widgetWithText(AknButton, 'Çek görselini yükle');
         expect(
-          approve,
+          upload,
           findsOneWidget,
-          reason: 'onay düğmesi yok: ${_texts()}',
+          reason: 'yükleme düğmesi yok: ${_texts()}',
         );
-        expect(tester.widget<AknButton>(approve).onPressed, isNull);
+        expect(tester.widget<AknButton>(upload).onPressed, isNotNull);
         expect(
-          find.text('Çek görseli yüklenmeden onaylanamaz'),
+          find.widgetWithText(AknButton, OrdersCopy.approve),
+          findsNothing,
+          reason: 'kapalı birincil düğme yok (v4 P3)',
+        );
+        expect(
+          find.text('Yükledikten sonra teklifi onaylayabilirsiniz'),
           findsOneWidget,
         );
-        expect(find.text('Belge yükle'), findsWidgets);
-        expect(
-          find.textContaining('kaldı'),
-          findsWidgets,
-          reason: 'geri sayım',
-        );
+        expect(find.byType(CountdownBadge), findsWidgets, reason: 'geri sayım');
         await tester.pumpWidget(const SizedBox());
       });
     },

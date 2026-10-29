@@ -22,8 +22,17 @@ import '../typography.dart';
 /// * ghost — no fill, an ink label; pressed `surfaceAlt` (tertiary: "Vazgeç",
 ///   "Atla");
 /// * danger — the secondary look with a red label (the page-level
-///   "Reddet"; a sheet's destructive confirm is `DestructiveButton`).
-enum AknButtonVariant { primary, secondary, ghost, danger, outline }
+///   "Reddet"; a sheet's destructive confirm is `DestructiveButton`);
+/// * ghostDanger — v4: a borderless ghost with a `danger.fg` label (the
+///   decision dock's "Reddet", see `ActionBar.decision`).
+enum AknButtonVariant {
+  primary,
+  secondary,
+  ghost,
+  danger,
+  outline,
+  ghostDanger,
+}
 
 /// Heights: small 40 (r12, 15 px label), medium 48, large 52 (the default);
 /// every size keeps a 48 dp touch target. Driver mode makes every button 64
@@ -53,6 +62,11 @@ enum AknButtonSize { small, medium, large }
 ///   as a last resort, scales the single line down ([AknButton.fitsOneLine]
 ///   lets a parent choose a roomier layout before that happens).
 /// * Labels are verb + object; no arrow glyphs.
+/// * v4 label morph (§6 Add 4): a new [label] replaces the old one — the
+///   old leaves 8 dp upward (120 ms), the new springs in from 8 dp below
+///   (220 ms) — and a natural-width button animates its width. With
+///   [celebrate] a check pops beside the new label (300 ms) with a success
+///   haptic ("Çek görselini yükle" → "Teklifi onayla").
 class AknButton extends StatefulWidget {
   const AknButton({
     super.key,
@@ -70,6 +84,7 @@ class AknButton extends StatefulWidget {
     this.haptic = true,
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
+    this.celebrate = false,
   });
 
   const AknButton.secondary({
@@ -87,6 +102,7 @@ class AknButton extends StatefulWidget {
     this.haptic = true,
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
+    this.celebrate = false,
   }) : variant = AknButtonVariant.secondary;
 
   const AknButton.ghost({
@@ -104,6 +120,7 @@ class AknButton extends StatefulWidget {
     this.haptic = true,
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
+    this.celebrate = false,
   }) : variant = AknButtonVariant.ghost;
 
   const AknButton.danger({
@@ -121,6 +138,7 @@ class AknButton extends StatefulWidget {
     this.haptic = true,
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
+    this.celebrate = false,
   }) : variant = AknButtonVariant.danger;
 
   /// Neutral bordered button (ink label on white): cancel / back.
@@ -139,6 +157,7 @@ class AknButton extends StatefulWidget {
     this.haptic = true,
     this.semanticLabel,
     this.loadingLabel = 'Gönderiliyor',
+    this.celebrate = false,
   }) : variant = AknButtonVariant.outline;
 
   final String label;
@@ -163,6 +182,10 @@ class AknButton extends StatefulWidget {
   final bool haptic;
   final String? semanticLabel;
   final String loadingLabel;
+
+  /// A label change pops a check with a success haptic (the next step
+  /// became possible).
+  final bool celebrate;
 
   /// Gap between an icon and the label.
   static const double _iconGap = 8;
@@ -305,6 +328,23 @@ class _AknButtonState extends State<AknButton> {
   Offset? _downAt;
   Timer? _doneTimer;
 
+  /// A label change: the check that pops beside the new label.
+  bool _morphCheck = false;
+  Timer? _morphTimer;
+
+  @override
+  void didUpdateWidget(AknButton old) {
+    super.didUpdateWidget(old);
+    if (old.label != widget.label && widget.celebrate) {
+      AknHaptics.success();
+      _morphTimer?.cancel();
+      setState(() => _morphCheck = true);
+      _morphTimer = Timer(const Duration(milliseconds: 1400), () {
+        if (mounted) setState(() => _morphCheck = false);
+      });
+    }
+  }
+
   bool get _loading => widget.loading || _busy;
   bool get _success => (widget.success || _done) && !_loading;
   bool get _enabled =>
@@ -331,6 +371,7 @@ class _AknButtonState extends State<AknButton> {
   @override
   void dispose() {
     _doneTimer?.cancel();
+    _morphTimer?.cancel();
     super.dispose();
   }
 
@@ -410,32 +451,50 @@ class _AknButtonState extends State<AknButton> {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (fit.showsIcons && widget.icon != null) ...[
+          if (_morphCheck) ...[
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0.4, end: 1),
+              duration: AknMotion.of(
+                context,
+                const Duration(milliseconds: 300),
+              ),
+              curve: AknMotion.pop,
+              builder: (context, v, child) => Opacity(
+                opacity: ((v - 0.4) / 0.6).clamp(0.0, 1.0),
+                child: Transform.scale(scale: v, child: child),
+              ),
+              child: Icon(PhosphorIconsBold.check, size: iconSize, color: fg),
+            ),
+            const SizedBox(width: AknButton._iconGap),
+          ] else if (fit.showsIcons && widget.icon != null) ...[
             Icon(widget.icon, size: iconSize, color: fg),
             const SizedBox(width: AknButton._iconGap),
           ],
           Flexible(
-            child: switch (fit) {
-              _LabelFit.natural || _LabelFit.twoLines => Text(
-                widget.label,
-                style: labelStyle,
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                overflow: TextOverflow.ellipsis,
-              ),
-              // One line that is known to fit; the scale-down only absorbs
-              // rounding (and is the last resort for [_LabelFit.scaled]).
-              _ => FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
+            child: _LabelMorph(
+              label: widget.label,
+              child: switch (fit) {
+                _LabelFit.natural || _LabelFit.twoLines => Text(
                   widget.label,
                   style: labelStyle,
-                  maxLines: 1,
-                  softWrap: false,
+                  maxLines: 2,
                   textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            },
+                // One line that is known to fit; the scale-down only absorbs
+                // rounding (and is the last resort for [_LabelFit.scaled]).
+                _ => FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    style: labelStyle,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              },
+            ),
           ),
           if (fit.showsIcons && widget.trailingIcon != null) ...[
             const SizedBox(width: AknButton._iconGap),
@@ -546,7 +605,13 @@ class _AknButtonState extends State<AknButton> {
               ),
             ),
           )
-        : surface(null, _LabelFit.natural);
+        // v4: a natural-width button glides to its new width when the
+        // label changes.
+        : AknAnimatedSize(
+            duration: AknMotion.labelIn,
+            curve: AknMotion.emphasizedCurve,
+            child: surface(null, _LabelFit.natural),
+          );
 
     final minTap = driver?.minTap ?? AknSpace.minTap;
     return Semantics(
@@ -676,7 +741,12 @@ class _AknButtonState extends State<AknButton> {
     final clear = c.surfaceAlt.withValues(alpha: 0);
     if (!live) {
       return (
-        fill: flat(variant == AknButtonVariant.ghost ? clear : c.surfaceAlt),
+        fill: flat(
+          variant == AknButtonVariant.ghost ||
+                  variant == AknButtonVariant.ghostDanger
+              ? clear
+              : c.surfaceAlt,
+        ),
         fg: c.faint,
         side: side(AknTheme.secondaryBorder(c).withValues(alpha: 0)),
         glow: const <BoxShadow>[],
@@ -712,6 +782,12 @@ class _AknButtonState extends State<AknButton> {
         side: BorderSide.none,
         glow: const <BoxShadow>[],
       ),
+      AknButtonVariant.ghostDanger => (
+        fill: flat(pressed ? c.danger.bg : clear),
+        fg: c.danger.fg,
+        side: BorderSide.none,
+        glow: const <BoxShadow>[],
+      ),
     };
   }
 
@@ -741,6 +817,63 @@ class _AknButtonState extends State<AknButton> {
         spreadRadius: s.spreadRadius,
       ),
   ];
+}
+
+/// The label morph of [AknButton] (v4 §6 Add 4): when [label] changes the
+/// old text leaves 8 dp upward and fades (120 ms) while the new one springs
+/// in from 8 dp below (220 ms). Instant under reduce motion.
+class _LabelMorph extends StatelessWidget {
+  const _LabelMorph({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduced = AknMotion.reduced(context);
+    return AnimatedSwitcher(
+      duration: reduced ? Duration.zero : AknMotion.labelIn,
+      reverseDuration: reduced ? Duration.zero : AknMotion.labelOut,
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [...previous, ?current],
+      ),
+      transitionBuilder: (child, animation) {
+        final incoming = child.key == ValueKey<String>(label);
+        if (incoming) {
+          final spring = CurvedAnimation(
+            parent: animation,
+            curve: AknMotion.spring,
+          );
+          return FadeTransition(
+            opacity: animation,
+            child: AnimatedBuilder(
+              animation: spring,
+              child: child,
+              builder: (context, c) => Transform.translate(
+                offset: Offset(0, 8 * (1 - spring.value)),
+                child: c,
+              ),
+            ),
+          );
+        }
+        // Outgoing: `animation` runs 1 → 0.
+        return FadeTransition(
+          opacity: animation,
+          child: AnimatedBuilder(
+            animation: animation,
+            child: child,
+            builder: (context, c) => Transform.translate(
+              offset: Offset(0, -8 * (1 - animation.value)),
+              child: c,
+            ),
+          ),
+        );
+      },
+      child: KeyedSubtree(key: ValueKey<String>(label), child: child),
+    );
+  }
 }
 
 /// Round icon button (§4, §5 Press): icon 24 in ink, a 48 dp target (64 in

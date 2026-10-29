@@ -8,8 +8,8 @@ import '../../../../core/ui/ui.dart';
 /// İki seçenekli kayan anahtar ("Şifre ile" / "Numara ile"), tasarım v3: hap biçimli kuyu (`surfaceAlt`)
 /// üstünde beyaz, gölgeli bir başparmak. Seçim değişince başparmak "akar": gidilen yöndeki kenarı önden
 /// koşar, arkadaki kenarı biraz geriden yay eğrisiyle yetişir (kısa bir esneme, varınca bir an daralıp
-/// yerine oturma; kuyunun dışına taşmaz). Seçilen bölümün simgesi turuncuya döner ve hafifçe zıplar,
-/// etiketi kalınlaşır. Her bölüm en az 48 dp; seçili
+/// yerine oturma; kuyunun dışına taşmaz). Seçilen bölümün etiketi kalınlaşır ve Pas'a döner; simge
+/// verilirse (v4 girişte verilmez) o da turuncuya döner ve hafifçe zıplar. Her bölüm en az 48 dp; seçili
 /// bölüm sesli okumada "seçili" duyurulur, ayrıca kalın yazı ve beyaz zeminle ayrılır (yalnızca renk değil).
 class ModeSwitch<T> extends StatefulWidget {
   const ModeSwitch({
@@ -20,7 +20,7 @@ class ModeSwitch<T> extends StatefulWidget {
     this.semanticLabel,
   });
 
-  final List<({T value, String label, IconData icon})> options;
+  final List<({T value, String label, IconData? icon})> options;
   final T value;
   final ValueChanged<T> onChanged;
   final String? semanticLabel;
@@ -165,12 +165,15 @@ class _ModeSwitchState<T> extends State<ModeSwitch<T>>
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  _PopIcon(
-                                    icon: widget.options[i].icon,
-                                    selected: i == index,
-                                    color: i == index ? c.brand : c.dim,
-                                  ),
-                                  const SizedBox(width: 8),
+                                  if (widget.options[i].icon
+                                      case final IconData icon) ...[
+                                    _PopIcon(
+                                      icon: icon,
+                                      selected: i == index,
+                                      color: i == index ? c.brand : c.dim,
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
                                   Flexible(
                                     child: AnimatedDefaultTextStyle(
                                       duration: duration,

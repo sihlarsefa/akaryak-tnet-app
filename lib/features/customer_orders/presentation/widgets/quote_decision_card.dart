@@ -10,15 +10,15 @@ import '../../data/order_models.dart';
 import 'common.dart';
 import 'order_parts.dart';
 
-/// Teklif kartı (tasarım v3 §4 AknPlate; pano ekran 5): ekranın tek kahraman kartı — üstte sıcak
-/// turuncu bir ışıkla beyaz kart, yuvarlanarak gelen tablo rakamlı toplam ve okumalar.
+/// Teklif kartı (tasarım v4 §5 ekran 05): ayrıntı sayfasının tek kahraman kartı — r26 plaka,
+/// çerçevesiz; başta teklifin adı ve zamanı, yuvarlanarak gelen tablo rakamlı toplam ve tek satır
+/// ([line]: "42,35 ₺/L · çek, 30 gün vade"). Miktar ve teslim sayfanın başlığında yazar (bir kez
+/// söylenir). Karar ekranında altında son alımlarla kıyas ([below]).
 ///
 /// ```
-/// [teklif] Demir Petrol teklifi                     bugün 10:05
+/// Demir Petrol teklifi                       bugün 18:17
 /// 338.800,00 ₺
-/// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/// Birim fiyat        Miktar         Teslim
-/// 42,35 ₺/L          8.000 L        22 Ekim
+/// 42,35 ₺/L · çek, 30 gün vade
 /// ```
 ///
 /// [stamp] her arttığında plaka "mühürlenir" (1,02 → 1, 160 ms; teklif onaylanınca). Hareket
@@ -29,6 +29,8 @@ class QuotePlate extends StatelessWidget {
     required this.quote,
     required this.detail,
     required this.title,
+    this.line,
+    this.below,
     this.stamp = 0,
   });
 
@@ -37,48 +39,31 @@ class QuotePlate extends StatelessWidget {
 
   /// "Demir Petrol teklifi", "Onaylanan teklif", "Revize istenen teklif" …
   final String title;
+
+  /// Toplamın altındaki tek satır (birim fiyat, ödeme, farklı teslim günü).
+  final String? line;
+
+  /// Çizginin altı (karar ekranında son alımlarla kıyas).
+  final Widget? below;
   final int stamp;
 
   @override
   Widget build(BuildContext context) {
     final q = quote;
     final (whole, decimals) = splitMoney(q.totalAmountTry);
-    final delivery = q.deliveryDate ?? detail.requestedDeliveryDate;
     final moment = q.createdAt == null ? null : relativeMoment(q.createdAt);
     final period = [if (q.version > 1) 'v${q.version}', ?moment].join(', ');
+    final l = line;
     final plate = AknPlate(
-      head: PlateHead(
-        icon: PhosphorIconsRegular.invoice,
-        title: title,
-        period: period.isEmpty ? null : period,
-      ),
+      head: PlateHead(title: title, period: period.isEmpty ? null : period),
       figure: PlateFigure(
         value: whole,
         decimals: decimals,
         unit: '₺',
         semanticLabel: 'Teklif toplamı ${spokenMoney(q.totalAmountTry)}',
       ),
-      below: PlateReadouts(
-        items: [
-          PlateReadout(
-            label: 'Birim fiyat',
-            value: Fmt.number(q.unitPriceTry, minFraction: 2, maxFraction: 4),
-            unit: '₺/L',
-            semanticLabel: 'Birim fiyat ${Fmt.unitPrice(q.unitPriceTry)}',
-          ),
-          PlateReadout(
-            label: 'Miktar',
-            value: Fmt.number(detail.quantityLiters, maxFraction: 3),
-            unit: 'L',
-            semanticLabel: 'Miktar ${Fmt.liters(detail.quantityLiters)}',
-          ),
-          PlateReadout(
-            label: 'Teslim',
-            value: dayMonthLong(delivery),
-            semanticLabel: 'Teslim ${dayMonthWeekday(delivery)}',
-          ),
-        ],
-      ),
+      delta: l == null || l.isEmpty ? null : PlateDelta(sentence: l),
+      below: below,
     );
     return _Stamp(stamp: stamp, child: plate);
   }
@@ -95,30 +80,14 @@ class EstimatePlate extends StatelessWidget {
     final d = detail;
     final amount = d.estimatedAmount ?? 0;
     return AknPlate(
-      head: const PlateHead(
-        icon: PhosphorIconsRegular.calculator,
-        title: 'Tahmini tutar',
-      ),
+      head: const PlateHead(title: 'Tahmini tutar'),
       figure: PlateFigure(
         value: Fmt.number(amount.round()),
         unit: '₺',
         semanticLabel: 'Tahmini tutar ${Fmt.number(amount.round())} lira',
       ),
       delta: const PlateDelta(
-        sentence: 'Kesin tutar bayinin teklifiyle belirlenir.',
-      ),
-      below: PlateReadouts(
-        items: [
-          PlateReadout(
-            label: 'Miktar',
-            value: Fmt.number(d.quantityLiters, maxFraction: 3),
-            unit: 'L',
-          ),
-          PlateReadout(
-            label: 'İstenen teslim',
-            value: dayMonthLong(d.requestedDeliveryDate),
-          ),
-        ],
+        sentence: 'Liste fiyatıyla tahmin; kesin tutar bayinin teklifinde.',
       ),
     );
   }
@@ -152,12 +121,16 @@ class PriceComparison extends StatelessWidget {
     super.key,
     required this.comparison,
     required this.offer,
+    this.onPlate = false,
   });
 
   final QuotePriceComparison comparison;
 
   /// Bu teklifin birim fiyatı.
   final double offer;
+
+  /// Teklif plakasının çizgisinin altında: başlık küçük (13/18 600 soluk), cümle 14/20.
+  final bool onPlate;
 
   static bool shows(QuotePriceComparison? c) =>
       c != null && c.previous.length >= 2;
@@ -181,7 +154,7 @@ class PriceComparison extends StatelessWidget {
         ? 'Bu teklif, son $n alımınızın ortalamasıyla aynı.'
         : 'Bu teklif, son $n alımınızın ortalamasından litrede $amount '
               '${diff > 0 ? 'yüksek' : 'düşük'}.';
-    final style = t.body.copyWith(color: c.ink);
+    final style = (onPlate ? t.bodySmall : t.body).copyWith(color: c.ink);
     return Semantics(
       container: true,
       label: sentence,
@@ -198,12 +171,17 @@ class PriceComparison extends StatelessWidget {
             spacing: 12,
             runSpacing: 2,
             children: [
-              // Sayfanın diğer kart başlıklarıyla aynı hiyerarşi (18/24 800).
+              // Bölüm başlıklarıyla aynı hiyerarşi (17/22 700); plakada küçük başlık.
               Semantics(
                 header: true,
                 child: Text(
                   'Son alımlarınızla kıyas',
-                  style: a2SectionTitle(t, c),
+                  style: onPlate
+                      ? t.label.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: c.dim,
+                        )
+                      : a2SectionTitle(t, c),
                 ),
               ),
               Text('litre başına', style: t.bodySmall.copyWith(color: c.dim)),

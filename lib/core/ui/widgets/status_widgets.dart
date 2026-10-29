@@ -32,14 +32,14 @@ class StatusChip extends StatelessWidget {
     required this.tone,
     this.icon,
     this.solid = false,
-    this.size = StatusChipSize.medium,
+    this.size = StatusChipSize.small,
     this.showIcon = true,
   });
 
   StatusChip.style(
     StatusStyle style, {
     super.key,
-    this.size = StatusChipSize.medium,
+    this.size = StatusChipSize.small,
     this.showIcon = true,
   }) : label = style.label,
        tone = style.tone,
@@ -67,13 +67,19 @@ class StatusChip extends StatelessWidget {
   );
 }
 
-/// The expiry countdown (design v3 §4): a timer icon and "2 sa 57 dk kaldı"
+/// The expiry countdown (design v4 §4): a timer icon and "2 sa 57 dk kaldı"
 /// (14/20, tabular figures).
 ///
-/// * Dim 500 by default; Pas 700 when it is the viewer's turn ([yourMove]);
-///   under [dangerBefore] (30 min) danger 700 with the filled timer, which
-///   breathes on a soft danger halo (ambient: off in tests and under reduce
-///   motion). Expired: "Süresi doldu", dim, with an hourglass.
+/// * More than [urgentBefore] (3 h) left: dim 500 with the outline timer —
+///   even on the viewer's move (P5: no orange on countdowns far away).
+/// * [urgentBefore] or less on the viewer's move ([yourMove]): Pas 700.
+/// * [dangerBefore] (30 min) or less: danger 700 with the filled timer,
+///   which breathes on a soft danger halo — the urgent loop
+///   ([AknAmbientRole.urgent], it pauses the page's focus loop; ambient: off
+///   in tests and under reduce motion). Expired: "Süresi doldu", dim, with
+///   an hourglass.
+/// * [compact]: the time alone ("41 dk", 13/18) for list rows
+///   (`AknListTile.metaWidget`).
 /// * The text sits in a fixed-width box measured once per magnitude ("88 sa
 ///   88 dk kaldı"), right-aligned, so it never jitters while it ticks — once
 ///   a minute (every second in the last minute). A new state cross-fades.
@@ -96,6 +102,8 @@ class CountdownBadge extends StatefulWidget {
     this.yourMove = false,
     this.subject,
     this.expiredLabel = 'Süresi doldu',
+    this.urgentBefore = const Duration(hours: 3),
+    this.compact = false,
   });
 
   /// Expiry instant (UTC `DateTime` per `TrTime`).
@@ -121,6 +129,12 @@ class CountdownBadge extends StatefulWidget {
   /// What expires, for screen readers ("Teklif", "Onay").
   final String? subject;
   final String expiredLabel;
+
+  /// From this much time left a [yourMove] countdown turns Pas (3 h).
+  final Duration urgentBefore;
+
+  /// The time alone ("41 dk"), 13/18 — for list rows.
+  final bool compact;
 
   /// "2 saat 57 dakika" (screen readers).
   static String spoken(Duration d) {
@@ -198,6 +212,7 @@ class _CountdownBadgeState extends State<CountdownBadge> {
   String _text(Duration left) => _wrap(Fmt.countdown(left));
 
   String _wrap(String time) {
+    if (widget.compact) return time;
     final p = widget.prefix?.trim();
     if (p == null || p.isEmpty || TurkishText.lower(p) == 'kalan') {
       return '$time kaldı';
@@ -223,31 +238,35 @@ class _CountdownBadgeState extends State<CountdownBadge> {
     final left = widget.deadline.difference(TrTime.now());
     final expired = left.inSeconds <= 0;
     final urgent = !expired && left <= widget.dangerBefore;
+    final mine = widget.yourMove && !expired && left <= widget.urgentBefore;
     final phase = expired
         ? 'expired'
         : urgent
         ? 'urgent'
-        : widget.yourMove
+        : mine
         ? 'yourMove'
         : 'calm';
     final color = expired
         ? c.dim
         : urgent
         ? c.danger.fg
-        : widget.yourMove
+        : mine
         ? c.brandInk
         : c.dim;
-    final weight = !expired && (urgent || widget.yourMove)
+    final weight = !expired && (urgent || mine)
         ? FontWeight.w700
         : FontWeight.w500;
-    final style = t.bodySmall.copyWith(
+    final base = widget.compact
+        ? t.label.copyWith(fontWeight: weight)
+        : t.bodySmall.copyWith(fontWeight: weight);
+    final style = base.copyWith(
       color: color,
-      fontWeight: weight,
       fontFeatures: AknNumerals.tabular,
     );
     final text = expired ? widget.expiredLabel : _text(left);
     final scaler = MediaQuery.textScalerOf(context);
-    final iconSize = scaler.scale(17).clamp(17.0, 34.0);
+    final glyph = widget.compact ? 15.0 : 17.0;
+    final iconSize = scaler.scale(glyph).clamp(glyph, glyph * 2);
     final subject = widget.subject;
     final spoken = expired
         ? '${subject == null ? '' : '$subject, '}${widget.expiredLabel}'
@@ -269,6 +288,7 @@ class _CountdownBadgeState extends State<CountdownBadge> {
         child: AknAmbient(
           period: AknMotion.breathe,
           reverse: true,
+          role: AknAmbientRole.urgent,
           child: icon,
           builder: (context, b, child) => DecoratedBox(
             decoration: BoxDecoration(
@@ -300,7 +320,7 @@ class _CountdownBadgeState extends State<CountdownBadge> {
               textScaler: scaler,
               maxLines: 1,
             )..layout();
-            box = tp.width.ceilToDouble() + iconSize + 5;
+            box = tp.width.ceilToDouble() + iconSize + (widget.compact ? 4 : 5);
             tp.dispose();
           }
           final min = constraints.hasBoundedWidth
@@ -319,7 +339,7 @@ class _CountdownBadgeState extends State<CountdownBadge> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   icon,
-                  const SizedBox(width: 5),
+                  SizedBox(width: widget.compact ? 4 : 5),
                   Flexible(
                     child: Text(
                       text,

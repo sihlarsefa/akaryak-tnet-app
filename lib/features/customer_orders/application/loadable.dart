@@ -76,6 +76,13 @@ abstract final class A2Keys {
       PrefKeys.user(uid, 'a2.tipFirstOrder');
   static String assistantCardDismissed(String uid) =>
       PrefKeys.user(uid, 'a2.assistantCard');
+
+  /// Ana sayfanın "Nasıl çalışır" ipucu (v4 §4 AknFirstRunHint): kapatıldı.
+  static String homeHintDone(String uid) => PrefKeys.user(uid, 'a2.homeHint');
+
+  /// İpucu bir oturumda gösterildi (sonraki oturumlarda gösterilmez).
+  static String homeHintSeen(String uid) =>
+      PrefKeys.user(uid, 'a2.homeHintSeen');
   static String lastPoint(String uid) => PrefKeys.user(uid, 'a2.lastPoint');
   static String lastMethod(String uid) => PrefKeys.user(uid, 'a2.lastMethod');
   static String lastStation(String uid) => PrefKeys.user(uid, 'a2.lastStation');

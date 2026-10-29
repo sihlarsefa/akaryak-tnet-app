@@ -84,27 +84,30 @@ void main() {
           'Sevkiyat',
           'Bildirimler',
         ]);
-        expect(_labels(layout.more), ['Onaylarım', 'Profil']);
+        expect(_labels(layout.more), ['Onaylar', 'Profil']);
       },
     );
 
-    test('bekleyen onay rozeti Onaylarım\'ı ana sekmeye çıkarır', () {
-      final p = _custom(
-        pages: const {
-          'StationOrders:Gorur',
-          'StationShipmentBoard:Gorur',
-          'StationApprovals:Gorur',
-        },
-      );
-      final layout = buildNavLayout(p, noAssistant, approvalsBadge: true);
-      expect(_labels(layout.bar), [
-        'Ana sayfa',
-        'Onaylarım',
-        'Siparişler',
-        'Sevkiyat',
-      ]);
-      expect(_labels(layout.more), ['Bildirimler', 'Profil']);
-    });
+    test(
+      'v4: çubuk girişte sabittir; bekleyen onay Onaylar\'ı ana sekmeye çıkarmaz',
+      () {
+        final p = _custom(
+          pages: const {
+            'StationOrders:Gorur',
+            'StationShipmentBoard:Gorur',
+            'StationApprovals:Gorur',
+          },
+        );
+        final layout = buildNavLayout(p, noAssistant);
+        expect(_labels(layout.bar), [
+          'Ana sayfa',
+          'Siparişler',
+          'Sevkiyat',
+          'Bildirimler',
+        ]);
+        expect(_labels(layout.more), ['Onaylar', 'Profil']);
+      },
+    );
 
     test('approve.* yetkinliği olan özel rolde Onaylarım ana sekmedir', () {
       final p = _custom(
@@ -183,6 +186,31 @@ void main() {
     });
   });
 
+  test(
+    'v4: sayfa başlığı = sekmenin kelimesi (yalnızca uzun adlar kısalır)',
+    () {
+      const short = {
+        DestinationId.deliveries: 'Teslimat',
+        DestinationId.myShipments: 'Teslimat',
+        DestinationId.notifications: 'Bildirim',
+        DestinationId.deliveryPoints: 'Noktalar',
+        DestinationId.financeInfo: 'Finans',
+        DestinationId.companyUsers: 'Kullanıcı',
+        DestinationId.stats: 'İstatistik',
+      };
+      for (final d in appDestinations) {
+        expect(d.barLabel, short[d.id] ?? d.label, reason: d.id.name);
+        expect(d.barLabel.length, lessThanOrEqualTo(10), reason: d.id.name);
+      }
+      expect(destinationOf(DestinationId.approvals).label, 'Onaylar');
+      expect(destinationOf(DestinationId.quoteDesk).label, 'Teklifler');
+      expect(destinationOf(DestinationId.myOrders).label, 'Siparişler');
+      expect(destinationOf(DestinationId.deliveries).label, 'Teslimatlar');
+      expect(destinationOf(DestinationId.templates).label, 'Şablonlar');
+      expect(destinationOf(DestinationId.limits).label, 'Limitler');
+    },
+  );
+
   group('Alt menü (Asistan açık)', () {
     const customerMore = [
       'Talepler',
@@ -190,17 +218,18 @@ void main() {
       'Harcamalar',
       'Teslimat noktaları',
       'Finans bilgisi',
-      'Şablonlarım',
-      'Limitlerim',
+      'Şablonlar',
+      'Limitler',
     ];
     final cases =
         <String, (List<String> bar, List<String> more, String? center)>{
           'musteri': (
-            ['Ana sayfa', 'Siparişlerim', 'Onaylarım'],
+            ['Ana sayfa', 'Siparişler', 'Onaylar'],
             [
               'Teslimatlar',
               ...customerMore,
               'Şirket kullanıcıları',
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -208,15 +237,16 @@ void main() {
             'Sipariş ver',
           ),
           'talep': (
-            ['Ana sayfa', 'Siparişlerim', 'Teslimatlar'],
-            ['Onaylarım', ...customerMore, 'Asistan', 'Bildirimler', 'Profil'],
+            ['Ana sayfa', 'Siparişler', 'Teslimatlar'],
+            ['Onaylar', ...customerMore, 'Asistan', 'Bildirimler', 'Profil'],
             'Sipariş ver',
           ),
           'onay': (
-            ['Ana sayfa', 'Siparişlerim', 'Onaylarım'],
+            ['Ana sayfa', 'Siparişler', 'Onaylar'],
             [
               'Teslimatlar',
               ...customerMore,
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -224,15 +254,16 @@ void main() {
             'Sipariş ver',
           ),
           'sahip': (
-            ['Ana sayfa', 'Onaylarım', 'Teklif masası', 'Siparişler'],
+            ['Ana sayfa', 'Onaylar', 'Teklifler', 'Siparişler'],
             [
-              'Teslimatlarım',
+              'Teslimatlar',
               'Sevkiyat',
               'Tahsilat',
               'Finans',
               'Cariler',
               'Saha',
               'Ekip',
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -240,7 +271,7 @@ void main() {
             null,
           ),
           'mudur': (
-            ['Ana sayfa', 'Onaylarım', 'Teklif masası', 'Siparişler'],
+            ['Ana sayfa', 'Onaylar', 'Teklifler', 'Siparişler'],
             [
               'Sevkiyat',
               'Tahsilat',
@@ -248,6 +279,7 @@ void main() {
               'Cariler',
               'Saha',
               'Ekip',
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -255,12 +287,13 @@ void main() {
             null,
           ),
           'finans': (
-            ['Ana sayfa', 'Onaylarım', 'Finans', 'Tahsilat'],
+            ['Ana sayfa', 'Onaylar', 'Finans', 'Tahsilat'],
             [
-              'Teklif masası',
+              'Teklifler',
               'Siparişler',
               'Cariler',
               'Saha',
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -269,23 +302,37 @@ void main() {
           ),
           'muhasebe': (
             ['Ana sayfa', 'Tahsilat', 'Finans', 'Siparişler'],
-            ['Onaylarım', 'Cariler', 'Asistan', 'Bildirimler', 'Profil'],
+            [
+              'Onaylar',
+              'Cariler',
+              'İstatistikler',
+              'Asistan',
+              'Bildirimler',
+              'Profil',
+            ],
             null,
           ),
           'satis': (
-            ['Ana sayfa', 'Onaylarım', 'Saha', 'Cariler'],
-            ['Siparişler', 'Ekip', 'Asistan', 'Bildirimler', 'Profil'],
+            ['Ana sayfa', 'Onaylar', 'Saha', 'Cariler'],
+            [
+              'Siparişler',
+              'Ekip',
+              'İstatistikler',
+              'Asistan',
+              'Bildirimler',
+              'Profil',
+            ],
             null,
           ),
           'saha': (
             ['Ana sayfa', 'Saha', 'Cariler'],
-            ['Onaylarım', 'Asistan', 'Bildirimler', 'Profil'],
-            'Saha formu',
+            ['Onaylar', 'İstatistikler', 'Asistan', 'Bildirimler', 'Profil'],
+            'Yeni form',
           ),
           'siparis': (
-            ['Ana sayfa', 'Teklif masası', 'Siparişler', 'Sevkiyat'],
+            ['Ana sayfa', 'Teklifler', 'Siparişler', 'Sevkiyat'],
             [
-              'Onaylarım',
+              'Onaylar',
               'Tahsilat',
               'Cariler',
               'Asistan',
@@ -300,7 +347,7 @@ void main() {
             null,
           ),
           'sofor': (
-            ['Teslimatlarım', 'Bildirimler', 'Asistan', 'Profil'],
+            ['Teslimatlar', 'Bildirimler', 'Asistan', 'Profil'],
             [],
             null,
           ),
@@ -312,9 +359,10 @@ void main() {
           'izleyici': (
             ['Ana sayfa', 'Siparişler', 'Sevkiyat', 'Cariler'],
             [
-              'Onaylarım',
-              'Teklif masası',
+              'Onaylar',
+              'Teklifler',
               'Saha',
+              'İstatistikler',
               'Asistan',
               'Bildirimler',
               'Profil',
@@ -322,7 +370,7 @@ void main() {
             null,
           ),
           'merkez': (
-            ['Ana sayfa', 'Onaylarım', 'Bildirimler', 'Profil'],
+            ['Ana sayfa', 'Onaylar', 'Bildirimler', 'Profil'],
             [],
             null,
           ),
@@ -378,7 +426,7 @@ void main() {
       expect(bar(DestinationId.deliveries), 'Teslimat');
       expect(bar(DestinationId.myOrders), 'Siparişler');
       expect(bar(DestinationId.notifications), 'Bildirim');
-      expect(destinationOf(DestinationId.approvals).label, 'Onaylarım');
+      expect(destinationOf(DestinationId.approvals).label, 'Onaylar');
     });
 
     test('"Diğer" sekmesinin adı', () => expect(NavLayout.moreLabel, 'Diğer'));
@@ -387,7 +435,7 @@ void main() {
   group('Alt menü (Asistan kapalı)', () {
     test('şoför: Teslimatlarım · Bildirimler · Profil', () {
       final layout = buildNavLayout(_policy('sofor'), noAssistant);
-      expect(_labels(layout.bar), ['Teslimatlarım', 'Bildirimler', 'Profil']);
+      expect(_labels(layout.bar), ['Teslimatlar', 'Bildirimler', 'Profil']);
       expect(layout.hasMore, isFalse);
       expect(layout.initialLocation, '/driver');
     });

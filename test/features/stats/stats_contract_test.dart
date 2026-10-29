@@ -15,6 +15,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/stats_app.dart' show tapDeckNext;
+
 const _bayiJson = r'''
 {
   "stationId": 1, "stationTitle": "Merkez Petrol", "scope": "station",
@@ -151,16 +153,10 @@ Future<void> _pumpDeck(
   await tester.pump(const Duration(milliseconds: 900));
 }
 
-/// Kartları sırayla üste getirir; kimlikleri döner.
+/// Kartları sırayla üste getirir; kimlikleri döner. v4 (§4): şerit "1 / N" yazmaz; sonraki karta
+/// destenin "Sonraki kart" ekran okuyucu eylemiyle geçilir (`support/stats_app.dart`).
 Future<List<String>> _visitAll(WidgetTester tester) async {
   final ids = <String>[];
-  // Şeritteki "1 / 8" düğmesi (sonraki kart).
-  final next = find.descendant(
-    of: find.byType(LanePager),
-    matching: find.byWidgetPredicate(
-      (w) => w is Text && RegExp(r'^\d+ / \d+$').hasMatch(w.data ?? ''),
-    ),
-  );
   for (var i = 0; i < 10; i++) {
     final top = tester
         .widgetList<DeckCardView>(find.byType(DeckCardView))
@@ -170,7 +166,7 @@ Future<List<String>> _visitAll(WidgetTester tester) async {
         .id;
     if (ids.contains(top)) break;
     ids.add(top);
-    await tester.tap(next);
+    await tapDeckNext(tester);
     await tester.pump(const Duration(milliseconds: 400));
   }
   return ids;

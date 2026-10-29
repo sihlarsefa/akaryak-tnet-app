@@ -107,31 +107,57 @@ void main() {
       await tester.tap(find.text(StatsPeriod.lastMonth.label));
       await StatsTestApp.settle(tester);
       expect(probe.bayi, ['month', 'lastMonth']);
-      expect(
-        find.textContaining(
-          RegExp(
-            '^${RegExp.escape(caption(StatsPeriod.lastMonth))}, güncellendi ',
-          ),
-        ),
-        findsOneWidget,
-      );
+      // v4 §5 12: dönem yalnızca plakanın başlığında (üstte ayrı dönem satırı yok); "güncellendi"
+      // sayfanın sonundaki notta.
       expect(
         _kpi(caption(StatsPeriod.lastMonth)),
         findsOneWidget,
         reason: 'plaka başlığındaki dönem',
       );
+      expect(
+        find.textContaining(caption(StatsPeriod.lastMonth)),
+        findsOneWidget,
+        reason: 'dönem bir kez yazılır',
+      );
+      expect(find.textContaining(', güncellendi '), findsNothing);
       // Önceki döneme dönünce önbellekteki sonuç hemen görünür (yeniden istenmez).
       await tester.tap(find.text(StatsPeriod.month.label));
       await StatsTestApp.settle(tester);
       expect(probe.bayi, ['month', 'lastMonth']);
-      expect(
-        find.textContaining(
-          RegExp('^${RegExp.escape(caption(StatsPeriod.month))}, güncellendi '),
-        ),
-        findsOneWidget,
-      );
+      expect(_kpi(caption(StatsPeriod.month)), findsOneWidget);
+      await revealIn(tester, find.textContaining(RegExp(r'^Güncellendi \d')));
       await app.finish(tester);
     });
+
+    testWidgets(
+      '(i) "Nasıl hesaplanır?" kart metinlerini ve yöntem notunu açar',
+      (tester) async {
+        final app = await StatsTestApp.start(
+          tester,
+          persona: 'sahip',
+          location: '/stats',
+        );
+        // v4 §4: destenin ⋯ menüsündeki "Nasıl hesaplanır?" /stats'ta (i) oldu.
+        await tester.tap(find.bySemanticsLabel(StatsCopy.deckHowTo));
+        await StatsTestApp.settle(tester);
+        expect(find.byType(AppSheet), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(AppSheet),
+            matching: find.text(StatsCopy.howSales),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AppSheet),
+            matching: find.text(StatsCopy.methodology),
+          ),
+          findsOneWidget,
+        );
+        await app.finish(tester);
+      },
+    );
 
     testWidgets('?period=year: Bu yıl seçili, 12 ay', (tester) async {
       final probe = StatsProbe();
@@ -168,6 +194,29 @@ void main() {
         // Doğrudan etiket yalnızca bu aya: "bu ay" + kısa değer.
         expect(_inMonthly(StatsCopy.thisMonth), findsOneWidget);
         expect(_inMonthly(StatsFmt.compactNumber(last.amount)), findsOneWidget);
+        // v4 §5 12: tek sütun etiketi (en yüksek ayın ve tahminin etiketi yok; tahmin kartın
+        // altındaki cümlede) ve tek dolu iz (dönem seçicisi; ölçü sekmeleri metin).
+        final chartTexts = [
+          for (final e
+              in find
+                  .descendant(
+                    of: find.byType(StatsBarChart),
+                    matching: find.byType(Text),
+                  )
+                  .evaluate())
+            (e.widget as Text).data ?? '',
+        ]..removeWhere((t) => months.any((m) => m.shortLabel == t));
+        expect(
+          chartTexts,
+          unorderedEquals([
+            StatsCopy.thisMonth,
+            StatsFmt.compactNumber(last.amount),
+          ]),
+        );
+        expect(
+          find.byWidgetPredicate((w) => w is AknSegmented),
+          findsOneWidget,
+        );
 
         final monthly = _section(StatsCopy.monthlyTitle);
         await _tapIn(tester, monthly, StatsCopy.metricLiters);
@@ -190,12 +239,14 @@ void main() {
         await tester.pump(const Duration(seconds: 2));
         expect(find.text(bubble), findsNothing);
 
-        // Tablo olarak göster: ay | değer satırları; geri dönülebilir.
-        await _tapIn(tester, monthly, StatsCopy.tableShow);
+        // "Tablo" (hayalet düğme; ekran okuyucuda "Tablo olarak göster"): ay | değer satırları;
+        // geri dönülebilir.
+        expect(find.bySemanticsLabel(StatsCopy.tableShow), findsOneWidget);
+        await _tapIn(tester, monthly, StatsCopy.tableShort);
         expect(find.byType(StatsBarChart), findsNothing);
         expect(find.text(first.longLabel), findsOneWidget);
         expect(find.text(StatsFmt.money(first.amount)), findsOneWidget);
-        await _tapIn(tester, monthly, StatsCopy.chartShow);
+        await _tapIn(tester, monthly, StatsCopy.chartShort);
         expect(find.byType(StatsBarChart), findsOneWidget);
         semantics.dispose();
         await app.finish(tester);

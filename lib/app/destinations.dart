@@ -7,8 +7,8 @@ import '../core/auth/permissions.dart';
 import '../core/auth/session_controller.dart';
 import '../core/models/app_config.dart';
 import '../core/models/enums.dart';
-import '../core/push/unread_count_provider.dart';
 import '../core/routing/app_routes.dart';
+import '../core/routing/route_access.dart';
 import '../features/assistant/api.dart';
 
 /// Alt menü hedefleri (spec A.2).
@@ -34,6 +34,7 @@ enum DestinationId {
   templates,
   limits,
   companyUsers,
+  stats,
   assistant,
   notifications,
   profile,
@@ -57,10 +58,12 @@ class AppDestination {
 
   final DestinationId id;
 
-  /// Tam ad: "Onaylarım", "Teklif masası". Sayfa başlıkları ve "Diğer" sayfası bunu kullanır.
+  /// Sayfa adı (v4 §3.2: sayfa başlığı = sekmenin kelimesi): "Onaylar", "Teklifler", "Siparişler",
+  /// "Teslimatlar". Sayfa başlıkları, "Diğer" sayfası, ipuçları ve bildirim çağrıları bunu kullanır.
   final String label;
 
-  /// Alt çubuktaki kısa ad (≤ 10 karakter, spec C.7): "Onaylar", "Teklifler". Uzun basınca tam ad görünür.
+  /// Alt çubuktaki ad (≤ 10 karakter, spec C.7): çoğunlukla [label]; yalnızca uzun adlar kısalır
+  /// ("Teslimat", "Bildirim").
   final String barLabel;
   final IconData icon;
   final IconData selectedIcon;
@@ -98,7 +101,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.deliveries,
-    label: 'Teslimatlarım',
+    label: 'Teslimatlar',
     barLabel: 'Teslimat',
     icon: PhosphorIconsRegular.truck,
     selectedIcon: PhosphorIconsFill.truck,
@@ -108,8 +111,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.myOrders,
-    label: 'Siparişlerim',
-    barLabel: 'Siparişler',
+    label: 'Siparişler',
     icon: PhosphorIconsRegular.receipt,
     selectedIcon: PhosphorIconsFill.receipt,
     path: AppRoutes.orders,
@@ -129,8 +131,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.approvals,
-    label: 'Onaylarım',
-    barLabel: 'Onaylar',
+    label: 'Onaylar',
     icon: PhosphorIconsRegular.checkCircle,
     selectedIcon: PhosphorIconsFill.checkCircle,
     path: AppRoutes.approvals,
@@ -141,8 +142,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.quoteDesk,
-    label: 'Teklif masası',
-    barLabel: 'Teklifler',
+    label: 'Teklifler',
     icon: PhosphorIconsRegular.invoice,
     selectedIcon: PhosphorIconsFill.invoice,
     path: AppRoutes.quoteDesk,
@@ -265,8 +265,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.templates,
-    label: 'Şablonlarım',
-    barLabel: 'Şablonlar',
+    label: 'Şablonlar',
     icon: PhosphorIconsRegular.bookmarks,
     selectedIcon: PhosphorIconsFill.bookmarks,
     path: AppRoutes.templates,
@@ -275,8 +274,7 @@ final List<AppDestination> appDestinations = List.unmodifiable([
   ),
   AppDestination(
     id: DestinationId.limits,
-    label: 'Limitlerim',
-    barLabel: 'Limitler',
+    label: 'Limitler',
     icon: PhosphorIconsRegular.gauge,
     selectedIcon: PhosphorIconsFill.gauge,
     path: AppRoutes.limits,
@@ -295,6 +293,17 @@ final List<AppDestination> appDestinations = List.unmodifiable([
         p.isCustomer &&
         p.customerRole == CustomerUserRole.admin &&
         p.can(Pg.customerCompanyUsers),
+  ),
+  AppDestination(
+    id: DestinationId.stats,
+    label: 'İstatistikler',
+    barLabel: 'İstatistik',
+    icon: PhosphorIconsRegular.chartBar,
+    selectedIcon: PhosphorIconsFill.chartBar,
+    path: AppRoutes.stats,
+    priority: 27,
+    // Yönetici destesini görenler (v4 §3.1): bayi yöneticileri, saha, müşteri yönetici / onaylayan.
+    visible: (p, f) => RouteAccess.statsAudience(p),
   ),
   AppDestination(
     id: DestinationId.assistant,
@@ -379,7 +388,7 @@ const Map<RolePreset, List<DestinationId>> presetTabs = {
   RolePreset.generic: [],
 };
 
-/// Alt menünün ortadaki eylemi ("Sipariş ver", "Saha formu").
+/// Alt menünün ortadaki eylemi ("Sipariş ver", "Yeni form").
 @immutable
 class CenterActionSpec {
   const CenterActionSpec({
@@ -437,15 +446,11 @@ class NavLayout {
 /// 2. Rol ön ayarının görünür sekmeleri, sırayla.
 /// 3. Kalan yuvalar genel öncelikle dolar (Asistan / Bildirimler / Profil dahil).
 /// 4. Yuva: 4 hedef + "Diğer"; ortada eylem varsa 3 + eylem + "Diğer". Hepsi sığarsa "Diğer" gizlenir.
-/// 5. Onaylarım yalnızca onaylayanlarda ([AccessPolicy.isApprover]) ya da bekleyen onay rozeti varken
-///    ([approvalsBadge]) ana sekme olur; yoksa "Diğer"dedir.
-/// 6. Yalnızca şoför: Teslimatlarım · Bildirimler · Asistan · Profil. Merkez: Ana sayfa · Onaylarım ·
+/// 5. Onaylar yalnızca onaylayanlarda ([AccessPolicy.isApprover]) ana sekmedir; yoksa "Diğer"dedir.
+///    v4 §3.1: çubuk girişte sabitlenir — bekleyen onay rozeti çubuğu değiştirmez.
+/// 6. Yalnızca şoför: Teslimatlar · Bildirimler · Asistan · Profil. Merkez: Ana sayfa · Onaylar ·
 ///    Bildirimler · Profil.
-NavLayout buildNavLayout(
-  AccessPolicy p,
-  AppFeatures f, {
-  bool approvalsBadge = false,
-}) {
+NavLayout buildNavLayout(AccessPolicy p, AppFeatures f) {
   if (!p.isSignedIn) return NavLayout.empty;
   AppDestination d(DestinationId id) => destinationOf(id);
 
@@ -485,7 +490,7 @@ NavLayout buildNavLayout(
     );
   } else if (p.isFieldSales && p.can(Pg.stationFieldOrders, Perm.create)) {
     center = const CenterActionSpec(
-      label: 'Saha formu',
+      label: 'Yeni form',
       icon: PhosphorIconsRegular.filePlus,
       path: AppRoutes.fieldFormNew,
     );
@@ -496,7 +501,7 @@ NavLayout buildNavLayout(
       if (!e.isExtra && e.id != DestinationId.home && e.visible(p, f)) e,
   ]..sort((a, b) => a.priority.compareTo(b.priority));
 
-  final approvalsMainTab = p.isApprover || approvalsBadge;
+  final approvalsMainTab = p.isApprover;
   bool barEligible(AppDestination e) =>
       e.id != DestinationId.approvals || approvalsMainTab;
 
@@ -536,37 +541,49 @@ NavLayout buildNavLayout(
   );
 }
 
-/// Onay rozeti bu oturumda sıfırdan büyük oldu mu (spec A.2: bekleyen onayı olan kullanıcıda Onaylarım
-/// ana sekmeye çıkar). Mandal: oturum boyunca açık kalır, karar verilince sekme kaybolup menü zıplamaz;
-/// kullanıcı değişince sıfırlanır.
-final approvalsBadgeSeenProvider = NotifierProvider<ApprovalsBadgeLatch, bool>(
-  ApprovalsBadgeLatch.new,
-);
-
-class ApprovalsBadgeLatch extends Notifier<bool> {
-  @override
-  bool build() {
-    final user = ref.watch(currentUserIdProvider);
-    if (user == null) return false;
-    ref.listen<bool>(unreadCountProvider.select((u) => u.approvals > 0), (
-      _,
-      positive,
-    ) {
-      if (positive && !state) state = true;
-    });
-    return ref.read(unreadCountProvider).approvals > 0;
-  }
-}
-
-/// Oturumdaki kullanıcının alt menüsü. Yalnızca yetki imzası, Asistan erişimi ya da onay rozeti
-/// mandalı değişince yeniden hesaplanır (yönlendirici buna bağlıdır).
+/// Oturumdaki kullanıcının alt menüsü (v4 §3.1: girişte sabit). Yalnızca yetki imzası ya da Asistan
+/// erişimi değişince yeniden hesaplanır (yönlendirici buna bağlıdır).
 final navLayoutProvider = Provider<NavLayout>((ref) {
   ref.watch(sessionControllerProvider.select((s) => s.access?.layoutKey));
   final assistant = ref.watch(assistantEnabledProvider);
-  final badge = ref.watch(approvalsBadgeSeenProvider);
   return buildNavLayout(
     ref.read(accessPolicyProvider),
     AppFeatures(assistant: assistant),
-    approvalsBadge: badge,
   );
 });
+
+/// "Diğer" sayfasının grupları (v4 §3.1): müşteride Siparişler · Finans · Şirket · Hesap; bayide İş ·
+/// Yönetim · Hesap.
+enum MoreGroup {
+  orders('Siparişler'),
+  finance('Finans'),
+  company('Şirket'),
+  work('İş'),
+  management('Yönetim'),
+  account('Hesap');
+
+  const MoreGroup(this.label);
+
+  /// Grup başlığı (13/18 600 dim).
+  final String label;
+}
+
+/// [d]'nin "Diğer" grubu ([customer]: müşteri kullanıcısı).
+MoreGroup moreGroupOf(AppDestination d, {required bool customer}) {
+  if (d.isExtra) return MoreGroup.account;
+  if (customer) {
+    return switch (d.id) {
+      DestinationId.financeInfo ||
+      DestinationId.limits ||
+      DestinationId.spending ||
+      DestinationId.documents ||
+      DestinationId.stats => MoreGroup.finance,
+      DestinationId.companyUsers => MoreGroup.company,
+      _ => MoreGroup.orders,
+    };
+  }
+  return switch (d.id) {
+    DestinationId.staff || DestinationId.stats => MoreGroup.management,
+    _ => MoreGroup.work,
+  };
+}

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
+import '../../copy.dart';
 import '../../data/approval_models.dart';
 
 /// Satırın durum görünümü. Cari tarafında bayinin iç süreci "Bayi değerlendirmesi" olarak görünür.
@@ -18,15 +20,13 @@ StatusStyle approvalStatusStyle(
         return const StatusStyle(
           tone: AknTone.warn,
           icon: PhosphorIconsRegular.hourglassHigh,
-          label: 'Bayi değerlendirmesi',
+          label: 'Bayinizde inceleniyor',
         );
       case ApprovalStatus.infoRequested:
         return StatusStyle(
           tone: canProvideInfo ? AknTone.brand : AknTone.info,
           icon: PhosphorIconsFill.chatCircleDots,
-          label: canProvideInfo
-              ? 'Yanıtınız bekleniyor'
-              : 'Ek bilgi bekleniyor',
+          label: canProvideInfo ? 'Bayiniz bilgi istiyor' : 'Bilgi bekleniyor',
         );
       default:
         break;
@@ -45,9 +45,9 @@ StatusStyle? slaStyle(ApprovalRow row) {
   };
 }
 
-/// Satırın izleyiciye göre lambası (tasarım v2 §7.13): bekleyen talep, karar veren için "Onayınızı
-/// bekliyor" (turuncu, sıra sizde), diğerleri için "Onay bekleniyor"; süresi geçen talep kırmızı
-/// "Süresi geçti". Cari tarafında bayinin iç süreci tek lamba ("Bayi değerlendirmesi").
+/// Satırın izleyiciye göre lambası (ayrıntı başlığı): bekleyen talep, karar veren için "Karar
+/// verin" (Pas, sıra sizde), diğerleri için "Onay bekleniyor"; süresi geçen talep kırmızı. Cari
+/// tarafında bayinin iç süreci tek lamba ("Bayinizde inceleniyor").
 StatusLamp approvalRowLamp(
   ApprovalRow row, {
   required bool customerSide,
@@ -73,166 +73,296 @@ StatusLamp approvalRowLamp(
   );
 }
 
-/// Sunucu özetindeki " · " ayırıcılarını v2 yazımına çevirir (", ").
+/// Sunucu özetindeki " · " ayırıcılarını düz yazıma çevirir (", ").
 String plainSummary(String? s) => (s ?? '').replaceAll(' · ', ', ').trim();
 
-/// Onay kartı (tasarım v3 "Akış" §4 liste kartı, §7.13): sayfanın 20 px kenarında yüzen beyaz kart
-/// (r20, yumuşak kart gölgesi), solda türün simgesi 40 px yumuşak kuyuda:
+/// Belge / sipariş numarası gibi kod mu ("SSF-20261028-000002", "TLP-00031"): satırda yazılmaz
+/// (v4 P4: kodlar yalnızca ayrıntıda kopyalanabilir alt yazı).
+bool _isCode(String s) =>
+    RegExp(r'^[A-ZÇĞİÖŞÜ]{2,5}-[\d-]+$').hasMatch(s.trim());
+
+/// Cümlenin ilk harfini küçültür ("Açık hesap 30 gün" → "açık hesap 30 gün"); kısaltma ve
+/// özel ad gibi duranlar (ikinci harfi büyük, ör. "VKN") olduğu gibi kalır.
+String _lowerFirst(String s) {
+  if (s.length < 2) return TurkishText.lower(s);
+  final second = s.substring(1, 2);
+  if (second != TurkishText.lower(second)) return s;
+  return '${TurkishText.lower(s.substring(0, 1))}${s.substring(1)}';
+}
+
+/// "2 g", "5 sa", "40 dk": gecikmenin en büyük birimi.
+String overdueShort(Duration d) {
+  if (d.inDays > 0) return '${d.inDays} g';
+  if (d.inHours > 0) return '${d.inHours} sa';
+  return '${d.inMinutes.clamp(1, 59)} dk';
+}
+
+/// "bugün 10:05", "dün 14:20", "21 Eki"; [withDay] false iken bugün ve dün yalnızca saat (satır
+/// zaten "Bugün" / "Dün" grubunda).
+String rowStamp(DateTime? at, {bool withDay = true}) {
+  if (at == null) return '';
+  final diff = TrTime.dayDiff(TrTime.now(), at);
+  if (diff == 0) return withDay ? 'bugün ${Fmt.time(at)}' : Fmt.time(at);
+  if (diff == -1) return withDay ? 'dün ${Fmt.time(at)}' : Fmt.time(at);
+  return Fmt.dayMonth(at);
+}
+
+/// Satırın sağındaki tutar: kuruşsuzsa tam ("840.000 ₺"), yoksa kuruşlu; tutar yoksa litre.
+String? rowAmount(ApprovalRow row) {
+  final a = row.amount;
+  if (a != null) {
+    final whole = (a - a.roundToDouble()).abs() < 0.005;
+    return whole ? Fmt.moneyWhole(a) : Fmt.money(a);
+  }
+  return row.liters == null ? null : Fmt.liters(row.liters);
+}
+
+/// Satırın nasıl göründüğü (Onaylar listesinin bağlamı).
+enum ApprovalRowMode {
+  /// Bende: karar bekleyen (tür · koşullar, sağda geri sayım / gecikme / zaman).
+  decide,
+
+  /// Bende › "Yanıt bekleniyor": talep edenden yanıt beklenir (nötr).
+  waiting,
+
+  /// Taleplerim, Kararlarım, Tümü: tür · sonuç, sağda zaman.
+  history,
+}
+
+/// Onay satırı (tasarım v4 §5 08, 08b): bir defterin ([AknLedger]) içinde [AknListTile].
 ///
 /// ```
-/// [▣] Sipariş finans: Marmara İnşaat Taahhüt Ltd. Şti.   1.052.500,00 ₺
-///     SIP-20261021-12005, Çek, 60 gün vade, …
-///     (● Onayınızı bekliyor)                   ⏱ 1 sa 20 dk kaldı
-///     Talep: Deniz Koç, kademe 1/2, 3 sa önce
+/// [▢] Körfez Nakliyat ve Ticaret                               840.000 ₺
+///     Saha formu finansı · açık hesap 30 gün                  2 g gecikti
 /// ```
 ///
-/// Başlık onaylanacak şeyi söyler (tür: karşı taraf); sağda tutar (ya da litre, tablo rakamları);
-/// durum satırında izleyiciye göre lamba hapı ve sağda son tarih geri sayımı ya da zaman. Sıra
-/// izleyicideyse ("sıra sizde") kartın kenarı yumuşak turuncu, simge kuyusu turuncudur ve lamba
-/// nefes alır. Basınca kart küçülür, gölgesi oturur (seçim titreşimi). Renk tek başına değil: lamba
-/// metni de söyler.
-class ApprovalCard extends StatelessWidget {
-  const ApprovalCard({
+/// * Solda türün 36 dp nötr kutusu; L1 karşı taraf (bayide cari, carinin şirket talebinde talep
+///   eden, carinin diğer taleplerinde bayi) ve sağda tutar; L2 tek soluk satır: tür · koşullar
+///   (Bende), "Ek bilgi istendi · Deniz Koç" (yanıt bekleniyor) ya da tür · sonuç (geçmiş); sağda
+///   kısa geri sayım, "2 g gecikti" (tehlike) ya da zaman.
+/// * L3 yalnızca istisnada: sıra izleyicideyse fiil satırı ("Bilgi gönderin", Pas).
+/// * Talep eden, kademe ve belge numarası ayrıntıya taşındı (v4 P4); turuncu kenar ve hap yok.
+class ApprovalRowTile extends StatelessWidget {
+  const ApprovalRowTile({
     super.key,
     required this.row,
     required this.onTap,
     required this.customerSide,
+    this.mode = ApprovalRowMode.decide,
+    this.viewerId,
+    this.dayGrouped = false,
   });
 
   final ApprovalRow row;
   final VoidCallback onTap;
 
+  /// Satır gün grubunda ("Bugün", "Dün"): zaman günsüz yazılır ("14:20"; v4 P4 bir kez).
+  final bool dayGrouped;
+
   /// Kullanıcı cari mi (bayi iç ayrıntısı gösterilmez).
   final bool customerSide;
+  final ApprovalRowMode mode;
+
+  /// Oturumdaki kullanıcı (kendi talebinde ek bilgi istendiyse sıra onda).
+  final String? viewerId;
+
+  /// Karşı taraf: cari için bayi (şirket içi talepte talep eden); bayi için cari. Cari kaydı
+  /// olmayan taleplerde (ön kayıt, yeni cari) özetin ilk parçası firmanın adıdır.
+  ({String title, List<String> rest}) _who() {
+    final parts = [
+      for (final p in (row.summary ?? '').split(' · '))
+        if (p.trim().isNotEmpty && !_isCode(p)) p.trim(),
+    ];
+    if (customerSide) {
+      final company = row.type == ApprovalType.companyOrderRequest;
+      // Kendi talebim: başlık istenen şey ("30.000 L Motorin"), kendi adım değil.
+      if (company && _mine && parts.isNotEmpty) {
+        return (title: parts.first, rest: parts.sublist(1));
+      }
+      final name = company ? row.requestedByName : row.stationTitle;
+      return (title: name ?? ApprovalsCopy.typeName(row.type), rest: parts);
+    }
+    final customer = row.customerTitle;
+    if (customer != null) {
+      return (
+        title: customer,
+        rest: [
+          for (final p in parts)
+            if (p != customer) p,
+        ],
+      );
+    }
+    if (parts.length > 1) return (title: parts.first, rest: parts.sublist(1));
+    return (
+      title: row.requestedByName ?? ApprovalsCopy.typeName(row.type),
+      rest: parts,
+    );
+  }
+
+  /// Koşullar (L2'nin ikinci olgusu): ilk parça; tek sözcüklük ödeme yöntemi ("Çek") ise ardından
+  /// gelenle ("çek, 45 gün vade"). Tutar sağda yazıyorsa tutarlı parçalar atlanır (v4 P4: bir kez).
+  String? _termsOf(List<String> parts) => _terms([
+    for (final p in parts)
+      if (row.amount == null || !p.contains('₺')) p,
+  ]);
+
+  static String? _terms(List<String> rest) {
+    if (rest.isEmpty) return null;
+    final first = rest.first;
+    final short = !RegExp(r'\d').hasMatch(first) && first.length <= 12;
+    final text = short && rest.length > 1 ? '$first, ${rest[1]}' : first;
+    return _lowerFirst(text);
+  }
+
+  bool get _mine => viewerId != null && row.requestedByUserId == viewerId;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
-    final internal =
-        customerSide && row.type != ApprovalType.companyOrderRequest;
-    // Cariye yöneltilen ek bilgi isteği: yanıtı cari verir (listede eylem bekleyen satır).
-    final needsReply =
-        internal &&
-        row.status == ApprovalStatus.infoRequested &&
-        (row.type == ApprovalType.orderFinance ||
-            row.type == ApprovalType.customerOnboarding);
-    final lamp = approvalRowLamp(
-      row,
-      customerSide: customerSide,
-      canProvideInfo: needsReply,
-    );
-    // Karşı taraf: cari için bayi (şirket içi talepte talep eden); bayi için cari. Cari kaydı
-    // olmayan taleplerde (ön kayıt, yeni cari) özetin ilk parçası firmanın adıdır.
-    final summaryParts = (row.summary ?? '').split(' · ');
-    final summaryHead = summaryParts.first.trim();
-    final fromSummary =
-        !customerSide &&
-        row.customerTitle == null &&
-        summaryHead.isNotEmpty &&
-        summaryParts.length > 1;
-    final counterpart = customerSide
-        ? (row.type == ApprovalType.companyOrderRequest
-              ? row.requestedByName
-              : row.stationTitle)
-        : (row.customerTitle ?? (fromSummary ? summaryHead : null));
-    final headline = counterpart ?? row.requestedByName ?? row.title;
-    final detailLine = fromSummary
-        ? summaryParts.skip(1).join(', ')
-        : plainSummary(row.summary);
-    final number = row.subjectNumber;
-    final amount = row.amount;
-    final when = TurkishText.lower(Fmt.relative(row.createdAt));
-    final levels = !internal && row.hasLevels && row.status.isOpen
-        ? 'kademe ${row.currentLevelNo}/${row.levelCount}'
-        : null;
+    final t = context.aknText;
+    final who = _who();
+    final type = ApprovalsCopy.typeName(row.type);
     final open = row.status.isOpen;
+    final now = TrTime.now();
     final due = row.dueAt;
-    final countdown =
-        !internal &&
+    final overdue =
+        !customerSide &&
+        open &&
+        (row.slaState == ApprovalSlaState.overdue ||
+            (due != null && !due.isAfter(now)));
+    // Talebi açan benim ve benden ek bilgi istendi: sıra bende.
+    final replyMine =
+        _mine && row.status == ApprovalStatus.infoRequested && !customerSide;
+    final customerReply =
+        customerSide &&
+        row.status == ApprovalStatus.infoRequested &&
+        row.type != ApprovalType.companyOrderRequest;
+
+    final String subtitle;
+    // Bende'de koşullar yalnızca satıra sığarsa yazılır (yarım söz kalmaz); yoksa yalnızca tür.
+    String? terms;
+    switch (mode) {
+      case ApprovalRowMode.waiting:
+        final asked = row.requestedByName;
+        final first = TurkishText.searchKey(who.title.split(' ').first);
+        final counterpart =
+            asked != null &&
+            first.isNotEmpty &&
+            TurkishText.searchKey(asked).startsWith(first);
+        subtitle = counterpart
+            ? ApprovalsCopy.askedCustomer
+            : [
+                'Ek bilgi istendi',
+                if (asked != null && !_mine) asked,
+              ].join(' · ');
+      case ApprovalRowMode.decide when !customerSide:
+        subtitle = type;
+        terms = _termsOf(who.rest);
+      case _ when customerSide:
+        final outcome = ApprovalsCopy.customerOutcome(
+          row.type,
+          row.status,
+          canReply: customerReply,
+        );
+        subtitle = row.type == ApprovalType.companyOrderRequest
+            ? [type, _lowerFirst(outcome)].join(' · ')
+            : outcome;
+      case _:
+        subtitle = [type, ApprovalsCopy.outcome(row.status)].join(' · ');
+    }
+
+    // Sağdaki kısa bilgi: gecikme (tehlike), geri sayım (≤ 3 sa Pas), yoksa zaman.
+    Widget? meta;
+    String? spokenMeta;
+    final metaStyle = t.label.copyWith(
+      fontWeight: FontWeight.w500,
+      color: c.dim,
+      fontFeatures: AknNumerals.tabular,
+    );
+    if (mode == ApprovalRowMode.decide && overdue && due != null) {
+      final late = '${overdueShort(now.difference(due))} gecikti';
+      spokenMeta = late;
+      meta = Text(
+        late,
+        maxLines: 1,
+        softWrap: false,
+        style: metaStyle.copyWith(
+          fontWeight: FontWeight.w600,
+          color: c.danger.fg,
+        ),
+      );
+    } else if (mode == ApprovalRowMode.decide &&
         open &&
         due != null &&
-        row.slaState != ApprovalSlaState.overdue &&
-        due.isAfter(DateTime.now().toUtc());
-    final requester = !customerSide && row.requestedByName != null
-        ? 'Talep: ${row.requestedByName}'
-        : null;
-    // Zaman sağ sütunda değil durum satırında: alt satır tam genişlik kalır ve uzun sipariş
-    // numarası ("SIP-20261028-12012") harf ortasından bölünmez. Geri sayım varken zaman not satırına
-    // iner.
-    final note = [?requester, ?levels, if (countdown) when].join(', ');
-    final subtitle = [
-      ?number,
-      if (!internal && detailLine.isNotEmpty) detailLine,
-    ].join(', ');
+        due.isAfter(now) &&
+        !customerSide) {
+      meta = CountdownBadge(
+        deadline: due,
+        yourMove: row.canDecide,
+        compact: true,
+        subject: 'Karar süresi',
+      );
+      spokenMeta = 'karar süresi ${CountdownBadge.spoken(due.difference(now))}';
+    } else {
+      final stamp = rowStamp(row.createdAt);
+      final shown = dayGrouped
+          ? rowStamp(row.createdAt, withDay: false)
+          : stamp;
+      if (shown.isNotEmpty) {
+        spokenMeta = stamp;
+        meta = Text(shown, maxLines: 1, softWrap: false, style: metaStyle);
+      }
+    }
 
-    final semantic = [
-      row.displayTypeLabel,
-      ?number,
-      headline,
-      lamp.label,
-      ?levels,
-      if (amount != null) Fmt.money(amount),
-      when,
-    ].join(', ');
+    final next = replyMine || customerReply ? ApprovalsCopy.replyNext : null;
+    final amount = rowAmount(row);
+    final full = terms == null ? subtitle : '$subtitle · $terms';
+    final semantic = [who.title, full, ?amount, ?spokenMeta, ?next].join(', ');
 
-    final yourMove = lamp.yourMove;
-    return Semantics(
-      button: true,
-      label: semantic,
-      excludeSemantics: true,
+    Widget tile(String line) => AknListTile(
+      leadingIcon: AknStatus.approvalType(row.type).icon,
+      title: who.title,
+      subtitle: line,
+      amount: amount,
+      metaWidget: meta,
+      next: next,
+      semanticLabel: semantic,
       onTap: onTap,
-      child: AknCard(
-        onTap: onTap,
-        padding: EdgeInsets.zero,
-        borderColor: yourMove ? c.brandLine : null,
-        child: AknListTile(
-          leading: AknIconBox(
-            icon: AknStatus.approvalType(row.type).icon,
-            tone: yourMove ? AknTone.brand : null,
-          ),
-          title: '${row.displayTypeLabel}: $headline',
-          subtitle: subtitle.isEmpty ? null : subtitle,
-          subtitleMaxLines: 2,
-          amount: amount != null
-              ? Fmt.money(amount)
-              : (row.liters != null ? Fmt.liters(row.liters) : null),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-          status: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AknStatusLine(
-                lamp: AknLamp.status(lamp),
-                trailing: countdown
-                    ? CountdownBadge(
-                        deadline: due,
-                        yourMove: yourMove,
-                        subject: 'Onay süresi',
-                      )
-                    : Text(
-                        when,
-                        style: t.bodySmall.copyWith(
-                          color: c.dim,
-                          fontFeatures: AknNumerals.tabular,
-                        ),
-                      ),
-              ),
-              if (note.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  note,
-                  style: t.label.copyWith(
-                    color: c.dim,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: AknNumerals.tabular,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
+    );
+    if (terms == null) return tile(subtitle);
+    return LayoutBuilder(
+      builder: (context, box) {
+        final scaler = MediaQuery.textScalerOf(context);
+        // Büyük yazıda satır alt alta dizilir; ikinci satır tüm genişliği kullanır.
+        if (!box.hasBoundedWidth || scaler.scale(10) >= 13) return tile(full);
+        double width(String text, TextStyle style) {
+          final tp = TextPainter(
+            text: TextSpan(text: text, style: style),
+            textDirection: TextDirection.ltr,
+            textScaler: scaler,
+            maxLines: 1,
+          )..layout();
+          final w = tp.width;
+          tp.dispose();
+          return w;
+        }
+
+        // Sağdaki kısa bilgi: yazı + (geri sayımda) simge.
+        final metaText =
+            mode == ApprovalRowMode.decide && overdue && due != null
+            ? '${overdueShort(now.difference(due))} gecikti'
+            : (due != null && due.isAfter(now)
+                  ? Fmt.countdown(due.difference(now))
+                  : rowStamp(row.createdAt, withDay: !dayGrouped));
+        final metaWidth =
+            width(metaText, metaStyle.copyWith(fontWeight: FontWeight.w700)) +
+            19 +
+            12;
+        // Satırın iç boşluğu (20 + 20) ve öndeki 36 dp kutu + 14 dp aralık.
+        final room = box.maxWidth - 40 - 50 - metaWidth;
+        final fits = width(full, t.bodySmall) <= room;
+        return tile(fits ? full : subtitle);
+      },
     );
   }
 }

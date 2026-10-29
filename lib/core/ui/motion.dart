@@ -2,7 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+
+import 'tokens.dart';
 
 /// Motion kit — design v3 §5: **a lively, moving app.** Everything that
 /// appears, changes or is touched moves; the brand surfaces breathe.
@@ -163,8 +166,9 @@ abstract final class AknMotion {
   /// Delay between two staggered items.
   static const Duration staggerStep = Duration(milliseconds: 55);
 
-  /// Items past this index enter together with the last stepped one.
-  static const int staggerMaxItems = 8;
+  /// Items past this index enter together with the last stepped one (v4
+  /// §6: the stagger stops after 6 items).
+  static const int staggerMaxItems = 6;
 
   /// Ambient looping motion ([AknAmbient]): on in the app. The test
   /// configuration switches it off so `pumpAndSettle` can settle.
@@ -182,6 +186,39 @@ abstract final class AknMotion {
 
   /// One float cycle of empty-state art.
   static const Duration float = Duration(milliseconds: 3200);
+
+  // ── v4 "Sade" (§6) ──
+
+  /// A `?focus=` arrival: the block scrolls into view…
+  static const Duration focusScroll = Duration(milliseconds: 400);
+
+  /// …then, after [focusDelay], a `brandSoft` wash fades out over
+  /// [focusFlash] (reduce motion: a static tint for [focusStatic]).
+  static const Duration focusFlash = Duration(milliseconds: 900);
+  static const Duration focusDelay = Duration(milliseconds: 120);
+  static const Duration focusStatic = Duration(seconds: 1);
+
+  /// Task done: the tile stamps its check…
+  static const Duration taskStamp = Duration(milliseconds: 180);
+
+  /// …then the row folds away (size) while it fades ([taskFade]).
+  static const Duration taskFold = Duration(milliseconds: 400);
+  static const Duration taskFade = Duration(milliseconds: 250);
+
+  /// A primary's label morph: the old label leaves upward, the new one
+  /// springs in from below.
+  static const Duration labelOut = Duration(milliseconds: 120);
+  static const Duration labelIn = Duration(milliseconds: 220);
+
+  /// The » line's first draw (emphasized) and its hop to the next stop.
+  static const Duration flowDraw = Duration(milliseconds: 600);
+  static const Duration flowHop = Duration(milliseconds: 420);
+
+  /// A ledger's rows pour in after it rises: 8 dp, this far apart.
+  static const Duration rowPour = Duration(milliseconds: 40);
+
+  /// The band status line and the search strip fade through.
+  static const Duration statusFade = Duration(milliseconds: 250);
 
   /// True when the platform asks for reduced motion.
   static bool reduced(BuildContext context) =>
@@ -512,10 +549,36 @@ class _StaggerItemState extends State<StaggerItem>
   }
 }
 
+/// What an ambient loop is for (v4 §6 "loop budget"): a viewport holds the
+/// band light, decorative life and **one** focus loop; an urgent loop always
+/// runs and pauses the focus loop while it is on screen.
+enum AknAmbientRole {
+  /// Decorative life (the band light, floating empty-state art, the key
+  /// glow): never budgeted.
+  decorative,
+
+  /// The one "your move" loop of the viewport: the halo on the home's lead
+  /// tile, the » ping on a detail page, a focus lamp. Only the first focus
+  /// loop that joins an [AknAmbientBudget] runs; the others hold their rest
+  /// value until it leaves.
+  focus,
+
+  /// A countdown at 30 min or less: always breathes and pauses the focus
+  /// loop of its budget while it is mounted.
+  urgent,
+}
+
 /// A looping ambient animation (v3 §5): rebuilds [builder] with `t` going
 /// 0 → 1 every [period] ([reverse]: 0 → 1 → 0). Paused offstage (ticker
 /// mode); when [AknMotion.ambientOf] is false (tests, reduce motion) it
 /// holds `t` = [restValue].
+///
+/// * [role] (v4 §6): a [AknAmbientRole.focus] or [AknAmbientRole.urgent]
+///   loop joins the nearest [AknAmbientBudget] (`AppScaffold` installs one
+///   per page), which lets one focus loop run per viewport.
+/// * [cycles]: breathe that many times, then rest ([restValue]); a new
+///   [replay] value plays the cycles again (badges: "pop, breathe 3 cycles,
+///   then rest").
 ///
 /// ```dart
 /// AknAmbient(
@@ -534,6 +597,9 @@ class AknAmbient extends StatefulWidget {
     this.reverse = false,
     this.curve = Curves.easeInOut,
     this.restValue = 0,
+    this.role = AknAmbientRole.decorative,
+    this.cycles,
+    this.replay,
   });
 
   final Duration period;
@@ -545,12 +611,27 @@ class AknAmbient extends StatefulWidget {
   /// The value shown while ambient motion is off.
   final double restValue;
 
+  /// Decorative, focus or urgent (see [AknAmbientBudget]).
+  final AknAmbientRole role;
+
+  /// Breathe this many cycles, then rest (null: loop while shown; 0: rest).
+  final int? cycles;
+
+  /// A new value replays the [cycles].
+  final Object? replay;
+
+  /// Number of ambient loops animating right now (tests: the loop budget).
+  @visibleForTesting
+  static int get debugRunningCount => _AknAmbientState._running.length;
+
   @override
   State<AknAmbient> createState() => _AknAmbientState();
 }
 
 class _AknAmbientState extends State<AknAmbient>
     with SingleTickerProviderStateMixin {
+  static final Set<_AknAmbientState> _running = <_AknAmbientState>{};
+
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: widget.period,
@@ -559,10 +640,29 @@ class _AknAmbientState extends State<AknAmbient>
     parent: _c,
     curve: widget.curve,
   );
+  AknAmbientBudgetState? _budget;
+
+  @override
+  void initState() {
+    super.initState();
+    _c.addStatusListener(_onStatus);
+  }
+
+  void _onStatus(AnimationStatus status) {
+    // A finite run ([AknAmbient.cycles]) ended: rest. (A repeat reports its
+    // first direction before its ticker starts, so only an end counts.)
+    if (status.isCompleted || status.isDismissed) _running.remove(this);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final budget = AknAmbientBudget._of(context);
+    if (!identical(budget, _budget)) {
+      _budget?._leave(this);
+      _budget = budget;
+      budget?._join(this);
+    }
     _sync();
   }
 
@@ -571,16 +671,51 @@ class _AknAmbientState extends State<AknAmbient>
     super.didUpdateWidget(old);
     if (old.period != widget.period) _c.duration = widget.period;
     if (old.curve != widget.curve) _t.curve = widget.curve;
-    if (old.reverse != widget.reverse) {
+    if (old.role != widget.role) {
+      _budget?._leave(this);
+      _budget?._join(this);
+    }
+    final replay = old.replay != widget.replay || old.cycles != widget.cycles;
+    if (old.reverse != widget.reverse || replay) {
       _c.stop();
+      _running.remove(this);
+      _sync(restart: replay);
+    } else {
       _sync();
     }
   }
 
-  void _sync() {
-    if (AknMotion.ambientOf(context)) {
-      if (!_c.isAnimating) _c.repeat(reverse: widget.reverse);
+  /// Called by the budget when the focus holder changes.
+  void _budgetChanged() {
+    if (mounted) _sync();
+  }
+
+  bool get _allowed =>
+      AknMotion.ambientOf(context) &&
+      (widget.cycles == null || widget.cycles! > 0) &&
+      (_budget?._allows(this) ?? true);
+
+  bool _played = false;
+
+  void _sync({bool restart = false}) {
+    if (_allowed) {
+      if (_c.isAnimating) return;
+      final cycles = widget.cycles;
+      if (cycles != null) {
+        if (_played && !restart) return;
+        _played = true;
+        _c.value = 0;
+        _c.repeat(
+          reverse: widget.reverse,
+          count: widget.reverse ? cycles * 2 : cycles,
+        );
+        _running.add(this);
+        return;
+      }
+      _c.repeat(reverse: widget.reverse);
+      _running.add(this);
     } else {
+      _running.remove(this);
       _c.stop();
       _c.value = widget.restValue;
     }
@@ -588,6 +723,8 @@ class _AknAmbientState extends State<AknAmbient>
 
   @override
   void dispose() {
+    _running.remove(this);
+    _budget?._leave(this);
     _t.dispose();
     _c.dispose();
     super.dispose();
@@ -599,6 +736,83 @@ class _AknAmbientState extends State<AknAmbient>
     child: widget.child,
     builder: (context, child) => widget.builder(context, _t.value, child),
   );
+}
+
+/// The loop budget of one viewport (v4 §6): installed by `AppScaffold`
+/// around each page. Decorative loops always run; the **first** focus loop
+/// that joins runs and the others rest until it leaves; while an urgent
+/// loop is mounted the focus loop rests too. Nothing runs under reduce
+/// motion (see [AknMotion.ambientOf]).
+class AknAmbientBudget extends StatefulWidget {
+  const AknAmbientBudget({super.key, required this.child});
+
+  final Widget child;
+
+  static AknAmbientBudgetState? _of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_AmbientBudgetScope>()?.state;
+
+  /// True when [context] sits under a budget.
+  static bool isIn(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_AmbientBudgetScope>() != null;
+
+  @override
+  State<AknAmbientBudget> createState() => AknAmbientBudgetState();
+}
+
+class AknAmbientBudgetState extends State<AknAmbientBudget> {
+  final List<_AknAmbientState> _focus = <_AknAmbientState>[];
+  final Set<_AknAmbientState> _urgent = <_AknAmbientState>{};
+  bool _scheduled = false;
+
+  void _join(_AknAmbientState s) {
+    switch (s.widget.role) {
+      case AknAmbientRole.decorative:
+        return;
+      case AknAmbientRole.focus:
+        if (!_focus.contains(s)) _focus.add(s);
+      case AknAmbientRole.urgent:
+        _urgent.add(s);
+    }
+    _changed();
+  }
+
+  void _leave(_AknAmbientState s) {
+    final removed = _focus.remove(s) | _urgent.remove(s);
+    if (removed) _changed();
+  }
+
+  bool _allows(_AknAmbientState s) => switch (s.widget.role) {
+    AknAmbientRole.decorative || AknAmbientRole.urgent => true,
+    AknAmbientRole.focus =>
+      _urgent.isEmpty && _focus.isNotEmpty && identical(_focus.first, s),
+  };
+
+  /// Re-syncs the focus loops after the frame (joins happen while building).
+  void _changed() {
+    if (_scheduled) return;
+    _scheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted) return;
+      for (final s in List<_AknAmbientState>.of(_focus)) {
+        s._budgetChanged();
+      }
+    });
+    SchedulerBinding.instance.ensureVisualUpdate();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _AmbientBudgetScope(state: this, child: widget.child);
+}
+
+class _AmbientBudgetScope extends InheritedWidget {
+  const _AmbientBudgetScope({required this.state, required super.child});
+
+  final AknAmbientBudgetState state;
+
+  @override
+  bool updateShouldNotify(_AmbientBudgetScope old) => old.state != state;
 }
 
 /// Wraps [children] (e.g. of a Column) in [StaggerItem]s.
@@ -1349,6 +1563,297 @@ class AknHero extends StatelessWidget {
         );
       },
       child: Material(type: MaterialType.transparency, child: child),
+    );
+  }
+}
+
+// ───────────────────────── v4 "Sade" motion (§6) ─────────────────────────
+
+/// The `?focus=` arrival (v4 §6 Add 5): when [active] (on the first build
+/// or when it turns true) the block scrolls into view
+/// ([AknMotion.focusScroll]), then after [AknMotion.focusDelay] a `brandSoft`
+/// wash over it fades from 100 % to 0 over [AknMotion.focusFlash]. Under
+/// reduce motion it jumps into view and holds a static tint for one second.
+///
+/// ```dart
+/// AknFocusFlash(active: focusParamOf(context) == 'quote', child: quotePlate)
+/// ```
+class AknFocusFlash extends StatefulWidget {
+  const AknFocusFlash({
+    super.key,
+    required this.child,
+    this.active = false,
+    this.borderRadius = const BorderRadius.all(Radius.circular(20)),
+    this.color,
+    this.alignment = 0.08,
+  });
+
+  final Widget child;
+
+  /// Play the arrival (once per activation).
+  final bool active;
+  final BorderRadius borderRadius;
+
+  /// The wash (default `brandSoft`).
+  final Color? color;
+
+  /// Where the block lands in the viewport (0 = top).
+  final double alignment;
+
+  @override
+  State<AknFocusFlash> createState() => _AknFocusFlashState();
+}
+
+class _AknFocusFlashState extends State<AknFocusFlash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: AknMotion.focusFlash,
+    value: 1,
+  );
+  Timer? _timer;
+  bool _played = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.active && !_played) _schedule();
+  }
+
+  @override
+  void didUpdateWidget(AknFocusFlash old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      _played = false;
+      _schedule();
+    }
+  }
+
+  void _schedule() {
+    _played = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _play());
+  }
+
+  Future<void> _play() async {
+    if (!mounted) return;
+    final reduced = AknMotion.reduced(context);
+    _c.value = 0;
+    setState(() => _flashing = true);
+    try {
+      await Scrollable.ensureVisible(
+        context,
+        alignment: widget.alignment,
+        duration: reduced ? Duration.zero : AknMotion.focusScroll,
+        curve: AknMotion.emphasizedCurve,
+      );
+    } on Object {
+      // Not in a scrollable: the wash still plays.
+    }
+    if (!mounted) return;
+    _timer?.cancel();
+    if (reduced) {
+      _timer = Timer(AknMotion.focusStatic, () {
+        if (mounted) setState(() => _flashing = false);
+      });
+      return;
+    }
+    _timer = Timer(AknMotion.focusDelay, () {
+      if (!mounted) return;
+      _c.forward(from: 0).whenComplete(() {
+        if (mounted) setState(() => _flashing = false);
+      });
+    });
+  }
+
+  bool _flashing = false;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wash =
+        widget.color ??
+        Theme.of(context).extension<AknColors>()?.brandSoft ??
+        const Color(0xFFFFF1E8);
+    // One fixed structure (the block keeps its state); the wash is clear
+    // at rest.
+    return AnimatedBuilder(
+      animation: _c,
+      child: widget.child,
+      builder: (context, child) {
+        final v = _flashing ? (1 - _c.value) : 0.0;
+        return DecoratedBox(
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            color: wash.withValues(alpha: wash.a * 0.85 * v),
+            borderRadius: widget.borderRadius,
+          ),
+          child: child,
+        );
+      },
+    );
+  }
+}
+
+/// The task-done fold (v4 §6 Add 2): when [done] turns true it waits for the
+/// row's check stamp ([AknMotion.taskStamp]), then folds the row away — its
+/// height closes over [AknMotion.taskFold] while it fades over
+/// [AknMotion.taskFade] — with a success haptic, and calls [onFolded].
+/// Under reduce motion it calls [onFolded] at once.
+class AknTaskFold extends StatefulWidget {
+  const AknTaskFold({
+    super.key,
+    required this.child,
+    this.done = false,
+    this.onFolded,
+    this.haptic = true,
+  });
+
+  final Widget child;
+  final bool done;
+  final VoidCallback? onFolded;
+  final bool haptic;
+
+  @override
+  State<AknTaskFold> createState() => _AknTaskFoldState();
+}
+
+class _AknTaskFoldState extends State<AknTaskFold>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: AknMotion.taskStamp + AknMotion.taskFold,
+  );
+  late final Animation<double> _size = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      AknMotion.taskStamp.inMilliseconds /
+          (AknMotion.taskStamp + AknMotion.taskFold).inMilliseconds,
+      1,
+      curve: AknMotion.emphasizedCurve,
+    ),
+  ).drive(Tween<double>(begin: 1, end: 0));
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _c,
+    curve: Interval(
+      AknMotion.taskStamp.inMilliseconds /
+          (AknMotion.taskStamp + AknMotion.taskFold).inMilliseconds,
+      (AknMotion.taskStamp + AknMotion.taskFade).inMilliseconds /
+          (AknMotion.taskStamp + AknMotion.taskFold).inMilliseconds,
+      curve: Curves.easeOut,
+    ),
+  ).drive(Tween<double>(begin: 1, end: 0));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.done && !_c.isAnimating && _c.value == 0) _start();
+  }
+
+  @override
+  void didUpdateWidget(AknTaskFold old) {
+    super.didUpdateWidget(old);
+    if (widget.done && !old.done) _start();
+  }
+
+  void _start() {
+    if (widget.haptic) AknHaptics.success();
+    if (AknMotion.reduced(context)) {
+      _c.value = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onFolded?.call();
+      });
+      return;
+    }
+    _c.forward(from: 0).whenComplete(() {
+      if (mounted) widget.onFolded?.call();
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizeTransition(
+    sizeFactor: _size,
+    axisAlignment: -1,
+    child: FadeTransition(opacity: _fade, child: widget.child),
+  );
+}
+
+/// Rows that pour into a ledger once it has risen (v4 §6 Entrances): each
+/// row fades in and rises 8 dp, [AknMotion.rowPour] apart, at most six
+/// steps; only on the first build (never on a tab return or a refresh).
+/// Static under reduce motion.
+class AknRowPour extends StatefulWidget {
+  const AknRowPour({super.key, required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<AknRowPour> createState() => _AknRowPourState();
+}
+
+class _AknRowPourState extends State<AknRowPour>
+    with SingleTickerProviderStateMixin {
+  AnimationController? _c;
+  Timer? _timer;
+  bool _decided = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_decided) return;
+    _decided = true;
+    if (AknMotion.reduced(context)) return;
+    final c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+    _c = c;
+    final delay =
+        const Duration(milliseconds: 120) +
+        AknMotion.rowPour * widget.index.clamp(0, AknMotion.staggerMaxItems);
+    _timer = Timer(delay, () {
+      if (mounted) c.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _c?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _c;
+    if (c == null) return widget.child;
+    return AnimatedBuilder(
+      animation: c,
+      child: widget.child,
+      // One fixed structure until disposed (the row keeps its state).
+      builder: (context, child) {
+        final v = AknMotion.standard.transform(c.value);
+        return Opacity(
+          opacity: v,
+          alwaysIncludeSemantics: true,
+          child: Transform.translate(
+            offset: Offset(0, 8 * (1 - v)),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }

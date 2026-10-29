@@ -41,6 +41,16 @@ abstract final class StatsCopy {
       'Belge hazırlanamadı. Birkaç saniye sonra tekrar deneyin.';
   static const tableShow = 'Tablo olarak göster';
   static const chartShow = 'Grafik olarak göster';
+
+  /// v4 §5 12: kartın altındaki hayalet düğmeler (ekran okuyucuda [tableShow] / [chartShow]).
+  static const tableShort = 'Tablo';
+  static const chartShort = 'Grafik';
+
+  /// v4 §5 12: "Ay sonu tahmini 8,89 mn ₺" (kartın altında; grafikte tahmin etiketi yok).
+  static String projectionFooter(String value) => 'Ay sonu tahmini $value';
+
+  /// v4 §5 12: sayfanın sonundaki not ("Güncellendi 01:37").
+  static String updatedAt(String time) => 'Güncellendi $time';
   static const thisMonth = 'bu ay';
   static const lastSixMonths = 'son 6 ay';
   static const lastTwelveMonths = 'son 12 ay';

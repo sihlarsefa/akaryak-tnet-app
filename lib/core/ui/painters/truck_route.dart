@@ -79,6 +79,8 @@ class TruckRoute extends StatelessWidget {
           ? AknAmbient(
               period: AknMotion.breathe,
               curve: Curves.linear,
+              // The vehicle ping is a "you are here" loop: budgeted (v4 §6).
+              role: AknAmbientRole.focus,
               builder: (context, pulse, _) => paint(p, pulse),
             )
           : paint(p, 0),
@@ -249,32 +251,12 @@ class TruckRoutePainter extends CustomPainter {
       );
     }
     // The vehicle: the brand tile with the », on a warm glow.
-    final rect = Rect.fromCenter(center: center, width: tile, height: tile);
-    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(6 * s));
-    canvas.drawRRect(
-      rrect.shift(Offset(0, 2 * s)),
-      Paint()
-        ..color = v.withValues(alpha: v.a * 0.4)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 * s),
-    );
-    canvas.drawRRect(rrect, Paint()..color = v);
-    final glyph = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.6 * s
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..color = vehicleGlyph ?? Colors.white;
-    final o = rect.topLeft;
-    Offset at(double dx, double dy) => o + Offset(dx * s, dy * s);
-    canvas.drawPath(
-      Path()
-        ..moveTo(at(5.6, 6.3).dx, at(5.6, 6.3).dy)
-        ..lineTo(at(10, 10.8).dx, at(10, 10.8).dy)
-        ..lineTo(at(5.6, 15.4).dx, at(5.6, 15.4).dy)
-        ..moveTo(at(11, 6.3).dx, at(11, 6.3).dy)
-        ..lineTo(at(15.4, 10.8).dx, at(15.4, 10.8).dy)
-        ..lineTo(at(11, 15.4).dx, at(11, 15.4).dy),
-      glyph,
+    paintFlowMark(
+      canvas,
+      center,
+      side: tile,
+      tile: v,
+      glyph: vehicleGlyph ?? Colors.white,
     );
   }
 
@@ -290,4 +272,48 @@ class TruckRoutePainter extends CustomPainter {
       old.vehicleGlyph != vehicleGlyph ||
       old.travelledStart != travelledStart ||
       old.pulse != pulse;
+}
+
+/// Paints the » mark (v4 §3b, the logo's »): a [side] × [side] rounded
+/// tile (radius 6 at 22 px) in [tile] on a warm glow, with the white double
+/// chevron. Shared by [TruckRoutePainter] and the Akış line, so "where is my
+/// order / truck" looks the same everywhere.
+void paintFlowMark(
+  Canvas canvas,
+  Offset center, {
+  required double side,
+  required Color tile,
+  Color glyph = const Color(0xFFFFFFFF),
+  double glow = 1,
+}) {
+  final s = side / 22;
+  final rect = Rect.fromCenter(center: center, width: side, height: side);
+  final rrect = RRect.fromRectAndRadius(rect, Radius.circular(6 * s));
+  if (glow > 0) {
+    canvas.drawRRect(
+      rrect.shift(Offset(0, 2 * s)),
+      Paint()
+        ..color = tile.withValues(alpha: tile.a * 0.4 * glow)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 4 * s),
+    );
+  }
+  canvas.drawRRect(rrect, Paint()..color = tile);
+  final pen = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.6 * s
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round
+    ..color = glyph;
+  final o = rect.topLeft;
+  Offset at(double dx, double dy) => o + Offset(dx * s, dy * s);
+  canvas.drawPath(
+    Path()
+      ..moveTo(at(5.6, 6.3).dx, at(5.6, 6.3).dy)
+      ..lineTo(at(10, 10.8).dx, at(10, 10.8).dy)
+      ..lineTo(at(5.6, 15.4).dx, at(5.6, 15.4).dy)
+      ..moveTo(at(11, 6.3).dx, at(11, 6.3).dy)
+      ..lineTo(at(15.4, 10.8).dx, at(15.4, 10.8).dy)
+      ..lineTo(at(11, 15.4).dx, at(11, 15.4).dy),
+    pen,
+  );
 }

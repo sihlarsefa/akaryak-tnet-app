@@ -218,150 +218,9 @@ class FitEnd extends StatelessWidget {
   );
 }
 
-/// Bölüm başlığı ([SectionHeader]); büyük yazı ölçeğinde eylem düğmesi başlığın altına iner (çekirdek
-/// başlıkta eylem düğmesi esnemez ve 2.0 ölçekte taşar). Sağdaki kısa not ([caption]: "şu an, 10:42")
-/// büyük yazıda başlığın altına alt yazı olarak iner (başlık iki satıra kırılmasın).
-class BayiSectionHeader extends StatelessWidget {
-  const BayiSectionHeader({
-    super.key,
-    required this.title,
-    this.subtitle,
-    this.count,
-    this.actionLabel,
-    this.onAction,
-    this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
-    this.caption,
-    this.icon,
-  });
-
-  /// Panelin nötr simge karosu (başlığın önünde).
-  final IconData? icon;
-
-  final String title;
-  final String? subtitle;
-  final int? count;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-  final EdgeInsetsGeometry padding;
-
-  /// Eylem yokken sağda kısa not (tablo rakamlı, soluk).
-  final String? caption;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasAction = actionLabel != null && onAction != null;
-    final large = isLargeText(context);
-    if (!hasAction || !large) {
-      final drop = large && caption != null && subtitle == null;
-      return SectionHeader(
-        title: title,
-        icon: icon,
-        subtitle: drop ? caption : subtitle,
-        count: count,
-        actionLabel: actionLabel,
-        onAction: onAction,
-        caption: drop ? null : caption,
-        padding: padding,
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SectionHeader(
-          title: title,
-          icon: icon,
-          subtitle: subtitle,
-          count: count,
-          padding: padding,
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: AknInlineLink(label: actionLabel!, onTap: onAction!),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 /// Büyük yazı ölçeği (yaklaşık 1,4× ve üstü): yan yana öğeler alt alta dizilir.
 bool isLargeText(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(16) > 22;
-
-/// Bölüm seçici (2–3 seçenek, tasarım v3): [AknSegmented] (Beton hap ray, gölgeli beyaz başparmak yayla
-/// kayar; her bölüm 48 dp hedefli, ekran okuyucuda seçili / seçilmemiş düğme). Etiketler eşit dilime
-/// sığmazsa kayan çipler. Adı ve parametreleri eski çağrılar için korunur.
-class BayiSegmented<T> extends StatelessWidget {
-  const BayiSegmented({
-    super.key,
-    required this.segments,
-    required this.value,
-    required this.onChanged,
-    this.padding = const EdgeInsets.symmetric(horizontal: AknSpace.page),
-  });
-
-  final List<FilterOption<T>> segments;
-  final T value;
-  final ValueChanged<T> onChanged;
-  final EdgeInsetsGeometry padding;
-
-  @override
-  Widget build(BuildContext context) {
-    // Tam genişlik: içerik dar olsa da çipler 20 px kenardan başlar (ortalanmaz).
-    final chips = SizedBox(
-      width: double.infinity,
-      child: FilterChips<T>(
-        options: segments,
-        selected: {value},
-        allowEmpty: false,
-        padding: padding,
-        onChanged: (v) => onChanged(v.first),
-      ),
-    );
-    // Büyük yazıda ya da etiket eşit dilime sığmadığında (dar ekran, kalın yazı) kayan çipler.
-    final scaler = MediaQuery.textScalerOf(context);
-    if (scaler.scale(10) >= 13) return chips;
-    var style = context.aknText.label.copyWith(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-    );
-    if (MediaQuery.boldTextOf(context)) {
-      style = style.copyWith(fontWeight: FontWeight.w700);
-    }
-    double width(String text) {
-      final tp = TextPainter(
-        text: TextSpan(text: text, style: style),
-        textDirection: Directionality.of(context),
-        textScaler: scaler,
-        maxLines: 1,
-      )..layout();
-      final w = tp.width;
-      tp.dispose();
-      return w;
-    }
-
-    final inset = padding.resolve(Directionality.of(context)).horizontal;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final slot = (constraints.maxWidth - inset - 6) / segments.length;
-        final fits = segments.every((o) {
-          final count = o.count == null ? 0.0 : 5 + width('${o.count}');
-          return width(o.label) + count + 14 <= slot;
-        });
-        if (!fits) return chips;
-        return AknSegmented<T>(
-          segments: segments,
-          value: value,
-          onChanged: onChanged,
-          margin: padding,
-        );
-      },
-    );
-  }
-}
 
 /// [UsageBar]; etiket ve değer etiketi ("6.000 L / 16.000 L planlı") tek satıra sığmazsa (dar ekran,
 /// büyük yazı) değer etiketi çubuğun altına iner (çekirdek başlık satırında değer etiketi esnemez).
@@ -455,35 +314,6 @@ class BayiUsageBar extends StatelessWidget {
       },
     );
   }
-}
-
-/// Süzgeç düğmesi: rozet açık süzgeç sayısını gösterir; ekran okuyucu "N süzgeç açık" der (çekirdek
-/// [AknIconButton] rozet etiketi "N yeni" der; bu sayı bildirim değildir).
-class FilterButton extends StatelessWidget {
-  const FilterButton({
-    super.key,
-    required this.label,
-    required this.count,
-    required this.onPressed,
-  });
-
-  final String label;
-  final int count;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: count == 0 ? label : '$label, $count süzgeç açık',
-    excludeSemantics: true,
-    onTap: onPressed,
-    child: AknIconButton(
-      icon: PhosphorIconsRegular.slidersHorizontal,
-      semanticLabel: label,
-      badgeCount: count,
-      onPressed: onPressed,
-    ),
-  );
 }
 
 /// "uygulamada" rozeti: şoförün açık uygulama oturumu var.
@@ -634,32 +464,6 @@ Future<void> openPortal(
   }
 }
 
-/// Bölüm kartı: başlık satırı + içerik (ana sayfa ve ayrıntı ekranları). Tasarım v3: sayfa zemininde
-/// süzülen beyaz kart ([BayiCard], 20 köşe, yumuşak kart gölgesi). [accent] yok sayılır (renkli şerit
-/// yok).
-class SectionCard extends StatelessWidget {
-  const SectionCard({
-    super.key,
-    required this.child,
-    this.padding = const EdgeInsets.fromLTRB(16, 4, 16, 4),
-    this.margin = const EdgeInsets.symmetric(horizontal: AknSpace.page),
-    this.accent,
-  });
-
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final EdgeInsetsGeometry margin;
-  final AknTone? accent;
-
-  @override
-  Widget build(BuildContext context) => BayiCard(
-    margin: margin,
-    padding: padding,
-    pressable: false,
-    child: child,
-  );
-}
-
 /// Kart içindeki defter satırının iç boşluğu (tasarım v3 liste kartı): 16 yan, 14 dikey.
 const EdgeInsets kCardRowPadding = EdgeInsets.fromLTRB(16, 14, 16, 14);
 
@@ -781,9 +585,9 @@ class _BayiCardState extends State<BayiCard> {
   }
 }
 
-/// Başlıklı olgu kartı (tasarım v3 ayrıntı sayfaları, "grouped fact cards"): beyaz kartın içinde
-/// bölüm başlığı ([SectionHeader]; sayı, alt yazı ve "Tümü" bağlantısı) ve altında içerik. Büyük
-/// yazıda bağlantı başlığın altına iner ([BayiSectionHeader]).
+/// Başlıklı olgu grubu (tasarım v4 "Sade" P6): bölüm başlığı ([SectionHeader]; sayı, alt yazı ve
+/// "Tümü" bağlantısı) kartın üstünde, içerik tek bir kartta — 20 köşe, yalnızca ince çizgi (koyu
+/// temada 1 px çizgi). Kartın içinde kart yok.
 class GroupCard extends StatelessWidget {
   const GroupCard({
     super.key,
@@ -793,12 +597,7 @@ class GroupCard extends StatelessWidget {
     this.count,
     this.actionLabel,
     this.onAction,
-    this.margin = const EdgeInsets.fromLTRB(
-      AknSpace.page,
-      16,
-      AknSpace.page,
-      0,
-    ),
+    this.margin = const EdgeInsets.fromLTRB(AknSpace.page, 4, AknSpace.page, 0),
     this.padding = const EdgeInsets.fromLTRB(18, 4, 18, 14),
   });
 
@@ -815,187 +614,43 @@ class GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.akn;
     final head = title;
-    return BayiCard(
-      margin: margin,
-      pressable: false,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (head != null)
-            // Başlık satırı en az 48 px: eylemli ve eylemsiz kartlarda başlık aynı hizada.
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 58),
-              child: BayiSectionHeader(
-                title: head,
-                subtitle: subtitle,
-                count: count,
-                actionLabel: actionLabel,
-                onAction: onAction,
-                padding: const EdgeInsets.fromLTRB(18, 10, 8, 0),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (head != null)
+          SectionHeader(
+            title: head,
+            subtitle: subtitle,
+            count: count,
+            actionLabel: actionLabel,
+            onAction: onAction,
+          ),
+        Padding(
+          padding: margin,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: c.surface,
+              borderRadius: AknRadius.card,
+              border: c.isDark ? Border.all(color: c.line) : null,
+              boxShadow: c.isDark ? null : [AknShadows.hairline(c)],
+            ),
+            child: ClipRRect(
+              borderRadius: AknRadius.card,
+              child: AknCardScope(
+                child: Padding(
+                  padding: head == null
+                      ? padding
+                      : padding.resolve(TextDirection.ltr).copyWith(top: 10),
+                  child: child,
+                ),
               ),
             ),
-          Padding(padding: padding, child: child),
-        ],
-      ),
-    );
-  }
-}
-
-/// Sayı + etiket satırı (ana sayfa küçük göstergeleri), dokununca hedefe gider.
-class CountLine extends StatelessWidget {
-  const CountLine({
-    super.key,
-    required this.label,
-    required this.count,
-    this.icon,
-    this.tone,
-    this.onTap,
-    this.caption,
-  });
-
-  final String label;
-  final int count;
-  final IconData? icon;
-  final AknTone? tone;
-  final VoidCallback? onTap;
-  final String? caption;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    final tc = tone == null ? null : c.tone(tone!);
-    return AknListTile(
-      dense: true,
-      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
-      leadingIcon: icon,
-      leadingTone: tone,
-      title: label,
-      subtitle: caption,
-      semanticLabel: '$label: $count${caption == null ? '' : ', $caption'}',
-      onTap: onTap,
-      trailing: Text(
-        Fmt.integer(count),
-        style: t.amount.copyWith(
-          fontSize: 16,
-          color: count > 0 ? (tc?.fg ?? c.ink) : c.dim,
-          fontWeight: FontWeight.w700,
+          ),
         ),
-      ),
-      showChevron: onTap != null,
-    );
-  }
-}
-
-/// Kart satırının ilk iki satırı (tasarım v3 liste kartı): başlık (`headline` 17/22 700) ve ikinci
-/// satır (`bodySmall` dim) solda; tutar (`amount` 17/22 700, tablo rakamları, satır kırmaz) ve alt bilgisi ("42,35 ₺/L",
-/// "tahmini") sağda, sağ kenara hizalı. Dar ekranda (< 340) ya da 1,3× üstü yazıda sağ sütun başlığın
-/// altına iner; hiçbir şey kesilmez.
-class LedgerHead extends StatelessWidget {
-  const LedgerHead({
-    super.key,
-    required this.title,
-    this.subtitle,
-    this.amount,
-    this.amountMeta,
-    this.titleMaxLines = 2,
-    this.titleStyle,
-  });
-
-  final String title;
-  final String? subtitle;
-  final String? amount;
-  final String? amountMeta;
-  final int titleMaxLines;
-  final TextStyle? titleStyle;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    final head = (titleStyle ?? t.headline).copyWith(color: c.ink);
-    final meta = t.bodySmall.copyWith(color: c.dim);
-    final money = t.amount.copyWith(color: c.ink);
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
-    final sub = subtitle;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final stack = large || constraints.maxWidth < 300;
-        if (stack) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(title, style: head),
-              if (amount != null) ...[
-                const SizedBox(height: 2),
-                Text.rich(
-                  TextSpan(
-                    text: amount,
-                    style: money,
-                    children: [
-                      if (amountMeta != null)
-                        TextSpan(text: '  $amountMeta', style: meta),
-                    ],
-                  ),
-                ),
-              ],
-              if (sub != null && sub.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(sub, style: meta),
-              ],
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: head,
-                    maxLines: titleMaxLines,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (amount != null) ...[
-                  const SizedBox(width: 12),
-                  Text(amount!, style: money, maxLines: 1, softWrap: false),
-                ],
-              ],
-            ),
-            if ((sub != null && sub.isNotEmpty) || amountMeta != null) ...[
-              const SizedBox(height: 2),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: sub == null || sub.isEmpty
-                        ? const SizedBox.shrink()
-                        : Text(sub, style: meta),
-                  ),
-                  if (amountMeta != null) ...[
-                    const SizedBox(width: 12),
-                    Text(
-                      amountMeta!,
-                      style: meta,
-                      maxLines: 1,
-                      softWrap: false,
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ],
-        );
-      },
+      ],
     );
   }
 }

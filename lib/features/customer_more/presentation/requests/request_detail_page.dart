@@ -76,7 +76,11 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
     final r = async.valueOrNull;
     final canCancel = r != null && r.canCancel && policy.cmRequestCancel;
     return AppScaffold(
-      title: r?.number ?? 'Talep',
+      // v4 §3.2: çubukta nesnenin türü; talep numarası sayfada.
+      title: 'Talep',
+      collapsedTitle: r == null
+          ? null
+          : '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}',
       refreshing: async.isLoading && r != null,
       actionBar: canCancel
           ? cmBar(
@@ -383,7 +387,7 @@ class _LineRow extends StatelessWidget {
     ].where((x) => x.isNotEmpty).join(', ');
     final title = '${l.productName}, ${Fmt.liters(l.quantityLiters)}';
     return AknListTile(
-      padding: CmCard.rowPadding,
+      padding: cmRowPadding,
       titleStyle: cmRowTitle(context),
       title: cmKeepUnits(title),
       subtitle: subtitle,
@@ -457,21 +461,21 @@ class _PaymentDocCardState extends ConsumerState<_PaymentDocCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknListTile(
-            leading: const CmIconTile(icon: PhosphorIconsRegular.camera),
+            leadingIcon: PhosphorIconsRegular.camera,
             titleStyle: cmRowTitle(ctx),
             padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Fotoğraf çek',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.camera),
           ),
           AknListTile(
-            leading: const CmIconTile(icon: PhosphorIconsRegular.images),
+            leadingIcon: PhosphorIconsRegular.images,
             titleStyle: cmRowTitle(ctx),
             padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Galeriden seç',
             onTap: () => Navigator.of(ctx).pop(CaptureSource.gallery),
           ),
           AknListTile(
-            leading: const CmIconTile(icon: PhosphorIconsRegular.filePdf),
+            leadingIcon: PhosphorIconsRegular.filePdf,
             titleStyle: cmRowTitle(ctx),
             padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Dosya (PDF)',

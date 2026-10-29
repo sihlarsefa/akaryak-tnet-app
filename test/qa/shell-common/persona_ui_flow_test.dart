@@ -6,6 +6,7 @@
 // "Çıkış yap" → onay → giriş ekranı. Her adımda istisna, taşma ve hata durumu yok.
 import 'package:akaryakitnet/app/destinations.dart';
 import 'package:akaryakitnet/app/router.dart';
+import 'package:akaryakitnet/app/shell/more_sheet.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -146,7 +147,10 @@ void main() {
 
         // "Diğer" sayfası (gerçek dokunuş, satır satır).
         if (layout.hasMore) {
-          for (final d in layout.more) {
+          // v4 §3.1: Profil is the sheet's person card, not a row.
+          for (final d in layout.more.where(
+            (d) => d.id != DestinationId.profile,
+          )) {
             await tester.tap(
               find.descendant(
                 of: bar,
@@ -189,9 +193,10 @@ void main() {
             find.descendant(of: bar, matching: find.text(NavLayout.moreLabel)),
           );
           await pumpSteps(tester, const Duration(milliseconds: 900));
+          // v4 §3.1: the person card at the top of Diğer opens Profil.
           final profileRow = find.descendant(
             of: find.byType(BottomSheet),
-            matching: find.text('Profil'),
+            matching: find.byKey(MoreSheetBody.profileKey),
           );
           await tester.ensureVisible(profileRow);
           await pumpSteps(tester, const Duration(milliseconds: 300));

@@ -97,7 +97,7 @@ class SpendingPage extends ConsumerWidget {
                 )
               else ...[
                 const SizedBox(height: 8),
-                CmSegmented<SpendingTab>(
+                AknSegmented<SpendingTab>(
                   segments: [
                     for (final tab in SpendingTab.values)
                       FilterOption(value: tab, label: tab.label),
@@ -412,7 +412,7 @@ class _TabBody extends StatelessWidget {
                         children: [
                           for (final m in newest)
                             AknListTile(
-                              padding: CmCard.rowPadding,
+                              padding: cmRowPadding,
                               titleStyle: cmRowTitle(context),
                               title: m.label,
                               subtitle: '${m.orderCount} sipariş',

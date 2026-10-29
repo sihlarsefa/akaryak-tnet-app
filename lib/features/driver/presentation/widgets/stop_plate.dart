@@ -15,9 +15,10 @@ class StopReadout {
     required this.value,
     this.unit,
     this.semanticLabel,
+    this.caption,
   });
 
-  /// "Plan", "Uzaklık", "Teslim saati".
+  /// "Varış planı", "Uzaklık", "Tank kapasitesi".
   final String label;
 
   /// "09:00", "18", "08:00–18:00".
@@ -26,11 +27,16 @@ class StopReadout {
   /// "km", "L" (değerden sonra, daha küçük).
   final String? unit;
 
-  /// Ekran okuyucu metni (varsayılan "etiket: değer birim").
+  /// Ekran okuyucu metni (varsayılan "etiket: değer birim, alt satır").
   final String? semanticLabel;
 
+  /// Değerin altındaki kısa satır (v4 §5 11): "teslim aralığı 08:00–18:00" (13/18 soluk, en çok 2
+  /// satır; sütun genişliğine katılmaz).
+  final String? caption;
+
   String get spoken =>
-      semanticLabel ?? '$label: $value${unit == null ? '' : ' $unit'}';
+      semanticLabel ??
+      ['$label: $value${unit == null ? '' : ' $unit'}', ?caption].join(', ');
 }
 
 /// Durak plakasının okumaları (tasarım v3 §4–5): sığdıkça tek satırda sütunlar (her sütun en az
@@ -57,6 +63,11 @@ class StopReadouts extends StatelessWidget {
     );
     final valueStyle = t.number.copyWith(color: c.ink);
     final unitStyle = t.readoutUnit.copyWith(color: c.ink);
+    final captionStyle = t.label.copyWith(
+      fontWeight: FontWeight.w500,
+      color: c.dim,
+      fontFeatures: AknNumerals.tabular,
+    );
     InlineSpan value(StopReadout r) => TextSpan(
       text: r.value,
       style: valueStyle,
@@ -83,26 +94,36 @@ class StopReadouts extends StatelessWidget {
                     : BoxDecoration(
                         border: Border(top: BorderSide(color: c.lineSoft)),
                       ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(child: Text(items[i].label, style: labelStyle)),
-                    const SizedBox(width: 12),
-                    Flexible(
-                      child: Align(
-                        alignment: AlignmentDirectional.centerEnd,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: AlignmentDirectional.centerEnd,
-                          child: MediaQuery.withClampedTextScaling(
-                            maxScaleFactor: 1.6,
-                            child: RollingText(
-                              value(items[i]),
-                              delay: _delay(i),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(items[i].label, style: labelStyle),
+                        ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: MediaQuery.withClampedTextScaling(
+                                maxScaleFactor: 1.6,
+                                child: RollingText(
+                                  value(items[i]),
+                                  delay: _delay(i),
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
+                    if (items[i].caption case final String caption)
+                      Text(caption, style: captionStyle),
                   ],
                 ),
               ),
@@ -125,15 +146,22 @@ class StopReadouts extends StatelessWidget {
           return w.ceilToDouble();
         }
 
-        final mins = [
+        final room = box.maxWidth - gap * (items.length - 1);
+        List<double> widths({required bool captions}) => [
           for (final r in items)
-            math.max(
+            [
               measure(TextSpan(text: r.label, style: labelStyle)),
               measure(value(r)),
-            ),
+              if (captions && r.caption != null)
+                measure(TextSpan(text: r.caption, style: captionStyle)),
+            ].reduce(math.max),
         ];
+        // Alt satırlar sığıyorsa tek satırda kalır; sığmıyorsa sütun genişliğine katılmaz, sarılır.
+        var mins = widths(captions: true);
+        if (mins.fold<double>(0, (a, b) => a + b) > room) {
+          mins = widths(captions: false);
+        }
         final need = mins.fold<double>(0, (a, b) => a + b);
-        final room = box.maxWidth - gap * (items.length - 1);
         // Sığarsa tek satırda sütunlar (her biri en az içeriği kadar, artan yer eşit paylaşılır);
         // sığmazsa iki uca yaslı sarılır. Ağaç her iki düzende de aynıdır: değerler yalnızca kendi
         // rakamları değişince döner (yazarken "Planlanan" yeniden dönmez).
@@ -163,6 +191,10 @@ class StopReadouts extends StatelessWidget {
                         alignment: AlignmentDirectional.centerStart,
                         child: RollingText(value(items[i]), delay: _delay(i)),
                       ),
+                      if (items[i].caption case final String caption) ...[
+                        const SizedBox(height: 2),
+                        Text(caption, style: captionStyle, maxLines: 2),
+                      ],
                     ],
                   ),
                 ),
@@ -201,6 +233,7 @@ class DriverStopPlate extends StatelessWidget {
     this.header,
     this.chart,
     this.onTap,
+    this.notice,
   });
 
   /// Ürün adı ("Motorin"): ADR kodlarını ve varsayılan başlığı belirler.
@@ -229,6 +262,10 @@ class DriverStopPlate extends StatelessWidget {
 
   /// Kartın tamamı dokunulabilir (basınca küçülür, seçim titreşimi).
   final VoidCallback? onTap;
+
+  /// Kartın en üstündeki tek satırlık uyarı (v4 §5 11: itirazlı teslimat), ince çizgiyle ayrılır;
+  /// kendi dokunma alanı ve anlamsal düğümüyle.
+  final Widget? notice;
 
   @override
   Widget build(BuildContext context) {
@@ -310,18 +347,27 @@ class DriverStopPlate extends StatelessWidget {
       ),
     );
     final h = header;
+    final n = notice;
     Widget plate = AknPlate(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      child: h == null
+      padding: EdgeInsets.fromLTRB(18, n == null ? 16 : 6, 18, 18),
+      child: h == null && n == null
           ? body
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                h,
-                const SizedBox(height: 14),
-                const PlateRule(),
-                const SizedBox(height: 14),
+                if (n != null) ...[
+                  n,
+                  const SizedBox(height: 6),
+                  const PlateRule(),
+                  const SizedBox(height: 14),
+                ],
+                if (h != null) ...[
+                  h,
+                  const SizedBox(height: 14),
+                  const PlateRule(),
+                  const SizedBox(height: 14),
+                ],
                 body,
               ],
             ),

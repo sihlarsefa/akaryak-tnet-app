@@ -53,6 +53,8 @@ class StatsBarChart extends StatefulWidget {
     this.bubbleLabel,
     this.currentCaption = StatsCopy.thisMonth,
     this.barAreaHeight = 112,
+    this.labelExtreme = true,
+    this.labelProjection = true,
   });
 
   final List<ChartBar> bars;
@@ -95,6 +97,13 @@ class StatsBarChart extends StatefulWidget {
 
   /// Sütun alanının yüksekliği (112).
   final double barAreaHeight;
+
+  /// En yüksek geçmiş ayın etiketi ("13,1") çizilir mi. v4 (§5 12): yalnızca bu ay etiketlenir.
+  final bool labelExtreme;
+
+  /// Tahmin çerçevesinin yanındaki etiket çizilir mi (v4: tahmin kartın altındaki cümlede; çerçeve
+  /// yine çizilir).
+  final bool labelProjection;
 
   @override
   State<StatsBarChart> createState() => _StatsBarChartState();
@@ -234,7 +243,8 @@ class _StatsBarChartState extends State<StatsBarChart>
 
     final cur = bars[current];
     final curValue = empty ? null : widget.valueLabel(cur.value);
-    final projText = proj == null || proj <= cur.value
+    final projShown = proj != null && proj > cur.value;
+    final projText = !projShown || !widget.labelProjection
         ? null
         : (widget.projectionLabel ?? widget.valueLabel)(proj);
     final rightW = empty
@@ -306,7 +316,7 @@ class _StatsBarChartState extends State<StatsBarChart>
                       values: _values,
                       current: current,
                       selected: bubble,
-                      projection: projText == null ? null : proj,
+                      projection: projShown ? proj : null,
                       top: top,
                       topPad: topPad,
                       area: area,
@@ -323,7 +333,7 @@ class _StatsBarChartState extends State<StatsBarChart>
                   ),
                 ),
               ),
-              if (!empty && extreme >= 0)
+              if (!empty && extreme >= 0 && widget.labelExtreme)
                 Positioned(
                   left: cx(extreme) - 40,
                   width: 80,

@@ -39,3 +39,19 @@ extension AppLocationContext on BuildContext {
 /// [openAppLocation] için ad çakışmasız takma ad (uzantı içinden çağrılır).
 void openAppLocationWith(GoRouter router, String location) =>
     openAppLocation(router, location);
+
+/// The `?focus=` block of the page at [context] (v4 §3.5: quote, documents,
+/// delivery, request, tupras …), or null. Pages scroll to it and flash it
+/// (`AknFocusFlash`).
+String? focusParamOf(BuildContext context) => queryParamOf(context, 'focus');
+
+/// A query parameter of the page at [context] (`?segment=`, `?lane=`,
+/// `?filter=`, `?scope=`, `?type=`), or null.
+String? queryParamOf(BuildContext context, String name) {
+  try {
+    final v = GoRouterState.of(context).uri.queryParameters[name]?.trim();
+    return v == null || v.isEmpty ? null : v;
+  } on Object {
+    return null;
+  }
+}

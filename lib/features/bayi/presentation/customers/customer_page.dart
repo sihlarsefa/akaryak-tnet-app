@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/models/models.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -39,7 +40,9 @@ class BayiCustomerPage extends ConsumerWidget {
     final form = s != null && s.actions.canCreateFieldForm && g.createFieldForm;
     final phone = s?.contacts.where((x) => x.phone != null).firstOrNull?.phone;
     return AppScaffold(
-      title: s?.code ?? 'Cari',
+      // v4 §3.2: itilen sayfa nesnenin türüyle adlanır; kod başlıkta değil (P4).
+      title: 'Cari',
+      collapsedTitle: s?.title,
       refreshing: state.refreshing,
       actions: [
         if (phone != null)
@@ -338,9 +341,10 @@ class _Header extends StatelessWidget {
             spacing: 16,
             runSpacing: 6,
             children: [
-              if (status != null)
+              // Olağan durum ("Onaylı") yazılmaz (v4 P4); yalnızca istisna.
+              if (status != null && status != FinanceProfileStatus.approved)
                 AknLamp.style(status.statusStyle.withLabel(s.finance.label))
-              else if (s.finance.label.isNotEmpty)
+              else if (status == null && s.finance.label.isNotEmpty)
                 AknLamp(label: s.finance.label, tone: AknTone.neutral),
               if (!s.isActive)
                 const AknLamp(label: 'Pasif', tone: AknTone.neutral),

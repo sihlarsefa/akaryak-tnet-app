@@ -128,7 +128,7 @@ class _FieldLeadsViewState extends ConsumerState<FieldLeadsView> {
             emptyTitle: FieldCopy.leadsEmptyTitle,
             emptyMessage: access.canCreateLead
                 ? FieldCopy.leadsEmptyMessage
-                : null,
+                : FieldCopy.leadsTeamEmptyMessage,
             filtered: _filtered,
             onClearFilters: () => setState(() {
               _search = '';

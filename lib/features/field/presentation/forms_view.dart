@@ -63,7 +63,7 @@ class FieldFormsConfig {
       showQueued = false,
       initialStatus = null,
       emptyTitle = FieldCopy.rejectedEmptyTitle,
-      emptyMessage = null;
+      emptyMessage = FieldCopy.rejectedEmptyMessage;
 
   final List<int> baseStatuses;
   final bool statusFilter;
@@ -73,7 +73,7 @@ class FieldFormsConfig {
   final bool showQueued;
   final int? initialStatus;
   final String emptyTitle;
-  final String? emptyMessage;
+  final String emptyMessage;
 }
 
 class FieldFormsView extends ConsumerStatefulWidget {

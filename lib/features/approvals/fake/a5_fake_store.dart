@@ -139,8 +139,21 @@ class A5FakeStore {
     _seedLeads();
     _seedCompanyRequests();
     _seedApprovals();
+    _bumpApprovalIds();
     _seedFinanceCards();
     _seedPayments();
+  }
+
+  /// Dünyanın onay kimlik sayacı A5'in sabit kimliklerinin (9005–9013) ötesine geçer: sonradan açılan
+  /// talepler (ör. teklif limit aşımında finans onayı) aynı kimliği almaz. v4'te depo oturum açılır
+  /// açılmaz kurulur (rozet `notifications/unread-count` Bende'yi sayar), teklif akışından önce.
+  void _bumpApprovalIds() {
+    var max = 0;
+    for (final a in world.approvals) {
+      final id = a['id'];
+      if (id is int && id > max) max = id;
+    }
+    while (world.nextId('approval', start: 9001) < max) {}
   }
 
   void _seedLeads() {

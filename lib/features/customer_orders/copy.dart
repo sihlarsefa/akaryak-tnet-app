@@ -6,15 +6,16 @@ import '../../core/network/app_failure.dart';
 
 abstract final class OrdersCopy {
   // ------------------------------------------------------------------ Başlıklar
-  static const myOrders = 'Siparişlerim';
+  /// Sayfa başlığı = sekmenin kelimesi (v4 §3.2).
+  static const myOrders = 'Siparişler';
   static const newOrder = 'Sipariş ver';
-  static const templates = 'Şablonlarım';
+  static const templates = 'Şablonlar';
   static const orderDetail = 'Sipariş';
   static const wizardTitle = 'Yeni sipariş';
 
   // ------------------------------------------------------------------ Liste
-  static const searchHint = 'Sipariş no, ürün, nokta ya da bayi';
-  static const emptyDecisionTitle = 'Karar bekleyen teklif yok';
+  static const searchHint = 'Ürün, kişi ya da sipariş ara';
+  static const emptyDecisionTitle = 'Onay bekleyen teklif yok';
   static const emptyDecisionMessage =
       'Bayiniz teklif verdiğinde burada görünür; size ayrıca haber veririz.';
   static const emptyActiveTitle = 'Aktif siparişiniz yok';
@@ -22,15 +23,23 @@ abstract final class OrdersCopy {
       'Yeni sipariş için Sipariş ver’e dokunun; teklif ve teslimat burada izlenir.';
   static const emptyActiveMessageNoCreate =
       'Şirketinizin siparişleri teklif ve teslimat boyunca burada izlenir.';
-  static const decisionFooter =
-      'Süresi dolan teklifler Geçmiş sekmesine taşınır.';
-  static const activeFooter =
-      'Teslim edilen ve iptal olan siparişler Geçmiş sekmesinde.';
-  static const emptyHistoryTitle = 'Geçmiş sipariş yok';
+  static const emptyHistoryTitle = 'Henüz kapanan sipariş yok';
   static const emptyHistoryMessage =
-      'Tamamlanan, reddedilen ya da süresi dolan siparişler burada listelenir.';
-  static const emptyFiltered = 'Filtreye uyan kayıt yok';
-  static const emptyFilteredMessage = 'Aramanızı değiştirip tekrar deneyin.';
+      'Teslim alınan, reddedilen ve süresi dolan siparişler burada.';
+  static const emptyFiltered = 'Aramaya uyan sipariş yok';
+  static const emptyFilteredMessage =
+      'Yazımı kontrol edin ya da filtreleri temizleyin.';
+
+  /// "'tuzla' için sonuç yok" (v4 §3.6).
+  static String noResults(String query) => '‘$query’ için sonuç yok';
+
+  /// Band durum satırı (v4 §3.2): "1 teklif onayınızı bekliyor".
+  static String decisionsWaiting(int n, {required bool yours}) =>
+      yours ? '$n teklif onayınızı bekliyor' : '$n teklif onay bekliyor';
+
+  /// Sakin durum satırı: "2 sipariş sürüyor".
+  static String ordersRunning(int n) =>
+      n == 0 ? 'Süren sipariş yok' : '$n sipariş sürüyor';
   static const clearFilters = 'Filtreleri temizle';
   static const offlineNoData =
       'Çevrimdışısınız; bu ekran için kayıtlı veri yok';
@@ -160,6 +169,9 @@ abstract final class OrdersCopy {
 
   // ------------------------------------------------------------------ Takip
   static const tracking = 'Sipariş akışı';
+
+  /// Ayrıntıdaki akış çizelgesi satırı ve sayfası (v4 §5 ekran 05).
+  static const history = 'Sipariş geçmişi';
   static const inTransitCaption = 'Araç yolda; canlı konum değildir';
   static const openMap = 'Haritada aç';
   static const callStation = 'Bayiyi ara';

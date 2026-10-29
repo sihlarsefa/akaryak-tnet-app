@@ -89,10 +89,12 @@ class _Segment extends StatelessWidget {
       duration: duration,
       curve: AknMotion.standard,
       decoration: BoxDecoration(
+        // Gece plakanın turuncu tonları kahverengi okunur: bekleyen ve teslim edilen bölümler
+        // orada grafit (v4 §9; sıradaki turuncu kalır).
         color: switch (state) {
           StopState.current => c.logo,
-          StopState.upcoming => c.chartContext,
-          StopState.done => c.chartTrack,
+          StopState.upcoming => c.plateChartContext,
+          StopState.done => c.plateChartTrack,
         },
         borderRadius: radius,
         boxShadow: [

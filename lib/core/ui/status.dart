@@ -641,18 +641,23 @@ abstract final class AknStatus {
     String? serverLabel,
     ShipmentStatus? shipment,
     ApprovalSlaState? sla,
+    String? actor,
+    String? missingDocument,
   }) => switch (status) {
     final OrderStatus s => orderLamp(
       s,
       viewer,
       shipment: shipment,
       serverLabel: serverLabel,
+      actor: actor,
+      missingDocument: missingDocument,
     ),
     final ShipmentStatus s => shipmentLamp(s, viewer, serverLabel: serverLabel),
     final CustomerOrderRequestStatus s => companyRequestLamp(
       s,
       viewer,
       serverLabel: serverLabel,
+      actor: actor,
     ),
     final ApprovalStatus s => approvalLamp(
       s,
@@ -665,11 +670,19 @@ abstract final class AknStatus {
 
   /// Order lamp (§10.3). An approved order with a [shipment] reads as the
   /// shipment ("Planlandı", "Yolda", "Teslimatı onaylayın" …).
+  ///
+  /// v4 (§3.2): the viewer's move is an imperative ("Teklifi onaylayın",
+  /// "Teklif verin"); when someone else acts, [actor] names them ("Demir
+  /// Petrol teklif hazırlıyor", "Onay bekleniyor · Selin Aydın"). A deciding
+  /// customer whose quote still lacks its payment document sees ONE lamp:
+  /// [missingDocument] ("Çek görselini yükleyin", see [uploadPhrase]).
   static StatusLamp orderLamp(
     OrderStatus s,
     StatusViewer viewer, {
     ShipmentStatus? shipment,
     String? serverLabel,
+    String? actor,
+    String? missingDocument,
   }) {
     if (shipment != null &&
         shipment != ShipmentStatus.unknown &&
@@ -705,12 +718,26 @@ abstract final class AknStatus {
       OrderStatus.awaitingQuote =>
         !customer && viewer.canQuote
             ? lamp(AknTone.brand, 'Teklif verin', AknStage.teklif)
+            : customer && _named(actor)
+            ? lamp(AknTone.info, '$actor teklif hazırlıyor', AknStage.teklif)
             : lamp(AknTone.info, 'Teklif bekleniyor', AknStage.teklif),
       OrderStatus.awaitingApproval =>
         customer
             ? viewer.canDecide
-                  ? lamp(AknTone.brand, 'Kararınızı bekliyor', AknStage.karar)
-                  : lamp(AknTone.info, 'Onay bekleniyor', AknStage.karar)
+                  ? lamp(
+                      AknTone.brand,
+                      _named(missingDocument)
+                          ? missingDocument!
+                          : 'Teklifi onaylayın',
+                      AknStage.karar,
+                    )
+                  : lamp(
+                      AknTone.info,
+                      _named(actor)
+                          ? 'Onay bekleniyor · $actor'
+                          : 'Onay bekleniyor',
+                      AknStage.karar,
+                    )
             : lamp(AknTone.info, 'Müşteri kararında', AknStage.karar),
       OrderStatus.revisionRequested =>
         !customer && viewer.canQuote
@@ -798,10 +825,17 @@ abstract final class AknStatus {
 
   /// Company order request lamp (§10.3): "Onayınızı bekliyor" for the
   /// customer's approver, "Şirket onayında" for the requester.
+  ///
+  /// v4: the approver reads the imperative "Talebi onaylayın" ([requester]
+  /// names it: "Burak Yılmaz'ın talebini onaylayın"); the requester reads
+  /// "Şirket onayında" ([actor] adds the approver: "Şirket onayında · Selin
+  /// Aydın").
   static StatusLamp companyRequestLamp(
     CustomerOrderRequestStatus s,
     StatusViewer viewer, {
     String? serverLabel,
+    String? requester,
+    String? actor,
   }) {
     final icon = companyRequest(s).icon;
     return switch (s) {
@@ -809,13 +843,17 @@ abstract final class AknStatus {
         viewer.canDecide
             ? StatusLamp(
                 tone: AknTone.brand,
-                label: 'Onayınızı bekliyor',
+                label: _named(requester)
+                    ? '${withGenitive(requester!)} talebini onaylayın'
+                    : 'Talebi onaylayın',
                 icon: icon,
                 stage: AknStage.onay,
               )
             : StatusLamp(
                 tone: AknTone.info,
-                label: 'Şirket onayında',
+                label: _named(actor)
+                    ? 'Şirket onayında · $actor'
+                    : 'Şirket onayında',
                 icon: icon,
                 stage: AknStage.onay,
               ),
@@ -864,11 +902,7 @@ abstract final class AknStatus {
         );
       }
       return viewer.canDecide
-          ? StatusLamp(
-              tone: AknTone.brand,
-              label: 'Onayınızı bekliyor',
-              icon: icon,
-            )
+          ? StatusLamp(tone: AknTone.brand, label: 'Karar verin', icon: icon)
           : StatusLamp(
               tone: AknTone.info,
               label: 'Onay bekleniyor',
@@ -876,6 +910,54 @@ abstract final class AknStatus {
             );
     }
     return StatusLamp.fromStyle(approval(s).withLabel(serverLabel));
+  }
+
+  static bool _named(String? s) => s != null && s.trim().isNotEmpty;
+
+  /// The imperative for a missing payment document (v4 §3.2: one lamp
+  /// covers the decision and its document): "Çek görselini yükleyin",
+  /// "Senet görselini yükleyin", "Dekontu yükleyin", else "Ödeme belgesini
+  /// yükleyin".
+  static String uploadPhrase(AttachmentKind kind) => switch (kind) {
+    AttachmentKind.chequeImage => 'Çek görselini yükleyin',
+    AttachmentKind.promissoryNoteImage => 'Senet görselini yükleyin',
+    AttachmentKind.transferReceipt => 'Dekontu yükleyin',
+    AttachmentKind.posSlip => 'POS slibini yükleyin',
+    _ => 'Ödeme belgesini yükleyin',
+  };
+
+  /// The button form of [uploadPhrase] (verb + object, P3): "Çek görselini
+  /// yükle", "Dekontu yükle", "Ödeme belgesini yükle".
+  static String uploadAction(AttachmentKind kind) {
+    final phrase = uploadPhrase(kind);
+    return phrase.substring(0, phrase.length - 3);
+  }
+
+  /// "Burak Yılmaz" → "Burak Yılmaz'ın" (Turkish genitive after an
+  /// apostrophe, by the last vowel; a final vowel takes "n").
+  static String withGenitive(String name) {
+    final n = name.trim();
+    if (n.isEmpty) return n;
+    const front = 'eiöü';
+    const back = 'aıou';
+    var vowel = '';
+    for (var i = n.length - 1; i >= 0; i--) {
+      final ch = TurkishText.lower(n[i]);
+      if (front.contains(ch) || back.contains(ch)) {
+        vowel = ch;
+        break;
+      }
+    }
+    final last = TurkishText.lower(n[n.length - 1]);
+    final endsVowel = front.contains(last) || back.contains(last);
+    final suffix = switch (vowel) {
+      'a' || 'ı' => 'ın',
+      'o' || 'u' => 'un',
+      'e' || 'i' => 'in',
+      'ö' || 'ü' => 'ün',
+      _ => 'in',
+    };
+    return "$n'${endsVowel ? 'n' : ''}$suffix";
   }
 
   static String _fallback(String? serverLabel, CodedEnum e) {
@@ -1025,6 +1107,27 @@ enum AknStage {
   /// without company approval).
   int indexIn({bool companyApproval = false}) =>
       stops(companyApproval: companyApproval).indexOf(this);
+
+  /// This stage's stop on the customer's » line (v4 §3b, the web's
+  /// OrderTrackingBuilder: Sipariş · Teklif · Onay · Yolda · Teslim):
+  /// talep/onay → 0, teklif → 1, karar → 2, plan/yolda → 3, teslim → 4.
+  int get customerStop => switch (this) {
+    talep || onay => 0,
+    teklif => 1,
+    karar => 2,
+    plan || yolda => 3,
+    teslim => 4,
+  };
+
+  /// This stage's stop on the bayi's » line (v4 §3b, the web's
+  /// _OrderFlowSteps: Teklif · Müşteri onayı · Sevkiyat · Teslim):
+  /// talep/onay/teklif → 0, karar → 1, plan/yolda → 2, teslim → 3.
+  int get bayiStop => switch (this) {
+    talep || onay || teklif => 0,
+    karar => 1,
+    plan || yolda => 2,
+    teslim => 3,
+  };
 }
 
 /// A viewer-aware status (§10.3): what the lamp says, in which tone, and

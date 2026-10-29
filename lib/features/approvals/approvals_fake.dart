@@ -94,6 +94,23 @@ void registerApprovalsFakes(FakeServer server) {
     };
   });
 
+  // v4 §3.4 (P2, tek sayı): rozetin `approvals` değeri Bende'nin toplamıdır — sunucuda ikisi de
+  // `IApprovalInboxService.CountForUserAsync` (karar verilebilir + ek bilgi yanıtı beklenenler).
+  // Çekirdeğin ucu yalnızca açık + uygun talepleri sayar; A5 deposu Bende'yi sunucu gibi kurar.
+  server.get('notifications/unread-count', (req) {
+    final p = req.requireUser();
+    final inbox = switch (p.persona) {
+      Persona.platform => true,
+      Persona.bayi => p.can(Pg.stationApprovals),
+      Persona.customer => p.can(Pg.customerApprovals),
+      Persona.unknown => false,
+    };
+    return {
+      'notifications': req.world.unreadNotifications(p.userId),
+      'approvals': inbox ? store(req).inbox(p, 0).length : 0,
+    };
+  });
+
   server.get('approvals/{id:int}', (req) {
     final p = req.requireUser();
     requireDetail(p);

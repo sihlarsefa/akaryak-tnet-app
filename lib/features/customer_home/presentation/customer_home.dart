@@ -4,17 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
-import '../../../core/env/app_config_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/routing/app_routes.dart';
-import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/turkish_text.dart';
-import '../../assistant/api.dart';
 import '../../customer_more/api.dart';
 import '../../customer_orders/api.dart';
 import '../../stats/api.dart';
@@ -37,13 +35,13 @@ final homeSpendingProvider = FutureProvider.autoDispose<List<SpendingMonth>?>((
   }
 });
 
-/// Müşteri ana sayfası (tasarım v3 "Akış", sahip kararı G): ışıklı turuncu üst bant (avatar,
-/// selamlama, şirket, zil) → bandın üstüne binen tek kahraman kart (yönetici destesi "Bu ay
-/// harcama"; deste yoksa bu ayın kartı; bant kendi yükselişiyle getirir) → kırık beyaz sayfada
-/// yüzen beyaz bölüm kartları (r22), birbiri ardına yükselerek: karar bekleyen en acil teklif
-/// (geri sayım) → "Yolda" (rota çizgisi) → onay bekleyen talepler → yüklenecek ödeme belgeleri →
-/// Limitlerim → Şablonlarım. "Sipariş ver" alt çubuğun ortasındaki tuştur. Talep eden: deste yok;
-/// sayfa "Taleplerim" ile başlar. Sınıf adı ve kurucu imzası sabittir (spec C.3).
+/// Müşteri ana sayfası (tasarım v4 "Sade" §3.3, sahip kararı G): ışıklı turuncu üst bant (avatar
+/// profili açar, selamlama, şirket, zil) → bandın üstüne binen "Sıra sizde" kartı (görev kutusu:
+/// sayısı Onaylar rozetiyle aynı; iş yoksa sakin satır) → gönderim durumu (varsa) → yönetici
+/// destesi ya da bu ayın kartı (ilk ekranda) → ilk oturumda "Nasıl çalışır" → "Yolda" (araç yoldayken
+/// ya da bugün planlıyken) → "Hızlı sipariş" → başlıksız limit ve bayi kartı. Talep eden: deste yok;
+/// "Sıra sizde"den sonra "Taleplerim". Karar, belge, şirket talebi ve finans uyarıları ayrı bölüm
+/// değildir: hepsi "Sıra sizde"nin satırlarıdır. Sınıf adı ve kurucu imzası sabittir (spec C.3).
 class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
 
@@ -78,10 +76,6 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
     final home = s.data;
     final policy = ref.watch(accessPolicyProvider);
     final access = ref.watch(sessionControllerProvider).access;
-    final features = ref.watch(appConfigProvider).features;
-    // Asistan girişleri: özellik açık ve sunucu 503 `assistant_disabled` demedi (spec A.6).
-    final assistantOn =
-        features.assistant && ref.watch(assistantEnabledProvider);
     final company = home?.customerTitle ?? access?.customerTitle ?? '';
     final role =
         access?.customerUserRoleLabel ??
@@ -95,7 +89,7 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         header: AknBandOverlap(
           child: Padding(
             padding: EdgeInsets.only(bottom: 8),
-            child: SkeletonBox(height: 300, radius: AknRadius.plateRadius),
+            child: SkeletonBox(height: 260, radius: AknRadius.plateRadius),
           ),
         ),
       );
@@ -121,8 +115,6 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
               home: home,
               updatedAt: s.updatedAt,
               fromCache: s.fromCache,
-              assistant: assistantOn,
-              canCreate: policy.can(Pg.customerCreateOrder, Perm.create),
             ),
           ],
         ),
@@ -135,7 +127,7 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         person: access == null
             ? null
             : HomeCopy.person(access.displayName, role),
-        // Avatar ve adlar tek, etiketli, ≥ 48 px düğüm (çekirdek düzeltmesi): profili açar.
+        // Avatar ve adlar tek, etiketli, ≥ 48 px düğüm: profili açar.
         onOpenProfile: () => context.push(AppRoutes.profile),
       ),
       refreshing: s.refreshing,
@@ -149,224 +141,85 @@ class _HomeContent extends ConsumerWidget {
     required this.home,
     required this.updatedAt,
     required this.fromCache,
-    required this.assistant,
-    required this.canCreate,
   });
 
   final CustomerHomeData home;
   final DateTime? updatedAt;
   final bool fromCache;
-  final bool assistant;
-  final bool canCreate;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(homeLocalRevisionProvider);
     final policy = ref.watch(accessPolicyProvider);
-    final access = ref.watch(sessionControllerProvider).access;
-    final uid = access?.userId;
-    final prefs = _prefs(ref);
-    final dash = home.dashboard;
-    final draft = ref.watch(draftSummaryProvider).valueOrNull;
     final submit = ref.watch(orderSubmitProvider);
+    final inbox = ref.watch(customerTasksProvider);
+    final dash = home.dashboard;
     final role = policy.customerRole;
     final requester = role == CustomerUserRole.requester;
-    final canDecide = role.canApprove;
+    final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final deck = !requester && ref.watch(canSeeStatsDeckProvider);
-    final stats = dash.stats;
     final monthPlate =
-        !deck && !requester && stats != null && dash.lastOrder != null;
+        !deck && !requester && dash.stats != null && dash.lastOrder != null;
     final months = monthPlate
         ? ref.watch(homeSpendingProvider).valueOrNull
         : null;
-    final tipDismissed =
-        uid == null ||
-        prefs == null ||
-        prefs.getBool(A2Keys.tipFirstOrder(uid));
-    final assistantDismissed =
-        uid == null ||
-        prefs == null ||
-        prefs.getBool(A2Keys.assistantCardDismissed(uid));
-    final active = dash.activeShipment;
-    // Ekranın tek kahraman kartı: yönetici destesi ya da bu ayın kartı; bandın üstüne biner.
-    final Widget? hero = deck
-        ? const ManagerStatsDeck(padding: EdgeInsets.zero)
+
+    // Yöneticinin destesi ilk ekranda kalır (sahip kararı 9): iş varken "Nasıl çalışır" destenin
+    // altına iner; "Sıra sizde" sakinken hemen altında durur.
+    final hintFirst = customerHeroTasks(inbox, role).isEmpty;
+    final hint = HomeFirstRunHint(
+      key: const ValueKey('hint'),
+      steps: requester
+          ? HomeCopy.requesterSteps
+          : canCreate
+          ? AknFirstRunHint.customerSteps
+          : HomeCopy.viewerSteps,
+      firstOrder: canCreate && dash.lastOrder == null,
+    );
+    final Widget? plate = deck
+        ? const ManagerStatsDeck(
+            key: ValueKey('deck'),
+            raised: false,
+            padding: EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 0),
+          )
         : monthPlate
         ? MonthPlate(
+            key: const ValueKey('month'),
             dashboard: dash,
             months: months,
-            padding: EdgeInsets.zero,
             onOpen: policy.can(Pg.customerSpending)
                 ? () => context.push(AppRoutes.spending)
                 : null,
           )
         : null;
-    // Ritim (v3 §3): kahramanın (ve sayfa noktalarının) altından ilk karta 20, kartlar arası 14;
-    // kahraman yoksa bandın hemen altı 16.
-    var firstTaken = false;
-    double top() {
-      if (firstTaken) return 14;
-      firstTaken = true;
-      return hero == null ? 16 : 20;
-    }
 
-    // Kartın içindeki başlığın üstü.
-    const inner = 16.0;
-
-    // Bölüm kartları: kahramanın altında birbiri ardına yükselerek gelir (v3 §5); sonradan
-    // eklenen kart (yeni teklif, taslak) kendi yerinde belirir. Kahraman kartı bandın üstünde
-    // kendi girişini yapar.
-    final sections = <(String, Widget)>[
-      // Engelleyen durumlar ve yarım işler (kuyular).
-      if (!home.canOrder) ('ordering', OrderingBanner(home: home, top: top())),
-      if (home.financeInfoRequests > 0 && home.canOrder)
-        (
-          'finance',
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              homeBoxGutter(context),
-              top(),
-              homeBoxGutter(context),
-              0,
-            ),
-            child: AknBanner(
-              tone: AknTone.warn,
-              icon: PhosphorIconsRegular.envelopeSimple,
-              title: HomeCopy.financeInfo,
-              message: HomeCopy.financeInfoMessage,
-              actionLabel: 'Yanıtla',
-              onAction: () => context.push(AppRoutes.financeInfo),
-            ),
-          ),
+    // "Sıra sizde"nin altındaki bölümler birbiri ardına yükselerek gelir; sonradan eklenen bölüm
+    // kendi yerinde belirir.
+    final sections = <Widget>[
+      if (hintFirst) hint,
+      ?plate,
+      if (!hintFirst) hint,
+      if (requester) const MyRequestsSection(key: ValueKey('requests')),
+      if (OnTheWaySection.pick(dash) != null)
+        OnTheWaySection(key: const ValueKey('on-the-way'), dashboard: dash),
+      if (canCreate)
+        QuickOrderSection(
+          key: const ValueKey('quick'),
+          lastOrder: dash.lastOrder,
+          templates: home.templates,
         ),
-      if (submit.isActive)
-        ('submit', SubmissionStatusCard(state: submit, top: top())),
-      if (!tipDismissed && dash.lastOrder == null && canCreate)
-        (
-          'tip',
-          FirstOrderTip(
-            top: top(),
-            onStart: () => context.push(AppRoutes.orderNew),
-            onDismiss: () async {
-              await prefs.setBool(A2Keys.tipFirstOrder(uid), true);
-              ref.read(homeLocalRevisionProvider.notifier).bump();
-            },
-          ),
-        ),
-      // Talep eden: kendi talepleri önce.
-      if (requester)
-        (
-          'my-requests',
-          CompanyRequestsSection(
-            approver: false,
-            headerTop: inner,
-            boxTop: top(),
-          ),
-        ),
-      if (dash.pendingDecisions.isNotEmpty)
-        (
-          'decisions',
-          HomeSectionBox(
-            top: top(),
-            child: DecisionsSection(
-              headerTop: inner,
-              rows: dash.pendingDecisions,
-              total: dash.pendingDecisionTotal,
-              expiryEnabled: dash.expiryEnabled,
-              canDecide: canDecide,
-            ),
-          ),
-        ),
-      if (active != null)
-        (
-          'delivery',
-          HomeSectionBox(
-            top: top(),
-            padding: EdgeInsets.zero,
-            child: ActiveDeliveryCard(
-              headerTop: inner,
-              shipment: active,
-              openTotal: dash.openShipmentTotal,
-              station: home.station,
-              canDecide: canDecide,
-            ),
-          ),
-        ),
-      if (canDecide && home.companyApprovalsWaiting > 0)
-        (
-          'approvals',
-          CompanyRequestsSection(
-            headerTop: inner,
-            boxTop: top(),
-            approver: true,
-            waiting: home.companyApprovalsWaiting,
-          ),
-        ),
-      if (home.pendingPaymentDocuments.isNotEmpty)
-        (
-          'documents',
-          HomeSectionBox(
-            top: top(),
-            child: PendingDocumentsSection(
-              headerTop: inner,
-              documents: home.pendingPaymentDocuments,
-              onUploaded: () async =>
-                  ref.read(a2DataRevisionProvider.notifier).bump(),
-            ),
-          ),
-        ),
-      if (!submit.isActive && draft != null && canCreate)
-        ('draft', ResumeDraftCard(summary: draft, top: top())),
-      if (home.limits.isNotEmpty)
-        (
-          'limits',
-          HomeSectionBox(
-            top: top(),
-            child: LimitsSection(limits: home.limits, headerTop: inner),
-          ),
-        ),
-      if (home.templates.isNotEmpty && canCreate)
-        (
-          'templates',
-          HomeSectionBox(
-            top: top(),
-            child: TemplatesSection(
-              templates: home.templates,
-              headerTop: inner,
-            ),
-          ),
-        ),
-      if (assistant && !assistantDismissed)
-        (
-          'assistant',
-          HomeSectionBox(
-            top: top(),
-            padding: EdgeInsets.zero,
-            child: AssistantCard(
-              top: 4,
-              onOpen: () => context.push(AppRoutes.assistant),
-              onDismiss: () async {
-                await prefs.setBool(A2Keys.assistantCardDismissed(uid), true);
-                ref.read(homeLocalRevisionProvider.notifier).bump();
-              },
-            ),
-          ),
-        ),
-      if (home.station != null)
-        (
-          'station',
-          HomeSectionBox(
-            top: top(),
-            padding: const EdgeInsets.only(bottom: 18),
-            child: StationSection(station: home.station!, headerTop: inner),
-          ),
-        ),
+      HomeLimitsLedger(
+        key: const ValueKey('limits'),
+        limits: home.limits,
+        station: home.station,
+      ),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (hero != null) AknBandOverlap(child: hero),
+        // Kahraman: "Sıra sizde" bandın üstüne biner ve yükselerek gelir.
+        AknBandOverlap(child: CustomerTaskHero(home: home)),
+        if (submit.isActive) SubmissionStatusCard(state: submit),
         LastUpdatedNote(
           updatedAt: updatedAt,
           fromCache: fromCache,
@@ -376,8 +229,8 @@ class _HomeContent extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final (i, (id, section)) in sections.indexed)
-                StaggerItem(key: ValueKey(id), index: i, child: section),
+              for (final (i, section) in sections.indexed)
+                StaggerItem(key: section.key, index: i + 1, child: section),
             ],
           ),
         ),
@@ -392,13 +245,5 @@ class _HomeContent extends ConsumerWidget {
           ),
       ],
     );
-  }
-
-  static PrefsStore? _prefs(WidgetRef ref) {
-    try {
-      return ref.read(prefsStoreProvider);
-    } catch (_) {
-      return null;
-    }
   }
 }

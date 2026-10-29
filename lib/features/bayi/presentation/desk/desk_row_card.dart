@@ -29,20 +29,20 @@ IconData outcomeIcon(DeskOutcome o) => switch (o) {
   DeskOutcome.error => PhosphorIconsFill.warningCircle,
 };
 
-/// Teklif masası kartının içeriği (tasarım v3 liste kartı; kartı [PagedListBody] çizer):
+/// Teklifler satırı (tasarım v4 "Sade" §5 13; kartı [PagedListBody] çizer — içinde alan var):
 ///
 /// ```
-/// [□] Körfez Nakliyat ve Ticaret                    421.000 ₺
-///     SIP-20261020-12009, Motorin, 10.000 L, …       önerilen
-///     ● Teklif verin                            ⏱ 41 dk kaldı
-///     Son alımlar: 41,55 ₺/L (20 Eki), 41,70 ₺/L (18 Eki)
-///     [ Birim fiyat  42,10 ₺/L ] [ Teslim 22 Eki Perşembe ]
+/// [☐] Körfez Nakliyat ve Ticaret                               ⏱ 41 dk
+///     Motorin · 10.000 L · Körfez Garaj
+///     [ Birim fiyat  41,55 (öneri) · Öneri ] [ Teslim 29 Eki ]
+///     ≈ 415.500 ₺                          Son: 41,55 ₺/L · 27 Eki ›
 /// ```
 ///
-/// Seçim kutusu solda (24, işaretliyken mürekkep; seçilen kart turuncu yumuşak zemine geçer); sağ
-/// sütunda önerilen ya da yazılan fiyatla tahmini tutar (tablo rakamları). Durum satırı izleyiciye göre
-/// çip ("Teklif verin" turuncu) ve geri sayım (yalnızca süre dolumu açıkken; 30 dakikanın altında
-/// kırmızı). Gönderim sonucu ve satır hatası süzülerek belirir. Masada rota çizgisi yok (yoğunluk).
+/// Seçim kutusu solda (seçilen kart turuncu yumuşak zemine geçer); müşteri adı dokununca siparişi
+/// açar. Birim fiyat alanının ipucu önerilen fiyattır; etiketin yanındaki "Öneri" onu yazar. Teslim
+/// varsayılan olarak istenen gündür. "≈ tutar" yazdıkça sayar; "Son: …" dokununca son alımları
+/// açar. Hap ve ödeme satırı yok (ödeme yalnızca engelliyorsa, kırmızı not). Revize istenmişse
+/// müşterinin notu ve önceki teklif tek satırda. Gönderim sonucu ve satır hatası süzülerek belirir.
 class DeskRowCard extends ConsumerStatefulWidget {
   const DeskRowCard({
     super.key,
@@ -118,6 +118,44 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     }
   }
 
+  void _showHistory(DeskRow r) {
+    final t = context.aknText;
+    final c = context.akn;
+    showAppSheet<void>(
+      context: context,
+      title: 'Son alımlar',
+      subtitle: '${r.customerTitle} · ${r.productName}',
+      builder: (_) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < r.recentPrices.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: c.lineSoft),
+            FactRow(
+              label: [
+                if (r.recentPrices[i].orderDate != null)
+                  dayMonthLong(r.recentPrices[i].orderDate!),
+                if (r.recentPrices[i].quantityLiters > 0)
+                  Fmt.liters(r.recentPrices[i].quantityLiters),
+              ].join(' · '),
+              value: Fmt.unitPrice(r.recentPrices[i].unitPriceTry),
+            ),
+          ],
+          if (r.suggestedLabel != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Öneri: ${r.suggestedLabel}',
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w400,
+                color: c.dim,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
@@ -131,58 +169,185 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     final suggestion = r.suggestedUnitPrice;
     final requested = r.requestedDeliveryDate;
 
-    // Sağ sütun: yazılan fiyatla tahmini tutar, yoksa önerilen fiyatla.
+    // "≈ tutar": yazılan fiyatla (yoksa öneriyle) — yazdıkça sayar.
     final typed = price != null && price > 0;
     final basis = typed ? price : suggestion;
-    final amount = basis == null
-        ? null
-        : Fmt.moneyWhole(basis * r.quantityLiters);
-    final amountMeta = basis == null ? null : (typed ? 'tahmini' : 'önerilen');
+    final amount = basis == null ? null : basis * r.quantityLiters;
 
-    final lamp = AknStatus.lampFor(
-      r.status,
-      StatusViewer.bayi(canQuote: widget.editable),
-      serverLabel: r.statusLabel,
-    );
-    final status = AknStatusLine(
-      lamp: AknLamp.status(lamp),
-      trailing: widget.deadline == null
-          ? null
-          : CountdownBadge(
-              deadline: widget.deadline!,
-              yourMove: widget.editable,
-              subject: 'Teklif süresi',
-            ),
-    );
-
-    // Düzenlenebilir satırda istenen gün teslim alanında görünür; burada yinelenmez.
+    final place = r.deliveryPointName ?? r.deliveryPointCity;
     final line2 = keepUnits(
       [
-        r.orderNumber,
         r.productName,
         Fmt.liters(r.quantityLiters),
-        ?r.deliveryPointName,
+        ?place,
         if (!widget.editable && requested != null)
           '${dayMonthLong(requested)} teslim',
-      ].join(', '),
+      ].join(' · '),
+    );
+
+    // Ödeme yalnızca engelliyorsa (karşılıksız, finans reddi) kırmızı not.
+    final payTone = chip == null
+        ? AknTone.neutral
+        : _worst(
+            AknStatus.toneFromKey(chip.tone),
+            AknStatus.toneFromKey(chip.financeTone),
+          );
+    final payBlocks = chip != null && payTone == AknTone.danger;
+
+    final open = grants.viewOrders
+        ? () => GoRouter.of(context).push(AppRoutes.bayiOrder(r.orderId))
+        : null;
+    final title = Text(
+      r.customerTitle,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: t.bodyStrong.copyWith(height: 20 / 15, color: c.ink),
+    );
+    final names = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        title,
+        const SizedBox(height: 2),
+        Text(
+          line2,
+          style: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
+        ),
+      ],
+    );
+    final who = open == null
+        ? names
+        : Semantics(
+            button: true,
+            label: '${r.customerTitle}, $line2, siparişi aç',
+            excludeSemantics: true,
+            onTap: open,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: open,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: names,
+              ),
+            ),
+          );
+    final countdown = widget.deadline == null
+        ? null
+        : CountdownBadge(
+            deadline: widget.deadline!,
+            yourMove: widget.editable,
+            compact: true,
+            subject: 'Teklif süresi',
+          );
+    // Büyük yazıda geri sayım adın altına iner (yan yana sığmaz).
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final Widget head = large || countdown == null
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              who,
+              if (countdown != null) ...[const SizedBox(height: 4), countdown],
+            ],
+          )
+        : Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: who),
+              const SizedBox(width: 10),
+              countdown,
+            ],
+          );
+
+    final last = r.recentPrices.isEmpty ? null : r.recentPrices.first;
+    final lastText = last == null
+        ? null
+        : [
+            'Son: ${Fmt.unitPrice(last.unitPriceTry)}',
+            if (last.orderDate != null) Fmt.dayMonth(last.orderDate),
+          ].join(' · ');
+    final amountStyle = t.bodyStrong.copyWith(
+      fontWeight: FontWeight.w700,
+      color: typed ? c.ink : c.dim,
+      fontFeatures: AknNumerals.tabular,
+    );
+    final foot = Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 12,
+      runSpacing: 2,
+      children: [
+        if (amount != null)
+          Semantics(
+            label: typed
+                ? 'Tahmini tutar ${Fmt.moneyWhole(amount)}'
+                : 'Önerilen fiyatla ${Fmt.moneyWhole(amount)}',
+            excludeSemantics: true,
+            child: AnimatedNumber(
+              value: amount.round(),
+              from: amount.round(),
+              format: (v) => '≈ ${Fmt.moneyWhole(v)}',
+              style: amountStyle,
+              fit: true,
+            ),
+          ),
+        if (lastText != null)
+          Semantics(
+            button: true,
+            label: 'Son alımlar: $lastText',
+            excludeSemantics: true,
+            onTap: () => _showHistory(r),
+            child: InkWell(
+              onTap: () => _showHistory(r),
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        lastText,
+                        style: t.label.copyWith(
+                          fontWeight: FontWeight.w500,
+                          color: c.dim,
+                          fontFeatures: AknNumerals.tabular,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      PhosphorIconsRegular.caretRight,
+                      size: 14,
+                      color: c.dim,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        LedgerHead(
-          title: r.customerTitle,
-          subtitle: line2,
-          amount: amount,
-          amountMeta: amountMeta,
-        ),
-        const SizedBox(height: 8),
-        status,
-        if (chip != null) ...[
+        head,
+        if (r.isRevision && r.latestRevisionNote != null) ...[
           const SizedBox(height: 6),
-          RowNote(
-            icon: PhosphorIconsRegular.money,
+          _Note(
+            dot: c.warn.solid,
+            text: [
+              'Revize: ${r.latestRevisionNote}',
+              if (r.latestUnitPriceTry != null)
+                'önceki teklif ${Fmt.unitPrice(r.latestUnitPriceTry)}',
+            ].join(' · '),
+          ),
+        ],
+        if (payBlocks) ...[
+          const SizedBox(height: 6),
+          _Note(
+            dot: c.danger.solid,
             text: [
               chip.line,
               if (chip.statusLabel != null)
@@ -190,39 +355,26 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
               if (chip.financeLabel != null)
                 TurkishText.lower(chip.financeLabel!),
             ].join(', '),
-            tone: _worst(
-              AknStatus.toneFromKey(chip.tone),
-              AknStatus.toneFromKey(chip.financeTone),
-            ),
-          ),
-        ],
-        if (r.recentPrices.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          RowNote(
-            icon: PhosphorIconsRegular.clockCounterClockwise,
-            text:
-                'Son alımlar: ${r.recentPrices.map((p) => '${Fmt.unitPrice(p.unitPriceTry)} (${Fmt.dayMonth(p.orderDate)})').join(', ')}',
-          ),
-        ],
-        if (r.isRevision && r.latestRevisionNote != null) ...[
-          const SizedBox(height: 10),
-          AknBanner(
-            tone: AknTone.info,
-            icon: PhosphorIconsRegular.chatCircle,
-            title: r.latestUnitPriceTry == null
-                ? 'Carinin revize notu'
-                : 'Revize notu, önceki teklif ${Fmt.unitPrice(r.latestUnitPriceTry)}',
-            message: r.latestRevisionNote!,
           ),
         ],
         if (widget.editable) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _Inputs(
             price: _price,
             date: date,
+            suggestion: suggestion,
+            applied: suggestion != null && price == suggestion,
+            orderNumber: r.orderNumber,
             onPrice: (text) => _desk.setPrice(r.orderId, text),
+            onSuggest: suggestion == null
+                ? null
+                : () => _desk.setPrice(r.orderId, formatUnitPrice(suggestion)),
             onPickDate: () => _pickDate(date),
           ),
+        ],
+        if (amount != null || lastText != null) ...[
+          const SizedBox(height: 6),
+          foot,
         ],
         // Satır hatası ve gönderim sonucu süzülerek belirir (yükseklik kayar, içerik solup büyür).
         _Reveal(
@@ -286,31 +438,6 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
                   ),
                 ),
         ),
-        if (widget.editable && suggestion != null || grants.viewOrders) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            children: [
-              if (widget.editable && suggestion != null)
-                _SuggestionChip(
-                  price: suggestion,
-                  note: r.suggestedLabel,
-                  applied: price == suggestion,
-                  orderNumber: r.orderNumber,
-                  onUse: () =>
-                      _desk.setPrice(r.orderId, formatUnitPrice(suggestion)),
-                ),
-              if (grants.viewOrders)
-                AknInlineLink(
-                  label: 'Siparişi aç',
-                  onTap: () =>
-                      GoRouter.of(context).push(AppRoutes.bayiOrder(r.orderId)),
-                ),
-            ],
-          ),
-        ],
       ],
     );
 
@@ -321,9 +448,9 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
       color: widget.selected ? c.brandSoft : c.brandSoft.withValues(alpha: 0),
       padding: EdgeInsetsDirectional.fromSTEB(
         widget.editable ? 4 : 16,
-        14,
+        12,
         16,
-        grants.viewOrders || widget.editable ? 4 : 14,
+        10,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +458,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
           if (widget.editable) ...[
             // 48 × 48 hedef; kutu başlığın ilk satırıyla aynı hizada kalsın diye 4 px yukarıda.
             Transform.translate(
-              offset: const Offset(0, -4),
+              offset: const Offset(0, -6),
               child: SizedBox(
                 width: 48,
                 height: 48,
@@ -365,6 +492,38 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     };
     return rank(b) > rank(a) ? b : a;
   }
+}
+
+/// Satır içi kısa not: 6 dp tonlu nokta ve 13/18 mürekkep metin (en çok iki satır).
+class _Note extends StatelessWidget {
+  const _Note({required this.dot, required this.text});
+
+  final Color dot;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+        ),
+      ),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: context.aknText.label.copyWith(color: context.akn.ink),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Kart içi durum değişimi (tasarım v3 §5): içerik gelince yükseklik süzülerek açılır, içerik solup
@@ -409,63 +568,144 @@ class _Reveal extends StatelessWidget {
   }
 }
 
+/// Birim fiyat (%60; ipucu önerilen fiyat, etiketin yanındaki "Öneri" yazar) ve teslim günü (%40).
+/// Dar ekranda ya da büyük yazıda alt alta.
 class _Inputs extends StatelessWidget {
   const _Inputs({
     required this.price,
     required this.date,
+    required this.suggestion,
+    required this.applied,
+    required this.orderNumber,
     required this.onPrice,
+    required this.onSuggest,
     required this.onPickDate,
   });
 
   final TextEditingController price;
   final DateTime date;
+  final double? suggestion;
+  final bool applied;
+  final String orderNumber;
   final ValueChanged<String> onPrice;
+  final VoidCallback? onSuggest;
   final VoidCallback onPickDate;
 
   @override
   Widget build(BuildContext context) {
-    final priceField = MoneyField.unitPrice(
+    final s = suggestion;
+    final suggest = s == null || applied || onSuggest == null
+        ? null
+        : _SuggestButton(
+            semanticLabel:
+                'Önerilen fiyatı yaz: ${Fmt.unitPrice(s)}, $orderNumber',
+            onTap: onSuggest!,
+          );
+    final priceField = AknTextField(
       label: 'Birim fiyat',
       controller: price,
+      hint: s == null ? null : formatUnitPrice(s),
+      suffixText: '₺/L',
+      suffixIcon: suggest,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [TrNumberInputFormatter(decimals: 4)],
+      textInputAction: TextInputAction.done,
       onChanged: (_) => onPrice(price.text),
     );
-    final dateField = _DateButton(date: date, onTap: onPickDate);
     return LayoutBuilder(
       builder: (context, constraints) {
         final scale = MediaQuery.textScalerOf(context).scale(1);
-        if (constraints.maxWidth >= 280 && scale <= 1.3) {
+        if (constraints.maxWidth >= 240 && scale <= 1.3) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: priceField),
+              Expanded(flex: 6, child: priceField),
               const SizedBox(width: 10),
-              Expanded(child: dateField),
+              Expanded(
+                flex: 4,
+                child: _DateButton(
+                  date: date,
+                  onTap: onPickDate,
+                  compact: true,
+                ),
+              ),
             ],
           );
         }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [priceField, const SizedBox(height: 10), dateField],
+          children: [
+            priceField,
+            const SizedBox(height: 10),
+            _DateButton(date: date, onTap: onPickDate),
+          ],
         );
       },
     );
   }
 }
 
-/// Teslim günü alanı ("22 Eki Perşembe", tasarım v3): etiket üstte, beyaz alan kutusu (14 köşe, 1,5 px
-/// çizgi), takvim simgesi; dokununca tarih seçici açılır.
+/// Fiyat alanının içindeki hayalet "Öneri": dokununca önerilen fiyatı yazar (14/20 600 mürekkep,
+/// 48 dp hedef).
+class _SuggestButton extends StatelessWidget {
+  const _SuggestButton({required this.semanticLabel, required this.onTap});
+
+  final String semanticLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: semanticLabel,
+    excludeSemantics: true,
+    onTap: onTap,
+    child: InkWell(
+      onTap: () {
+        AknHaptics.selection();
+        onTap();
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(start: 4, end: 10),
+          child: Center(
+            widthFactor: 1,
+            child: Text(
+              'Öneri',
+              style: context.aknText.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.akn.ink,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Teslim günü alanı ("29 Eki"): etiket üstte, alan kutusu (14 köşe), takvim simgesi; dokununca tarih
+/// seçici açılır.
 class _DateButton extends StatelessWidget {
-  const _DateButton({required this.date, required this.onTap});
+  const _DateButton({
+    required this.date,
+    required this.onTap,
+    this.compact = false,
+  });
 
   final DateTime date;
   final VoidCallback onTap;
+
+  /// Dar sütunda takvim simgesi yok (gün kesilmesin).
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    final label = dayMonthLong(date);
-    // Satır yüksekliği yazı ölçeğiyle büyür (2,0× yazıda gün adı kesilmez); en az 28.
+    final label = Fmt.dayMonth(date);
+    // Satır yüksekliği yazı ölçeğiyle büyür (2,0× yazıda gün kesilmez); en az 28.
     final line = (MediaQuery.textScalerOf(context).scale(16) * 22 / 16)
         .clamp(28.0, double.infinity)
         .toDouble();
@@ -479,7 +719,8 @@ class _DateButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const AknFieldLabel(text: 'Teslim'),
-          const SizedBox(height: 6),
+          // AknTextField etiketiyle aynı boşluk (8): satırdaki iki kutu aynı hizada başlar.
+          const SizedBox(height: 8),
           InkWell(
             onTap: onTap,
             borderRadius: AknRadius.input,
@@ -487,10 +728,9 @@ class _DateButton extends StatelessWidget {
               decoration: AknTextField.decoration(
                 context,
                 lineHeight: line,
-                suffixIcon: const Icon(
-                  PhosphorIconsRegular.calendarBlank,
-                  size: 20,
-                ),
+                suffixIcon: compact
+                    ? null
+                    : const Icon(PhosphorIconsRegular.calendarBlank, size: 20),
               ),
               child: SizedBox(
                 height: line,
@@ -512,56 +752,6 @@ class _DateButton extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Önerilen fiyat çipi: "Öneri 41,55 ₺/L"; dokununca fiyat alanına yazılır, yazılınca seçili görünür.
-/// Yanında önerinin kaynağı ("son alım fiyatı") soluk metinle.
-class _SuggestionChip extends StatelessWidget {
-  const _SuggestionChip({
-    required this.price,
-    required this.applied,
-    required this.orderNumber,
-    required this.onUse,
-    this.note,
-  });
-
-  final double price;
-  final String? note;
-  final bool applied;
-  final String orderNumber;
-  final VoidCallback onUse;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 8,
-      children: [
-        AknChip(
-          label: 'Öneri ${Fmt.unitPrice(price)}',
-          selected: applied,
-          semanticLabel: applied
-              ? 'Önerilen fiyat yazıldı: ${Fmt.unitPrice(price)}, $orderNumber'
-              : 'Önerilen fiyatı kullan: ${Fmt.unitPrice(price)}, $orderNumber',
-          onTap: applied ? null : onUse,
-          enabled: true,
-        ),
-        if (note != null && note!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              note!,
-              style: t.label.copyWith(
-                fontWeight: FontWeight.w400,
-                color: c.dim,
-              ),
-            ),
-          ),
-      ],
     );
   }
 }

@@ -107,10 +107,19 @@ void main() {
               if (find.text('Bu sayfa bulunamadı').evaluate().isNotEmpty) {
                 problems.add('$route izinli ama "Bu sayfa bulunamadı"');
               }
-            } else if (at != layout.initialLocation) {
-              problems.add(
-                '$route yasak ama konum $at (beklenen ${layout.initialLocation})',
-              );
+            } else {
+              // v4 §3.5: the nearest allowed parent, else the first tab.
+              final expected =
+                  allowedParentOf(
+                    Uri.parse(route).path,
+                    layout,
+                    policy,
+                    features,
+                  ) ??
+                  layout.initialLocation;
+              if (at != expected) {
+                problems.add('$route yasak ama konum $at (beklenen $expected)');
+              }
             }
           }
           await tester.pumpWidget(const SizedBox());

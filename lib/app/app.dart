@@ -19,6 +19,7 @@ import '../core/storage/prefs_store.dart';
 import '../core/ui/ui.dart';
 import '../core/utils/app_messenger.dart';
 import 'app_overlays.dart';
+import 'destinations.dart';
 import 'router.dart';
 
 /// Uygulama kökü: tema (açık/koyu), Türkçe yerelleştirme, yönlendirici, kabuk bilgisi
@@ -163,6 +164,9 @@ class _ChromeHost extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final signedIn = ref.watch(currentUserIdProvider) != null;
+    // v4 §6: the bar's entrance plays once per session; a new sign-in plays
+    // it again.
+    if (!signedIn) AnimatedBottomBar.resetEntrance();
     return AppChrome(
       unreadCount: ref.watch(
         unreadCountProvider.select((u) => u.notifications),
@@ -176,6 +180,12 @@ class _ChromeHost extends ConsumerWidget {
       offline: !ref.watch(isOnlineProvider),
       pendingOps: ref.watch(pendingOpsCountProvider),
       onOpenPendingOps: signedIn ? _openPendingOps : null,
+      // v4 §3.5: a pushed page that cannot pop leads home.
+      onGoHome: signedIn
+          ? () => ref
+                .read(routerProvider)
+                .go(ref.read(navLayoutProvider).initialLocation)
+          : null,
       child: child,
     );
   }

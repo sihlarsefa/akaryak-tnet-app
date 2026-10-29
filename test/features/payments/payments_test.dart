@@ -239,18 +239,27 @@ void main() {
       location: '/payments',
     );
     expect(statusesOf(lastPaymentsQuery(app)), [1, 2]);
-    await tapText(tester, PaymentStatus.collected.label, first: true);
+    // v4 (P7): süzgeçler bandın Filtre sayfasında; seçim hemen uygulanır.
+    expect(
+      find.byType(AknChip),
+      findsNothing,
+      reason: 'sayfada çip satırı yok',
+    );
+    await tapFinder(tester, find.byType(AknFilterButton));
+    await tapFinder(tester, inSheet(find.text(PaymentStatus.collected.label)));
     expect(statusesOf(lastPaymentsQuery(app)), [1, 2, 3]);
-    await tapText(tester, 'Gecikenler');
+    await tapFinder(tester, inSheet(find.text('Gecikenler')));
     expect('${lastPaymentsQuery(app)['overdue']}', 'true');
-    await tapText(tester, 'Gecikenler');
+    await tapFinder(tester, inSheet(find.text('Gecikenler')));
     expect(lastPaymentsQuery(app)['overdue'], isNull);
 
-    await tapText(tester, 'Cari: tümü');
+    await tapFinder(tester, inSheet(find.text('Cari: tümü')));
     expect(find.text('Cari seçin'), findsOneWidget);
     expect(app.log.last('GET', 'bayi/customers'), isNotNull);
-    await tapFinder(tester, inSheet(find.text('Anadolu Lojistik A.Ş.')));
+    await tapFinder(tester, inSheet(find.text('Anadolu Lojistik A.Ş.')).last);
     expect(find.text('Cari: Anadolu Lojistik A.Ş.'), findsOneWidget);
+    Navigator.of(tester.element(find.byType(AppSheet).last)).pop();
+    await pumpFor(tester);
     final q = lastPaymentsQuery(app);
     expect(q['customerId'], isNotNull);
     expect(
@@ -310,23 +319,45 @@ void main() {
       },
     );
 
-    testWidgets('liste: ledger satırları, sekme sayıları, " · " yok', (
-      tester,
-    ) async {
-      await pumpA5(tester, persona: 'muhasebe', location: '/payments');
-      expect(find.byType(PaymentRowCard), findsWidgets);
-      expect(
-        find.byType(AknCard),
-        findsNothing,
-        reason: 'liste kartlardan yapılmaz',
+    testWidgets(
+      'liste (v4): tek seçici, defter satırları, bekleyen ödemede hap yok, bant durumu',
+      (tester) async {
+        await pumpA5(tester, persona: 'muhasebe', location: '/payments');
+        expect(find.byType(PaymentRowCard), findsWidgets);
+        expect(
+          find.byType(AknCard),
+          findsNothing,
+          reason: 'liste kartlardan yapılmaz',
+        );
+        expect(find.byType(AknListTile), findsWidgets);
+        expect(find.byType(TabBar), findsNothing, reason: 'tek seçici');
+        expect(
+          find.byWidgetPredicate((w) => w is AknSegmented),
+          findsOneWidget,
+        );
+        expect(find.text(PaymentsCopy.paymentsTab), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(PaymentRowCard),
+            matching: find.text(PaymentStatus.pending.label),
+          ),
+          findsNothing,
+          reason: 'normal durum yazılmaz',
+        );
+        expect(find.textContaining('Vadesi geçen'), findsWidgets);
+        await tapFinder(tester, find.text(PaymentsCopy.instrumentsTab));
+        expect(find.byType(InstrumentRowCard), findsWidgets);
+        await finish(tester);
+      },
+    );
+
+    testWidgets('?filter=overdue gecikenlerle açılır', (tester) async {
+      final app = await pumpA5(
+        tester,
+        persona: 'muhasebe',
+        location: '/payments?filter=overdue',
       );
-      expect(find.byType(AknListTile), findsWidgets);
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.textContaining(RegExp(r'^Ödemeler \d+$')), findsOneWidget);
-      expectNoMiddleDots(tester);
-      await tapFinder(tester, find.textContaining(PaymentsCopy.instrumentsTab));
-      expect(find.byType(InstrumentRowCard), findsWidgets);
-      expectNoMiddleDots(tester);
+      expect('${lastPaymentsQuery(app)['overdue']}', 'true');
       await finish(tester);
     });
 

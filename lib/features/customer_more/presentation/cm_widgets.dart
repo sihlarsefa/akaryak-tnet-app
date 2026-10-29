@@ -60,31 +60,6 @@ Widget cmBar(Widget child) => Column(
   children: [child],
 );
 
-/// Bölüm seçici ([AknSegmented], tasarım v3 §4): sessiz kuyu renginde hap iz, kart gölgeli beyaz
-/// başparmak yayla kayar; 20 px kenar.
-class CmSegmented<T> extends StatelessWidget {
-  const CmSegmented({
-    super.key,
-    required this.segments,
-    required this.value,
-    required this.onChanged,
-    this.margin = const EdgeInsets.symmetric(horizontal: 20),
-  });
-
-  final List<FilterOption<T>> segments;
-  final T value;
-  final ValueChanged<T> onChanged;
-  final EdgeInsetsGeometry margin;
-
-  @override
-  Widget build(BuildContext context) => AknSegmented<T>(
-    segments: segments,
-    value: value,
-    onChanged: onChanged,
-    margin: margin,
-  );
-}
-
 /// Arama hapı (tasarım v3 §4 Inputs): `surfaceAlt` hap, büyüteç 20 soluk, ipucu soluk; odakta zemin
 /// beyaza döner, 2 px turuncu kenar ve 4 px yumuşak turuncu hale yumuşakça belirir. Yüksekliği 52
 /// (dokunma alanı en az 48 dp, WCAG / Android yönergesi). Yazdıkça [debounce] sonra [onChanged]
@@ -213,134 +188,11 @@ class _CmSearchFieldState extends State<CmSearchField> {
   }
 }
 
-/// Kart yüzeyi (tasarım v3 §3–4): kırık beyaz sayfada yüzen beyaz kart, r20, iki katmanlı yumuşak
-/// kart gölgesi; koyu temada gölge kısalır, kartı 1 px `line` belirler. İçerik köşelere kırpılır.
-/// [pressable]: basınca kart 0,97'ye iner ve gölgesi sayfaya oturur; dokunmayı içerik yakalar.
-/// [borderColor] vurgulu kartın 2 px çerçevesidir.
-class CmCard extends StatefulWidget {
-  const CmCard({
-    super.key,
-    required this.child,
-    this.padding = EdgeInsets.zero,
-    this.margin,
-    this.pressable = false,
-    this.borderColor,
-  });
+/// Liste kartlarının dış boşluğu (20 px sayfa kenarı, kartlar arası 12).
+const cmListMargin = EdgeInsets.fromLTRB(20, 6, 20, 6);
 
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  final EdgeInsetsGeometry? margin;
-  final bool pressable;
-  final Color? borderColor;
-
-  /// Liste kartlarının dış boşluğu (20 px sayfa kenarı, kartlar arası 12).
-  static const listMargin = EdgeInsets.fromLTRB(20, 6, 20, 6);
-
-  /// Kart içindeki satırların dolgusu.
-  static const rowPadding = EdgeInsets.fromLTRB(16, 14, 16, 14);
-
-  @override
-  State<CmCard> createState() => _CmCardState();
-}
-
-class _CmCardState extends State<CmCard> {
-  bool _down = false;
-
-  void _set(bool v) {
-    if (!widget.pressable || _down == v) return;
-    setState(() => _down = v);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    const radius = AknRadius.card;
-    final border = widget.borderColor ?? (c.isDark ? c.line : null);
-    Widget card = AnimatedContainer(
-      duration: AknMotion.of(
-        context,
-        _down ? AknMotion.press : AknMotion.pressOut,
-      ),
-      curve: AknMotion.standard,
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: radius,
-        boxShadow: _down ? AknShadows.pressed(c) : AknShadows.card(c),
-      ),
-      foregroundDecoration: border == null
-          ? null
-          : BoxDecoration(
-              borderRadius: radius,
-              border: Border.all(
-                color: border,
-                width: widget.borderColor == null ? 1 : 2,
-              ),
-            ),
-      child: ClipRRect(
-        borderRadius: radius,
-        child: Material(
-          type: MaterialType.transparency,
-          child: Padding(padding: widget.padding, child: widget.child),
-        ),
-      ),
-    );
-    if (widget.pressable) {
-      card = Listener(
-        onPointerDown: (_) => _set(true),
-        onPointerUp: (_) => _set(false),
-        onPointerCancel: (_) => _set(false),
-        child: PressScale(child: card),
-      );
-    }
-    final m = widget.margin;
-    return m == null ? card : Padding(padding: m, child: card);
-  }
-}
-
-/// 40 px yuvarlak köşeli simge karosu (tasarım v3 §4, satırın baş simgesi): sessiz kuyu ve
-/// mürekkep simge; [tone] verilirse tonun yumuşak kuyusu ("sıra sizde" turuncu, tamam yeşil, sorun
-/// kırmızı). Ton değişince renk yumuşakça geçer.
-class CmIconTile extends StatelessWidget {
-  const CmIconTile({super.key, required this.icon, this.tone, this.size = 40});
-
-  final IconData icon;
-  final AknTone? tone;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final (bg, fg) = switch (tone) {
-      null || AknTone.info => (c.surfaceAlt, c.ink),
-      AknTone.neutral => (c.surfaceAlt, c.dim),
-      AknTone.brand => (c.brandSoft, c.brandInk),
-      final t => (c.tone(t).bg, c.tone(t).fg),
-    };
-    return ExcludeSemantics(
-      child: AnimatedContainer(
-        duration: AknMotion.of(context, AknMotion.base),
-        curve: AknMotion.standard,
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(size * 0.3),
-        ),
-        // Simge değişince (durum ilerledi) yenisi küçükten büyüyerek gelir.
-        child: AnimatedSwitcher(
-          duration: AknMotion.of(context, AknMotion.iconSwap),
-          switchInCurve: AknMotion.pop,
-          transitionBuilder: (child, a) => FadeTransition(
-            opacity: a,
-            child: ScaleTransition(scale: a, child: child),
-          ),
-          child: Icon(icon, key: ValueKey(icon), size: size * 0.55, color: fg),
-        ),
-      ),
-    );
-  }
-}
+/// Kart içindeki satırların dolgusu.
+const cmRowPadding = EdgeInsets.fromLTRB(16, 14, 16, 14);
 
 /// Kart satırında tutar başlığın yanında mı durur (tasarım v3): başlık tek satırda kalmalı; sağdaki
 /// tutar sütunuyla aynı satıra sığmıyorsa tutar alt satıra iner ([CmAmountLine]) — kopuk "… / L"
@@ -447,13 +299,13 @@ class CmAmountLine extends StatelessWidget {
 TextStyle cmRowTitle(BuildContext context) => context.aknText.bodyStrong
     .copyWith(height: 20 / 15, color: context.akn.ink);
 
-/// Bölüm başlığı (tasarım v3 §4 SectionHeader): 18/24 800, −0,3, mürekkep.
+/// Bölüm başlığı (tasarım v4 §4 SectionHeader): 17/22 700, mürekkep.
 TextStyle cmSectionTitle(BuildContext context) =>
-    context.aknText.title.copyWith(
-      fontSize: 18,
-      height: 24 / 18,
-      fontWeight: FontWeight.w800,
-      letterSpacing: -0.3,
+    context.aknText.headline.copyWith(
+      fontSize: 17,
+      height: 22 / 17,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.1,
       color: context.akn.ink,
     );
 
@@ -811,10 +663,11 @@ class LoadMoreFooter extends StatelessWidget {
   }
 }
 
-/// Sayfa bölümü (tasarım v3 §4): kırık beyaz sayfada yüzen beyaz r20 kart; içinde başlık (18/24
-/// 800), isteğe bağlı açıklama ve sağda bir denetim, altında içerik. İçerik kartın 18 px iç
-/// kenarıyla gelir; satırlar gibi kart genişliğinde içerik için [bleed] true verin (satırlar kendi
-/// dolgusunu taşır). [padding] ve [accent] kullanılmaz (API kararlılığı için duruyor).
+/// Sayfa bölümü (tasarım v4 §4): çekirdeğin [SectionHeader]'ı (17/22 700; sağda bir denetim) ve
+/// altında tek defter kartı ([AknLedger]: beyaz r20, yalnızca ince gölge; koyu temada 1 px çizgi).
+/// İçerik kartın 20 px iç kenarıyla gelir; satırlar gibi kart genişliğinde içerik için [bleed]
+/// true verin (satırlar kendi dolgusunu taşır). [padding] ve [accent] kullanılmaz (API kararlılığı
+/// için duruyor).
 class CmSection extends StatelessWidget {
   const CmSection({
     super.key,
@@ -841,58 +694,53 @@ class CmSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
-    return CmCard(
-      margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              18,
-              trailing == null ? 16 : 6,
-              trailing == null ? 18 : 6,
-              bleed ? 4 : 10,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Semantics(
-                        header: true,
-                        child: Text(title, style: cmSectionTitle(context)),
-                      ),
-                      if (subtitle != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            subtitle!,
-                            style: t.bodySmall.copyWith(color: c.dim),
-                          ),
+    final tr = trailing;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: EdgeInsets.fromLTRB(24, 22, tr == null ? 24 : 12, 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Semantics(
+                      header: true,
+                      child: Text(title, style: cmSectionTitle(context)),
+                    ),
+                    if (subtitle != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle!,
+                          style: t.bodySmall.copyWith(color: c.dim),
                         ),
-                    ],
-                  ),
+                      ),
+                  ],
                 ),
-                // Kendi düğümü: başlığa karışmadan ayrıca odaklanır.
-                if (trailing != null)
-                  Semantics(container: true, child: trailing),
-              ],
-            ),
+              ),
+              // Kendi düğümü: başlığa karışmadan ayrıca odaklanır.
+              if (tr != null) Semantics(container: true, child: tr),
+            ],
           ),
-          if (bleed) ...[
-            child,
-            const SizedBox(height: 6),
-          ] else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-              child: child,
-            ),
-        ],
-      ),
+        ),
+        AknLedger(
+          children: [
+            if (bleed)
+              Padding(padding: const EdgeInsets.only(bottom: 2), child: child)
+            else
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                child: child,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

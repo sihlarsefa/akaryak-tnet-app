@@ -77,7 +77,7 @@ class RequestsPage extends ConsumerWidget {
                   key: ValueKey(r.id),
                   index: i,
                   child: Padding(
-                    padding: CmCard.listMargin,
+                    padding: cmListMargin,
                     child: RequestCard(
                       request: r,
                       onTap: () => context.push(AppRoutes.companyRequest(r.id)),
@@ -93,13 +93,12 @@ class RequestsPage extends ConsumerWidget {
     return AppScaffold(
       title: CmCopy.requestsTitle,
       bandIcon: PhosphorIconsRegular.listChecks,
-      eyebrow: 'Müşteri',
-      description: 'Şirket içi sipariş talepleri',
+      status: p.items.isEmpty && p.loading ? null : _status(p.items),
       refreshing: p.refreshing,
       body: Column(
         children: [
           const SizedBox(height: 4),
-          CmSegmented<RequestSegment>(
+          AknSegmented<RequestSegment>(
             segments: [
               for (final seg in RequestSegment.values)
                 FilterOption(value: seg, label: seg.label),
@@ -113,6 +112,21 @@ class RequestsPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Bandın canlı durum satırı (v4 §3.2): kararınızı bekleyen talepler Pas ("2 talep onayınızı
+/// bekliyor"), talep edenin bekleyenleri soluk ("1 talep şirket onayında"), yoksa sakin cümle.
+Object _status(List<OrderRequest> items) {
+  final pending = items.where(
+    (r) => r.status == CustomerOrderRequestStatus.pending,
+  );
+  final mine = pending.where((r) => r.canDecide).length;
+  if (mine > 0) {
+    return AknStatusClause.yourMove('$mine talep onayınızı bekliyor');
+  }
+  final waiting = pending.length;
+  if (waiting > 0) return '$waiting talep şirket onayında';
+  return 'Bekleyen talep yok';
 }
 
 /// Talep kartı (tasarım v3 §4): beyaz r20 kart; başta durumun simge karosu, ürün ve litre, talep
@@ -154,21 +168,10 @@ class RequestCard extends StatelessWidget {
       _ => null,
     };
     final tap = onTap;
-    return CmCard(
-      pressable: tap != null,
+    return AknCard(
+      padding: EdgeInsets.zero,
       child: AknListTile(
-        leading: CmIconTile(
-          icon: switch (r.status) {
-            CustomerOrderRequestStatus.approved =>
-              PhosphorIconsRegular.sealCheck,
-            CustomerOrderRequestStatus.rejected => PhosphorIconsRegular.xCircle,
-            CustomerOrderRequestStatus.cancelled =>
-              PhosphorIconsRegular.arrowUUpLeft,
-            _ => PhosphorIconsRegular.clipboardText,
-          },
-          tone: lamp.tone,
-        ),
-        padding: CmCard.rowPadding,
+        padding: cmRowPadding,
         titleStyle: cmRowTitle(context),
         title: cmKeepUnits(title),
         subtitle: subtitle,

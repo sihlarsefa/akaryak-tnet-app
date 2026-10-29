@@ -68,7 +68,7 @@ class _StepProductsState extends ConsumerState<StepProducts> {
         children: [
           for (final t in templates)
             AknListTile(
-              leading: const A2IconTile(
+              leading: const AknIconBox(
                 icon: PhosphorIconsRegular.bookmarks,
                 tone: AknTone.brand,
               ),
@@ -142,7 +142,7 @@ class _StepProductsState extends ConsumerState<StepProducts> {
                 subtitle: s.canOrder
                     ? _limitNote(home?.limits, s.id)
                     : (s.blockReason ?? 'Şu an sipariş alınamıyor'),
-                leading: A2IconTile(
+                leading: AknIconBox(
                   icon: PhosphorIconsRegular.gasPump,
                   tone: d.stationId == s.id ? AknTone.brand : null,
                 ),
@@ -385,7 +385,7 @@ class _LineEditor extends StatelessWidget {
                 index: staggerFrom + k,
                 child: ChoiceCard(
                   margin: const EdgeInsets.only(bottom: 10),
-                  leading: A2IconTile(
+                  leading: AknIconBox(
                     icon: _productIcon(p.name),
                     tone: line.productId == p.id ? AknTone.brand : null,
                   ),

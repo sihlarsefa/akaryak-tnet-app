@@ -26,12 +26,16 @@ import 'buttons.dart';
 /// A sheet is for a decision that needs input (revize, red, teslim kanıtı,
 /// filtre). Dialogs ([showAknDialog]) are only for blocking errors and
 /// irreversible confirmations.
+///
+/// v4 (§4): the ✕ shows only on form sheets — by default when the sheet has
+/// sticky [actionsBuilder] actions; [showClose] overrides. Other sheets
+/// close with the handle, a swipe or the scrim.
 Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   String? title,
   String? subtitle,
-  bool showClose = true,
+  bool? showClose,
   bool isDismissible = true,
   bool enableDrag = true,
   bool useRootNavigator = true,
@@ -75,7 +79,7 @@ Future<T?> showAppSheet<T>({
       builder: (ctx) => AppSheet(
         title: title,
         subtitle: subtitle,
-        showClose: showClose,
+        showClose: showClose ?? actionsBuilder != null,
         scrollable: scrollable,
         padding: padding,
         maxHeightFactor: maxHeightFactor,

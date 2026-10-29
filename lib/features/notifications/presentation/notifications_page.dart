@@ -21,9 +21,11 @@ import '../data/notification_models.dart';
 import '../notifications_paths.dart';
 import 'widgets/notification_tile.dart';
 
-/// Bildirimler (spec A.4 A8; tasarım v3): güne göre gruplu, yüzen beyaz kartlar (sırayla ve kaydırınca
-/// kayarak gelir), nefes alan okunmamış noktası, kaydırınca okundu, dokununca derin bağlantı (erişim yoksa
-/// burada kalır), "Tümü / Okunmamış", tümünü okundu say, ayarlar.
+/// Bildirimler (spec A.4 A8; tasarım v4 §5 10): bantta "Bildirimler" ve canlı durum satırı ("3 okunmamış"),
+/// okunmamış varken "Tümünü okundu say" (✓✓) ve ayarlar (dişli). Altında tek anahtar [Tümü | Okunmamış n];
+/// liste günlere göre birer defter ([AknLedger], satırlar ince çizgiyle; satırlar bir kez dökülür).
+/// Kaydırınca okundu, dokununca derin bağlantı (erişim yoksa burada kalır ve açıklar). Bu oturumda
+/// açılan bir kaydın bildirimleri okundu sayılır ([InboxController], v4 §3.5).
 class NotificationsPage extends ConsumerWidget {
   const NotificationsPage({super.key});
 
@@ -32,22 +34,28 @@ class NotificationsPage extends ConsumerWidget {
     final s = ref.watch(inboxControllerProvider);
     final badge = ref.watch(unreadCountProvider.select((u) => u.notifications));
     final ctl = ref.read(inboxControllerProvider.notifier);
-    final canMarkAll = s.unreadCount > 0 || (badge > 0 && !s.loading);
+    final unread = badge > 0 ? badge : s.unreadCount;
+    final canMarkAll = unread > 0;
     return AppScaffold(
       title: NotificationsCopy.title,
       bandIcon: PhosphorIconsRegular.bell,
-      eyebrow: 'Hesabım',
-      description: 'Son gelişmeler',
-      showBell: false,
+      // Zilden açılınca da (itilmiş sayfa) bandıyla görünür; önde geri ya da ana sayfa düğmesi:
+      // Diğer'den açılan Onaylar ve Finans gibi (v4 §5 09).
+      largeTitle: true,
+      status: unread > 0
+          ? NotificationsCopy.unreadStatus(unread)
+          : NotificationsCopy.calmStatus,
       refreshing: s.refreshing,
       actions: [
+        // Yalnızca okunmamış varken (v4 §5 10).
+        if (canMarkAll)
+          AknIconButton(
+            icon: PhosphorIconsRegular.checks,
+            semanticLabel: NotificationsCopy.markAll,
+            onPressed: () => _markAll(context, ref),
+          ),
         AknIconButton(
-          icon: PhosphorIconsRegular.checks,
-          semanticLabel: NotificationsCopy.markAll,
-          onPressed: canMarkAll ? () => _markAll(context, ref) : null,
-        ),
-        AknIconButton(
-          icon: PhosphorIconsRegular.slidersHorizontal,
+          icon: PhosphorIconsRegular.gearSix,
           semanticLabel: NotificationsCopy.settings,
           onPressed: () => context.push(NotificationsPaths.settings),
         ),
@@ -56,31 +64,35 @@ class NotificationsPage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 4),
-          // Çipler (kaydırılabilir; büyük yazıda sığar, seçili olan işaretli).
-          FilterChips<bool>(
-            options: [
+          AknSegmented<bool>(
+            segments: [
               const FilterOption(value: false, label: NotificationsCopy.all),
               FilterOption(
                 value: true,
                 label: NotificationsCopy.unread,
-                count: badge > 0 ? badge : null,
+                count: unread > 0 ? unread : null,
               ),
             ],
-            selected: {s.unreadOnly},
-            allowEmpty: false,
-            onChanged: (v) {
-              if (v.isNotEmpty) unawaited(ctl.setUnreadOnly(v.first));
-            },
+            value: s.unreadOnly,
+            onChanged: (v) => unawaited(ctl.setUnreadOnly(v)),
           ),
+          // Çevrimdışı, son kaydedilen liste: çevrimdışı satırını kabuk gösterir; burada yalnızca ne
+          // zamandan olduğu (bant yerine sayfa içinde: zilden itilen sayfada da görünür).
           if (s.fromCache)
-            AknBanner(
-              tone: AknTone.neutral,
-              icon: PhosphorIconsRegular.cloudSlash,
-              message:
-                  '${NotificationsCopy.offlineCached} ${NotificationsCopy.lastUpdated} ${Fmt.time(s.loadedAt)}',
-              margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            _CachedNote(at: s.loadedAt)
+          else
+            const SizedBox(height: 4),
+          // Görünüm değişince içerik dokunulan yöne kayar (v4 §6 Add 6).
+          Expanded(
+            child: SharedAxisSwitcher(
+              reverse: !s.unreadOnly,
+              duration: AknMotion.stageStep,
+              child: KeyedSubtree(
+                key: ValueKey('inbox-${s.unreadOnly}'),
+                child: _Body(state: s),
+              ),
             ),
-          Expanded(child: _Body(state: s)),
+          ),
         ],
       ),
     );
@@ -121,7 +133,7 @@ class _Body extends ConsumerWidget {
       return Center(
         child: SingleChildScrollView(
           child: error is OfflineFailure
-              ? EmptyState(
+              ? EmptyState.compact(
                   title: NotificationsCopy.offlineTitle,
                   message: NotificationsCopy.offlineMessage,
                   illustration: AknIllustration.offline,
@@ -145,15 +157,15 @@ class _Body extends ConsumerWidget {
           children: [
             const SizedBox(height: 24),
             if (s.unreadOnly)
-              EmptyState(
+              EmptyState.compact(
                 title: NotificationsCopy.emptyUnreadTitle,
                 message: NotificationsCopy.emptyUnreadMessage,
                 illustration: AknIllustration.notifications,
-                secondaryLabel: NotificationsCopy.showAll,
-                onSecondary: () => unawaited(ctl.setUnreadOnly(false)),
+                actionLabel: NotificationsCopy.showAll,
+                onAction: () => unawaited(ctl.setUnreadOnly(false)),
               )
             else
-              const EmptyState(
+              const EmptyState.compact(
                 title: NotificationsCopy.emptyTitle,
                 message: NotificationsCopy.emptyMessage,
                 illustration: AknIllustration.notifications,
@@ -163,7 +175,7 @@ class _Body extends ConsumerWidget {
       );
     }
 
-    final entries = _entries(s.items);
+    final days = notificationDays(s.items);
     final footer = s.hasMore || s.moreError != null;
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
@@ -178,41 +190,48 @@ class _Body extends ConsumerWidget {
       },
       child: PullToRefresh(
         onRefresh: ctl.refresh,
-        child: StaggerScope(
-          key: ValueKey('inbox-${s.unreadOnly}'),
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.fromLTRB(
-              AknSpace.page,
-              0,
-              AknSpace.page,
-              24 + MediaQuery.viewPaddingOf(context).bottom,
-            ),
-            itemCount: entries.length + (footer ? 1 : 0),
-            itemBuilder: (context, i) {
-              if (i >= entries.length) {
-                return _Footer(
-                  loading: s.loadingMore,
-                  error: s.moreError,
-                  onRetry: () => unawaited(ctl.loadMore()),
-                );
-              }
-              final e = entries[i];
-              if (e.header != null) return _DayHeader(e.header!);
-              final n = e.item!;
-              // v3: her bildirim kendi kartında; kartlar sırayla, kaydırınca da kayarak gelir
-              // (StaggerItem kartın içinde: giriş sürerken de sağa kaydırılabilir).
-              return Padding(
-                padding: EdgeInsets.only(bottom: e.dividerAfter ? 10 : 0),
-                child: NotificationTile(
-                  notification: n,
-                  revealIndex: i,
-                  onTap: () => _open(context, ref, n),
-                  onMarkRead: () => unawaited(_markRead(ref, n)),
-                ),
-              );
-            },
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.only(
+            bottom: 24 + MediaQuery.viewPaddingOf(context).bottom,
           ),
+          itemCount: days.length + (footer ? 1 : 0),
+          findChildIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            final i = days.indexWhere((d) => 'day-${d.label}' == key.value);
+            return i < 0 ? null : i;
+          },
+          itemBuilder: (context, i) {
+            if (i >= days.length) {
+              return _Footer(
+                loading: s.loadingMore,
+                error: s.moreError,
+                onRetry: () => unawaited(ctl.loadMore()),
+              );
+            }
+            final day = days[i];
+            // v4: bir gün = bir defter; başlık (13/18 700 soluk), altında satırlar ince çizgiyle.
+            return Column(
+              key: ValueKey('day-${day.label}'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AknLedgerGroup(title: day.label),
+                AknLedger(
+                  pour: true,
+                  children: [
+                    for (final n in day.items)
+                      NotificationTile(
+                        key: ValueKey('notification-row-${n.id}'),
+                        notification: n,
+                        onTap: () => _open(context, ref, n),
+                        onMarkRead: () => unawaited(_markRead(ref, n)),
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -242,58 +261,67 @@ class _Body extends ConsumerWidget {
   }
 }
 
-/// Gün başlığı (tasarım v3): "Bugün", "Dün", "18 Ekim" — 15/20 800 ink, sola dayalı; kartlarla aynı
-/// hizada.
-class _DayHeader extends StatelessWidget {
-  const _DayHeader(this.label);
+/// Son kaydedilen listenin zamanı: "Son güncelleme 09:58" (soluk, saat simgesiyle).
+class _CachedNote extends StatelessWidget {
+  const _CachedNote({required this.at});
 
-  final String label;
+  final DateTime? at;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
     final c = context.akn;
+    final t = context.aknText;
+    final text = NotificationsCopy.cachedAt(Fmt.time(at));
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 10, AknSpace.page, 0),
       child: Semantics(
-        header: true,
-        child: Text(
-          label,
-          style: t.bodyStrong.copyWith(
-            height: 20 / 15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
-            color: c.ink,
-          ),
+        liveRegion: true,
+        label: text,
+        excludeSemantics: true,
+        child: Row(
+          children: [
+            Icon(
+              PhosphorIconsRegular.clockCounterClockwise,
+              size: 18,
+              color: c.dim,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: t.label.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: c.dim,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Liste satırı: gün başlığı ya da bildirim.
-class _Entry {
-  const _Entry.header(this.header) : item = null, dividerAfter = false;
-  const _Entry.item(this.item, {this.dividerAfter = false}) : header = null;
+/// Bir günün bildirimleri (yeni önce): başlık "Bugün", "Dün", gün adı ya da tarih.
+@immutable
+class NotificationDay {
+  const NotificationDay(this.label, this.items);
 
-  final String? header;
-  final UserNotification? item;
-  final bool dividerAfter;
+  final String label;
+  final List<UserNotification> items;
 }
 
-List<_Entry> _entries(List<UserNotification> items) {
-  final out = <_Entry>[];
-  String? current;
-  for (var i = 0; i < items.length; i++) {
-    final n = items[i];
+/// Bildirimleri (yeni önce sıralı) günlere ayırır; her gün bir defter olur.
+List<NotificationDay> notificationDays(List<UserNotification> items) {
+  final out = <NotificationDay>[];
+  for (final n in items) {
     final label = dayLabel(n.createdAt);
-    if (label != current) {
-      out.add(_Entry.header(label));
-      current = label;
+    if (out.isNotEmpty && out.last.label == label) {
+      out.last.items.add(n);
+    } else {
+      out.add(NotificationDay(label, [n]));
     }
-    final next = i + 1 < items.length ? items[i + 1] : null;
-    final sameGroup = next != null && dayLabel(next.createdAt) == label;
-    out.add(_Entry.item(n, dividerAfter: sameGroup));
   }
   return out;
 }

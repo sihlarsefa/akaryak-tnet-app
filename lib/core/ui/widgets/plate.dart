@@ -31,8 +31,9 @@ export 'triangle_glyph.dart';
 /// springy stagger, the readouts roll up, the rule draws in, meters and
 /// bars fill, the line chart draws itself — every one of them once, finite,
 /// settled ~1.1 s after the first frame (the deck's full roll ~1.4 s), and
-/// static under reduce motion. The current month's bar glow breathes while
-/// the plate is on screen (ambient). On a home it also rises onto the band
+/// static under reduce motion. The current month's bar glow breathes three
+/// times inside the page's loop budget (v4 §6: it waits while the home's
+/// lead halo runs). On a home it also rises onto the band
 /// (`AknBandOverlap`).
 ///
 /// **One plate per screen.** A second important number becomes a readout or
@@ -74,9 +75,10 @@ class AknPlate extends StatelessWidget {
     this.margin,
     this.color,
     this.semanticLabel,
+    this.raised = true,
   });
 
-  /// Head row ([PlateHead]: icon, title, period, ⋯).
+  /// Head row ([PlateHead]: title · period, trailing).
   final Widget? head;
 
   /// The hero figure ([PlateFigure]).
@@ -110,6 +112,10 @@ class AknPlate extends StatelessWidget {
 
   /// Read as one node by screen readers when given.
   final String? semanticLabel;
+
+  /// v4: false gives a flat white card with the light `plateBehind` shadow
+  /// (a plate that is not the hero, e.g. the deck under "Sıra sizde").
+  final bool raised;
 
   /// True inside a plate: a hero panel ([OnHero]) or a palette printed on
   /// the plate, such as the deck's top card.
@@ -195,13 +201,15 @@ class AknPlate extends StatelessWidget {
       );
     }
     Widget plate = DecoratedBox(
-      decoration: fill == null
+      decoration: fill == null && raised
           ? c.plateDecoration(borderRadius: borderRadius)
           : BoxDecoration(
-              color: fill,
+              color: fill ?? c.plate,
               borderRadius: borderRadius,
-              border: Border.all(color: c.plateBorder),
-              boxShadow: AknShadows.plate(c),
+              border: Border.all(color: c.isDark ? c.line : c.plateBorder),
+              boxShadow: raised
+                  ? AknShadows.plate(c)
+                  : AknShadows.plateBehind(c),
             ),
       child: ClipRRect(
         borderRadius: borderRadius,
@@ -214,11 +222,12 @@ class AknPlate extends StatelessWidget {
   }
 }
 
-/// The plate's head row (design v3 §4): a 40 × 40 icon tile
-/// (`plateIconFill`, a 22 px `plateAccent` glyph that pops in, radius 12),
-/// the title (`headline` 17/22 w700 ink) over the period (12/16 w500 dim,
-/// "1–21 Ekim, 3 sipariş") and an optional ⋯ control (48 px target). At
-/// large text the title wraps to two lines; nothing is cut.
+/// The plate's head row (design v4 §4): the [title] 16/20 700 and the
+/// [period] 13/18 dim on ONE baseline ("Harcama  1–28 Ekim"; wraps at large
+/// text), then a [trailing] widget at its natural width — a countdown or
+/// the delta chip — and an optional ⋯ ([onMore], 48 px target). v4 homes
+/// and stats pass no [icon]; an [icon] (old call sites) still draws the
+/// 40 × 40 tile, and [leading] (the driver's ADR plate) replaces it.
 class PlateHead extends StatelessWidget {
   const PlateHead({
     super.key,
@@ -233,24 +242,26 @@ class PlateHead extends StatelessWidget {
 
   final String title;
 
-  /// The glyph of the 40 × 40 icon tile.
+  /// The glyph of the 40 × 40 icon tile (v4 homes and stats: none).
   final IconData? icon;
 
   /// Replaces the icon tile (e.g. an `AdrPlate` for the driver's stop plate).
   final Widget? leading;
 
-  /// The line under the title ("1–21 Ekim", "bugün 10:05", "şu an").
+  /// After the title on its baseline ("1–21 Ekim", "bugün 10:05").
   final String? period;
 
-  /// A custom control at the end (a `PopupMenuButton`); wins over [onMore].
+  /// v4: a widget at the end at its natural width (a countdown, the delta
+  /// chip).
   final Widget? trailing;
 
-  /// Shows a ⋯ button (`dotsThree`, 48 px target). A custom [trailing]
-  /// control should be 48 × 48 too (tap-target guideline).
+  /// Shows a ⋯ button (`dotsThree`, 48 px target).
   final VoidCallback? onMore;
   final String moreTooltip;
 
-  bool get hasControl => trailing != null || onMore != null;
+  /// True when the head carries the ⋯ button (it reaches into the plate's
+  /// right padding).
+  bool get hasControl => onMore != null;
 
   /// The icon tile's side at 1.0× text.
   static const double tileSize = 40;
@@ -261,20 +272,20 @@ class PlateHead extends StatelessWidget {
     final t = context.aknText;
     final scale = MediaQuery.textScalerOf(context).scale(10) / 10;
     final titleStyle = t.headline.copyWith(
+      fontSize: 16,
+      height: 20 / 16,
       fontWeight: FontWeight.w700,
-      letterSpacing: -0.2,
+      letterSpacing: -0.1,
       color: c.ink,
     );
-    final periodStyle = t.caption.copyWith(
-      fontSize: 12,
-      height: 16 / 12,
+    final periodStyle = t.label.copyWith(
       fontWeight: FontWeight.w500,
-      letterSpacing: 0,
       color: c.dim,
+      fontFeatures: AknNumerals.tabular,
     );
-    Widget? control = trailing;
-    if (control == null && onMore != null) {
-      control = IconButton(
+    Widget? more;
+    if (onMore != null) {
+      more = IconButton(
         onPressed: onMore,
         tooltip: moreTooltip,
         icon: Icon(PhosphorIconsRegular.dotsThree, size: 22, color: c.ink),
@@ -312,39 +323,71 @@ class PlateHead extends StatelessWidget {
                 ),
               ));
     final p = period;
-    final large = scale >= 1.6;
+    final hasPeriod = p != null && p.isNotEmpty;
+    final titleText = Semantics(
+      header: true,
+      child: Text(
+        title,
+        style: titleStyle,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+    // The title and the period share one baseline when both fit; otherwise
+    // the period goes under the title (nothing is cut).
+    final heading = !hasPeriod
+        ? titleText
+        : LayoutBuilder(
+            builder: (context, box) {
+              final scaler = MediaQuery.textScalerOf(context);
+              double width(String text, TextStyle style) {
+                final tp = TextPainter(
+                  text: TextSpan(text: text, style: style),
+                  textDirection: TextDirection.ltr,
+                  textScaler: scaler,
+                  maxLines: 1,
+                )..layout();
+                final w = tp.width;
+                tp.dispose();
+                return w;
+              }
+
+              final periodText = Text(
+                p,
+                style: periodStyle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              );
+              final fits =
+                  !box.hasBoundedWidth ||
+                  width(title, titleStyle) + 8 + width(p, periodStyle) <=
+                      box.maxWidth;
+              if (fits) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Flexible(child: titleText),
+                    const SizedBox(width: 8),
+                    periodText,
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [titleText, const SizedBox(height: 1), periodText],
+              );
+            },
+          );
     return ConstrainedBox(
       constraints: BoxConstraints(minHeight: lead == null ? 24 : tile),
       child: Row(
         children: [
           if (lead != null) ...[lead, const SizedBox(width: 12)],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text(
-                    title,
-                    style: titleStyle,
-                    maxLines: large ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (p != null && p.isNotEmpty) ...[
-                  const SizedBox(height: 1),
-                  Text(
-                    p,
-                    style: periodStyle,
-                    maxLines: large ? 2 : 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (control != null) ...[
+          Expanded(child: heading),
+          if (trailing != null) ...[const SizedBox(width: 10), trailing!],
+          if (more != null) ...[
             const SizedBox(width: 2),
             SizedBox(
               width: 48,
@@ -352,7 +395,7 @@ class PlateHead extends StatelessWidget {
               child: OverflowBox(
                 maxWidth: 48,
                 maxHeight: 48,
-                child: Center(child: control),
+                child: Center(child: more),
               ),
             ),
           ],
@@ -982,6 +1025,23 @@ double? plateMonthEndProjection(num monthToDate, DateTime today) {
   return monthToDate / today.day * days;
 }
 
+/// Chart neutrals printed on the plate (v4 §9 "no muddy tinted slabs at
+/// night"). By day the plate's warm context (`plateContext`, orange 24 %)
+/// and track (`plateIconFill`) read as a soft peach on white; at night the
+/// same orange tints read brown on graphite, so the past bars, segments and
+/// tracks turn a neutral graphite there (the current bar keeps its orange
+/// ramp). Off the plate these are the palette's own chart colours. Token
+/// values are unchanged.
+extension AknPlateChartColors on AknColors {
+  /// Past months, upcoming segments, context steps.
+  Color get plateChartContext =>
+      isDark && isPlatePalette ? Color.lerp(surface, dim, 0.36)! : chartContext;
+
+  /// Meter and bar tracks.
+  Color get plateChartTrack =>
+      isDark && isPlatePalette ? Color.lerp(surface, dim, 0.14)! : chartTrack;
+}
+
 /// The orange ramp of the current bar, the meters and the result step
 /// (light → deep): on the plate `heroStart` → `plateAccent` (dark:
 /// `plateAccent` → the logo orange), elsewhere a lighter shade of the
@@ -1159,20 +1219,25 @@ class _PlateBarsState extends State<PlateBars>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapUp: (d) => _tap(geo.nearest(d.localPosition.dx)),
-                  // The current month is live: its glow breathes softly
-                  // (ambient; still in tests and under reduce motion).
+                  // The current month is live: its glow breathes softly —
+                  // inside the page's loop budget (v4 §6): it waits while
+                  // the home's lead halo holds the one focus loop, then
+                  // breathes three times and rests (still in tests and
+                  // under reduce motion).
                   child: RepaintBoundary(
                     child: AknAmbient(
                       period: AknMotion.breathe,
                       reverse: true,
                       restValue: 0.5,
+                      role: AknAmbientRole.focus,
+                      cycles: 3,
                       builder: (context, breath, _) => CustomPaint(
                         painter: _BarsPainter(
                           values: values,
                           current: current,
                           selected: bubble,
                           projection: widget.projection,
-                          context: c.chartContext,
+                          context: c.plateChartContext,
                           highlight: highlight,
                           highlightTop: highlightTop,
                           outline: c.chartHighlight,
@@ -1613,7 +1678,7 @@ class _PlateMeterState extends State<PlateMeter>
             value: v,
             threshold: widget.threshold?.clamp(0.0, 1.0),
             projection: widget.projection?.clamp(0.0, 1.0),
-            track: c.chartTrack,
+            track: c.plateChartTrack,
             fill: plate ? end : c.ink,
             fillStart: plate ? start : c.ink,
             mark: c.ink,
@@ -1938,7 +2003,7 @@ class PlateRankedBars extends StatelessWidget {
                       ? 0
                       : rows[i].fraction.clamp(0.0, rows[i].track),
                   track: rows[i].track.clamp(0.0, 1.0),
-                  trackColor: c.chartTrack,
+                  trackColor: c.plateChartTrack,
                   fill: fillColor,
                   fillStart: fillStart,
                   delay: Duration(milliseconds: 140 + 60 * i),
@@ -1961,7 +2026,7 @@ class PlateRankedBars extends StatelessWidget {
                         width: 12,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: l.filled ? fillColor : c.chartTrack,
+                          color: l.filled ? fillColor : c.plateChartTrack,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -2086,10 +2151,10 @@ class PlateFunnel extends StatelessWidget {
                             fraction: steps[i].fraction.clamp(0.0, 1.0),
                             fill: steps[i].highlight
                                 ? highlightEnd
-                                : c.chartContext,
+                                : c.plateChartContext,
                             fillStart: steps[i].highlight
                                 ? highlightStart
-                                : c.chartContext,
+                                : c.plateChartContext,
                             delay: Duration(milliseconds: 140 + 60 * i),
                           ),
                         ),

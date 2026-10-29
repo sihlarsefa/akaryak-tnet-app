@@ -264,10 +264,11 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-/// Masa süzgeci: cari, ürün (yalnızca bekleyen siparişi olanlar) ve sıralama.
+/// Teklifler filtresi ("Filtre", v4 §5 13): süresi yaklaşan, cari, ürün (yalnızca bekleyen siparişi
+/// olanlar) ve sıralama.
 Future<void> showDeskFilterSheet(BuildContext context) => showAppSheet<void>(
   context: context,
-  title: 'Süzgeç ve sıralama',
+  title: 'Filtre',
   builder: (_) => const _DeskFilterSheet(),
 );
 
@@ -280,10 +281,28 @@ class _DeskFilterSheet extends ConsumerWidget {
     final c = ref.read(quoteDeskProvider.notifier);
     final t = context.aknText;
     final k = context.akn;
+    final expiring = s.view == DeskView.expiringSoon;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (s.expiryEnabled) ...[
+          Text('Süre', style: t.bodyStrong.copyWith(color: k.ink)),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            children: [
+              AknChip(
+                label: DeskView.expiringSoon.label,
+                count: s.counts.of(DeskView.expiringSoon),
+                selected: expiring,
+                onTap: () =>
+                    c.setView(expiring ? DeskView.all : DeskView.expiringSoon),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
         Text('Sıralama', style: t.bodyStrong.copyWith(color: k.ink)),
         const SizedBox(height: 4),
         FilterChips<DeskSort>(
@@ -347,9 +366,14 @@ class _DeskFilterSheet extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         AknButton.ghost(
-          label: 'Süzgeçleri temizle',
+          label: 'Filtreleri temizle',
           expand: true,
-          onPressed: s.isFiltered ? c.clearFilters : null,
+          onPressed: s.isFiltered || expiring
+              ? () {
+                  c.clearFilters();
+                  if (expiring) c.setView(DeskView.all);
+                }
+              : null,
         ),
       ],
     );

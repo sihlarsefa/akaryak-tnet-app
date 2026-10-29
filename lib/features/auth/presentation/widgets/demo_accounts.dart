@@ -49,12 +49,16 @@ class DemoAccount {
   final FakePersona persona;
   final DemoGroup group;
 
-  /// Kartta adın altındaki kısa rol ("Bayi sahibi").
+  /// Kısa rol ("Sahip"); kartta tarafla birlikte okunur ([subtitle]).
   final String role;
   final DemoTone tone;
 
   String get key => persona.key;
   String get name => persona.displayName;
+
+  /// Kartta adın altındaki satır (tasarım v4 §5 01): önce taraf, sonra rol — "Müşteri · Yönetici",
+  /// "Bayi · Sahip".
+  String get subtitle => '${group.label} · $role';
 
   /// "Tümünü gör" sayfasındaki açıklama: personanın özeti, grup öneki ve " · " olmadan.
   String get detail {
@@ -69,14 +73,15 @@ class DemoAccount {
   String get spoken => '$name, ${group.label}, $role';
 }
 
-/// Sıra ve roller (sahip kararındaki sırayla). Listede olmayan yeni bir persona türünden gruba girer
-/// ve özetinden kısa bir rol adı alır.
+/// Sıra ve roller (sahip kararındaki sırayla). Rol, kartta tarafın ardından okunur ("Bayi · Sahip"),
+/// bu yüzden tarafı tekrarlamaz ve 156 dp kartta tek satıra sığar. Listede olmayan yeni bir persona
+/// türünden gruba girer ve özetinden kısa bir rol adı alır.
 const Map<String, (DemoGroup, String, DemoTone)> _known = {
-  'musteri': (DemoGroup.customer, 'Şirket yöneticisi', DemoTone.orange),
+  'musteri': (DemoGroup.customer, 'Yönetici', DemoTone.orange),
   'onay': (DemoGroup.customer, 'Onaylayan', DemoTone.orange),
   'talep': (DemoGroup.customer, 'Talep eden', DemoTone.orange),
-  'sahip': (DemoGroup.bayi, 'Bayi sahibi', DemoTone.slate),
-  'mudur': (DemoGroup.bayi, 'Bayi müdürü', DemoTone.slate),
+  'sahip': (DemoGroup.bayi, 'Sahip', DemoTone.slate),
+  'mudur': (DemoGroup.bayi, 'Müdür', DemoTone.slate),
   'finans': (DemoGroup.bayi, 'Finans müdürü', DemoTone.green),
   'finansuzman': (DemoGroup.bayi, 'Finans uzmanı', DemoTone.green),
   'muhasebe': (DemoGroup.bayi, 'Muhasebe', DemoTone.green),
@@ -88,7 +93,7 @@ const Map<String, (DemoGroup, String, DemoTone)> _known = {
   'depo': (DemoGroup.bayi, 'Depo', DemoTone.blue),
   'izleyici': (DemoGroup.bayi, 'Görüntüleyici', DemoTone.grey),
   'ozelrol': (DemoGroup.bayi, 'Özel rol', DemoTone.grey),
-  'merkez': (DemoGroup.center, 'Genel merkez', DemoTone.ink),
+  'merkez': (DemoGroup.center, 'Yönetici', DemoTone.ink),
 };
 
 String _capitalize(String s) =>
@@ -148,8 +153,13 @@ const EdgeInsets _rowPadding = EdgeInsets.fromLTRB(
   AknSpace.page,
   6,
   AknSpace.page,
-  18,
+  16,
 );
+
+/// Persona kartının genişliği (tasarım v4 §5 01): 156 dp ve 12 dp aralıkla 390 dp ekranda iki kart
+/// tam, üçüncüsü ~34 dp görünür (kaydırılabildiği belli olur).
+const double demoCardWidth = 156;
+const double _cardGap = 12;
 
 /// (zemin, harf) — v3 jetonlarından; açık ve koyu temada harfler zeminde en az 4,5:1.
 (Color, Color) _toneColors(DemoTone tone, AknColors c) => switch (tone) {
@@ -313,15 +323,15 @@ class DemoAccountsSection extends StatelessWidget {
           ),
         ] else
           for (final (i, (group, list)) in demoGroups(all).indexed) ...[
-            // Önceki kart satırının altında gölge payı (20) var: sonraki başlık yakın durur.
-            Padding(
+            // Önceki kart satırının altında gölge payı (16) var: sonraki başlık yakın durur.
+            AknLedgerGroup(
+              title: group.label,
               padding: EdgeInsets.fromLTRB(
                 AknSpace.page,
                 i == 0 ? 14 : 4,
                 AknSpace.page,
                 0,
               ),
-              child: _GroupLabel(group),
             ),
             _CardRow(
               accounts: list,
@@ -393,26 +403,8 @@ List<(DemoGroup, List<DemoAccount>)> demoGroups(List<DemoAccount> accounts) => [
       (g, list),
 ];
 
-/// Grup başlığı ("Müşteri"): 12/16 700 soluk.
-class _GroupLabel extends StatelessWidget {
-  const _GroupLabel(this.group);
-
-  final DemoGroup group;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      header: true,
-      child: Text(
-        group.label,
-        style: context.aknText.captionStrong.copyWith(color: context.akn.dim),
-      ),
-    );
-  }
-}
-
 /// Kartlar: sayfa kenarına kadar yatay kayar (ilk ve son kart sayfa boşluğunda durur), hepsi aynı
-/// yükseklikte; yanındaki kartın ucu görünür. Açılışta kartlar sağdan sırayla kayarak gelir.
+/// yükseklikte; üçüncü kartın ucu görünür. Açılışta kartlar sağdan sırayla kayarak gelir.
 class _CardRow extends StatelessWidget {
   const _CardRow({
     required this.accounts,
@@ -431,9 +423,12 @@ class _CardRow extends StatelessWidget {
     final scale = MediaQuery.textScalerOf(context).scale(15) / 15;
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 1,0×'de 188 dp; yazı büyüdükçe genişler, ama yanındaki kartın ucu hep görünür.
+        // 1,0×'de 156 dp; yazı büyüdükçe genişler, ama yanındaki kartın ucu hep görünür.
         final room = constraints.maxWidth - 2 * AknSpace.page - 28;
-        final width = math.max(188.0, math.min(188 + (scale - 1) * 120, room));
+        final width = math.max(
+          demoCardWidth,
+          math.min(demoCardWidth + (scale - 1) * 120, room),
+        );
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           clipBehavior: Clip.none,
@@ -443,7 +438,7 @@ class _CardRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var i = 0; i < accounts.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 10),
+                  if (i > 0) const SizedBox(width: _cardGap),
                   SizedBox(
                     width: width,
                     child: _DealIn(
@@ -528,10 +523,11 @@ class _DealInState extends State<_DealIn> with SingleTickerProviderStateMixin {
   );
 }
 
-/// Persona kartı (tasarım v3): beyaz kart (r20, yumuşak kart gölgesi; koyu temada ince çizgi), rol
-/// tonunda baş harf avatarı, ad (700) ve rol (500, soluk). Basınca %96'ya iner ve yaylanarak döner;
-/// dokunmak giriş yapar. Giriş sürerken avatarın çevresinde turuncu bir halka döner ve kart turuncu
-/// çizgi alır; başka bir giriş sürerken kart soluklaşır.
+/// Persona kartı (tasarım v4 §5 01): 156 dp beyaz kart (r20, yumuşak kart gölgesi; koyu temada ince
+/// çizgi). Üstte rol tonunda baş harf avatarı, altında ad (15/20 700) ve tarafı adlandıran satır
+/// "Müşteri · Yönetici" (13/18 500, soluk). Basınca %96'ya iner ve yaylanarak döner; dokunmak giriş
+/// yapar. Giriş sürerken avatarın çevresinde turuncu bir halka döner ve kart turuncu çizgi alır; başka
+/// bir giriş sürerken kart soluklaşır.
 class DemoPersonaCard extends StatelessWidget {
   const DemoPersonaCard({
     super.key,
@@ -551,8 +547,15 @@ class DemoPersonaCard extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final duration = AknMotion.of(context, AknMotion.base);
-    final avatar = DemoAvatar.scaled(context, 40);
+    final avatar = DemoAvatar.scaled(context);
     final radius = AknRadius.card;
+    final large = MediaQuery.textScalerOf(context).scale(15) > 15 * 1.15;
+    final nameStyle = t.bodyStrong.copyWith(
+      height: 20 / 15,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.2,
+      color: c.ink,
+    );
     return Semantics(
       container: true,
       button: true,
@@ -590,8 +593,10 @@ class DemoPersonaCard extends StatelessWidget {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: AknSpace.minTap),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-                    child: Row(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         SizedBox.square(
                           dimension: avatar,
@@ -614,34 +619,35 @@ class DemoPersonaCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                account.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.bodyStrong.copyWith(
-                                  height: 20 / 15,
-                                  fontWeight: FontWeight.w700,
-                                  color: c.ink,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                account.role,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.label.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: c.dim,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 10),
+                        // Olağan yazı boyunda ad tek satırda kalır (uzun ad hafifçe küçülür; bir kart
+                        // uzayıp tüm satırı uzatmaz); büyük yazıda iki satıra sarılır.
+                        if (large)
+                          Text(
+                            account.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: nameStyle,
+                          )
+                        else
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerStart,
+                            child: Text(
+                              account.name,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: nameStyle,
+                            ),
+                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          account.subtitle,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.label.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: c.dim,
                           ),
                         ),
                       ],
@@ -708,8 +714,8 @@ class OwnAccountDivider extends StatelessWidget {
   }
 }
 
-/// "Tümünü gör" sayfası: tüm demo hesapları gruplarıyla, personanın açıklamasıyla satırlar; gruplar
-/// sırayla belirir.
+/// "Tümünü gör" sayfası: tüm demo hesapları kartlarla aynı sırada ve gruplu (Müşteri → Bayi → Merkez;
+/// v4 grup başlığı [AknLedgerGroup]), personanın açıklamasıyla satırlar.
 class DemoAccountsList extends StatelessWidget {
   const DemoAccountsList({super.key, required this.onSelected, this.accounts});
 
@@ -726,14 +732,14 @@ class DemoAccountsList extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < groups.length; i++) ...[
-          Padding(
+          AknLedgerGroup(
+            title: groups[i].$1.label,
             padding: EdgeInsets.fromLTRB(
               AknSpace.page,
               i == 0 ? 4 : 18,
               AknSpace.page,
               6,
             ),
-            child: _GroupLabel(groups[i].$1),
           ),
           AknLedger(
             children: [

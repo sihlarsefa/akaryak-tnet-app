@@ -85,9 +85,13 @@ class _AssistantPageState extends ConsumerState<AssistantPage> {
               ),
       ),
     };
+    // v4 §3.2: sekme kökünde (şoför) bant — sohbet balonu, "Asistan" ve tek durum satırı; tam ekran
+    // açıldığında (Diğer) kapat düğmeli bar.
     return AppScaffold(
       title: AssistantCopy.title,
-      subtitle: AssistantCopy.subtitle,
+      bandIcon: PhosphorIconsRegular.chatCircle,
+      status: AssistantCopy.subtitle,
+      subtitle: canPop ? AssistantCopy.subtitle : null,
       showBell: false,
       automaticallyImplyLeading: false,
       leading: canPop

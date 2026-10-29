@@ -7,11 +7,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/connectivity.dart';
+import '../../../core/offline/outbox_op.dart' show OutboxStatus;
+import '../../../core/offline/outbox_providers.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/tr_time.dart';
-import '../../assistant/api.dart';
 import '../../stats/api.dart' show ManagerStatsDeck, refreshManagerStats;
 import '../../weather/api.dart';
 import '../application/field_access.dart';
@@ -24,12 +26,13 @@ import 'location_capture.dart';
 import 'widgets/field_widgets.dart';
 import 'widgets/tupras_strip.dart';
 
-/// Saha satış ana sayfası (tasarım v3 "Akış", `fieldRep`): turuncu `AknHomeHeader` bandı → bandın
-/// üstüne yükselen kendi portföyünün istatistik destesi → gönderilmeyi bekleyenler → "Saha formlarım"
-/// (sayaç gibi sayan KPI kutuları + onay bekleyen, taslak, reddedilen satır kartları) → "Ön
-/// kayıtlarım" → "Tüpraş fiyatları" → bulunduğunuz yerde hava. Bölümler ilk açılışta sırayla, sonra
-/// kaydırdıkça görünür oldukça kayarak belirir. "Saha formu" alt menünün ortasındaki tuştadır. Sınıf
-/// adı ve kurucu imzası sabittir.
+/// Saha satış ana sayfası (tasarım v4 "Sade" §3.3, `fieldRep`): turuncu `AknHomeHeader` bandı (avatar
+/// Profil'i açar) → bandın üstüne binen "Sıra sizde" kartı (gönderilmeyi bekleyen formlar "Şimdi
+/// gönder", ek bilgi bekleyen ön kayıtlar, en sonda nötr taslaklar; iş yoksa sakin satır) → kendi
+/// portföyünün istatistik destesi → ilk oturumda "Nasıl çalışır" → "Saha formlarım" (KPI satırı +
+/// onay bekleyen, taslak, reddedilen satırları) → "Ön kayıtlarım" → "Tüpraş fiyatları" →
+/// bulunduğunuz yerde hava. Bölümler ilk açılışta sırayla, sonra kaydırdıkça kayarak belirir. "Yeni
+/// form" alt menünün ortasındaki tuştadır. Sınıf adı ve kurucu imzası sabittir.
 class FieldHome extends ConsumerWidget {
   const FieldHome({super.key});
 
@@ -47,9 +50,6 @@ class FieldHome extends ConsumerWidget {
     final access = ref.watch(fieldAccessProvider);
     final me = ref.watch(sessionControllerProvider.select((s) => s.access));
     final features = ref.watch(appConfigProvider.select((c) => c.features));
-    // Asistan girişleri: özellik açık ve sunucu 503 `assistant_disabled` demedi (spec A.6).
-    final assistantOn =
-        features.assistant && ref.watch(assistantEnabledProvider);
     final queued = ref.watch(fieldQueuedItemsProvider);
     final data = state.data;
 
@@ -84,7 +84,6 @@ class FieldHome extends ConsumerWidget {
           access: access,
           queued: queued,
           weather: features.weather,
-          assistant: assistantOn,
           cachedAt: state.cachedAt,
         ),
       );
@@ -98,8 +97,7 @@ class FieldHome extends ConsumerWidget {
       homeHeader: AknHomeHeader(
         company: me?.stationTitle ?? 'Saha satış',
         person: [if (name.isNotEmpty) name, fieldLowerFirst(role)].join(', '),
-        // Ada dokununca Profil (§6.2) şimdilik kapalı: AknHomeHeader'ın dokunma düğümü etiketsiz ve
-        // 48 dp'den kısa (a11y kılavuzları); çekirdek düzeltilince `onOpenProfile` geri eklenecek.
+        onOpenProfile: () => context.push(AppRoutes.profile),
       ),
       refreshing: state.refreshing,
       body: body,
@@ -113,7 +111,6 @@ class _HomeList extends StatelessWidget {
     required this.access,
     required this.queued,
     required this.weather,
-    required this.assistant,
     this.cachedAt,
   });
 
@@ -121,7 +118,6 @@ class _HomeList extends StatelessWidget {
   final FieldAccess access;
   final List<FieldQueuedItem> queued;
   final bool weather;
-  final bool assistant;
   final DateTime? cachedAt;
 
   @override
@@ -136,11 +132,14 @@ class _HomeList extends StatelessWidget {
         context.go('${AppRoutes.field}?tab=forms&status=$status');
     final formsFailed = data.failed.contains('forms');
     final children = <Widget>[
-      // Sahip kararı G: deste turuncu şeridin üstüne biner (AknBandOverlap, liste üst boşluğu yok).
-      const AknBandOverlap(
-        padding: EdgeInsets.zero,
-        child: ManagerStatsDeck(padding: EdgeInsets.symmetric(horizontal: 18)),
+      // Sahip kararı G + v4 §3.3: "Sıra sizde" turuncu şeridin üstüne biner (AknBandOverlap).
+      _FieldHero(data: data, queued: queued),
+      // Kendi portföyünün destesi kahramanın hemen altında, ilk ekranda.
+      const ManagerStatsDeck(
+        raised: false,
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
       ),
+      const _FieldHint(),
       if (cachedAt != null) FieldCachedNote(at: cachedAt!),
       if (queued.isNotEmpty) ...[
         SectionHeader(
@@ -237,18 +236,16 @@ class _HomeList extends StatelessWidget {
             title: FieldCopy.formsEmptyTitle,
             message: FieldCopy.formsEmptyMessage,
             illustration: AknIllustration.field,
-            actionLabel: 'Saha formu',
+            actionLabel: 'Yeni form',
             onAction: () => context.push(AppRoutes.fieldFormNew),
           ),
         ),
       if (access.canSeeLeads) ..._leadSection(context),
       const TuprasStrip(),
-      const _TipWell(),
       if (weather) const _WeatherHere(),
-      if (assistant) const _AssistantRow(),
       const SizedBox(height: 32),
     ];
-    // Deste bandın üstüne kendi yükselişiyle gelir; diğer bölümler sırayla (ve kaydırınca) belirir.
+    // Kahraman bandın üstüne kendi yükselişiyle gelir; diğer bölümler sırayla (ve kaydırınca) belirir.
     return StaggerScope(
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -370,84 +367,139 @@ class _SectionFailed extends ConsumerWidget {
   );
 }
 
-/// Rol ipucu (ilk girişte bir kez; kapatılabilir): yumuşak tonlu bilgi bandı.
-class _TipWell extends ConsumerStatefulWidget {
-  const _TipWell();
+/// "Sıra sizde" (v4 §3.3 saha): gönderilmeyi bekleyen formlar ("Şimdi gönder": bekleyen işlemleri
+/// hemen dener), ek bilgi bekleyen ön kayıtlar, en sonda nötr ve sayılmayan taslaklar. İş yoksa
+/// sakin satır.
+class _FieldHero extends ConsumerWidget {
+  const _FieldHero({required this.data, required this.queued});
+
+  final FieldHomeData data;
+  final List<FieldQueuedItem> queued;
 
   @override
-  ConsumerState<_TipWell> createState() => _TipWellState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final waiting = [
+      for (final q in queued)
+        if (q.isForm || q.isLead) q,
+    ];
+    final stuck = waiting.any((q) => q.status == OutboxStatus.needsAttention);
+    void send() {
+      if (!ref.read(isOnlineProvider)) {
+        AppToast.info(
+          'Çevrimdışısınız; bağlantı gelince otomatik gönderilir.',
+          context: context,
+        );
+        return;
+      }
+      unawaited(ref.read(outboxRunnerProvider).retryWaiting());
+    }
+
+    final forms = waiting.where((q) => q.isForm).length;
+    final leads = waiting.length - forms;
+    final what = [
+      if (forms > 0) '$forms form',
+      if (leads > 0) '$leads ön kayıt',
+    ].join(' ve ');
+    final info = data.leadsNeedingInfoCount > 0
+        ? data.leadsNeedingInfoCount
+        : data.leadsNeedingInfo.length;
+    final tasks = <AknTask>[
+      if (waiting.isNotEmpty)
+        AknTask(
+          id: 'field-queue',
+          title: 'Gönderilmeyi bekleyen $what',
+          subtitle: stuck
+              ? 'Biri düzeltilmeyi bekliyor'
+              : 'Bağlantı gelince otomatik gönderilir',
+          icon: PhosphorIconsRegular.cloudArrowUp,
+          tone: stuck ? AknTaskTone.danger : AknTaskTone.yourMove,
+          actionLabel: 'Şimdi gönder',
+          onAction: send,
+        ),
+      if (info > 0)
+        AknTask(
+          id: 'field-lead-info',
+          title: info == 1
+              ? 'Ön kayıt için bilgi gönderin'
+              : '$info ön kayıt için bilgi gönderin',
+          subtitle: data.leadsNeedingInfo.isEmpty
+              ? 'Finans ek bilgi istedi'
+              : data.leadsNeedingInfo
+                    .take(2)
+                    .map((l) => l.companyTitle)
+                    .join(' · '),
+          icon: PhosphorIconsRegular.question,
+          actionLabel: 'Bilgi gönder',
+          onAction: () => _openInfo(context),
+          onTap: () => _openInfo(context),
+        ),
+      if (data.drafts > 0)
+        AknTask(
+          id: 'field-drafts',
+          title: data.drafts == 1
+              ? 'Yarım kalan formunuz'
+              : 'Yarım kalan ${data.drafts} form',
+          subtitle: data.recentDrafts.isEmpty
+              ? null
+              : data.recentDrafts.first.customerTitle,
+          icon: PhosphorIconsRegular.notePencil,
+          tone: AknTaskTone.neutral,
+          actionLabel: 'Taslaklara git',
+          onAction: () => context.go('${AppRoutes.field}?tab=forms&status=0'),
+          onTap: () => context.go('${AppRoutes.field}?tab=forms&status=0'),
+          counts: false,
+        ),
+    ];
+    return AknBandOverlap(
+      child: AknTaskCard(
+        tasks: tasks,
+        calm: 'Ziyaretten sonra Yeni form ile siparişi yazın.',
+        onSeeAll: () => context.go(AppRoutes.field),
+      ),
+    );
+  }
+
+  void _openInfo(BuildContext context) {
+    final leads = data.leadsNeedingInfo;
+    if (leads.length == 1) {
+      context.push(AppRoutes.fieldLead(leads.first.id));
+    } else {
+      context.go('${AppRoutes.field}?tab=leads&status=info');
+    }
+  }
 }
 
-class _TipWellState extends ConsumerState<_TipWell> {
+/// "Nasıl çalışır" (v4 §4 `AknFirstRunHint`): ilk oturumda bir kez, kullanıcı başına; "Anladım"
+/// deyince bir daha gösterilmez (eski ipucu ve asistan satırının yerine).
+class _FieldHint extends ConsumerStatefulWidget {
+  const _FieldHint();
+
+  @override
+  ConsumerState<_FieldHint> createState() => _FieldHintState();
+}
+
+class _FieldHintState extends ConsumerState<_FieldHint> {
   bool _hidden = false;
 
   @override
   Widget build(BuildContext context) {
     final uid = ref.read(currentUserIdProvider);
     final key = uid == null ? null : PrefKeys.user(uid, 'field.tipDismissed');
-    if (_hidden || key == null || ref.read(prefsStoreProvider).getBool(key)) {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-      child: AknBanner(
-        tone: AknTone.info,
-        icon: PhosphorIconsRegular.lightbulbFilament,
-        title: 'Sahada bağlantı kesilirse',
-        message:
-            'Saha formunu ve ön kaydı bağlantı olmadan da kaydedebilirsiniz; bağlantı gelince otomatik gönderilir.',
-        // Kapatma metin düğmesiyle (48 dp dokunma hedefi; kuyu içindeki küçük kapat simgesi yerine).
-        actionLabel: 'Anladım',
-        onAction: () {
-          setState(() => _hidden = true);
-          unawaited(ref.read(prefsStoreProvider).setBool(key, true));
-        },
-      ),
-    );
-  }
-}
-
-/// "Asistana sorun" satırı (kapatılabilir; asistan ekranı rota ile açılır).
-class _AssistantRow extends ConsumerStatefulWidget {
-  const _AssistantRow();
-
-  @override
-  ConsumerState<_AssistantRow> createState() => _AssistantRowState();
-}
-
-class _AssistantRowState extends ConsumerState<_AssistantRow> {
-  bool _hidden = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final uid = ref.read(currentUserIdProvider);
-    final key = uid == null
-        ? null
-        : PrefKeys.user(uid, 'field.assistantCardDismissed');
-    if (_hidden || key == null || ref.read(prefsStoreProvider).getBool(key)) {
-      return const SizedBox.shrink();
-    }
-    return FieldListCard(
-      margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      child: AknListTile(
-        leadingIcon: PhosphorIconsRegular.chatCircle,
-        leadingTone: AknTone.brand,
-        title: 'Asistana sorun',
-        subtitle: '"Koşullu onay ne demek?", "Barem bandı nedir?"',
-        semanticLabel:
-            'Asistana sorun: saha formu ve ön kayıt hakkında sorular',
-        onTap: () => context.push(AppRoutes.assistant),
-        trailing: AknIconButton(
-          icon: PhosphorIconsRegular.x,
-          semanticLabel: 'Asistan satırını kapat',
-          size: 20,
-          color: context.akn.dim,
-          onPressed: () {
-            setState(() => _hidden = true);
-            unawaited(ref.read(prefsStoreProvider).setBool(key, true));
-          },
-        ),
-      ),
+    final hide =
+        _hidden || key == null || ref.read(prefsStoreProvider).getBool(key);
+    return AknAnimatedSize(
+      duration: AknMotion.slow,
+      curve: AknMotion.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: hide
+          ? const SizedBox(width: double.infinity)
+          : AknFirstRunHint(
+              steps: AknFirstRunHint.fieldSteps,
+              onDismiss: () {
+                setState(() => _hidden = true);
+                unawaited(ref.read(prefsStoreProvider).setBool(key, true));
+              },
+            ),
     );
   }
 }
@@ -587,9 +639,11 @@ class _FloatingSun extends StatelessWidget {
       decoration: BoxDecoration(color: c.brandSoft, shape: BoxShape.circle),
       child: Icon(PhosphorIconsFill.sun, size: 24, color: c.brand),
     );
+    // v4 §6: liste içinde döngü yok — güneş üç kez süzülür, sonra durur.
     return AknAmbient(
       period: AknMotion.float,
       reverse: true,
+      cycles: 3,
       builder: (context, t, child) => Transform.translate(
         offset: Offset(0, -3 + 6 * t),
         child: Transform.rotate(angle: 0.12 * t, child: child),

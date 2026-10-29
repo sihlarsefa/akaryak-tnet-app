@@ -685,7 +685,7 @@ class FieldListState extends StatelessWidget {
     required this.error,
     required this.onRetry,
     required this.emptyTitle,
-    this.emptyMessage,
+    required this.emptyMessage,
     this.filtered = false,
     this.onClearFilters,
     this.emptyActionLabel,
@@ -696,7 +696,7 @@ class FieldListState extends StatelessWidget {
   final AppFailure? error;
   final VoidCallback onRetry;
   final String emptyTitle;
-  final String? emptyMessage;
+  final String emptyMessage;
   final bool filtered;
   final VoidCallback? onClearFilters;
   final String? emptyActionLabel;
@@ -731,6 +731,7 @@ class FieldListState extends StatelessWidget {
     if (filtered) {
       return EmptyState(
         title: FieldCopy.filteredEmptyTitle,
+        message: 'Yazımı kontrol edin ya da filtreleri temizleyin.',
         illustration: AknIllustration.search,
         actionLabel: onClearFilters == null
             ? null

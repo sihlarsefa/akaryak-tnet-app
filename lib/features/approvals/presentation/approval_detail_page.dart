@@ -12,7 +12,6 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
-import '../../../core/utils/turkish_text.dart';
 import '../application/approval_detail_controller.dart';
 import '../application/approvals_providers.dart';
 import '../copy.dart';
@@ -29,23 +28,30 @@ import 'widgets/decision_sheets.dart';
 import 'widgets/info_cards.dart';
 import 'widgets/summary_sections.dart';
 
-/// Onay ayrıntısı (spec A.4 A5, tasarım v3 "Akış"): başlık (28/34 800, lamba hapı ve geri sayım),
-/// ekranın tek plakası (tutar sayaç gibi döner, okumalar yuvarlanır), sunucu özeti ve kalemler
-/// beyaz kartlarda, kendini çizen onay adımları, olay günlüğü, belgeler (açılış günlüğe yazılır);
-/// bölümler sırayla yükselir. Karar çubuğu (`modes`) alttaki buzlu rafta aşağıdan yükselir; "X
-/// adına", karar veremeyene `decisionHint`; ek bilgi yanıtı (`canProvideInfo`) ve "Bilgi alındı"
-/// (`canResumeInfo`). Cari görünümünde SLA ve kademe yoktur.
+/// Onay ayrıntısı (spec A.4 A5, tasarım v4 "Sade"): çubukta nesnenin türü ("Onay talebi"; kaydırınca
+/// talebin adı), gövdenin ilk bloğu insan adıyla nesne başlığı ([AknObjectHeader]: tür, ad,
+/// koşullar, kopyalanabilir belge numarası) ve şimdiki adım ([StageNow]: "Karar verin" + geri
+/// sayım, talep eden · zaman · kademe); ekranın tek plakası (tutar sayaç gibi döner), sunucu özeti
+/// ve kalemler, kendini çizen onay adımları, olay günlüğü, belgeler (açılış günlüğe yazılır);
+/// bölümler sırayla yükselir. Karar rıhtımı [ActionBar.decision]: tek birincil ("Onayla", "Bilgi
+/// alındı", "Bilgi gönder") ve çerçevesiz ikinciller (Reddet tehlike yazısıyla); çevrimdışıyken
+/// açıklamalı kapalı çubuk. `?focus=request` talebin bloğuna kaydırıp parlatır. Cari görünümünde
+/// SLA ve kademe yoktur.
 class ApprovalDetailPage extends ConsumerStatefulWidget {
   const ApprovalDetailPage({
     super.key,
     required this.id,
     this.focusReply = false,
+    this.focusRequest = false,
   });
 
   final int id;
 
   /// `?reply=1`: yanıt alanına odaklanır (Finans bilgisi ekranından gelindiğinde).
   final bool focusReply;
+
+  /// `?focus=request` (v4 §3.5): talebin karar / yanıt bloğu görünür kılınır ve parlar.
+  final bool focusRequest;
 
   @override
   ConsumerState<ApprovalDetailPage> createState() => _ApprovalDetailPageState();
@@ -187,6 +193,190 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     );
   }
 
+  /// v4 karar rıhtımı (çevrimiçi; tasarım v4 §4 [ActionBar.decision]): şimdi atılabilecek tek
+  /// birincil adım ve çerçevesiz ikinciller (Reddet tehlike yazısıyla, en sağda). Yapılacak bir şey
+  /// yoksa null.
+  Widget? _decisionDock(ApprovalDetail d, int? forwardLeadId) {
+    AknButton reject() => AknButton.danger(
+      label: d.modeLabel(ApprovalDecision.reject),
+      onPressed: () => unawaited(_decide(ApprovalDecision.reject)),
+    );
+    if (d.canProvideInfo && d.infoRequest != null) {
+      return ActionBar.decision(
+        primary: AknButton(
+          label: ApprovalsCopy.sendInfo,
+          icon: PhosphorIconsRegular.arrowBendUpLeft,
+          loading: _replying,
+          onPressed: () => unawaited(_sendReply(d)),
+        ),
+      );
+    }
+    if (d.canResumeInfo) {
+      return ActionBar.decision(
+        primary: AknButton(
+          label: ApprovalsCopy.infoReceived,
+          icon: PhosphorIconsRegular.check,
+          onPressed: () => unawaited(_resume()),
+        ),
+        caption: ApprovalsCopy.infoReceivedCaption,
+        secondaries: [if (d.can(ApprovalDecision.reject)) reject()],
+      );
+    }
+    final forward = forwardLeadId == null
+        ? null
+        : () => unawaited(_forward(forwardLeadId));
+    if (d.modes.isEmpty) {
+      return forward == null
+          ? null
+          : ActionBar.decision(
+              primary: AknButton(
+                label: 'Merkeze ilet',
+                icon: PhosphorIconsRegular.uploadSimple,
+                onPressed: forward,
+              ),
+            );
+    }
+    final others = [
+      for (final m in const [
+        ApprovalDecision.requestInfo,
+        ApprovalDecision.conditionalApprove,
+      ])
+        if (d.can(m)) m,
+    ];
+    final AknButton primary;
+    if (d.can(ApprovalDecision.approve)) {
+      primary = AknButton(
+        label: d.modeLabel(ApprovalDecision.approve),
+        onPressed: () => unawaited(_decide(ApprovalDecision.approve)),
+      );
+    } else if (forward != null) {
+      primary = AknButton(label: 'Merkeze ilet', onPressed: forward);
+    } else if (others.isNotEmpty) {
+      final m = others.removeAt(0);
+      primary = AknButton(
+        label: d.modeLabel(m),
+        onPressed: () => unawaited(_decide(m)),
+      );
+    } else {
+      // Yalnızca ret: birincil turuncu "Reddet" olmaz; eski çubuk (tehlike düğmesi).
+      return DecisionBar(detail: d, onDecision: _decide);
+    }
+    final moreForward = forward != null && d.can(ApprovalDecision.approve);
+    final secondaries = <AknButton>[];
+    // Büyük yazıda satıra en çok iki ikincil sığar: diğer kararlar "Diğer"de.
+    if (others.isNotEmpty && !isLargeText(context)) {
+      final m = others.removeAt(0);
+      secondaries.add(
+        AknButton.ghost(
+          label: d.modeLabel(m),
+          onPressed: () => unawaited(_decide(m)),
+        ),
+      );
+    }
+    if (others.isNotEmpty || moreForward) {
+      final rest = [...others];
+      secondaries.add(
+        AknButton.ghost(
+          label: 'Diğer',
+          semanticLabel: [
+            'Diğer kararlar',
+            ...rest.map(d.modeLabel),
+            if (moreForward) 'Merkeze ilet',
+          ].join(', '),
+          onPressed: () => unawaited(
+            showMoreDecisions(
+              context,
+              detail: d,
+              modes: rest,
+              onDecision: _decide,
+              onForward: moreForward ? forward : null,
+            ),
+          ),
+        ),
+      );
+    }
+    if (d.can(ApprovalDecision.reject)) secondaries.add(reject());
+    return ActionBar.decision(primary: primary, secondaries: secondaries);
+  }
+
+  /// Çevrimdışı (spec C.4a): açıklamalı, kapalı çubuk.
+  Widget? _offlineBar(ApprovalDetail d, int? forwardLeadId) {
+    if (d.canProvideInfo && d.infoRequest != null) {
+      return _BarColumn(
+        offline: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text(
+                'Çevrimdışısınız; yanıt için bağlantı gerekli.',
+                style: context.aknText.bodySmall,
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const AknButton(
+              label: ApprovalsCopy.sendInfo,
+              icon: PhosphorIconsRegular.arrowBendUpLeft,
+              expand: true,
+              size: AknButtonSize.large,
+              onPressed: null,
+            ),
+          ],
+        ),
+      );
+    }
+    if (d.canResumeInfo) {
+      return _BarColumn(
+        offline: true,
+        child: Row(
+          children: [
+            if (d.can(ApprovalDecision.reject)) ...[
+              Expanded(
+                child: AknButton.secondary(
+                  label: d.modeLabel(ApprovalDecision.reject),
+                  icon: PhosphorIconsRegular.x,
+                  expand: true,
+                  onPressed: null,
+                ),
+              ),
+              const SizedBox(width: 12),
+            ],
+            const Expanded(
+              flex: 2,
+              child: AknButton(
+                label: ApprovalsCopy.infoReceived,
+                icon: PhosphorIconsRegular.check,
+                expand: true,
+                onPressed: null,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (d.modes.isNotEmpty) {
+      return DecisionBar(
+        detail: d,
+        onDecision: _decide,
+        onForward: forwardLeadId == null ? null : () => _forward(forwardLeadId),
+      );
+    }
+    if (forwardLeadId != null) {
+      return const _BarColumn(
+        offline: true,
+        child: AknButton(
+          label: 'Merkeze ilet',
+          icon: PhosphorIconsRegular.uploadSimple,
+          expand: true,
+          onPressed: null,
+        ),
+      );
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(approvalDetailProvider(widget.id));
@@ -212,7 +402,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
 
     if (d == null) {
       return AppScaffold(
-        title: 'Onay talebi',
+        title: ApprovalsCopy.detailTitle,
         body: s.error == null
             ? const _DetailSkeleton()
             : Center(
@@ -254,81 +444,11 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
                   !lead.isForwardedToHq));
 
     final online = ref.watch(isOnlineProvider);
-    Widget? actionBar;
-    if (d.canProvideInfo && d.infoRequest != null) {
-      actionBar = _BarColumn(
-        offline: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (!online)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'Çevrimdışısınız; yanıt için bağlantı gerekli.',
-                  style: context.aknText.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            AknButton(
-              label: 'Yanıtla',
-              icon: PhosphorIconsRegular.arrowBendUpLeft,
-              expand: true,
-              size: AknButtonSize.large,
-              loading: _replying,
-              onPressed: online && !_replying ? () => _sendReply(d) : null,
-            ),
-          ],
-        ),
-      );
-    } else if (d.canResumeInfo) {
-      actionBar = _BarColumn(
-        offline: !online,
-        child: Row(
-          children: [
-            if (d.can(ApprovalDecision.reject)) ...[
-              Expanded(
-                child: AknButton.secondary(
-                  label: d.modeLabel(ApprovalDecision.reject),
-                  icon: PhosphorIconsRegular.x,
-                  expand: true,
-                  onPressed: online
-                      ? () => _decide(ApprovalDecision.reject)
-                      : null,
-                ),
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              flex: 2,
-              child: AknButton(
-                label: 'Bilgi alındı',
-                icon: PhosphorIconsRegular.check,
-                expand: true,
-                onPressed: online ? _resume : null,
-              ),
-            ),
-          ],
-        ),
-      );
-    } else if (d.modes.isNotEmpty) {
-      actionBar = DecisionBar(
-        detail: d,
-        onDecision: _decide,
-        onForward: canForward ? () => _forward(leadId) : null,
-      );
-    } else if (canForward) {
-      actionBar = _BarColumn(
-        offline: !online,
-        child: AknButton(
-          label: 'Merkeze ilet',
-          icon: PhosphorIconsRegular.uploadSimple,
-          expand: true,
-          onPressed: online ? () => _forward(leadId) : null,
-        ),
-      );
-    }
+    // v4: çevrimiçi karar rıhtımı (tek birincil, çerçevesiz ikinciller); çevrimdışıyken
+    // açıklamalı, kapalı çubuk (spec C.4a).
+    final actionBar = online
+        ? _decisionDock(d, canForward ? leadId : null)
+        : _offlineBar(d, canForward ? leadId : null);
 
     final readouts = plateReadoutsFor(d);
     final usedFacts = {for (final r in readouts) r.label};
@@ -336,19 +456,32 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       for (final f in d.summary.facts)
         if (!usedFacts.contains(f.label)) f,
     ];
+    final replying = d.canProvideInfo && d.infoRequest != null;
+    // `?focus=request`: talebin bloğu — yanıt beklenen ek bilgi kartı, yoksa talebin plakası.
+    Widget focusable(Widget child, {required bool target}) => target
+        ? AknFocusFlash(
+            active: widget.focusRequest,
+            borderRadius: AknRadius.plate,
+            child: child,
+          )
+        : child;
+    final names = approvalNames(d);
     final children = <Widget>[
-      _Header(detail: d),
+      _Header(detail: d, names: names),
       // Sonuç ve "sıra sizde" blokları plakadan önce: ne oldu, ne yapmalı.
       _DecisionOutcomeBanner(detail: d),
       if (CompanyRequestOutcome.applies(d)) CompanyRequestOutcome(detail: d),
-      if (d.canProvideInfo && d.infoRequest != null)
+      if (replying)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: InfoReplyCard(
-            detail: d,
-            note: _reply,
-            noteFocus: _replyFocus,
-            noteError: _replyError,
+          child: focusable(
+            target: true,
+            InfoReplyCard(
+              detail: d,
+              note: _reply,
+              noteFocus: _replyFocus,
+              noteError: _replyError,
+            ),
           ),
         )
       else if (d.canResumeInfo && d.infoRequest != null)
@@ -356,7 +489,10 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: InfoWaitingCard(detail: d),
         ),
-      _ApprovalPlate(detail: d, readouts: readouts),
+      focusable(
+        target: !replying,
+        _ApprovalPlate(detail: d, readouts: readouts),
+      ),
       if (d.modes.isEmpty && d.decisionHint != null && !d.canProvideInfo)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -438,7 +574,8 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     ];
 
     return AppScaffold(
-      title: d.type.label,
+      title: ApprovalsCopy.detailTitle,
+      collapsedTitle: names.title,
       refreshing: s.refreshing,
       actionBar: actionBar,
       body: PullToRefresh(
@@ -492,85 +629,143 @@ class _BarColumn extends StatelessWidget {
   );
 }
 
-/// Düz beyaz başlık (tasarım v2 §7.13): onaylanacak şeyin adı (`display`), numara ve sunucu alt
-/// satırı, izleyiciye göre lamba ve son tarih (bayi görünümünde), talep eden, zaman ve kademe.
+/// Talebin insan adı ve kodu (v4 §3.2, P4): başlık sunucu başlığının kod olmayan parçaları
+/// ("Körfez Nakliyat ve Ticaret", "Burak Yılmaz"), yoksa karşı taraf; kod (SSF-, SIP-, TLP-) yalnızca
+/// kopyalanabilir alt yazı.
+({String title, String? code}) approvalNames(ApprovalDetail d) {
+  bool isCode(String p) =>
+      RegExp(r'^[A-ZÇĞİÖŞÜ]{2,5}-[\d-]+$').hasMatch(p) ||
+      RegExp(r'#\d+').hasMatch(p);
+  final parts = [
+    for (final p in d.summary.headline.split(' · '))
+      if (p.trim().isNotEmpty) p.trim(),
+  ];
+  final human = [
+    for (final p in parts)
+      if (!isCode(p)) p,
+  ].join(', ');
+  final code =
+      d.row.subjectNumber ??
+      [
+        for (final p in parts)
+          if (isCode(p)) p,
+      ].firstOrNull;
+  final counterpart = d.customerView
+      ? (d.type == ApprovalType.companyOrderRequest
+            ? d.row.requestedByName
+            : d.row.stationTitle)
+      : d.row.customerTitle;
+  final title = human.isNotEmpty
+      ? human
+      : (counterpart ?? d.row.requestedByName ?? d.row.title);
+  return (title: title.isEmpty ? ApprovalsCopy.detailTitle : title, code: code);
+}
+
+/// Ayrıntının ilk bloğu (tasarım v4 §4 [AknObjectHeader] + [StageNow]): türün adı, talebin insan
+/// adı (28/34 800), sunucunun alt satırı ve kopyalanabilir kod; altında şimdiki adım — izleyiciye
+/// göre tek cümle ("Karar verin", Pas; "Onay bekleniyor") ve bayi görünümünde son tarih geri sayımı,
+/// ardından talep eden · zaman · kademe.
 class _Header extends StatelessWidget {
-  const _Header({required this.detail});
+  const _Header({required this.detail, required this.names});
 
   final ApprovalDetail detail;
+  final ({String title, String? code}) names;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
     final d = detail;
     final lamp = approvalRowLamp(
       d.row,
       customerSide: d.customerView,
       canProvideInfo: d.canProvideInfo,
     );
-    final headline = d.summary.headline.isNotEmpty
-        ? d.summary.headline
-        : [?d.row.subjectNumber, ?d.row.customerTitle].join(' · ');
-    // "SIP-… · Marmara İnşaat": numara ayrı satırda (büyük yazıda numara bölünmesin).
-    final parts = headline.split(' · ');
-    final codeFirst =
-        parts.length > 1 &&
-        !parts.first.contains(' ') &&
-        RegExp(r'\d').hasMatch(parts.first);
-    final number = codeFirst ? parts.first : d.row.subjectNumber;
-    final title = codeFirst ? parts.skip(1).join(', ') : plainSummary(headline);
+    final now = DateTime.now().toUtc();
     final overdue =
         d.row.slaState == ApprovalSlaState.overdue ||
-        (d.row.dueAt != null && d.row.dueAt!.isBefore(DateTime.now().toUtc()));
+        (d.row.dueAt != null && d.row.dueAt!.isBefore(now));
     final showSla = !d.customerView && d.isOpen && d.row.dueAt != null;
     final levels = !d.customerView && d.isOpen && d.row.hasLevels
         ? 'kademe ${d.row.currentLevelNo}/${d.row.levelCount}'
         : null;
-    final sub = [
-      ?number,
-      if (d.summary.subline != null) plainSummary(d.summary.subline),
-    ].join(', ');
+    final requester = d.row.requestedByName;
     final meta = [
-      if (d.row.requestedByName != null) 'Talep eden: ${d.row.requestedByName}',
-      TurkishText.lower(Fmt.relative(d.row.createdAt)),
+      if (requester != null) 'Talep eden $requester',
+      whenStamp(d.row.createdAt),
       ?levels,
-    ].join(', ');
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MediaQuery.withClampedTextScaling(
-            maxScaleFactor: 1.5,
-            child: Semantics(
-              header: true,
-              child: Text(
-                title.isEmpty ? d.row.title : title,
-                style: t.display.copyWith(color: c.ink),
-              ),
-            ),
+    ].join(' · ');
+    final subline = d.summary.subline;
+    // Şimdiki adım tek cümle (v4 §3.2 emir kipi): karar verebilene "Karar verin", yanıt verecek
+    // olana "Bilgi gönderin"; onaylayan yanıt beklerken "Yanıt bekleniyor"; diğerlerine lamba.
+    final (sentence, yourMove) = d.modes.isNotEmpty
+        ? (ApprovalsCopy.decideNext, true)
+        : d.canProvideInfo
+        ? (ApprovalsCopy.replyNext, true)
+        : d.canResumeInfo
+        ? (ApprovalsCopy.groupWaiting, false)
+        : (lamp.label, lamp.yourMove);
+    final Widget? trailing;
+    if (showSla && overdue && d.row.dueAt != null) {
+      trailing = Text(
+        '${overdueShort(now.difference(d.row.dueAt!))} gecikti',
+        style: context.aknText.label.copyWith(
+          fontWeight: FontWeight.w600,
+          color: context.akn.danger.fg,
+          fontFeatures: AknNumerals.tabular,
+        ),
+      );
+    } else if (showSla) {
+      trailing = CountdownBadge(
+        deadline: d.row.dueAt!,
+        start: d.row.createdAt,
+        yourMove: yourMove,
+        compact: true,
+        subject: 'Karar süresi',
+      );
+    } else {
+      trailing = null;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.5,
+          child: AknObjectHeader(
+            overline: ApprovalsCopy.typeName(d.type),
+            title: names.title,
+            line: subline == null || subline.isEmpty ? null : subline,
+            caption: names.code,
+            // Uzun basınca kopyalama 18 dp'lik bir hedef olurdu (C.7: en az 48 dp); kod Özet'te de.
+            copyCaption: false,
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
           ),
-          if (sub.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(sub, style: t.bodySmall.copyWith(color: c.dim)),
-          ],
-          const SizedBox(height: 14),
-          AknStatusLine(
-            lamp: AknLamp.status(lamp),
-            trailing: showSla && !overdue
-                ? CountdownBadge(
-                    deadline: d.row.dueAt!,
-                    start: d.row.createdAt,
-                    yourMove: lamp.yourMove,
-                    subject: 'Onay süresi',
-                  )
-                : null,
-          ),
-          const SizedBox(height: 4),
-          Text(meta, style: t.label.copyWith(color: c.dim)),
-        ],
-      ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+          // Büyük yazıda geri sayım cümlenin yanına sığmaz (çekirdek StageNow satırı kaydırmaz):
+          // cümlenin altına iner.
+          child: isLargeText(context) && trailing != null
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    StageNow(
+                      sentence: sentence,
+                      yourMove: yourMove,
+                      detail: meta.isEmpty ? null : meta,
+                    ),
+                    const SizedBox(height: 4),
+                    trailing,
+                  ],
+                )
+              : StageNow(
+                  sentence: sentence,
+                  yourMove: yourMove,
+                  trailing: trailing,
+                  detail: meta.isEmpty ? null : meta,
+                ),
+        ),
+      ],
     );
   }
 }
@@ -645,7 +840,6 @@ class _ApprovalPlate extends StatelessWidget {
     final liters = d.summary.liters ?? d.row.liters;
     if (amount == null && liters == null) return const SizedBox.shrink();
     final band = d.summary.band;
-    final typeStyle = AknStatus.approvalType(d.type);
     final String value;
     final String? decimals;
     final String unit;
@@ -668,11 +862,8 @@ class _ApprovalPlate extends StatelessWidget {
     return AknPlate(
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       semanticLabel: spoken,
-      head: PlateHead(
-        icon: typeStyle.icon,
-        title: amount == null ? 'Miktar' : _title(d.type),
-        period: whenStamp(d.row.createdAt),
-      ),
+      // v4: simge kutusu yok; zaman başlıktaki şimdiki adım satırında (bir kez).
+      head: PlateHead(title: amount == null ? 'Miktar' : _title(d.type)),
       figure: PlateFigure(
         value: value,
         decimals: decimals,

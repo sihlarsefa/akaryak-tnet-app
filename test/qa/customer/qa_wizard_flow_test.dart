@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../integration_test/smoke_flows.dart';
 import '../../support/a11y.dart';
+import '../../support/fonts.dart';
 
 Future<void> _pumpUntil(
   WidgetTester tester,
@@ -72,6 +73,10 @@ Future<GoRouter> _openWizardFromHome(
 }
 
 void main() {
+  // Gerçek yüz (Archivo): "Sıra sizde" baş satırı cihazdaki gibi ölçülür (test yazı tipinde
+  // çekirdeğin satırı uzun geri sayımla taşar; çekirdeğe bildirildi).
+  setUpAll(loadRealFonts);
+
   const methods = <(String, Map<String, String>)>[
     ('Havale', {}),
     (

@@ -8,6 +8,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/outbox_op.dart';
+import '../../../core/offline/pending_ops_chip.dart';
 import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
@@ -36,18 +37,20 @@ import 'widgets/stop_dock.dart';
 import 'widgets/stop_plate.dart';
 import 'widgets/tip_card.dart';
 
-/// Şoför ana sayfası "Teslimatlarım" (tasarım v3 "Akış", §7.11; spec A.4 A7). Yalnızca şoför
-/// olanlarda alt menünün kökü; kendisi teslim eden bayi personeli için `/driver` ile açılır (geri
-/// düğmesiyle). Sınıf adı ve kurucu imzası sabittir (M0a). Sürücü kipinde çizilir (§6.30: yazı bir
-/// basamak büyük, 64 px düğmeler).
+/// Şoför ana sayfası "Teslimatlar" (tasarım v4 §5 11; spec A.4 A7). Yalnızca şoför olanlarda alt
+/// menünün kökü; kendisi teslim eden bayi personeli için `/driver` ile açılır (geri düğmesiyle).
+/// Sınıf adı ve kurucu imzası sabittir (M0a). Sürücü kipinde çizilir (§6.30: yazı bir basamak büyük,
+/// 64 px düğmeler).
 ///
-/// - Turuncu başlık bandı: "Teslimatlarım", bugünün tarihi ve tırın TR plakası (beyaz içerik).
-/// - Sıradaki durak **kahraman kart olarak bandın üstüne yükselir** (ekranın tek plakası):
-///   "Sıradaki teslimat, 1 / 3", akan tanker yük çubuğu, müşteri ve adres; ince çizginin altında
-///   ADR levhası, bu duraktaki litre (sayaç gibi yuvarlanır), canlı güzergâh çizgisi ve okumalar
-///   (plan saati, uzaklık, teslim saatleri). Teslimat kaydedilince sıradaki durak kayarak gelir.
-/// - Kartın altında eşitleme hapı ("Eşitlendi 09:58" / çevrimdışı), düzeltme uyarısı, bekleyen
-///   işlem şeridi ve kapı notuyla teslim alacak kişinin kartı ("Ara").
+/// - Turuncu başlık bandı (sahip kararı G): "Teslimatlar", "Bugün 28 Ekim · 41 DMR 101".
+/// - Sıradaki durak **kahraman kart olarak bandın üstüne yükselir** (ekranın tek plakası): itirazlı
+///   teslimat varsa en üstte tek tehlike satırı; "Sıradaki teslimat 1 / 2", akan tanker yük çubuğu ve
+///   "18.000 L yük · 2 durak", müşteri ve adres; ince çizginin altında ADR levhası, bu duraktaki litre
+///   (sayaç gibi yuvarlanır), canlı » güzergâh çizgisi ve tek satır okumalar ("Varış planı 09:00",
+///   altında "teslim aralığı 08:00–18:00" · "Tank kapasitesi 30.000 L"). Her litre etiketlidir.
+///   Teslimat kaydedilince sıradaki durak kayarak gelir.
+/// - Kartın altında yalnızca gerekince: eşitlenmemişken uyarı satırı ("Çevrimdışı · 2 işlem
+///   bekliyor"), bekleyen işlem şeridi; sonra kapı notuyla teslim alacak kişinin kartı ("Ara").
 /// - Alta yapışık raf: "Yol tarifi" ve "Teslim et" (planlıysa "Yola çık"); birincil olan tırı
 ///   izler.
 /// - Aşağıda: Bugün / Yaklaşan / Geçmiş; duraklar beyaz kartlar olarak sırayla yükselir (sekme
@@ -198,16 +201,13 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
     final largeText = MediaQuery.textScalerOf(context).scale(10) >= 16;
     final header = _DriverHeader(now: now, plate: plate);
     // Sahip kararı G: şoför ana sayfası da turuncu başlık bandıyla açılır (beyaz içerik: avatar,
-    // "Teslimatlarım", tarih ve araç plakası). Büyük yazıda başlık içerikle kayan beyaz satırdır.
+    // "Teslimatlar", "Bugün 28 Ekim · 41 DMR 101"). Büyük yazıda başlık içerikle kayan beyaz satırdır.
     final driverName =
         ref.watch(sessionControllerProvider).access?.displayName ?? '';
-    final wall = TrTime.wall(now);
-    final dateLine =
-        '${Fmt.dayLabel(now, now: now)}, ${wall.day} '
-        '${Fmt.monthNames[wall.month - 1]} ${Fmt.weekday(now)}';
+    final dateLine = _dateLine(now);
     final bandHeader = AknHomeHeader(
       greeting: DriverCopy.title,
-      company: plate == null ? dateLine : '$dateLine, ${Fmt.plate(plate)}',
+      company: plate == null ? dateLine : '$dateLine · ${Fmt.plate(plate)}',
       person: driverName.isEmpty ? null : '$driverName, şoför',
       showBell: false,
       onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
@@ -223,8 +223,9 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
         ),
       // Sıradaki durak bandın üstüne yükselir (kahraman kart); yoksa boş / hata görünümü.
       SliverToBoxAdapter(
-        child: _top(todayAsync, plan, nextDetail, ops, drafts, now),
+        child: _top(todayAsync, plan, nextDetail, ops, drafts, now, disputed),
       ),
+      // Yalnızca eşitlenmemişken (v4 §5 11): eşitliyken hap yok.
       SliverToBoxAdapter(
         child: _SyncLine(
           state: today,
@@ -232,16 +233,13 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
           pending: summarizeDriverOps(ops).waiting,
         ),
       ),
-      if (disputed.isNotEmpty)
-        SliverToBoxAdapter(
-          child: _DisputeAlert(
-            rows: disputed,
-            onOpen: _open,
-            onShow: () => setState(() => _tab = DriverTab.today),
-          ),
-        ),
+      // Çevrimdışı bekleyen sayısını eşitleme satırı söyler; şerit yalnızca çevrimiçi gönderim ve
+      // ilgi bekleyen işlemler için (aynı bilgi iki kez yazmaz).
       const SliverToBoxAdapter(
-        child: DriverOutboxStrip(margin: EdgeInsets.fromLTRB(20, 12, 20, 0)),
+        child: DriverOutboxStrip(
+          margin: EdgeInsets.fromLTRB(20, 12, 20, 0),
+          showOfflineWaiting: false,
+        ),
       ),
       if (next != null && nextDetail != null)
         SliverToBoxAdapter(child: _StopContactCard(detail: nextDetail)),
@@ -394,6 +392,7 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
   }
 
   /// Sıradaki durak (bandın üstüne yükselen kahraman kart); yoksa yükleniyor / hata / boş görünümü.
+  /// İtirazlı teslimat varsa kahramanın en üstünde tek tehlike satırı olur (v4 §5 11).
   Widget _top(
     AsyncValue<DriverListState> todayAsync,
     DriverRoutePlan plan,
@@ -401,7 +400,15 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
     Map<int, DriverShipmentOps> ops,
     Map<int, DeliverDraft> drafts,
     DateTime now,
+    List<DriverShipmentRow> disputed,
   ) {
+    final dispute = disputed.isEmpty
+        ? null
+        : _DisputeRow(
+            rows: disputed,
+            onOpen: _open,
+            onShow: () => setState(() => _tab = DriverTab.today),
+          );
     final today = todayAsync.valueOrNull;
     if (today == null) {
       if (todayAsync.hasError) return _errorView(todayAsync.error);
@@ -417,18 +424,31 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
     }
     final next = plan.next;
     if (next == null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 8),
-        child: EmptyState(
-          title: today.isEmpty
-              ? DriverCopy.emptyTodayTitle
-              : DriverCopy.nothingToday,
-          message: today.isEmpty
-              ? DriverCopy.emptyTodayMessage
-              : DriverCopy.nothingTodayHint,
-          illustration: AknIllustration.delivery,
-          compact: true,
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Sırada durak yokken itiraz satırı kendi kartında, en üstte.
+          if (dispute != null)
+            AknBandOverlap(
+              child: AknCard(
+                padding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
+                child: dispute,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: EmptyState(
+              title: today.isEmpty
+                  ? DriverCopy.emptyTodayTitle
+                  : DriverCopy.nothingToday,
+              message: today.isEmpty
+                  ? DriverCopy.emptyTodayMessage
+                  : DriverCopy.nothingTodayHint,
+              illustration: AknIllustration.delivery,
+              compact: true,
+            ),
+          ),
+        ],
       );
     }
     // Teslimat kaydedilince sıradaki durak plakaya kayarak gelir (§8.2, 300 ms).
@@ -454,6 +474,7 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
                   ),
                   now: now,
                   onOpen: () => _open(next),
+                  notice: dispute,
                 ),
               ),
             ),
@@ -676,9 +697,15 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
   }
 }
 
-/// Başlık (tahta ekran 6): "Teslimatlarım" (sürücü kipinde 34/40), altında "Bugün, 21 Ekim
-/// Çarşamba" ve sağda tırın TR plakası (32 px). Sayfa rengi; içerik altına kayınca ince çizgi
-/// (iskele çizer). İtilerek açıldıysa (bayi personeli) geri düğmesi.
+/// Bandın tarih satırı (v4 §5 11): "Bugün 28 Ekim".
+String _dateLine(DateTime now) {
+  final w = TrTime.wall(now);
+  return '${Fmt.dayLabel(now, now: now)} ${w.day} ${Fmt.monthNames[w.month - 1]}';
+}
+
+/// Büyük yazıdaki başlık (tahta ekran 6): "Teslimatlar" (sürücü kipinde 34/40), altında "Bugün 28
+/// Ekim" ve tırın TR plakası (32 px). Sayfa rengi; içerik altına kayınca ince çizgi (iskele çizer).
+/// İtilerek açıldıysa (bayi personeli) geri düğmesi.
 class _DriverHeader extends StatelessWidget {
   const _DriverHeader({required this.now, this.plate});
 
@@ -690,9 +717,7 @@ class _DriverHeader extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final canPop = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
-    final w = TrTime.wall(now);
-    final date =
-        '${Fmt.dayLabel(now, now: now)}, ${w.day} ${Fmt.monthNames[w.month - 1]} ${Fmt.weekday(now)}';
+    final date = _dateLine(now);
     final p0 = plate;
     // Bantta tek başlık düğümü (sahip kararı G): ekran okuyucu başlığı, tarihi ve plakayı birlikte
     // okur; ayrı metin düğümleri yok (AknHomeHeader gibi).
@@ -759,10 +784,11 @@ class _DriverHeader extends StatelessWidget {
   }
 }
 
-/// Eşitleme hapı (tasarım v3 §4 durum hapı, kahraman kartın altında): çevrimdışıyken "Çevrimdışı.
-/// Teslimatlar telefona kaydediliyor." (bekleyen işlem sayısıyla, uyarı tonu), çevrimiçiyken
-/// "Eşitlendi 09:58" (yeşil bulut), yenileme başarısızsa son güncelleme saati. Durum değişince hap
-/// yumuşakça yer değiştirir.
+/// Eşitleme satırı (tasarım v4 §5 11, kahraman kartın altında): yalnızca eşitlenmemişken görünür —
+/// çevrimdışıyken uyarı satırı "Çevrimdışı · 2 işlem bekliyor" (bekleyen yoksa "Çevrimdışı ·
+/// teslimatlar telefona kaydediliyor"), yenileme başarısızsa "Yenilenemedi · son güncelleme 09:58".
+/// Eşitliyken hiçbir şey çizilmez (hap yok). Bekleyen işlem varken satıra dokunmak bekleyen işlemleri
+/// açar. Satır yumuşakça açılıp kapanır.
 class _SyncLine extends StatelessWidget {
   const _SyncLine({
     required this.state,
@@ -781,93 +807,90 @@ class _SyncLine extends StatelessWidget {
     final s = state;
     final offline = !online || s?.refreshError is OfflineFailure;
     final at = s?.updatedAt;
-    final (IconData icon, String? text, AknTone tone) = offline
+    final (IconData, String)? line = offline
         ? (
             PhosphorIconsRegular.cloudSlash,
             pending > 0
-                ? DriverCopy.offlineLineCount(pending)
-                : DriverCopy.offlineLine,
-            AknTone.warn,
+                ? DriverCopy.offlineWarnCount(pending)
+                : DriverCopy.offlineWarn,
           )
         : s?.refreshError != null && at != null
         ? (
             PhosphorIconsRegular.cloudWarning,
-            DriverCopy.refreshFailed(Fmt.time(at)),
-            AknTone.warn,
+            DriverCopy.refreshWarn(Fmt.time(at)),
           )
-        : at != null
-        ? (
-            PhosphorIconsRegular.cloudCheck,
-            DriverCopy.syncedAt(Fmt.time(at)),
-            AknTone.ok,
-          )
-        : (PhosphorIconsRegular.cloud, null, AknTone.neutral);
-    final Widget pill;
-    if (text == null) {
-      pill = const SizedBox(key: ValueKey('none'), height: 4);
-    } else {
-      final tc = c.tone(tone);
-      pill = Semantics(
-        key: ValueKey(text),
-        liveRegion: offline,
-        label: text,
-        excludeSemantics: true,
-        child: Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Container(
-            padding: const EdgeInsetsDirectional.fromSTEB(10, 6, 14, 6),
-            decoration: BoxDecoration(
-              color: tc.bg,
-              borderRadius: AknRadius.pillAll,
-              border: Border.all(color: tc.line),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(icon, size: 18, color: tc.fg),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    text,
-                    style: t.label.copyWith(
-                      color: tone == AknTone.ok ? c.ink : tc.fg,
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: AknNumerals.tabular,
-                    ),
+        : null;
+    Widget child = const SizedBox(
+      key: ValueKey('synced'),
+      width: double.infinity,
+    );
+    if (line != null) {
+      final (icon, text) = line;
+      final warn = c.tone(AknTone.warn);
+      final tappable = offline && pending > 0;
+      Widget row = Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: tappable ? context.minTap : 0),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: warn.fg),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: t.bodySmall.copyWith(
+                    color: warn.fg,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: AknNumerals.tabular,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (tappable)
+                Icon(PhosphorIconsRegular.caretRight, size: 18, color: warn.fg),
+            ],
           ),
         ),
+      );
+      if (tappable) {
+        row = PressScale(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              AknHaptics.selection();
+              unawaited(showPendingOpsSheet(context));
+            },
+            child: row,
+          ),
+        );
+      }
+      child = Semantics(
+        key: ValueKey(text),
+        liveRegion: offline,
+        button: tappable,
+        label: text,
+        excludeSemantics: true,
+        child: row,
       );
     }
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.6,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      child: AknAnimatedSize(
+        alignment: Alignment.topCenter,
         child: AnimatedSwitcher(
           duration: AknMotion.of(context, AknMotion.base),
           switchInCurve: AknMotion.spring,
-          layoutBuilder: (current, previous) => Stack(
-            alignment: AlignmentDirectional.topStart,
-            children: [...previous, ?current],
-          ),
           transitionBuilder: (child, a) => FadeTransition(
             opacity: a,
-            child: ScaleTransition(
-              alignment: AlignmentDirectional.centerStart.resolve(
-                Directionality.of(context),
-              ),
-              scale: Tween<double>(begin: 0.92, end: 1).animate(a),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -0.2),
+                end: Offset.zero,
+              ).animate(a),
               child: child,
             ),
           ),
-          child: pill,
+          child: child,
         ),
       ),
     );
@@ -887,6 +910,7 @@ class _NextStop extends StatelessWidget {
     required this.distance,
     required this.now,
     required this.onOpen,
+    this.notice,
   });
 
   final DriverRoutePlan plan;
@@ -894,6 +918,9 @@ class _NextStop extends StatelessWidget {
   final DriverShipmentDetail? detail;
   final DriverShipmentOps? ops;
   final DeliverDraft? draft;
+
+  /// Kartın en üstündeki tehlike satırı (itirazlı teslimat).
+  final Widget? notice;
 
   /// Kuş uçuşu uzaklık (metre); konum yoksa null.
   final double? distance;
@@ -929,6 +956,8 @@ class _NextStop extends StatelessWidget {
     return null;
   }
 
+  /// Tek satır okumalar (v4 §5 11): "Varış planı 09:00" (altında "teslim aralığı 08:00–18:00") ·
+  /// "Tank kapasitesi 30.000 L" (konum biliniyorsa yerine kuş uçuşu "Uzaklık").
   List<StopReadout> get _readouts {
     final at = row.scheduledAt;
     final day = Fmt.dayLabel(at, now: now);
@@ -942,7 +971,10 @@ class _NextStop extends StatelessWidget {
               ? DriverCopy.readoutPlan
               : DriverCopy.readoutPlanOn(TurkishText.lower(day)),
           value: Fmt.time(at),
-        ),
+          caption: window == null ? null : DriverCopy.windowCaption(window),
+        )
+      else if (window != null)
+        StopReadout(label: DriverCopy.readoutWindow, value: window),
       if (dist != null)
         distanceReadout(dist)
       else if (tank != null)
@@ -951,8 +983,6 @@ class _NextStop extends StatelessWidget {
           value: Fmt.number(tank),
           unit: 'L',
         ),
-      if (window != null)
-        StopReadout(label: DriverCopy.readoutWindow, value: window),
     ];
   }
 
@@ -978,80 +1008,75 @@ class _NextStop extends StatelessWidget {
       ?(row.district ?? row.city),
     ].join(', ');
     final lamp = _lamp;
-    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     final orderLine = Text(
       DriverCopy.nextOf(n, plan.total),
       style: t.label.copyWith(color: c.dim, fontWeight: FontWeight.w600),
     );
+    // Yük çubuğunun yazısı (v4 §5 11): "18.000 L yük · 2 durak" — etiketsiz litre yok. Kalan yük
+    // sayaç gibi döner: teslimat kaydedilince eski litreden yenisine iner.
+    final remainingStops = plan.stops
+        .where((s) => s.state != StopState.done)
+        .length;
     final loadText = Fmt.liters(plan.remainingLiters);
-    final loadStyle = t.label.copyWith(
-      fontWeight: FontWeight.w800,
+    final loadCaption = DriverCopy.loadCaption(loadText, remainingStops);
+    final captionStyle = t.label.copyWith(
+      color: c.dim,
+      fontWeight: FontWeight.w600,
       fontFeatures: AknNumerals.tabular,
-      color: c.ink,
     );
-    // Kalan yük sayaç gibi döner: teslimat kaydedilince eski litreden yenisine iner.
-    final load = RollingText(TextSpan(text: loadText, style: loadStyle));
-    final bar = ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 120, minWidth: 72),
-      child: DriverLoadBar(plan: plan),
+    final load = RollingText(
+      TextSpan(
+        style: captionStyle,
+        children: [
+          TextSpan(
+            text: loadText,
+            style: captionStyle.copyWith(
+              color: c.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          TextSpan(text: loadCaption.substring(loadText.length)),
+        ],
+      ),
     );
 
     final head = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        orderLine,
+        const SizedBox(height: 8),
         LayoutBuilder(
           builder: (context, box) {
-            double w(String text, TextStyle? style) {
-              final tp = TextPainter(
-                text: TextSpan(text: text, style: style),
-                textDirection: TextDirection.ltr,
-                textScaler: MediaQuery.textScalerOf(context),
-                maxLines: 1,
-              )..layout();
-              final width = tp.width;
-              tp.dispose();
-              return width;
-            }
-
-            // Sığmazsa (büyük yazı, dar ekran) sıra satırı üstte, yük çubuğu altında.
-            final fits =
-                !large &&
-                w(orderLine.data!, orderLine.style) +
-                        12 +
-                        72 +
-                        12 +
-                        w(loadText, loadStyle) <=
-                    box.maxWidth;
-            if (!fits) {
+            final tp = TextPainter(
+              text: TextSpan(text: loadCaption, style: captionStyle),
+              textDirection: TextDirection.ltr,
+              textScaler: MediaQuery.textScalerOf(context),
+              maxLines: 1,
+            )..layout();
+            final width = tp.width;
+            tp.dispose();
+            // Sığmazsa (büyük yazı, dar ekran) çubuk üstte, yazı altında.
+            if (width + 12 + 72 > box.maxWidth) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  orderLine,
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(child: DriverLoadBar(plan: plan)),
-                      const SizedBox(width: 12),
-                      load,
-                    ],
-                  ),
+                  DriverLoadBar(plan: plan),
+                  const SizedBox(height: 6),
+                  Text(loadCaption, style: captionStyle),
                 ],
               );
             }
             return Row(
               children: [
-                orderLine,
-                const SizedBox(width: 12),
-                const Spacer(),
-                Flexible(flex: 4, child: bar),
+                Expanded(child: DriverLoadBar(plan: plan)),
                 const SizedBox(width: 12),
                 load,
               ],
             );
           },
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         MediaQuery.withClampedTextScaling(
           maxScaleFactor: 1.6,
           child: Text(
@@ -1079,6 +1104,7 @@ class _NextStop extends StatelessWidget {
 
     final summary = [
       DriverCopy.nextOf(n, plan.total),
+      loadCaption,
       ?row.customerTitle,
       if (address.isNotEmpty) address,
       ?lamp?.label,
@@ -1090,6 +1116,7 @@ class _NextStop extends StatelessWidget {
       readouts: _readouts,
       chart: _route,
       onTap: onOpen,
+      notice: notice,
       // Kartın üstü (durak kimliği) kendi düğmesidir; plaka okuması ayrı düğümdür.
       header: Semantics(
         container: true,
@@ -1321,12 +1348,12 @@ class _NextStopWeather extends ConsumerWidget {
   }
 }
 
-/// Düzeltme bekleyen teslimat (tasarım v3 §4 yumuşak tonlu kart; kahraman kartın hemen altında,
-/// kaydırmadan görünür ve kısa): kırmızı kuyu, beyaz dairede kırmızı simge, "1 teslimat düzeltme
-/// bekliyor" ve müşteri; basınca küçülür, dokununca ayrıntı (birden çoksa Bugün listesi). Not ve
-/// "Teslimatı düzelt" aşağıdaki "Düzeltme bekleyen" kartındadır.
-class _DisputeAlert extends StatelessWidget {
-  const _DisputeAlert({
+/// Düzeltme bekleyen teslimat (tasarım v4 §5 11): kahraman kartın en üstünde tek tehlike satırı —
+/// 36 dp tehlike karosu, "1 teslimat düzeltme bekliyor" (15/20 700, tehlike rengi) ve müşteri
+/// (13/18 soluk), sağda ok. ≥ 56 dp; basınca hafifçe içe çöker; dokununca ayrıntı açılır (birden
+/// çoksa Bugün listesi gösterilir). Not ve "Teslimatı düzelt" aşağıdaki "Düzeltme bekleyen" kartındadır.
+class _DisputeRow extends StatelessWidget {
+  const _DisputeRow({
     required this.rows,
     required this.onOpen,
     required this.onShow,
@@ -1351,83 +1378,80 @@ class _DisputeAlert extends StatelessWidget {
       many ? onShow() : onOpen(first);
     }
 
+    final danger = c.tone(AknTone.danger);
     // Kısa kalsın: büyük yazıda en çok 1,6× (durak ve plaka ilk ekranda kalır).
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.6,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-        child: DriverFadeUp(
-          offset: 12,
-          child: Semantics(
-            button: true,
-            label: '$title: $who',
-            hint: 'Ayrıntıları açmak için dokunun',
+      child: Semantics(
+        button: true,
+        label: '$title: $who',
+        hint: 'Ayrıntıları açmak için dokunun',
+        onTap: tap,
+        excludeSemantics: true,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
             onTap: tap,
-            excludeSemantics: true,
-            child: PressScale(
-              child: Material(
-                color: c.danger.bg,
-                shape: RoundedRectangleBorder(
-                  borderRadius: AknRadius.card,
-                  side: BorderSide(color: c.danger.line),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: tap,
-                  splashFactory: NoSplash.splashFactory,
-                  highlightColor: c.danger.line.withValues(alpha: 0.5),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minHeight: context.minTap),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
-                      child: Row(
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: c.surfaceAlt,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: context.minTap < 56 ? 56 : context.minTap,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 36,
+                      child: DecoratedBox(
+                        decoration: ShapeDecoration(
+                          color: danger.bg,
+                          shape: const RoundedSuperellipseBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
+                        ),
+                        child: Icon(
+                          PhosphorIconsRegular.warningOctagon,
+                          size: 20,
+                          color: danger.fg,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          SizedBox.square(
-                            dimension: 40,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: c.isDark ? c.surfaceRaised : c.surface,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                PhosphorIconsRegular.warningOctagon,
-                                size: 22,
-                                color: c.danger.fg,
-                              ),
+                          Text(
+                            title,
+                            style: t.bodyStrong.copyWith(
+                              height: 20 / 15,
+                              color: danger.fg,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  title,
-                                  style: t.bodyStrong.copyWith(
-                                    color: c.ink,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  who,
-                                  style: t.bodySmall.copyWith(color: c.ink),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                          Text(
+                            who,
+                            style: t.label.copyWith(
+                              color: c.dim,
+                              fontWeight: FontWeight.w500,
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Icon(
-                            PhosphorIconsRegular.caretRight,
-                            size: 22,
-                            color: c.ink,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      PhosphorIconsRegular.caretRight,
+                      size: 20,
+                      color: c.dim,
+                    ),
+                  ],
                 ),
               ),
             ),

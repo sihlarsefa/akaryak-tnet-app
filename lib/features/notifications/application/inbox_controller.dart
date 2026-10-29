@@ -8,6 +8,7 @@ import '../../../core/models/json.dart';
 import '../../../core/models/paged_result.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/push/local_read_marks.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/push/unread_count_provider.dart';
 import '../../../core/utils/log.dart';
@@ -90,6 +91,10 @@ class InboxState {
 /// Bildirimler ekranı (spec A.4 A8): sayfalı liste, "Okunmamış" süzgeci, okundu işaretleme
 /// (iyimser; rozet hemen düşer), tümünü okundu say, push gelince sessiz yenileme, çevrimdışıyken son
 /// kaydedilen ilk sayfa.
+///
+/// v4 §3.5: bu oturumda açılan (ya da bitirilen) bir kaydın bildirimleri okundu sayılır
+/// ([localReadMarksProvider]): liste yüklenince ve yeni bir kayıt açılınca o bildirimler okundu
+/// işaretlenir (iyimser; rozet ve sunucu da güncellenir).
 final inboxControllerProvider =
     NotifierProvider.autoDispose<InboxController, InboxState>(
       InboxController.new,
@@ -121,6 +126,10 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
         unawaited(refresh());
       }
     });
+    // Açılan kayıtların bildirimleri okundu sayılır (v4 §3.5).
+    ref.listen<Set<String>>(localReadMarksProvider, (_, _) {
+      _readOpenedEntities();
+    });
     final epoch = ++_epoch;
     Future.microtask(() => _loadFirst(epoch, unreadOnly: false));
     return const InboxState();
@@ -151,6 +160,7 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
         loadedAt: DateTime.now().toUtc(),
         fromCache: false,
       );
+      _readOpenedEntities();
       if (!unreadOnly) unawaited(_writeCache(p));
     } catch (e) {
       if (!_alive(epoch)) return;
@@ -226,6 +236,7 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
         totalCount: p.totalCount,
         loadingMore: false,
       );
+      _readOpenedEntities();
     } catch (e) {
       if (!_alive(epoch)) return;
       state = state.copyWith(
@@ -263,6 +274,20 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
       if (!_disposed) _replace(before);
       ref.read(unreadCountProvider.notifier).adjust(notifications: 1);
       return f;
+    }
+  }
+
+  /// Bu oturumda açılan kayıtların okunmamış bildirimlerini okundu işaretler (arka planda; hata
+  /// sessizce geri alınır).
+  void _readOpenedEntities() {
+    if (_disposed || state.fromCache) return;
+    final marks = ref.read(localReadMarksProvider.notifier);
+    final ids = [
+      for (final n in state.items)
+        if (!n.isRead && marks.isRead(n.route)) n.id,
+    ];
+    for (final id in ids) {
+      unawaited(markRead(id));
     }
   }
 

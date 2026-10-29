@@ -22,7 +22,7 @@ enum DriverScope {
   final String query;
 }
 
-/// Teslimatlarım sekmeleri (spec A.4 A7): Bugün / Yaklaşan / Geçmiş.
+/// Teslimatlar sekmeleri (spec A.4 A7): Bugün / Yaklaşan / Geçmiş.
 enum DriverTab {
   today('Bugün', DriverScope.today),
   upcoming('Yaklaşan', DriverScope.upcoming),
@@ -33,7 +33,7 @@ enum DriverTab {
   final DriverScope scope;
 }
 
-/// Teslimatlarım satırı (`DriverShipmentRowDto`). Tarihler an (UTC `DateTime`); sunucu Türkiye
+/// Teslimatlar satırı (`DriverShipmentRowDto`). Tarihler an (UTC `DateTime`); sunucu Türkiye
 /// yerel `+03:00` gönderir. Pencere saatleri `HH:mm` metindir.
 @immutable
 class DriverShipmentRow {

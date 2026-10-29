@@ -25,10 +25,17 @@ import 'presentation/lead_wizard_page.dart';
 List<RouteBase> fieldRoutes() => [
   GoRoute(
     path: '/field',
-    builder: (context, state) => FieldHubPage(
-      initialTab: state.uri.queryParameters['tab'],
-      initialStatus: state.uri.queryParameters['status'],
-    ),
+    builder: (context, state) {
+      final q = state.uri.queryParameters;
+      // v4 §3.5: "Sıra sizde" `?segment=rejected|drafts` ile açar (formlar, durum süzgeciyle).
+      final (tab, status) = switch (q['segment']) {
+        'rejected' => ('forms', '3'),
+        'drafts' => ('forms', '0'),
+        'pending' => ('forms', '1'),
+        _ => (q['tab'], q['status']),
+      };
+      return FieldHubPage(initialTab: tab, initialStatus: status);
+    },
     routes: [
       GoRoute(
         path: 'forms/new',

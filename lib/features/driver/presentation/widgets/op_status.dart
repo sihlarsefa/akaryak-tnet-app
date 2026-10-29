@@ -467,9 +467,16 @@ class OpOutcomePanel extends ConsumerWidget {
 /// uygulamada hafifçe nefes alır), sağda "Göster" ve ok. Basınca küçülür; dokununca bekleyen
 /// işlemler sayfası açılır. Belirince yumuşakça yükselir.
 class DriverOutboxStrip extends ConsumerWidget {
-  const DriverOutboxStrip({super.key, this.margin = EdgeInsets.zero});
+  const DriverOutboxStrip({
+    super.key,
+    this.margin = EdgeInsets.zero,
+    this.showOfflineWaiting = true,
+  });
 
   final EdgeInsetsGeometry margin;
+
+  /// Çevrimdışıyken bekleyenler de gösterilsin mi (ana sayfada eşitleme satırı söyler: false).
+  final bool showOfflineWaiting;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -477,6 +484,9 @@ class DriverOutboxStrip extends ConsumerWidget {
     if (s.waiting == 0 && s.attention == 0) return const SizedBox.shrink();
     final online = ref.watchOnline();
     final attention = s.attention > 0;
+    if (!attention && !online && !showOfflineWaiting) {
+      return const SizedBox.shrink();
+    }
     final tone = attention ? AknTone.danger : AknTone.warn;
     final c = context.akn;
     final t = context.aknText;

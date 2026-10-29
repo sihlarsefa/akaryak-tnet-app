@@ -44,6 +44,8 @@ class FinanceCardPage extends ConsumerWidget {
     final card = async.valueOrNull;
     return AppScaffold(
       title: 'Finans kartı',
+      // v4 §3.2: kaydırınca carinin adı çubukta.
+      collapsedTitle: card?.profile.customerTitle,
       refreshing: async.isLoading && card != null,
       body: card == null
           ? (async.hasError

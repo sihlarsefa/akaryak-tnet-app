@@ -24,9 +24,11 @@ enum StageStripFallback {
   compact,
 }
 
-/// The order's stage strip (design v3 §4–5): stops evenly spaced over the
-/// content width — Talep, Onay, Teklif, Karar, Plan, Yolda, Teslim — on a
-/// rounded 4 px track.
+/// The stage strip (design v3 §4–5) — v4: **wizard steps only**
+/// (`StepperHeader`); an order's journey is the » Akış line
+/// (`AknFlowLine`). Stops evenly spaced over the content width on a rounded
+/// 4 px track, in the Akış line's bead colours (passed: surface bead with a
+/// brand ring; the travelled track in brand).
 ///
 /// * Done: a 14 px green disc (`ok.solid`) with a white check; the track is
 ///   filled green up to the current stop.
@@ -384,6 +386,7 @@ class _StageTrackState extends State<_StageTrack>
           ? AknAmbient(
               period: AknMotion.breathe,
               reverse: true,
+              role: AknAmbientRole.focus,
               builder: (context, p, _) => paint(p),
             )
           : paint(0),
@@ -441,11 +444,13 @@ class StageStripPainter extends CustomPainter {
         ..strokeCap = round,
     );
     if (xCur > x0) {
+      // v4: the travelled part is the brand line (green only means
+      // "delivered", on the Akış line).
       canvas.drawLine(
         Offset(x0, y),
         Offset(xCur, y),
         Paint()
-          ..color = c.ok.solid
+          ..color = c.brandFill
           ..strokeWidth = 4
           ..strokeCap = round,
       );
@@ -457,13 +462,23 @@ class StageStripPainter extends CustomPainter {
       final done = ((position - i - 0.5) / 0.5).clamp(0.0, 1.0);
       final atRing = (i - pos).abs() <= 0.5 && ringFade > 0;
       if (done > 0) {
-        final s = Curves.easeOutBack.transform(done);
+        // A passed stop: the Akış line's bead — surface with a 2 px brand
+        // ring and a small brand check — popping 0.6 → 1.
+        final s = 0.6 + 0.4 * Curves.easeOutBack.transform(done);
         canvas.save();
         canvas.translate(center.dx, center.dy);
         canvas.scale(s);
         canvas.translate(-center.dx, -center.dy);
-        canvas.drawCircle(center, 7, Paint()..color = c.ok.solid);
-        _stageCheck(canvas, center, 7, c.ok.onSolid);
+        canvas.drawCircle(center, 7, Paint()..color = c.surface);
+        canvas.drawCircle(
+          center,
+          6,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = c.brandFill,
+        );
+        _stageCheck(canvas, center, 6, c.brandFill);
         canvas.restore();
       } else if (!atRing) {
         canvas.drawCircle(center, 5, Paint()..color = c.surface);

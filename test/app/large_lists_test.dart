@@ -44,7 +44,7 @@ void main() {
     }
 
     /// Listenin sonuna gider, sonraki sayfa gelene kadar bekler; [rows] satıra ulaşınca durur.
-    Future<void> scrollThrough(
+    Future<void> pageThrough(
       int rows,
       ({int items, bool more, bool hasMore}) Function() read,
     ) async {
@@ -58,7 +58,12 @@ void main() {
         await pumpFor(tester, const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
       }
-      // Gerçek parmak hareketiyle başa dön.
+    }
+
+    /// Gerçek parmak hareketiyle başa döner. Tepeye varan sürükleme yenilemeyi tetikleyebilir
+    /// (v4 defter satırları kısa; yenileme listeyi ilk sayfaya döndürür), sayfa sayıları bundan
+    /// önce okunur.
+    Future<void> flingToTop() async {
       for (var k = 0; k < 6; k++) {
         await tester.fling(
           mainVerticalList(tester),
@@ -76,7 +81,7 @@ void main() {
       c.read(quoteDeskProvider).list.totalCount,
       greaterThanOrEqualTo(120),
     );
-    await scrollThrough(100, () {
+    await pageThrough(100, () {
       final l = c.read(quoteDeskProvider).list;
       return (items: l.items.length, more: l.loadingMore, hasMore: l.hasMore);
     });
@@ -84,10 +89,11 @@ void main() {
     expect(desk.page, greaterThan(1), reason: 'sonraki sayfalar yüklendi');
     expect(desk.items.length, greaterThanOrEqualTo(100));
     expect(desk.moreError, isNull);
+    await flingToTop();
 
     await openTab(DestinationId.bayiOrders);
     await _until(tester, () => !c.read(bayiOrdersProvider).list.loading);
-    await scrollThrough(100, () {
+    await pageThrough(100, () {
       final l = c.read(bayiOrdersProvider).list;
       return (items: l.items.length, more: l.loadingMore, hasMore: l.hasMore);
     });
@@ -96,6 +102,8 @@ void main() {
     expect(orders.page, greaterThan(1));
     expect(orders.items.length, greaterThanOrEqualTo(100));
     expect(orders.moreError, isNull);
+    await flingToTop();
+    expect(c.read(bayiOrdersProvider).list.moreError, isNull);
 
     await tester.pumpWidget(const SizedBox());
   });

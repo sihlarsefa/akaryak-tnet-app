@@ -17,9 +17,14 @@ enum AknLampSize { small, medium }
 /// tone's text colour (12/16 700) and a leading 7 px dot in the tone's solid
 /// colour. Status is never colour alone — the word always carries it.
 ///
+/// v4 (§4): lamps mark **exceptions** only (the normal state is never
+/// labelled), small by default (22 dp), and only a [focus] lamp breathes —
+/// it is the page's one focus loop (`AknAmbientBudget`).
+///
 /// Tone → look:
-/// * `brand` ("your move"): orange dot in a halo that breathes
-///   (`AknAmbient`, `AknMotion.breathe`), Pas label on the soft orange well.
+/// * `brand` ("your move"): orange dot in a halo — breathing only with
+///   [focus] (`AknAmbient`, `AknMotion.breathe`) — Pas label on the soft
+///   orange well.
 /// * `info` (in progress, someone else's move): ink dot, ink label, grey
 ///   well.
 /// * `ok` / `warn` / `danger`: the tone's dot, label and well.
@@ -41,20 +46,22 @@ class AknLamp extends StatelessWidget {
     required this.label,
     required this.tone,
     this.solid = false,
-    this.size = AknLampSize.medium,
+    this.size = AknLampSize.small,
     this.maxLines,
     this.semanticLabel,
     this.style,
+    this.focus = false,
   });
 
   /// A lamp for a generic [StatusStyle] (`order.status.statusStyle`).
   AknLamp.style(
     StatusStyle status, {
     super.key,
-    this.size = AknLampSize.medium,
+    this.size = AknLampSize.small,
     this.maxLines,
     this.semanticLabel,
     this.style,
+    this.focus = false,
   }) : label = status.label,
        tone = status.tone,
        solid = status.solid;
@@ -63,10 +70,11 @@ class AknLamp extends StatelessWidget {
   AknLamp.status(
     StatusLamp lamp, {
     super.key,
-    this.size = AknLampSize.medium,
+    this.size = AknLampSize.small,
     this.maxLines,
     this.semanticLabel,
     this.style,
+    this.focus = false,
   }) : label = lamp.label,
        tone = lamp.tone,
        solid = lamp.solid;
@@ -86,6 +94,11 @@ class AknLamp extends StatelessWidget {
 
   /// Overrides the label style (size, weight); the colour stays the tone's.
   final TextStyle? style;
+
+  /// The page's focus lamp: a "your move" dot that breathes (the one focus
+  /// loop of the viewport, [AknAmbientRole.focus]). Off: the dot holds
+  /// still (lists hold still).
+  final bool focus;
 
   /// The label weight: 700 for every tone in v3 (hierarchy comes from the
   /// tinted well, not from weight).
@@ -137,13 +150,14 @@ class AknLamp extends StatelessWidget {
         checkColor: glass ? c.heroMid : tc.onSolid,
       ),
     );
-    if (tone == AknTone.brand && !solid) {
-      // "Your move" breathes: the halo swells and fades, the dot lifts a
-      // touch. Ambient (off in tests and under reduce motion).
+    if (tone == AknTone.brand && !solid && focus) {
+      // The focus lamp breathes: the halo swells and fades, the dot lifts a
+      // touch. Ambient (off in tests and under reduce motion), budgeted.
       mark = RepaintBoundary(
         child: AknAmbient(
           period: AknMotion.breathe,
           reverse: true,
+          role: AknAmbientRole.focus,
           builder: (context, b, _) => CustomPaint(
             size: Size.square(dot),
             painter: LampDotPainter(color: dotColor, halo: halo, breath: b),

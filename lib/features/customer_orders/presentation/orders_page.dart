@@ -13,18 +13,16 @@ import '../application/home_controller.dart';
 import '../application/orders_list_controller.dart';
 import '../copy.dart';
 import '../data/order_models.dart';
-import 'templates_page.dart';
 import 'widgets/common.dart';
 import 'widgets/order_parts.dart';
 import 'widgets/order_row_card.dart';
-import 'widgets/search_well.dart';
 
-/// Siparişlerim (spec A.4; tasarım v3 §4, pano ekran 4): kök başlık (display) + şablon kısayolu
-/// → sekmeler (Karar bekleyen, Aktif, Geçmiş; sayı haplarıyla, altta yayla kayan turuncu çubuk)
-/// → arama kuyusu → yüzen beyaz sipariş kartları ([OrderRowCard]; birbiri ardına yükselerek gelir,
-/// aşağıdakiler kaydırınca belirir; sekme değişince liste solup yenisi büyüyerek gelir) →
-/// kayıtların nereye gittiğini söyleyen dip cümlesi. Geçmiş güne göre gruplanır. Sunucu araması,
-/// sonsuz kaydırma, çevrimdışı ilk sayfa ("Son güncelleme").
+/// Siparişler (spec A.4; tasarım v4 §5 ekran 04): sayfa bandı "Siparişler" ve canlı durum satırı
+/// ("1 teklif onayınızı bekliyor"; iş yoksa "2 sipariş sürüyor") + ⌕ → tek anahtar
+/// [AknSegmented] (Onay bekleyen n · Aktif · Geçmiş; onay bekleyen varken onunla açılır) → tek
+/// defter: satırlar kutusuz, aralarında ince çizgi ([OrderRow]). Geçmiş güne göre gruplanır. Arama
+/// banttaki ⌕ ile açılan şeritte (sunucu araması); sonsuz kaydırma, çevrimdışı ilk sayfa ("Son
+/// güncelleme"). Sekme değişince liste dokunulan yöne kayarak gelir.
 class OrdersPage extends ConsumerStatefulWidget {
   const OrdersPage({super.key, this.initialSegment});
 
@@ -37,13 +35,17 @@ class OrdersPage extends ConsumerStatefulWidget {
 
 class _OrdersPageState extends ConsumerState<OrdersPage> {
   late OrderSegment _segment = widget.initialSegment ?? OrderSegment.active;
-  final _search = TextEditingController();
+  final _query = TextEditingController();
+  bool _searchOpen = false;
+
+  /// Son geçişin yönü (paylaşılan eksen kayması).
+  bool _reverse = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialSegment == null) {
-      // Karar bekleyen varsa onunla açılır.
+      // Onay bekleyen teklif varken onunla açılır.
       final waiting =
           ref.read(customerHomeProvider).data?.dashboard.pendingDecisionTotal ??
           0;
@@ -55,90 +57,123 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   void didUpdateWidget(OrdersPage old) {
     super.didUpdateWidget(old);
     final s = widget.initialSegment;
-    if (s != null && s != old.initialSegment) setState(() => _segment = s);
+    if (s != null && s != old.initialSegment && s != _segment) {
+      _reverse = s.index < _segment.index;
+      _segment = s;
+      // Sağlayıcı kurulum sırasında değiştirilmez: arama bir sonraki karede taşınır.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncQuery(s);
+      });
+    }
   }
 
   @override
   void dispose() {
-    _search.dispose();
+    _query.dispose();
     super.dispose();
   }
 
   void _select(OrderSegment s) {
     if (s == _segment) return;
-    setState(() => _segment = s);
-    final q = _search.text.trim();
-    final state = ref.read(ordersListProvider(s));
-    if (state.query != q) {
+    setState(() {
+      _reverse = s.index < _segment.index;
+      _segment = s;
+    });
+    _syncQuery(s);
+  }
+
+  /// Açılan bölüm şeritteki aramayı taşır.
+  void _syncQuery(OrderSegment s) {
+    final q = _query.text.trim();
+    if (ref.read(ordersListProvider(s)).query != q) {
       ref.read(ordersListProvider(s).notifier).search(q);
     }
   }
 
-  /// Sekmedeki sayı: karar bekleyen ana sayfa özetinden; diğerleri yüklenmiş ve aramasız listenin
-  /// toplamından (bilinmiyorsa gösterilmez).
-  int? _count(OrderSegment s, int? decisions) {
-    if (s == OrderSegment.decision) {
-      return decisions == null || decisions == 0 ? null : decisions;
+  void _search(String q) =>
+      ref.read(ordersListProvider(_segment).notifier).search(q.trim());
+
+  void _closeSearch() {
+    setState(() => _searchOpen = false);
+    if (ref.read(ordersListProvider(_segment)).query.isNotEmpty) _search('');
+  }
+
+  void _clearSearch() {
+    _query.clear();
+    _search('');
+  }
+
+  /// Bandın durum satırı (v4 §3.2): karar verebilen için Pas "1 teklif onayınızı bekliyor"; iş
+  /// yoksa sakin "2 sipariş sürüyor" (Aktif listesi yüklüyse).
+  Object? _status(int decisions, bool canDecide) {
+    if (decisions > 0) {
+      final text = OrdersCopy.decisionsWaiting(decisions, yours: canDecide);
+      return canDecide ? AknStatusClause.yourMove(text) : text;
     }
-    // Açılmamış sekmenin listesi bu yüzden yüklenmez.
-    if (s != _segment && !ref.exists(ordersListProvider(s))) return null;
-    final st = ref.watch(ordersListProvider(s));
-    if (!st.loaded || st.query.isNotEmpty) return null;
-    return st.totalCount;
+    if (!ref.exists(ordersListProvider(OrderSegment.active))) return null;
+    final active = ref.watch(ordersListProvider(OrderSegment.active));
+    if (!active.loaded || active.query.isNotEmpty) return null;
+    return OrdersCopy.ordersRunning(active.totalCount);
   }
 
   @override
   Widget build(BuildContext context) {
     final home = ref.watch(customerHomeProvider).data;
     final policy = ref.watch(accessPolicyProvider);
-    final decisions = home?.dashboard.pendingDecisionTotal;
+    final canDecide = policy.can(Pg.customerQuotes, Perm.edit);
+    final decisions = home?.dashboard.pendingDecisionTotal ?? 0;
     final s = ref.watch(ordersListProvider(_segment));
     return AppScaffold(
       title: OrdersCopy.myOrders,
-      largeTitle: true,
       bandIcon: PhosphorIconsRegular.receipt,
-      eyebrow: 'Müşteri',
-      description: 'Teklif, aktif ve geçmiş',
+      status: _status(decisions, canDecide),
       refreshing: s.loading && s.loaded,
       actions: [
-        if (policy.can(Pg.customerCreateOrder))
-          AknIconButton(
-            icon: PhosphorIconsRegular.bookmarks,
-            semanticLabel: OrdersCopy.templates,
-            onPressed: () => context.push(templatesRoute),
-          ),
+        AknSearchReveal.button(
+          semanticLabel: 'Siparişlerde ara',
+          onPressed: () => setState(() => _searchOpen = true),
+        ),
       ],
       body: Column(
         children: [
-          _SegmentTabs(
-            value: _segment,
-            onChanged: _select,
-            segments: [
-              for (final seg in OrderSegment.values)
-                (seg, _count(seg, decisions)),
-            ],
+          ContentWidth(
+            child: AknSearchReveal(
+              open: _searchOpen,
+              controller: _query,
+              hint: OrdersCopy.searchHint,
+              onChanged: _search,
+              onClose: _closeSearch,
+            ),
           ),
           ContentWidth(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-              child: OrdersSearchWell(
-                controller: _search,
-                hint: OrdersCopy.searchHint,
-                onChanged: (q) =>
-                    ref.read(ordersListProvider(_segment).notifier).search(q),
+              padding: const EdgeInsets.only(top: 2, bottom: 6),
+              child: AknSegmented<OrderSegment>(
+                value: _segment,
+                onChanged: _select,
+                segments: [
+                  for (final seg in OrderSegment.values)
+                    FilterOption(
+                      value: seg,
+                      label: seg.label,
+                      count: seg == OrderSegment.decision && decisions > 0
+                          ? decisions
+                          : null,
+                    ),
+                ],
               ),
             ),
           ),
           Expanded(
-            child: FadeThroughSwitcher(
+            child: SharedAxisSwitcher(
+              reverse: _reverse,
+              duration: AknMotion.thumb,
               child: KeyedSubtree(
                 key: ValueKey(_segment),
                 child: _OrdersList(
                   segment: _segment,
-                  onClearSearch: () {
-                    _search.clear();
-                    ref.read(ordersListProvider(_segment).notifier).search('');
-                  },
+                  showStation: (home?.stations.length ?? 0) > 1,
+                  onClearSearch: _clearSearch,
                 ),
               ),
             ),
@@ -149,239 +184,54 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   }
 }
 
-/// Sekmeler (tasarım v3 §4 Tabs): etiket 16/20 700 (seçili mürekkep, diğerleri soluk) ve sayı
-/// hapı — "Karar bekleyen"de turuncu (sıra sizde); seçilinin altındaki 3 px turuncu çubuk sekmeden
-/// sekmeye yay eğrisiyle kayar. Büyük yazıda satır yatay kayar ve seçili sekme görünür alana
-/// getirilir.
-class _SegmentTabs extends StatefulWidget {
-  const _SegmentTabs({
-    required this.value,
-    required this.onChanged,
-    required this.segments,
+/// Bir bölümün listesi: tek defter (Geçmiş'te gün başlıklarıyla birden çok defter), tembel
+/// kurulur. Satırlar ilk açılışta (ve yeni aramada) defterin içine dökülür; kaydırınca gelenler
+/// beklemeden durur.
+class _OrdersList extends ConsumerStatefulWidget {
+  const _OrdersList({
+    required this.segment,
+    required this.onClearSearch,
+    required this.showStation,
   });
-
-  final OrderSegment value;
-  final ValueChanged<OrderSegment> onChanged;
-  final List<(OrderSegment, int?)> segments;
-
-  @override
-  State<_SegmentTabs> createState() => _SegmentTabsState();
-}
-
-class _SegmentTabsState extends State<_SegmentTabs> {
-  final _keys = {for (final s in OrderSegment.values) s: GlobalKey()};
-  final _row = GlobalKey();
-
-  /// Seçili sekmenin satırdaki yeri (çubuk bunun altında durur).
-  Rect? _bar;
-
-  /// İlk ölçümde çubuk yerinde belirir; sonrakilerde kayar.
-  bool _slide = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _reveal();
-  }
-
-  @override
-  void didUpdateWidget(_SegmentTabs old) {
-    super.didUpdateWidget(old);
-    if (old.value != widget.value) _reveal();
-  }
-
-  void _reveal() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final ctx = _keys[widget.value]?.currentContext;
-      if (ctx == null || !mounted) return;
-      Scrollable.ensureVisible(
-        ctx,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-        duration: AknMotion.of(context, AknMotion.fast),
-      );
-      Scrollable.ensureVisible(
-        ctx,
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtStart,
-        duration: AknMotion.of(context, AknMotion.fast),
-      );
-    });
-  }
-
-  /// Sekme genişlikleri sayı gelince ve yazı ölçeğiyle değişir: her çizimden sonra seçili sekme
-  /// yeniden ölçülür (yalnızca yer değiştiyse yeniden çizilir).
-  void _measure() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final row = _row.currentContext?.findRenderObject();
-      final tab = _keys[widget.value]?.currentContext?.findRenderObject();
-      if (row is! RenderBox || tab is! RenderBox) return;
-      if (!row.hasSize || !tab.hasSize) return;
-      final rect = tab.localToGlobal(Offset.zero, ancestor: row) & tab.size;
-      if (rect == _bar) return;
-      setState(() {
-        _slide = _bar != null;
-        _bar = rect;
-      });
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    _measure();
-    final bar = _bar;
-    return SizedBox(
-      width: double.infinity,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Stack(
-          children: [
-            Row(
-              key: _row,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final (seg, count) in widget.segments)
-                  _Tab(
-                    key: _keys[seg],
-                    label: seg.label,
-                    count: count,
-                    selected: seg == widget.value,
-                    yourMove: seg == OrderSegment.decision,
-                    onTap: () => widget.onChanged(seg),
-                  ),
-              ],
-            ),
-            if (bar != null)
-              AnimatedPositioned(
-                duration: _slide
-                    ? AknMotion.of(context, AknMotion.thumb)
-                    : Duration.zero,
-                curve: AknMotion.curveOf(context, AknMotion.spring),
-                left: bar.left + 10,
-                width: (bar.width - 20).clamp(0, double.infinity),
-                bottom: 0,
-                height: 3,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: c.brand,
-                    borderRadius: AknRadius.pillAll,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Tab extends StatelessWidget {
-  const _Tab({
-    super.key,
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.onTap,
-    this.yourMove = false,
-  });
-
-  final String label;
-  final int? count;
-  final bool selected;
-
-  /// Sayı "sıra sizde" turuncusuyla (karar bekleyen teklifler).
-  final bool yourMove;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    final duration = AknMotion.of(context, AknMotion.base);
-    final n = count;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: n == null ? label : '$label, $n sipariş',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          if (!selected) AknHaptics.selection();
-          onTap();
-        },
-        child: PressScale(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 48),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedDefaultTextStyle(
-                    duration: duration,
-                    curve: AknMotion.standard,
-                    // Seçili sekme panelin "buradasınız"ı: Pas.
-                    style: t.button.copyWith(
-                      color: selected ? c.brandInk : c.dim,
-                    ),
-                    child: Text(label),
-                  ),
-                  if (n != null) ...[
-                    const SizedBox(width: 7),
-                    AnimatedContainer(
-                      duration: duration,
-                      curve: AknMotion.standard,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: yourMove || selected
-                            ? c.brandSoft
-                            : c.surfaceAlt,
-                        borderRadius: AknRadius.pillAll,
-                      ),
-                      child: Text(
-                        '$n',
-                        style: t.captionStrong.copyWith(
-                          fontFeatures: AknNumerals.tabular,
-                          color: yourMove || selected ? c.brandInk : c.dim,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OrdersList extends ConsumerWidget {
-  const _OrdersList({required this.segment, required this.onClearSearch});
 
   final OrderSegment segment;
   final VoidCallback onClearSearch;
+  final bool showStation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_OrdersList> createState() => _OrdersListState();
+}
+
+class _OrdersListState extends ConsumerState<_OrdersList> {
+  /// İlk satırların dökülme penceresi (sonra kurulan satır kaydırmayla gelir, oynamaz).
+  final Stopwatch _clock = Stopwatch()..start();
+  String? _query;
+
+  bool get _pour => _clock.elapsed < const Duration(milliseconds: 900);
+
+  @override
+  Widget build(BuildContext context) {
+    final segment = widget.segment;
     final s = ref.watch(ordersListProvider(segment));
     final ctrl = ref.read(ordersListProvider(segment).notifier);
     final online = ref.watch(isOnlineProvider);
     final policy = ref.watch(accessPolicyProvider);
+    if (_query != s.query) {
+      // Yeni arama sonuçları yeniden dökülür.
+      _query = s.query;
+      _clock
+        ..reset()
+        ..start();
+    }
 
-    if (s.isFirstLoad) return const SkeletonList(itemCount: 4, lines: 3);
+    if (s.isFirstLoad) {
+      return const SkeletonList(itemCount: 4, lines: 3, leading: false);
+    }
     if (s.showError) {
       final f = s.error!;
       if (f is OfflineFailure || (!online && !s.loaded)) {
         return _scrollable(
-          EmptyState(
+          EmptyState.compact(
             title: OrdersCopy.offlineNoData,
             message: 'Bağlantı gelince liste kendiliğinden yenilenir.',
             illustration: AknIllustration.offline,
@@ -399,12 +249,12 @@ class _OrdersList extends ConsumerWidget {
     if (s.items.isEmpty) {
       if (s.query.isNotEmpty) {
         return _scrollable(
-          EmptyState(
-            title: OrdersCopy.emptyFiltered,
+          EmptyState.compact(
+            title: OrdersCopy.noResults(s.query),
             message: OrdersCopy.emptyFilteredMessage,
             illustration: AknIllustration.search,
             actionLabel: OrdersCopy.clearFilters,
-            onAction: onClearSearch,
+            onAction: widget.onClearSearch,
           ),
           ctrl.refresh,
         );
@@ -427,134 +277,113 @@ class _OrdersList extends ConsumerWidget {
         ),
       };
       return _scrollable(
-        EmptyState(
+        EmptyState.compact(
           title: title,
           message: message,
           illustration: AknIllustration.orders,
           actionLabel: canCreate && segment != OrderSegment.history
               ? OrdersCopy.newOrder
               : null,
-          onAction: canCreate ? () => context.push(AppRoutes.orderNew) : null,
+          onAction: canCreate && segment != OrderSegment.history
+              ? () => context.push(AppRoutes.orderNew)
+              : null,
         ),
         ctrl.refresh,
       );
     }
 
-    // Kartlar (geçmişte gün başlıklarıyla) + dip.
-    final entries = <Object>[];
-    String? lastDay;
+    // Defterler: Geçmiş güne göre gruplanır, diğer bölümler tek defter.
+    final groups = <(String?, List<CustomerOrderRow>)>[];
     for (final row in s.items) {
-      if (segment == OrderSegment.history) {
-        final day = _dayHeader(row.requestedDeliveryDate ?? row.createdAt);
-        if (day != null && day != lastDay) {
-          entries.add(day);
-          lastDay = day;
-        }
+      final day = segment == OrderSegment.history
+          ? _dayHeader(row.requestedDeliveryDate ?? row.createdAt)
+          : null;
+      if (groups.isEmpty || groups.last.$1 != day) {
+        groups.add((day, <CustomerOrderRow>[]));
       }
-      entries.add(row);
+      groups.last.$2.add(row);
     }
-    final footer = switch (segment) {
-      OrderSegment.decision => OrdersCopy.decisionFooter,
-      OrderSegment.active => OrdersCopy.activeFooter,
-      OrderSegment.history => null,
-    };
-    final count = entries.length + 2;
-    final t = context.aknText;
-    final c = context.akn;
-    // Yeni arama sonuçları da birbiri ardına gelir (kapsam sorguyla yenilenir); aşağıda kalan
-    // kartlar kaydırınca belirir.
-    return StaggerScope(
-      key: ValueKey(s.query),
-      child: PullToRefresh(
-        onRefresh: ctrl.refresh,
-        child: NotificationListener<ScrollNotification>(
-          onNotification: (n) {
-            if ((n is ScrollUpdateNotification ||
-                    n is OverscrollNotification) &&
-                n.metrics.extentAfter < 400 &&
-                s.hasMore &&
-                !s.loadingMore) {
-              Future.microtask(ctrl.loadMore);
-            }
-            return false;
-          },
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.only(
-              top: 4,
-              bottom: 32 + MediaQuery.paddingOf(context).bottom,
+    final pour = _pour;
+    var index = 0;
+    final slivers = <Widget>[
+      SliverToBoxAdapter(
+        child: LastUpdatedNote(
+          updatedAt: s.updatedAt,
+          fromCache: s.fromCache,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+        ),
+      ),
+      for (final (i, (day, rows)) in groups.indexed) ...[
+        if (day != null)
+          SliverToBoxAdapter(
+            child: ContentWidth(
+              child: AknLedgerGroup(
+                title: day,
+                padding: EdgeInsets.fromLTRB(24, i == 0 ? 6 : 16, 24, 8),
+              ),
             ),
-            itemCount: count,
-            itemBuilder: (context, i) {
-              if (i == 0) {
-                return LastUpdatedNote(
-                  updatedAt: s.updatedAt,
-                  fromCache: s.fromCache,
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-                );
-              }
-              if (i == count - 1) {
-                if (s.loadingMore) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: ChevronSpinner(size: 24)),
-                  );
-                }
-                if (s.hasMore) return const SizedBox(height: 48);
-                if (footer == null) return const SizedBox(height: 8);
-                return ContentWidth(
-                  child: FadeUp(
-                    delay: AknMotion.staggerDelay(entries.length),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-                      child: Text(
-                        footer,
-                        textAlign: TextAlign.center,
-                        style: t.bodySmall.copyWith(color: c.dim),
-                      ),
-                    ),
-                  ),
-                );
-              }
-              final e = entries[i - 1];
-              if (e is String) {
-                return ContentWidth(
-                  child: StaggerItem(
-                    index: i - 1,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(24, i == 1 ? 10 : 22, 20, 4),
-                      child: Semantics(
-                        header: true,
-                        child: Text(
-                          e,
-                          style: t.label.copyWith(
-                            color: c.dim,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }
-              final row = e as CustomerOrderRow;
-              return ContentWidth(
-                child: StaggerItem(
-                  index: i - 1,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-                    child: OrderRowCard(
-                      row: row,
-                      onTap: () => context.push(AppRoutes.order(row.id)),
-                    ),
-                  ),
-                ),
-              );
-            },
           ),
+        LedgerSliver(
+          first: i == 0 && day == null,
+          rows: [
+            for (final row in rows)
+              _row(
+                row,
+                pourIndex: pour ? index++ : null,
+                onTap: () => context.push(AppRoutes.order(row.id)),
+              ),
+          ],
+        ),
+      ],
+      SliverToBoxAdapter(
+        child: s.loadingMore
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: ChevronSpinner(size: 24)),
+              )
+            : SizedBox(height: s.hasMore ? 48 : 8),
+      ),
+    ];
+    return PullToRefresh(
+      onRefresh: ctrl.refresh,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (n) {
+          if ((n is ScrollUpdateNotification || n is OverscrollNotification) &&
+              n.metrics.extentAfter < 400 &&
+              s.hasMore &&
+              !s.loadingMore) {
+            Future.microtask(ctrl.loadMore);
+          }
+          return false;
+        },
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            ...slivers,
+            SliverPadding(
+              padding: EdgeInsets.only(
+                bottom: 24 + MediaQuery.paddingOf(context).bottom,
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _row(
+    CustomerOrderRow row, {
+    required int? pourIndex,
+    required VoidCallback onTap,
+  }) {
+    final child = OrderRow(
+      row: row,
+      segment: widget.segment,
+      showStation: widget.showStation,
+      onTap: onTap,
+    );
+    final i = pourIndex;
+    return i == null ? child : AknRowPour(index: i, child: child);
   }
 
   /// "Bugün", "Dün", "18 Ekim".

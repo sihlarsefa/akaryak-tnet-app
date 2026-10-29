@@ -5,8 +5,97 @@ import '../../core/models/enums.dart';
 import 'data/approval_models.dart';
 
 abstract final class ApprovalsCopy {
-  static const title = 'Onaylarım';
-  static const searchHint = 'Numara, başlık ya da cari ara';
+  /// Sayfa başlığı = alt menü sözcüğü (v4 §3.2).
+  static const title = 'Onaylar';
+
+  /// İtilmiş ayrıntının başlığı: nesnenin türü (v4 §3.2).
+  static const detailTitle = 'Onay talebi';
+  static const searchHint = 'Cari, numara ya da başlık ara';
+  static const customerSearchHint = 'Ürün, kişi ya da sipariş ara';
+
+  // ---------------------------------------------------------------- v4 bant durumu (§3.2)
+
+  /// Bayi / merkez: "9 talep kararınızı bekliyor"; gecikme sözüyle ya da dar bantta kısa ("9 talep
+  /// bekliyor"), ikisi birden "9 talep" (bant durumu tek satırdır, kesilmez).
+  static String bayiWaiting(int n, {bool short = false, bool bare = false}) =>
+      bare
+      ? '$n talep'
+      : (short ? '$n talep bekliyor' : '$n talep kararınızı bekliyor');
+  static const bayiCalm = 'Kararınızı bekleyen talep yok';
+
+  /// Cari: "3 iş sizi bekliyor".
+  static String customerWaiting(int n) => '$n iş sizi bekliyor';
+  static const customerCalm = 'Bekleyen işiniz yok';
+
+  // ---------------------------------------------------------------- v4 gruplar (§5 08)
+  static const groupOverdue = 'Gecikmiş';
+  static const groupToday = 'Bugün';
+  static const groupYesterday = 'Dün';
+  static const groupEarlier = 'Daha önce';
+  static const groupWaiting = 'Yanıt bekleniyor';
+
+  // ---------------------------------------------------------------- v4 süzgeç (Filtre sayfası)
+  static const filterType = 'Tür';
+  static const filterScope = 'Kapsam';
+  static const scopeMineAndToMe = 'Bende ve taleplerim';
+  static const scopeAll = 'Tüm talepler';
+  static const allTypes = 'Tümü';
+
+  /// Satırın ve süzgecin tür adı (v4 §3.2 bayi sözcükleri: "Saha finans" → "Saha formu finansı").
+  static String typeName(ApprovalType t) => switch (t) {
+    ApprovalType.fieldOrderProfit => 'Saha formu kârlılığı',
+    ApprovalType.limitChange => 'Limit talebi',
+    ApprovalType.companyOrderRequest => 'Sipariş talebi',
+    ApprovalType.orderFinance => 'Sipariş finansı',
+    ApprovalType.fieldFormFinance => 'Saha formu finansı',
+    ApprovalType.customerOnboarding => 'Yeni cari',
+    ApprovalType.leadFinance => 'Ön kayıt',
+    ApprovalType.unknown => 'Onay talebi',
+  };
+
+  /// Sonuç sözcüğü (Taleplerim, Kararlarım; küçük harfle, tür adının ardından).
+  static String outcome(ApprovalStatus s) => switch (s) {
+    ApprovalStatus.pending => 'onay bekleniyor',
+    ApprovalStatus.infoRequested => 'ek bilgi istendi',
+    ApprovalStatus.approved => 'onaylandı',
+    ApprovalStatus.rejected => 'reddedildi',
+    ApprovalStatus.cancelled => 'iptal edildi',
+    ApprovalStatus.unknown => 'durum bilinmiyor',
+  };
+
+  /// Cari görünümündeki sonuç (bayinin iç süreci tek söz; v4 §3.2 müşteri sözcükleri).
+  static String customerOutcome(
+    ApprovalType type,
+    ApprovalStatus s, {
+    bool canReply = false,
+  }) {
+    final company = type == ApprovalType.companyOrderRequest;
+    return switch (s) {
+      ApprovalStatus.pending =>
+        company ? 'Şirket onayında' : 'Bayinizde inceleniyor',
+      ApprovalStatus.infoRequested =>
+        company
+            ? 'Bilgi istendi'
+            : (canReply ? 'Bayiniz bilgi istiyor' : 'Bilgi bekleniyor'),
+      ApprovalStatus.approved => 'Onaylandı',
+      ApprovalStatus.rejected => 'Reddedildi',
+      ApprovalStatus.cancelled => 'İptal edildi',
+      ApprovalStatus.unknown => 'Durum bilinmiyor',
+    };
+  }
+
+  /// "Yanıt bekleniyor" satırı: bilgi, talebin karşı tarafı olan müşteriden istendi.
+  static const askedCustomer = 'Müşteriden ek bilgi istendi';
+
+  /// Sıra izleyicide: satırın fiil satırı (v4 AknListTile.next).
+  static const replyNext = 'Bilgi gönderin';
+  static const decideNext = 'Karar verin';
+
+  // ---------------------------------------------------------------- v4 ayrıntı rıhtımı
+  static const sendInfo = 'Bilgi gönder';
+  static const infoReceived = 'Bilgi alındı';
+  static const infoReceivedCaption =
+      'İstenen bilgi başka yoldan geldiyse talebi incelemeye alın.';
 
   static String emptyTitle(ApprovalScope scope) => switch (scope) {
     ApprovalScope.toMe => 'Kararınızı bekleyen talep yok',
@@ -24,6 +113,18 @@ abstract final class ApprovalsCopy {
       'Onayladığınız ya da reddettiğiniz talepler burada birikir.',
     ApprovalScope.all => 'Bu bayide henüz onay talebi açılmadı.',
   };
+
+  /// Cari Bende boş (v4 §3.6).
+  static const customerEmptyTitle = 'Bekleyen işiniz yok';
+  static const customerEmptyMessage =
+      'Teklif geldiğinde, teslimat yapıldığında ya da bir talep onayınıza düştüğünde burada görünür.';
+  static const goToOrders = 'Siparişlere git';
+
+  /// Arama ya da süzgeç sonuçsuz (v4 §3.6).
+  static String noResultTitle(String query) =>
+      query.isEmpty ? filteredTitle : "'$query' için sonuç yok";
+  static const noResultMessage =
+      'Yazımı kontrol edin ya da filtreleri temizleyin.';
 
   static const filteredTitle = 'Filtreye uyan kayıt yok';
   static const filteredMessage =

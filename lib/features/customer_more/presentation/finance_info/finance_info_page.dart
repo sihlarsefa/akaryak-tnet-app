@@ -77,8 +77,9 @@ class FinanceInfoPage extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
               ),
               for (final l in info.links)
-                CmCard(
-                  margin: CmCard.listMargin,
+                AknCard(
+                  padding: EdgeInsets.zero,
+                  margin: cmListMargin,
                   child: _LinkCard(link: l),
                 ),
             ],
@@ -89,8 +90,9 @@ class FinanceInfoPage extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
               ),
               for (final o in info.orders)
-                CmCard(
-                  margin: CmCard.listMargin,
+                AknCard(
+                  padding: EdgeInsets.zero,
+                  margin: cmListMargin,
                   child: _OrderCard(order: o),
                 ),
             ],
@@ -144,8 +146,6 @@ class _LinkCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CmIconTile(icon: PhosphorIconsRegular.storefront, tone: tone),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,11 +223,6 @@ class _OrderCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CmIconTile(
-                icon: PhosphorIconsRegular.invoice,
-                tone: AknTone.brand,
-              ),
-              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

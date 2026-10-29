@@ -43,7 +43,6 @@ class LimitMeter extends StatelessWidget {
     if (!l.hasLimit) {
       return AknListTile(
         padding: padding,
-        leading: const _LimitTile(tone: AknTone.ok),
         titleStyle: titleStyle,
         title: l.stationTitle,
         subtitle: HomeCopy.unlimitedMessage,
@@ -66,13 +65,6 @@ class LimitMeter extends StatelessWidget {
     final usedLine = '${_fmt(l.used)} kullanıldı, limit ${_fmt(l.amount)}';
     return AknListTile(
       padding: padding,
-      leading: _LimitTile(
-        tone: full
-            ? AknTone.danger
-            : near
-            ? AknTone.warn
-            : null,
-      ),
       titleStyle: titleStyle,
       title: l.stationTitle,
       subtitle: '${l.periodLabel}, $pctText kullanıldı',
@@ -107,37 +99,8 @@ class LimitMeter extends StatelessWidget {
   }
 }
 
-/// Limit satırının baş karosu: gösterge simgesi, durumun yumuşak kuyusunda (limitsiz yeşil, %80
-/// üstü uyarı, dolu tehlike; olağan kullanım sessiz kuyu).
-class _LimitTile extends StatelessWidget {
-  const _LimitTile({this.tone});
-
-  final AknTone? tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final tn = tone;
-    final (bg, fg) = tn == null
-        ? (c.surfaceAlt, c.ink)
-        : (c.tone(tn).bg, c.tone(tn).fg);
-    return ExcludeSemantics(
-      child: Container(
-        width: 40,
-        height: 40,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(AknRadius.sm),
-        ),
-        child: Icon(PhosphorIconsRegular.gauge, size: 22, color: fg),
-      ),
-    );
-  }
-}
-
-/// Limitlerim (spec A.4): bayi başına limit kullanımı (ana sayfa verisinden); her bayi kırık beyaz
-/// sayfada yüzen beyaz bir kartta, kartlar sırayla yükselerek gelir (tasarım v3).
+/// Limitler (spec A.4; tasarım v4): bayi başına limit kullanımı (ana sayfa verisinden); tek defter,
+/// her bayi bir satır; satırlar defterin içine dökülür.
 class LimitsPage extends ConsumerWidget {
   const LimitsPage({super.key});
 
@@ -195,22 +158,16 @@ class LimitsPage extends ConsumerWidget {
                   ),
                 ),
               ),
-              StaggerScope(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final (i, l) in limits.indexed)
-                      StaggerItem(
-                        index: i,
-                        child: _LimitCard(
-                          child: LimitMeter(
-                            limit: l,
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              // Tek defter: her bayi bir satır (kutu içinde kutu yok).
+              AknLedger(
+                pour: true,
+                children: [
+                  for (final l in limits)
+                    LimitMeter(
+                      limit: l,
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                    ),
+                ],
               ),
             ],
           ],
@@ -221,30 +178,6 @@ class LimitsPage extends ConsumerWidget {
       title: HomeCopy.limits,
       refreshing: s.refreshing,
       body: body,
-    );
-  }
-}
-
-/// Limit kartı (tasarım v3 §3): beyaz r20, yumuşak kart gölgesi (koyu temada 1 px çizgi).
-class _LimitCard extends StatelessWidget {
-  const _LimitCard({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: AknRadius.card,
-          boxShadow: AknShadows.card(c),
-          border: c.isDark ? Border.all(color: c.line) : null,
-        ),
-        child: child,
-      ),
     );
   }
 }

@@ -122,7 +122,7 @@ class _CameraPrimer extends StatelessWidget {
             offset: 8,
             scale: 0.8,
             curve: AknMotion.pop,
-            child: A2IconTile(
+            child: AknIconBox(
               icon: PhosphorIconsRegular.camera,
               tone: AknTone.brand,
               size: 52,

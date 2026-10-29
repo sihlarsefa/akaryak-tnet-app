@@ -232,7 +232,12 @@ void main() {
           onOpenNotifications: () => opened++,
           offline: true,
           pendingOps: 2,
-          child: const AppScaffold(title: 'Siparişler', body: Text('içerik')),
+          // v4: the bell is opt-in on AppScaffold (it lives in the home band).
+          child: const AppScaffold(
+            title: 'Siparişler',
+            showBell: true,
+            body: Text('içerik'),
+          ),
         ),
         brightness: b,
         scaffold: false,
@@ -588,7 +593,11 @@ void main() {
           const KpiTile(label: 'Bekleyen teklif', value: 12),
           const FactRow(label: 'Limit kullanımı', value: '%92'),
           const AknBanner(message: 'Siparişiniz finans onayında.'),
-          const EmptyState(title: 'Kayıt yok', compact: true),
+          const EmptyState(
+            title: 'Kayıt yok',
+            message: 'Yeni kayıt gelince burada görünür.',
+            compact: true,
+          ),
           AnimatedBottomBar(
             currentIndex: 0,
             onSelected: (_) {},

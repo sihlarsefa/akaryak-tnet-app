@@ -324,9 +324,11 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
                 (access.isRep
                     ? FieldCopy.portfolioEmptyTitle
                     : 'Cari bulunamadı'),
-            message: error == null && access.isRep && _term.isEmpty
+            message: error != null
+                ? 'Bağlantınızı kontrol edip yeniden deneyin.'
+                : access.isRep && _term.isEmpty
                 ? FieldCopy.portfolioEmptyMessage
-                : null,
+                : 'Yazımı kontrol edin ya da başka bir ad deneyin.',
             illustration: error == null
                 ? AknIllustration.customers
                 : AknIllustration.error,

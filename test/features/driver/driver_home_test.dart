@@ -70,8 +70,20 @@ void main() {
       expect(cards, findsWidgets);
       final first = tester.widget<ShipmentCard>(cards.first);
       expect(first.row.status, ShipmentStatus.disputed);
-      // Üstte kısa uyarı (kaydırmadan görünür); not ve "Teslimatı düzelt" satırda.
+      // v4 §5 11: itiraz, kahraman kartın en üstünde tek tehlike satırı (kaydırmadan görünür); not
+      // ve "Teslimatı düzelt" aşağıdaki satırda.
       expect(find.text(DriverCopy.disputedCount(1)), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(DriverStopPlate),
+          matching: find.text(DriverCopy.disputedCount(1)),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(find.text(DriverCopy.disputedCount(1))).dy,
+        lessThan(tester.getTopLeft(find.text(DriverCopy.nextOf(1, 2))).dy),
+      );
       expect(find.textContaining('5.650 L'), findsOneWidget);
       expect(find.text(DriverCopy.disputedTitle), findsOneWidget);
       expect(find.text(DriverCopy.actionFix), findsOneWidget);
@@ -134,21 +146,56 @@ void main() {
       final dock = tester.widget<DriverStopDock>(find.byType(DriverStopDock));
       expect(dock.actionIsPrimary, isTrue);
       expect(h.location.requests, 0, reason: 'ana sayfa izin penceresi açmaz');
-      expect(find.bySemanticsLabel(RegExp('Tank: 30.000 L')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp('Tank kapasitesi: 30.000 L')),
+        findsOneWidget,
+      );
       await finish(tester);
     },
   );
 
-  testWidgets('çevrimdışı satırı: "Teslimatlar telefona kaydediliyor"', (
-    tester,
-  ) async {
-    await start(tester);
-    expect(find.textContaining('Eşitlendi'), findsOneWidget);
-    c.read(testOnlineProvider.notifier).state = false;
-    await pumpFor(tester, const Duration(milliseconds: 400));
-    expect(find.text(DriverCopy.offlineLine), findsOneWidget);
-    await finish(tester);
-  });
+  testWidgets(
+    'v4: eşitliyken hap yok; çevrimdışıyken tek uyarı satırı "Çevrimdışı · …"',
+    (tester) async {
+      await start(tester);
+      expect(find.textContaining('Eşitlendi'), findsNothing);
+      expect(find.textContaining('Çevrimdışı'), findsNothing);
+      c.read(testOnlineProvider.notifier).state = false;
+      await pumpFor(tester, const Duration(milliseconds: 400));
+      expect(find.text(DriverCopy.offlineWarn), findsOneWidget);
+      c.read(testOnlineProvider.notifier).state = true;
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      expect(find.text(DriverCopy.offlineWarn), findsNothing);
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'v4: her litre etiketli — "18.000 L yük · 2 durak", "Motorin, bu durakta", '
+    '"Tank kapasitesi"; varış planının altında teslim aralığı; bantta "Teslimatlar"',
+    (tester) async {
+      // Konum izni yok: uzaklık yerine tank kapasitesi okunur.
+      await start(
+        tester,
+        before: (h) => h.location.perm = DriverLocationPermission.notDetermined,
+      );
+      expect(find.text('Teslimatlar'), findsOneWidget);
+      expect(find.text('Teslimatlarım'), findsNothing);
+      expect(find.text(DriverCopy.nextOf(1, 2)), findsOneWidget);
+      expect(find.text('Sıradaki teslimat 1 / 2'), findsOneWidget);
+      expect(find.textContaining(' yük · 2 durak'), findsOneWidget);
+      expect(find.text('18.000 L yük · 2 durak'), findsOneWidget);
+      expect(find.text(DriverCopy.readoutPlan), findsOneWidget);
+      expect(find.text(DriverCopy.readoutTank), findsOneWidget);
+      expect(find.text('teslim aralığı 08:00–18:00'), findsOneWidget);
+      // "Teslim saati" ayrı okuma değil (varış planının alt satırı).
+      expect(find.text(DriverCopy.readoutWindow), findsNothing);
+      // (Okumaların tek satıra sığması gerçek yazı tipiyle ekran görüntüsünde denetlenir; test yazı
+      // tipinin kare harfleri daha geniştir.)
+      expect(tester.takeException(), isNull);
+      await finish(tester);
+    },
+  );
 
   testWidgets('ilk giriş ipucu bir kez gösterilir, "Anladım" ile kapanır', (
     tester,
@@ -237,9 +284,11 @@ void main() {
       );
       await pumpFor(tester, const Duration(milliseconds: 600));
       expect(find.text(DriverCopy.opWaiting), findsOneWidget);
+      // v4: çevrimdışı bekleyen sayısını eşitleme satırı söyler (şerit aynı şeyi yinelemez).
+      expect(find.text(DriverCopy.offlineWarnCount(1)), findsOneWidget);
       expect(
         find.textContaining('bağlantı gelince gönderilecek'),
-        findsOneWidget,
+        findsNothing,
       );
 
       c.read(testOnlineProvider.notifier).state = true;

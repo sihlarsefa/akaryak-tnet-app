@@ -7,6 +7,8 @@ import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
 import '../data/bayi_repository.dart';
 import '../data/home_models.dart';
+import '../data/order_models.dart';
+import 'bayi_grants.dart';
 import 'bayi_runtime.dart';
 
 /// Bayi ana sayfası (`GET home/bayi`). Önce önbellek (çevrimdışı açılış, "Son güncelleme"), sonra sunucu;
@@ -90,3 +92,21 @@ class BayiHomeController extends Notifier<Loadable<BayiHomeData>> {
     }
   }
 }
+
+/// Ana sayfa "Sipariş hattı"nın sayıları (v4 §5 03): Siparişler sayfasının segment sayıları (`GET
+/// bayi/orders/counts`); her durak o segmentin listesini açar ve sayı listeyle aynıdır. Siparişleri
+/// göremeyen ya da sayılar yüklenemezse null (hat ana sayfa yükünden çizilir). Ana sayfa her
+/// tazelendiğinde yeniden okunur.
+final bayiPipelineCountsProvider = FutureProvider.autoDispose<BayiOrderCounts?>(
+  (ref) async {
+    if (!ref.watch(bayiGrantsProvider.select((g) => g.viewOrders))) {
+      return null;
+    }
+    ref.watch(bayiHomeProvider.select((s) => s.updatedAt));
+    try {
+      return await ref.read(bayiRepositoryProvider).orderCounts();
+    } on Object {
+      return null;
+    }
+  },
+);

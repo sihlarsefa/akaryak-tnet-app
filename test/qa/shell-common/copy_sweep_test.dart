@@ -1,6 +1,6 @@
 // QA shell-common: yazım kuralları gerçek uygulamada, her persona × her izinli sayfa (tasarım v2 §1
-// kural 7). Ekrandaki her metinde:
-// - " · " ayırıcısı yok ("A · B · C" yerine virgül ya da cümle),
+// kural 7; v4 "Sade" §3.2 ve §4). Ekrandaki her metinde:
+// - " · " v4'ün olgu ayırıcısıdır ("Tuzla Şantiye · yarın"); başta, sonda ya da art arda olmaz,
 // - "Lütfen" yok, genel hata metni yok ("Bir hata oluştu", "Beklenmeyen bir hata"),
 // - programcı izi yok ("null", "Instance of", "Exception"),
 // - ok işareti "→" yok.
@@ -69,7 +69,7 @@ List<String> _routes(QaApp app) {
 
 /// Kural ihlali arayan desenler (ad → desen).
 final _rules = <String, RegExp>{
-  'ayırıcı " · "': RegExp('·'),
+  'boş ayırıcı " · "': RegExp(r'^\s*·|·\s*$|·\s*·'),
   '"Lütfen"': RegExp(r'\bLütfen\b|\blütfen\b'),
   'genel hata metni': RegExp(
     r'Bir hata oluştu|Beklenmeyen bir hata|Hata oluştu|Something went wrong',

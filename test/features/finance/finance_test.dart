@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../approvals/a5_test_kit.dart';
 
+/// Listenin son sorgusu. v4: bant durumu ve "Bekleyen n" için bekleyenlerin sayısı ayrıca istenir
+/// (`status=pending`, ilk sayfa); süzgeç değişince son istek listenindir.
 Map<String, dynamic> lastQuery(A5App app) =>
     app.log.last('GET', 'finance/customers')!.queryParameters;
 
@@ -23,26 +25,46 @@ void expectNoMiddleDots(WidgetTester tester) {
   expect(texts.where((t) => t.contains(' · ')), isEmpty);
 }
 
+/// Bandın Filtre sayfasını açar.
+Future<void> openFilters(WidgetTester tester) =>
+    tapFinder(tester, find.byType(AknFilterButton));
+
+/// Açık Filtre sayfasını kapatır.
+Future<void> closeSheet(WidgetTester tester) async {
+  Navigator.of(tester.element(find.byType(AppSheet))).pop();
+  await pumpFor(tester);
+}
+
 void main() {
   testWidgets('süzgeçler sorguya gider ve listeyi daraltır', (tester) async {
     final app = await pumpA5(tester, persona: 'finans', location: '/finance');
-    expect(lastQuery(app)['status'], isNull);
+    expect(
+      app.log
+          .all('GET', 'finance/customers')
+          .any((r) => r.queryParameters['status'] == null),
+      isTrue,
+    );
     expect(find.byType(FinanceRowCard), findsWidgets);
 
-    // Süzgeç çipi başlıkta, satırlardaki durum çiplerinden önce.
-    await tapText(tester, 'Onaylı', first: true);
+    // Durum: tek seçici (v4 §5 09); "Onaylı" ekranda yalnızca seçicide.
+    await tapText(tester, 'Onaylı');
     expect(lastQuery(app)['status'], 'approved');
-    await tapText(tester, 'Risk C', first: true);
+    // Risk ve gözden geçirme: bandın Filtre sayfasında.
+    await openFilters(tester);
+    await tapFinder(tester, inSheet(find.text('Risk C')));
     expect('${lastQuery(app)['risk']}', '3');
-    await tapText(tester, 'Gözden geçirmesi geçen');
+    await tapFinder(tester, inSheet(find.text('Gözden geçirmesi geçen')));
     expect('${lastQuery(app)['overdue']}', 'true');
+    await closeSheet(tester);
     // Onaylı + Risk C + gözden geçirmesi geçen: yalnızca Marmara İnşaat.
     expect(find.byType(FinanceRowCard), findsOneWidget);
     expect(find.text('Marmara İnşaat Taahhüt Ltd. Şti.'), findsOneWidget);
 
     // Tek risk sınıfı seçilir: yenisi öncekinin yerine geçer.
-    await tapText(tester, 'Risk A', first: true);
+    await openFilters(tester);
+    await tapFinder(tester, inSheet(find.text('Risk A')));
     expect('${lastQuery(app)['risk']}', '1');
+    await closeSheet(tester);
     expect(find.byType(FinanceRowCard), findsNothing);
     expect(find.text('Filtreleri temizle'), findsOneWidget);
     await tapText(tester, 'Filtreleri temizle');
@@ -51,13 +73,37 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('arama metni sorguya gider', (tester) async {
+  testWidgets('arama metni sorguya gider (⌕ şeridi; VKN de aranır)', (
+    tester,
+  ) async {
     final app = await pumpA5(tester, persona: 'finans', location: '/finance');
+    expect(find.byType(TextField), findsNothing, reason: 'arama ⌕ ardında');
+    await tapFinder(tester, find.bySemanticsLabel('Carilerde ara'));
     await tester.enterText(find.byType(TextField).first, 'ege');
     await pumpFor(tester);
     expect(lastQuery(app)['q'], 'ege');
     expect(find.text('Ege Tarım Kooperatifi'), findsOneWidget);
     expect(find.byType(FinanceRowCard), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('?filter=review gözden geçirmesi geçenlerle açılır', (
+    tester,
+  ) async {
+    final app = await pumpA5(
+      tester,
+      persona: 'finans',
+      location: '/finance?filter=review',
+    );
+    expect(
+      app.log
+          .all('GET', 'finance/customers')
+          .any((r) => '${r.queryParameters['overdue']}' == 'true'),
+      isTrue,
+    );
+    // Filtre düğmesinin rozeti etkin süzgeci sayar.
+    final button = tester.widget<AknFilterButton>(find.byType(AknFilterButton));
+    expect(button.count, 1);
     await finish(tester);
   });
 
@@ -92,17 +138,41 @@ void main() {
     await finish(tester);
   });
 
-  group('tasarım v2', () {
-    testWidgets('liste: ledger satırları (kart değil), " · " yok', (
-      tester,
-    ) async {
-      await pumpA5(tester, persona: 'finans', location: '/finance');
-      expect(find.byType(FinanceRowCard), findsWidgets);
-      expect(find.byType(AknCard), findsNothing);
-      expect(find.byType(AknListTile), findsWidgets);
-      expectNoMiddleDots(tester);
-      await finish(tester);
-    });
+  group('tasarım v4', () {
+    testWidgets(
+      'liste: defter satırları; "Onaylı" yalnızca seçicide, VKN ve risk çipi yok; Dikkat önce',
+      (tester) async {
+        await pumpA5(tester, persona: 'finans', location: '/finance');
+        expect(find.byType(FinanceRowCard), findsWidgets);
+        expect(find.byType(AknCard), findsNothing);
+        expect(find.byType(AknListTile), findsWidgets);
+        expect(find.byType(AknChip), findsNothing, reason: 'çip satırı yok');
+        final rows = find.byType(FinanceRowCard);
+        expect(
+          find.descendant(of: rows, matching: find.text('Onaylı')),
+          findsNothing,
+          reason: 'normal durum yazılmaz',
+        );
+        expect(
+          find.text('Onaylı'),
+          findsOneWidget,
+          reason: 'yalnızca seçicide',
+        );
+        expect(
+          find.descendant(of: rows, matching: find.textContaining('VKN')),
+          findsNothing,
+        );
+        expect(find.byType(AknLamp), findsNothing, reason: 'hap yok');
+        final groups = tester
+            .widgetList<AknLedgerGroup>(find.byType(AknLedgerGroup))
+            .toList();
+        expect(groups.first.title, 'Dikkat');
+        // Finans onayı bekleyen cari Pas satırla söylenir; bant durumu aynı sayı.
+        expect(find.text('Finans onayınızı bekliyor'), findsWidgets);
+        expect(find.textContaining('finans onayınızı bekliyor'), findsWidgets);
+        await finish(tester);
+      },
+    );
 
     testWidgets(
       'kart: tek plaka "Kullanılabilir limit" + Limit / Kullanılan / Kullanım',

@@ -517,15 +517,19 @@ class AknListTile extends StatefulWidget {
     this.showChevron,
     this.dense = false,
     this.titleMaxLines = 2,
-    this.subtitleMaxLines = 2,
+    this.subtitleMaxLines = 1,
     this.padding,
     this.semanticLabel,
     this.titleStyle,
+    this.metaWidget,
+    this.next,
+    this.flow,
   });
 
   final String title;
 
-  /// Second line ("Tuzla Şantiye, 22 Ekim").
+  /// Second line ("Tuzla Şantiye · yarın · Demir Petrol"): one dim line
+  /// with at most two facts (v4).
   final String? subtitle;
   final Widget? leading;
 
@@ -568,6 +572,17 @@ class AknListTile extends StatefulWidget {
   /// Overrides the title style (default 15/20 600 ink; dense 14/20).
   final TextStyle? titleStyle;
 
+  /// v4: a compact widget on the right of the last text line — the
+  /// countdown (`CountdownBadge(compact: true)`) or a time.
+  final Widget? metaWidget;
+
+  /// v4: the verb line — what the viewer does next ("Çek görselini
+  /// yükleyin"), 14/20 600 Pas. Only on the viewer's move.
+  final String? next;
+
+  /// v4: the order's Akış in a row (`AknFlowPips` + a sentence), +8.
+  final Widget? flow;
+
   @override
   State<AknListTile> createState() => _AknListTileState();
 }
@@ -593,15 +608,35 @@ class _AknListTileState extends State<AknListTile> {
     final reduced = AknMotion.reduced(context);
     final interactive = w.onTap != null || w.onLongPress != null;
     final pressed = _pressed && interactive;
-    final boxSize = w.dense ? 36.0 : 40.0;
+    // v4: a 36 dp neutral tile (surfaceAlt, ink glyph 20), tinted only for
+    // danger or warn.
+    const boxSize = 36.0;
+    final tinted =
+        w.leadingTone == AknTone.danger || w.leadingTone == AknTone.warn;
+    final tileTone = tinted ? c.tone(w.leadingTone!) : null;
     final lead =
         w.leading ??
         (w.leadingIcon == null
             ? null
-            : AknIconBox(
-                icon: w.leadingIcon!,
-                tone: w.leadingTone,
-                size: boxSize,
+            : ExcludeSemantics(
+                child: SizedBox.square(
+                  dimension: boxSize,
+                  child: DecoratedBox(
+                    decoration: ShapeDecoration(
+                      color: tileTone?.bg ?? c.surfaceAlt,
+                      shape: const RoundedSuperellipseBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                    ),
+                    child: Center(
+                      child: Icon(
+                        w.leadingIcon,
+                        size: 20,
+                        color: tileTone?.fg ?? c.ink,
+                      ),
+                    ),
+                  ),
+                ),
               ));
     final leadWidth = lead == null ? 0.0 : boxSize + _leadGap;
     final defaultTitle = w.dense
@@ -638,6 +673,19 @@ class _AknListTileState extends State<AknListTile> {
               maxLines: stack ? w.subtitleMaxLines + 2 : w.subtitleMaxLines,
               overflow: TextOverflow.ellipsis,
             );
+      final nextLine = w.next;
+      final nextText = nextLine == null || nextLine.isEmpty
+          ? null
+          : Text(
+              nextLine,
+              style: t.bodySmall.copyWith(
+                fontWeight: FontWeight.w600,
+                color: c.brandInk,
+              ),
+              maxLines: stack ? 3 : 1,
+              overflow: TextOverflow.ellipsis,
+            );
+      final meta = w.metaWidget;
       final List<Widget> lines;
       if (stack) {
         lines = [
@@ -652,10 +700,21 @@ class _AknListTileState extends State<AknListTile> {
             const SizedBox(height: 2),
             Text(rightBottom, style: rightMetaStyle),
           ],
+          if (nextText != null) ...[const SizedBox(height: 4), nextText],
+          if (meta != null) ...[
+            const SizedBox(height: 4),
+            Align(alignment: AlignmentDirectional.centerStart, child: meta),
+          ],
+          if (w.flow != null) ...[const SizedBox(height: 8), w.flow!],
           if (w.footer != null) ...[const SizedBox(height: 12), w.footer!],
           if (w.trailing != null) ...[const SizedBox(height: 8), w.trailing!],
         ];
       } else {
+        // The meta widget sits on the right of the verb line when there is
+        // one, else on the right of the second line.
+        final metaOnNext = meta != null && nextText != null;
+        final metaOnSub = meta != null && !metaOnNext && rightBottom == null;
+        final metaAlone = meta != null && !metaOnNext && !metaOnSub;
         lines = [
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -673,11 +732,10 @@ class _AknListTileState extends State<AknListTile> {
               ],
             ],
           ),
-          if (subText != null || rightBottom != null) ...[
+          if (subText != null || rightBottom != null || metaOnSub) ...[
             const SizedBox(height: 2),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(child: subText ?? const SizedBox.shrink()),
                 if (rightBottom != null) ...[
@@ -688,15 +746,38 @@ class _AknListTileState extends State<AknListTile> {
                     maxLines: 1,
                     softWrap: false,
                   ),
+                ] else if (metaOnSub) ...[
+                  const SizedBox(width: 12),
+                  meta,
                 ],
               ],
             ),
           ],
+          if (nextText != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: nextText),
+                if (metaOnNext) ...[const SizedBox(width: 12), meta],
+              ],
+            ),
+          ],
+          if (metaAlone) ...[
+            const SizedBox(height: 4),
+            Align(alignment: AlignmentDirectional.centerEnd, child: meta),
+          ],
+          if (w.flow != null) ...[const SizedBox(height: 8), w.flow!],
           if (w.status != null) ...[const SizedBox(height: 10), w.status!],
         ];
       }
       final row = Row(
-        crossAxisAlignment: stack || w.status != null || w.footer != null
+        crossAxisAlignment:
+            stack ||
+                w.status != null ||
+                w.footer != null ||
+                w.next != null ||
+                w.flow != null
             ? CrossAxisAlignment.start
             : CrossAxisAlignment.center,
         children: [
@@ -912,10 +993,16 @@ class AknLedgerDivider extends StatelessWidget {
 /// the first and below the last row. Where it already sits on a surface — an
 /// [AknCard] or another [AknCardScope], the hero card, a sheet or dialog —
 /// or inside a parent that already insets it, the rows stay flat.
+///
+/// v4 (§6): with [pour] the rows pour in once after the ledger rises (8 dp,
+/// 40 ms apart, at most six steps) — on the first build only.
 class AknLedger extends StatelessWidget {
-  const AknLedger({super.key, required this.children});
+  const AknLedger({super.key, required this.children, this.pour = false});
 
   final List<Widget> children;
+
+  /// The rows pour in on the first build ([AknRowPour]).
+  final bool pour;
 
   /// The card's margin on the page.
   static const EdgeInsets _margin = EdgeInsets.fromLTRB(
@@ -934,7 +1021,7 @@ class AknLedger extends StatelessWidget {
       children: [
         for (var i = 0; i < children.length; i++) ...[
           if (i > 0) const AknLedgerDivider(),
-          children[i],
+          if (pour) AknRowPour(index: i, child: children[i]) else children[i],
         ],
       ],
     );
@@ -974,28 +1061,73 @@ class _LedgerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    // v4 (§4): ledgers draw the hairline only (dark: a 1 px line).
     return DecoratedBox(
       decoration: BoxDecoration(
         color: c.surface,
         borderRadius: AknRadius.card,
         border: c.isDark ? Border.all(color: c.line) : null,
-        boxShadow: AknShadows.card(c),
+        boxShadow: c.isDark ? null : [AknShadows.hairline(c)],
       ),
       child: ClipRRect(borderRadius: AknRadius.card, child: child),
     );
   }
 }
 
-/// Section title (design v3 §4): 18/24 800 ink (−0.3) with an optional
-/// count in a soft pill (12/16 700, tabular; it pops when the count
-/// changes), an optional `bodySmall` subtitle, and on the right either a
-/// link ("Tümü": 13/18 600 ink + `caretRight` 16, a soft pill and a press
-/// scale while pressed, a selection haptic) or a [caption] ("şu an, 10:42",
-/// "bugün 06:00, ₺/L"). Sentence case, never upper case.
+/// A group caption inside a collection (design v4 §4): "Gecikmiş 2",
+/// "Bugün", "Yanıt bekleniyor" — 13/18 700 dim ([tone] danger: `danger.fg`
+/// for overdue), 16 dp above and 8 dp below, on the page gutter. The
+/// [count] follows after a no-break space. A header for screen readers.
+class AknLedgerGroup extends StatelessWidget {
+  const AknLedgerGroup({
+    super.key,
+    required this.title,
+    this.tone,
+    this.count,
+    this.padding = const EdgeInsets.fromLTRB(24, 16, 24, 8),
+  });
+
+  final String title;
+
+  /// [AknTone.danger] for overdue groups; anything else stays dim.
+  final AknTone? tone;
+  final int? count;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final color = tone == AknTone.danger ? c.danger.fg : c.dim;
+    final n = count;
+    final text = n == null ? title : '$title\u00A0$n';
+    return Padding(
+      padding: padding,
+      child: Semantics(
+        header: true,
+        child: Text(
+          text,
+          style: t.label.copyWith(
+            fontWeight: FontWeight.w700,
+            color: color,
+            fontFeatures: AknNumerals.tabular,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Section title (design v4 §4): `headline` 17/22 700 ink, sentence case.
 ///
-/// With an [icon] the title follows the web panel's neutral icon tile
-/// ([AknSectionIcon]: 32 px, radius 10, `surfaceAlt` with a hairline and an
-/// ink glyph) — the `.panel-title` look of the panel's cards.
+/// * The [count] follows the title after a no-break space as dim 13/18 600
+///   tabular text ("Yolda 2"); it becomes a soft Pas pill only for the
+///   viewer's move ([yourMove]) and pops when it changes.
+/// * On the right either a link ("Tümü ›": 14/20 600 ink + `caretRight`, a
+///   48 dp target, a press scale and a selection haptic) or a [caption]
+///   (13/18 dim).
+/// * [icon] is ignored (v4: no section icon tiles); [subtitle] is a dim
+///   line under the title.
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
     super.key,
@@ -1006,12 +1138,13 @@ class SectionHeader extends StatelessWidget {
     this.onAction,
     this.caption,
     this.icon,
+    this.yourMove = false,
     this.padding = const EdgeInsets.fromLTRB(20, 24, 12, 8),
   });
 
   final String title;
 
-  /// The panel's neutral icon tile before the title.
+  /// Ignored (v4: AknSectionIcon is deprecated).
   final IconData? icon;
   final String? subtitle;
   final int? count;
@@ -1020,17 +1153,20 @@ class SectionHeader extends StatelessWidget {
 
   /// Right-aligned note (13/18 dim) when there is no action.
   final String? caption;
+
+  /// The count is the viewer's move: a soft Pas pill instead of dim text.
+  final bool yourMove;
   final EdgeInsetsGeometry padding;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final titleStyle = t.title.copyWith(
-      fontSize: 18,
-      height: 24 / 18,
-      fontWeight: FontWeight.w800,
-      letterSpacing: -0.3,
+    final titleStyle = t.headline.copyWith(
+      fontSize: 17,
+      height: 22 / 17,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -0.1,
       color: c.ink,
     );
     final hasAction = actionLabel != null && onAction != null;
@@ -1046,20 +1182,35 @@ class SectionHeader extends StatelessWidget {
           )
         : Semantics(
             header: true,
-            // A no-break space keeps the count with the last word.
-            label: '$title $n',
+            label: '$title $n',
             excludeSemantics: true,
             child: Text.rich(
               TextSpan(
                 text: title,
                 children: [
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.middle,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(start: 8),
-                      child: _CountPill(count: n, textScaler: scaler),
+                  if (yourMove)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(start: 8),
+                        child: _CountPill(
+                          count: n,
+                          textScaler: scaler,
+                          yourMove: true,
+                        ),
+                      ),
+                    )
+                  else
+                    // A no-break space keeps the count with the last word.
+                    TextSpan(
+                      text: '\u00A0$n',
+                      style: t.label.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: c.dim,
+                        fontFeatures: AknNumerals.tabular,
+                        letterSpacing: 0,
+                      ),
                     ),
-                  ),
                 ],
               ),
               style: titleStyle,
@@ -1075,8 +1226,7 @@ class SectionHeader extends StatelessWidget {
           final maxSide = constraints.maxWidth.isFinite
               ? constraints.maxWidth * 0.55
               : double.infinity;
-          final glyph = icon;
-          Widget titles = Column(
+          final Widget titles = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1087,22 +1237,6 @@ class SectionHeader extends StatelessWidget {
               ],
             ],
           );
-          if (glyph != null) {
-            // The tile stays beside the first line when the title wraps.
-            titles = Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AknSectionIcon(icon: glyph),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: titles,
-                  ),
-                ),
-              ],
-            );
-          }
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -1139,9 +1273,9 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// The web panel's neutral icon tile (`.panel-title` icon): [size] px, radius
-/// 10, `surfaceAlt` (white on a well) with a 1 px hairline and an ink glyph.
-/// Decorative: the title next to it carries the meaning.
+/// Deprecated in v4 (no section icon tiles; `SectionHeader.icon` is
+/// ignored). The web panel's neutral icon tile (`.panel-title` icon): [size]
+/// px, radius 10, `surfaceAlt` with a 1 px hairline and an ink glyph.
 class AknSectionIcon extends StatelessWidget {
   const AknSectionIcon({super.key, required this.icon, this.size = 32});
 
@@ -1170,16 +1304,27 @@ class AknSectionIcon extends StatelessWidget {
 /// The count after a section title: a soft pill that pops when the count
 /// changes.
 class _CountPill extends StatelessWidget {
-  const _CountPill({required this.count, required this.textScaler});
+  const _CountPill({
+    required this.count,
+    required this.textScaler,
+    this.yourMove = false,
+  });
 
   final int count;
   final TextScaler textScaler;
+
+  /// The viewer's move: Pas digits on `brandSoft` (v4).
+  final bool yourMove;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final style = t.captionStrong.copyWith(color: c.ink);
+    final style = t.captionStrong.copyWith(
+      color: yourMove ? c.brandInk : c.ink,
+      fontWeight: yourMove ? FontWeight.w800 : FontWeight.w700,
+      fontFeatures: AknNumerals.tabular,
+    );
     return AnimatedSwitcher(
       duration: AknMotion.of(context, const Duration(milliseconds: 320)),
       switchInCurve: AknMotion.pop,
@@ -1196,7 +1341,9 @@ class _CountPill extends StatelessWidget {
         key: ValueKey<int>(count),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: c.ink.withValues(alpha: c.isDark ? 0.12 : 0.07),
+          color: yourMove
+              ? c.brandSoft
+              : c.ink.withValues(alpha: c.isDark ? 0.12 : 0.07),
           borderRadius: AknRadius.pillAll,
         ),
         child: ConstrainedBox(
@@ -1295,7 +1442,10 @@ class _SectionActionState extends State<_SectionAction> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               textScaler: scaler,
-                              style: t.label.copyWith(color: c.ink),
+                              style: t.bodySmall.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: c.ink,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 2),

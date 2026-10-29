@@ -14,10 +14,11 @@ import '../../data/customer_models.dart';
 import '../../data/order_models.dart';
 import '../widgets/bayi_widgets.dart';
 
-/// Sipariş süzgeçleri: durum, ödeme, finans, cari, oluşturulma ve istenen teslim aralığı, sıralama.
+/// Sipariş filtreleri ("Filtre", v4 §3.2): durum, ödeme, finans, cari, oluşturulma ve istenen teslim
+/// aralığı, sıralama.
 Future<void> showOrderFiltersSheet(BuildContext context) => showAppSheet<void>(
   context: context,
-  title: 'Süzgeçler',
+  title: 'Filtre',
   builder: (_) => const _OrderFilters(),
 );
 
@@ -324,6 +325,7 @@ class _CustomerPickerState extends ConsumerState<_CustomerPicker> {
           const EmptyState(
             compact: true,
             title: 'Cari bulunamadı',
+            message: 'Yazımı kontrol edin ya da başka bir ad deneyin.',
             illustration: AknIllustration.search,
           )
         else

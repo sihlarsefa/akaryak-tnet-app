@@ -42,6 +42,12 @@
 ///   [Shimmer] + [SkeletonList] / [SkeletonCard] / [SkeletonBox],
 ///   [RefreshingContent], [TopProgressBar], [OfflineBanner], [PullToRefresh].
 /// * Shell: [AppScaffold], [AppChrome], [AnimatedBottomBar].
+/// * v4 "Sade": [AknPageBand] status lines ([AknStatusClause]),
+///   `ActionBar.decision`, [AknObjectHeader], the » Akış line
+///   ([AknFlowLine], [AknFlowPips], [StageNow], [AknFlow]), the "Sıra
+///   sizde" card ([AknTaskCard], [AknTaskRow], [AknFirstRunHint]),
+///   [AknLedgerGroup], [AknFilterButton], [AknSearchReveal], and the motion
+///   budget ([AknAmbientBudget], [AknFocusFlash], [AknTaskFold]).
 /// * Painters: [LogoMark], [AknWordmark], [AknLogo], [ChevronSpinner],
 ///   [SuccessCheck], [ProgressRing], [TruckRoute], [Sparkline],
 ///   [EmptyIllustration] (the six §11 drawings).
@@ -76,12 +82,14 @@ export 'widgets/cards.dart';
 export 'widgets/choice_card.dart';
 export 'widgets/delta_chip.dart';
 export 'widgets/filters.dart';
+export 'widgets/flow_line.dart';
 export 'widgets/hero_header.dart';
 export 'widgets/home_header.dart';
 export 'widgets/inputs.dart';
 export 'widgets/kpi_tile.dart';
 export 'widgets/lamp.dart';
 export 'widgets/lane_pager.dart';
+export 'widgets/object_header.dart';
 export 'widgets/open_container.dart';
 export 'widgets/plate.dart';
 export 'widgets/plate_badge.dart';
@@ -93,6 +101,7 @@ export 'widgets/slide_to_confirm.dart';
 export 'widgets/stage_strip.dart';
 export 'widgets/states.dart';
 export 'widgets/status_widgets.dart';
+export 'widgets/task_card.dart';
 export 'widgets/timeline.dart';
 export 'widgets/toast.dart';
 export 'widgets/triangle_glyph.dart';

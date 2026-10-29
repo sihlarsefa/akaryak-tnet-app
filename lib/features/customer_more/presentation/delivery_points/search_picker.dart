@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/turkish_text.dart';
-import '../cm_widgets.dart';
 
 /// Aranabilir seçim sayfası (il / ilçe). [allowCustom] ile listede olmayan değer de seçilebilir.
 Future<String?> showSearchPicker(
@@ -76,10 +75,7 @@ class _SearchPickerState extends State<_SearchPicker> {
             children: [
               if (showCustom)
                 AknListTile(
-                  leading: const CmIconTile(
-                    icon: PhosphorIconsRegular.pencilSimple,
-                    tone: AknTone.brand,
-                  ),
+                  leadingIcon: PhosphorIconsRegular.pencilSimple,
                   title: '"$custom" kullan',
                   subtitle: 'Listede yok',
                   onTap: () => Navigator.of(context).pop(custom),

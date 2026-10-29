@@ -22,11 +22,14 @@ import 'toast.dart';
 /// enters in a short cascade (fade + rise). The copy invites the action:
 /// "Açık siparişiniz yok. Yeni sipariş için Sipariş ver’e dokunun." Empty
 /// states are the one place text is centred.
+///
+/// v4 (§3.6): a [message] is required, plus one action whenever the viewer
+/// can act; lists use [EmptyState.compact] (the 84 dp art).
 class EmptyState extends StatelessWidget {
   const EmptyState({
     super.key,
     required this.title,
-    this.message,
+    required this.message,
     this.illustration = AknIllustration.inbox,
     this.actionLabel,
     this.onAction,
@@ -36,8 +39,23 @@ class EmptyState extends StatelessWidget {
     this.tone,
   });
 
+  /// The list variant (v4): the 84 dp art, a required [message].
+  const EmptyState.compact({
+    super.key,
+    required this.title,
+    required this.message,
+    this.illustration = AknIllustration.inbox,
+    this.actionLabel,
+    this.onAction,
+    this.secondaryLabel,
+    this.onSecondary,
+    this.tone,
+  }) : compact = true;
+
   final String title;
-  final String? message;
+
+  /// One sentence under the title (v4 §3.6: always given).
+  final String message;
   final AknIllustration illustration;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -81,18 +99,17 @@ class EmptyState extends StatelessWidget {
                 ),
               ),
             ),
-            if (message != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  child: Text(
-                    message!,
-                    style: t.bodySmall.copyWith(color: c.dim),
-                    textAlign: TextAlign.center,
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  message,
+                  style: t.bodySmall.copyWith(color: c.dim),
+                  textAlign: TextAlign.center,
                 ),
               ),
+            ),
             if ((actionLabel != null && onAction != null) ||
                 (secondaryLabel != null && onSecondary != null))
               Padding(

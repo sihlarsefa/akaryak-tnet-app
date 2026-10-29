@@ -41,6 +41,8 @@ void main() {
     for (final tab in const ['Ön kayıtlarım', 'Portföy', 'Formlarım']) {
       final f = find.text(tab);
       expect(f, findsWidgets, reason: 'sekme $tab');
+      await tester.ensureVisible(f.first);
+      await steps(tester, const Duration(milliseconds: 300));
       await tester.tap(f.first);
       await steps(tester, const Duration(milliseconds: 900));
       await io(tester);
@@ -48,11 +50,11 @@ void main() {
       noErrorState('sekme $tab');
     }
 
-    // Orta eylem: "Saha formu" → sihirbaz (Hangi cari için?) → kapat.
+    // Orta eylem (v4 §3.1): "Yeni form" → sihirbaz (Hangi cari için?) → kapat.
     await tester.tap(
       find.descendant(
         of: find.byType(AnimatedBottomBar),
-        matching: find.text('Saha formu'),
+        matching: find.text('Yeni form'),
       ),
     );
     await steps(tester, const Duration(milliseconds: 1200));
@@ -107,8 +109,10 @@ void main() {
       expect(inbox, isNot(contains('SF-2026-')), reason: inbox);
       expect(inbox, isNot(contains('yönetici bandı')), reason: inbox);
       expect(inbox, isNot(contains('barem dışı')), reason: inbox);
-      final item = find.textContaining(number.split('-').last);
-      final cust = find.textContaining('Ege').evaluate().isEmpty ? item : item;
+      // v4 §5 08: liste satırında belge no yok (ayrıntıda); satır müşteri adıyla bulunur.
+      expect(number, isNotEmpty);
+      final customer = (draft['customerTitle'] as String?) ?? 'Körfez Nakliyat';
+      final cust = find.textContaining(customer.split(' ').first);
       await reveal(tester, cust);
       await tester.tap(cust.first);
       await steps(tester, const Duration(milliseconds: 1200));

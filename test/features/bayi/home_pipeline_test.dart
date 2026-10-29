@@ -1,14 +1,17 @@
-// Bayi ana sayfası tasarım v2 parçaları: sipariş hattı (§6.17; "sıra sizde" durakları role göre,
-// dokununca süzülmüş liste, büyük yazıda dikey liste), acil satır ve "Teklif ver", Tüpraş şeridi
-// (§6.18; yetki yoksa gizli), Türkçe tamlayan eki.
+// Bayi ana sayfası v4 "Sade" parçaları (§5 03): "Sıra sizde" kartındaki sipariş hattı (Finans · Teklif
+// · Müşteri · Plan · Yolda · Teslim; sayılar Siparişler segmentleriyle aynı; sıra sizdeki duraklar Pas;
+// Yolda mürekkep tır; her durak süzülmüş listeyi açar; büyük yazıda dikey liste), Tüpraş kartı (tek
+// kart, uyarı kuyusu yok; yetki yoksa gizli), Türkçe tamlayan ve saat ekleri.
 import 'package:akaryakitnet/core/auth/access_policy.dart';
-import 'package:akaryakitnet/core/models/models.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
-import 'package:akaryakitnet/features/bayi/data/home_models.dart';
+import 'package:akaryakitnet/features/bayi/application/orders_controller.dart';
+import 'package:akaryakitnet/features/bayi/copy.dart';
+import 'package:akaryakitnet/features/bayi/data/bayi_repository.dart';
+import 'package:akaryakitnet/features/bayi/data/order_models.dart';
 import 'package:akaryakitnet/features/bayi/presentation/desk/quote_desk_page.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/home_atoms.dart';
-import 'package:akaryakitnet/features/bayi/presentation/home/home_sections.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/order_pipeline.dart';
+import 'package:akaryakitnet/features/bayi/presentation/orders/orders_page.dart';
 import 'package:akaryakitnet/features/field/api.dart';
 import 'package:akaryakitnet/features/field/field_fake.dart';
 import 'package:flutter/material.dart';
@@ -40,94 +43,13 @@ void main() {
     });
   });
 
-  group('finans kararı bekleyen panel satırı (financeStatus)', () {
-    DashboardOrderRow row(
-      int id, {
-      required OrderStatus status,
-      required int msLeft,
-      OrderFinanceStatus finance = OrderFinanceStatus.notRequired,
-    }) => DashboardOrderRow(
-      orderId: id,
-      orderNumber: 'SIP-$id',
-      status: status,
-      quantityLiters: 8000,
-      customerTitle: 'Cari $id',
-      financeStatus: finance,
-      msLeft: msLeft,
-      receivedAt: DateTime.now().toUtc(),
-    );
-
-    test('acil satır finansta bekleyen siparişi atlar', () {
-      final held = row(
-        1,
-        status: OrderStatus.awaitingApproval,
-        msLeft: 5 * 60000,
-        finance: OrderFinanceStatus.pending,
-      );
-      final open = row(
-        2,
-        status: OrderStatus.awaitingQuote,
-        msLeft: 50 * 60000,
-      );
-      expect(
-        PipelineUrgentLine.mostUrgent(
-          BayiDeskSection(
-            expiryEnabled: true,
-            expiringSoon: 2,
-            expiring: [held, open],
-          ),
-        )?.orderId,
-        2,
-      );
-      expect(
-        PipelineUrgentLine.mostUrgent(
-          BayiDeskSection(
-            expiryEnabled: true,
-            expiringSoon: 1,
-            expiring: [held],
-          ),
-        ),
-        isNull,
-      );
-    });
-
-    testWidgets('masa satırı: "Finans onayında", geri sayım yok', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AknTheme.light(),
-          home: Scaffold(
-            body: Column(
-              children: [
-                HomeOrderRow(
-                  row: row(
-                    1,
-                    status: OrderStatus.awaitingApproval,
-                    msLeft: 30 * 60000,
-                    finance: OrderFinanceStatus.pending,
-                  ),
-                  countdown: true,
-                  onTap: () {},
-                ),
-                HomeOrderRow(
-                  row: row(
-                    2,
-                    status: OrderStatus.awaitingApproval,
-                    msLeft: 30 * 60000,
-                  ),
-                  countdown: true,
-                  onTap: () {},
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-      expect(find.text('Finans onayında'), findsOneWidget);
-      expect(find.text('Müşteri kararında'), findsOneWidget);
-      expect(find.byType(CountdownBadge), findsOneWidget);
-    });
+  test('saatin yönelme eki okunuşuna göre', () {
+    expect(timeDative('21:00'), "21:00'e");
+    expect(timeDative('09:17'), "09:17'ye");
+    expect(timeDative('10:30'), "10:30'a");
+    expect(timeDative('16:50'), "16:50'ye");
+    expect(timeDative('10:00'), "10:00'a");
+    expect(timeDative('14:45'), "14:45'e");
   });
 
   test('sıra sizde durakları rol ön ayarına göre', () {
@@ -139,7 +61,7 @@ void main() {
   });
 
   testWidgets(
-    'sahip: altı durak, sıra sizde anonsu, Teklif durağı masayı açar',
+    'sahip: altı durak, sayılar Siparişler segmentleriyle aynı; Yolda turuncu değil',
     (tester) async {
       final app = await BayiTestApp.start(
         tester,
@@ -151,11 +73,29 @@ void main() {
       expect(pipeline.stops.map((s) => s.label), [
         'Finans',
         'Teklif',
-        'Karar',
+        'Müşteri',
         'Plan',
         'Yolda',
         'Teslim',
       ]);
+      late BayiOrderCounts counts;
+      await tester.runAsync(
+        () async => counts = await app.container
+            .read(bayiRepositoryProvider)
+            .orderCounts(),
+      );
+      int count(String label) =>
+          pipeline.stops.firstWhere((s) => s.label == label).count;
+      expect(count('Finans'), counts.of(BayiOrderSegment.financeHeld));
+      expect(
+        count('Teklif'),
+        counts.of(BayiOrderSegment.awaitingQuote) +
+            counts.of(BayiOrderSegment.revisionRequested),
+      );
+      expect(count('Müşteri'), counts.of(BayiOrderSegment.awaitingCustomer));
+      expect(count('Plan'), counts.of(BayiOrderSegment.toPlan));
+      expect(count('Yolda'), counts.of(BayiOrderSegment.inTransit));
+      expect(count('Teslim'), counts.of(BayiOrderSegment.reported));
       final teklif = pipeline.stops.firstWhere((s) => s.label == 'Teklif');
       expect(teklif.kind, PipelineStopKind.yourMove);
       expect(
@@ -163,53 +103,97 @@ void main() {
         findsOneWidget,
       );
       expect(
-        pipeline.stops.firstWhere((s) => s.label == 'Karar').kind,
+        pipeline.stops.firstWhere((s) => s.label == 'Müşteri').kind,
         PipelineStopKind.waiting,
       );
+      // Yolda: mürekkep tır (turuncu yok), hale yok.
+      final c = tester.element(find.byType(OrderPipeline)).akn;
+      final truck = tester.widget<Icon>(
+        find.descendant(
+          of: find.byType(OrderPipeline),
+          matching: find.byIcon(PhosphorIconsRegular.truck),
+        ),
+      );
+      expect(truck.color, anyOf(c.ink, c.dim));
       handle.dispose();
-      await tester.tap(find.text('Teklif').first);
-      await BayiTestApp.settle(tester);
-      expect(find.byType(QuoteDeskPage), findsOneWidget);
       await app.finish(tester);
     },
   );
 
-  testWidgets('sahip: acil satır "Teklif ver" masayı o cariyle açar', (
-    tester,
-  ) async {
+  testWidgets('Teklif durağı Teklifler\'i açar', (tester) async {
     final app = await BayiTestApp.start(
       tester,
       persona: 'sahip',
       location: '/home-bayi',
     );
-    expect(find.byType(PipelineUrgentLine), findsOneWidget);
-    expect(find.textContaining('teklif süresi'), findsOneWidget);
-    await scrollTap(tester, find.text('Teklif ver'));
-    final desk = tester.widget<QuoteDeskPage>(find.byType(QuoteDeskPage));
-    expect(desk.initialCustomerId, isNotNull);
-    await app.finish(tester);
-  });
-
-  testWidgets('sahip: Tüpraş şeridi saha fiyat bağlamından gelir', (
-    tester,
-  ) async {
-    final app = await BayiTestApp.start(
-      tester,
-      persona: 'sahip',
-      location: '/home-bayi',
-      setup: (h) => registerFieldFakes(h.server),
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OrderPipeline),
+        matching: find.text('Teklif'),
+      ),
     );
-    await reveal(tester, find.text('Tüpraş fiyatları'));
     await BayiTestApp.settle(tester);
-    await reveal(tester, find.text('Kurşunsuz 95'));
-    expect(find.byType(TuprasStrip), findsOneWidget);
-    expect(find.text('Tüpraş fiyatları'), findsOneWidget);
-    expect(find.text('Motorin'), findsWidgets);
-    expect(find.text('Kurşunsuz 95'), findsOneWidget);
+    expect(find.byType(QuoteDeskPage), findsOneWidget);
     await app.finish(tester);
   });
 
-  testWidgets('sipariş masası: saha yetkisi yok, Tüpraş şeridi çizilmez', (
+  testWidgets('Müşteri durağı Siparişler\'i "Müşteri kararında" ile açar', (
+    tester,
+  ) async {
+    final app = await BayiTestApp.start(
+      tester,
+      persona: 'sahip',
+      location: '/home-bayi',
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OrderPipeline),
+        matching: find.text('Müşteri'),
+      ),
+    );
+    await BayiTestApp.settle(tester);
+    expect(find.byType(BayiOrdersPage), findsOneWidget);
+    expect(
+      app.container.read(bayiOrdersProvider).filter.segment,
+      BayiOrderSegment.awaitingCustomer,
+    );
+    await app.finish(tester);
+  });
+
+  testWidgets(
+    'sahip: Tüpraş tek kart, üç fiyat tek satırda, uyarı kuyusu yok',
+    (tester) async {
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'sahip',
+        location: '/home-bayi',
+        setup: (h) => registerFieldFakes(h.server),
+      );
+      await reveal(tester, find.text('Tüpraş fiyatları'));
+      await BayiTestApp.settle(tester);
+      expect(find.byType(TuprasStrip), findsOneWidget);
+      expect(find.text('Tüpraş fiyatları'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TuprasStrip),
+          matching: find.text('Kurşunsuz 95'),
+        ),
+        findsOneWidget,
+      );
+      // Uyarı kuyusu ve "Fiyat gir" yok: o iş "Sıra sizde" kartında.
+      expect(
+        find.descendant(
+          of: find.byType(TuprasStrip),
+          matching: find.byType(AknBanner),
+        ),
+        findsNothing,
+      );
+      expect(find.text('Fiyat gir'), findsNothing);
+      await app.finish(tester);
+    },
+  );
+
+  testWidgets('sipariş masası: saha yetkisi yok, Tüpraş kartı çizilmez', (
     tester,
   ) async {
     final app = await BayiTestApp.start(
@@ -239,7 +223,13 @@ void main() {
       size: const Size(360, 3000),
     );
     expect(find.byType(OrderPipeline), findsOneWidget);
-    expect(find.text('Finans'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(OrderPipeline),
+        matching: find.text('Finans'),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await app.finish(tester);
   });

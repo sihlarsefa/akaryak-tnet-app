@@ -10,6 +10,7 @@ import '../driver_mode.dart';
 import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
+import '../typography.dart';
 import 'buttons.dart';
 import 'home_header.dart';
 import 'skeletons.dart';
@@ -45,6 +46,7 @@ class AppChrome extends InheritedWidget {
     this.offline = false,
     this.pendingOps = 0,
     this.onOpenPendingOps,
+    this.onGoHome,
   });
 
   final int unreadCount;
@@ -52,6 +54,11 @@ class AppChrome extends InheritedWidget {
   final bool offline;
   final int pendingOps;
   final VoidCallback? onOpenPendingOps;
+
+  /// Goes to Ana sayfa (v4 §3.5): a pushed page that cannot pop and is not
+  /// a tab root shows an "Ana sayfa" house button that calls it. Null while
+  /// signed out.
+  final VoidCallback? onGoHome;
 
   static AppChrome? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppChrome>();
@@ -62,7 +69,41 @@ class AppChrome extends InheritedWidget {
       old.onOpenNotifications != onOpenNotifications ||
       old.offline != offline ||
       old.pendingOps != pendingOps ||
-      old.onOpenPendingOps != onOpenPendingOps;
+      old.onOpenPendingOps != onOpenPendingOps ||
+      old.onGoHome != onGoHome;
+}
+
+/// Marks the shell's tab pages (v4 §3.5): the app shell wraps its tab
+/// navigators in it, so `AppScaffold` knows a page is a tab root (no house
+/// button) and the shell's Android back can spring home.
+class AknTabScope extends InheritedWidget {
+  const AknTabScope({super.key, required super.child});
+
+  /// True inside the shell's tabs.
+  static bool isIn(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<AknTabScope>() != null;
+
+  @override
+  bool updateShouldNotify(AknTabScope oldWidget) => false;
+}
+
+/// The "Ana sayfa" house button of a pushed page that cannot pop (v4
+/// §3.5): the house glyph in the bar's circle; screen readers hear "Ana
+/// sayfa".
+class AknHomeButton extends StatelessWidget {
+  const AknHomeButton({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Ana sayfa',
+    onPressed: () {
+      AknHaptics.selection();
+      onPressed();
+    },
+    icon: const Icon(PhosphorIconsRegular.house),
+  );
 }
 
 /// The bell (design v3 §4): the Phosphor `bell` 24 in ink with the count
@@ -119,6 +160,19 @@ class NotificationBell extends StatelessWidget {
 ///   [description]; the page actions and the bell sit at its right
 ///   ([AknPageBand]).
 /// * [hero] / [navy] are deprecated and render the normal bar.
+///
+/// Design v4 "Sade":
+/// * A root page's band carries the tab's word ([title]) and ONE live
+///   [status] line ([AknStatusClause]s, a String with [statusTone], or an
+///   `InlineSpan`); [eyebrow] is ignored and [description] maps to the
+///   status. At most two band actions; no bell ([showBell] defaults to
+///   false — the bell lives in the home band only).
+/// * A pushed page shows [collapsedTitle] (the object's human name) in the
+///   frosted bar once the page scrolls.
+/// * A page that cannot pop and is not a tab root leads with the "Ana
+///   sayfa" house button ([AppChrome.onGoHome]).
+/// * Every page installs an [AknAmbientBudget]: the band light plus one
+///   focus loop per viewport.
 class AppScaffold extends StatefulWidget {
   const AppScaffold({
     super.key,
@@ -127,7 +181,7 @@ class AppScaffold extends StatefulWidget {
     this.titleWidget,
     this.subtitle,
     this.actions = const [],
-    this.showBell = true,
+    this.showBell = false,
     this.leading,
     this.automaticallyImplyLeading = true,
     this.bottom,
@@ -145,6 +199,10 @@ class AppScaffold extends StatefulWidget {
     this.bandIcon,
     this.eyebrow,
     this.description,
+    this.status,
+    this.statusTone,
+    this.onStatusTap,
+    this.collapsedTitle,
   });
 
   final Widget body;
@@ -154,6 +212,7 @@ class AppScaffold extends StatefulWidget {
   final List<Widget> actions;
 
   /// Shows the bell when [AppChrome] provides a notifications callback.
+  /// v4: false by default (the bell lives in the home band only).
   final bool showBell;
   final Widget? leading;
   final bool automaticallyImplyLeading;
@@ -192,12 +251,26 @@ class AppScaffold extends StatefulWidget {
   /// panel's page band ([AknPageBand]).
   final IconData? bandIcon;
 
-  /// The band's eyebrow over the title (sentence case: "Müşteri", "Bayi").
+  /// Ignored (v4: the band has no eyebrow).
   final String? eyebrow;
 
-  /// The band's one-line description under the title ([subtitle] when
-  /// null).
+  /// Old call sites: the band's status line when [status] is null.
   final String? description;
+
+  /// v4: the band's live status line — a `String`, an `InlineSpan`, an
+  /// [AknStatusClause] or a `List<AknStatusClause>` (see [AknPageBand]).
+  final Object? status;
+
+  /// The tone of a String [status] (brand: Pas 600, danger: `danger.fg`
+  /// 600; else dim).
+  final AknTone? statusTone;
+
+  /// Tapping the status line (e.g. jump to "Gecikmiş").
+  final VoidCallback? onStatusTap;
+
+  /// v4: the object's human name, shown in the frosted bar of a pushed page
+  /// once the page scrolls ("Motorin, 8.000 L").
+  final String? collapsedTitle;
 
   /// Deprecated: always false visually (kept for API stability).
   bool get isHero => hero || navy;
@@ -243,19 +316,33 @@ class _AppScaffoldState extends State<AppScaffold> {
           widget.leading != null ||
           (widget.automaticallyImplyLeading &&
               (route?.impliesAppBarDismissal ?? false));
-      final root = widget.largeTitle ?? !canGoBack;
+      // v4 §3.5: a page that cannot pop and is not a tab root leads home.
+      final goHome = chrome?.onGoHome;
+      final Widget? homeLeading =
+          !canGoBack &&
+              widget.leading == null &&
+              widget.automaticallyImplyLeading &&
+              goHome != null &&
+              !AknTabScope.isIn(context)
+          ? AknHomeButton(onPressed: goHome)
+          : null;
+      final root = widget.largeTitle ?? (!canGoBack && homeLeading == null);
       final scaler = MediaQuery.textScalerOf(context);
       final t = context.aknText;
       final driver = context.isDriverMode;
       final bandIcon = widget.bandIcon;
       final pageTitle = widget.title;
       if (root && bandIcon != null && pageTitle != null) {
-        final description = widget.description ?? widget.subtitle;
+        final Object? status =
+            widget.status ?? widget.description ?? widget.subtitle;
+        final hasStatus =
+            status != null && AknPageBand.plainStatus(status).isNotEmpty;
         final band = AknPageBand(
           icon: bandIcon,
           title: pageTitle,
-          eyebrow: widget.eyebrow,
-          description: description,
+          status: status,
+          statusTone: widget.status is String ? widget.statusTone : null,
+          onStatusTap: widget.onStatusTap,
           actions: [
             ...widget.actions,
             if (widget.showBell) const NotificationBell(),
@@ -264,11 +351,7 @@ class _AppScaffoldState extends State<AppScaffold> {
         bar = _AknAppBar(
           root: true,
           toolbarHeight:
-              AknPageBand.heightFor(
-                scaler,
-                eyebrow: widget.eyebrow != null,
-                description: description != null,
-              ) +
+              AknPageBand.heightFor(scaler, description: hasStatus) +
               AknPageBand.margin * 2,
           titleScale: AknPageBand.maxTextScale,
           scrolled: _scrolled,
@@ -276,7 +359,9 @@ class _AppScaffoldState extends State<AppScaffold> {
           titleWidget: band,
           titleIsBand: true,
           subtitle: null,
-          leading: widget.leading,
+          // A band page that cannot pop and is not a tab root leads home
+          // (§3.5), like a pushed bar.
+          leading: widget.leading ?? homeLeading,
           automaticallyImplyLeading: widget.automaticallyImplyLeading,
           background: pageColor,
           actions: const [],
@@ -308,7 +393,8 @@ class _AppScaffoldState extends State<AppScaffold> {
         title: widget.title,
         titleWidget: widget.titleWidget,
         subtitle: widget.subtitle,
-        leading: widget.leading,
+        collapsedTitle: widget.collapsedTitle,
+        leading: widget.leading ?? homeLeading,
         automaticallyImplyLeading: widget.automaticallyImplyLeading,
         background: pageColor,
         actions: [
@@ -392,15 +478,18 @@ class _AppScaffoldState extends State<AppScaffold> {
       appBar: bar,
       floatingActionButton: widget.floatingActionButton,
       body: content,
-      bottomNavigationBar: widget.actionBar == null
-          ? null
-          : ActionBar(child: widget.actionBar!),
+      bottomNavigationBar: switch (widget.actionBar) {
+        null => null,
+        final ActionBar dock => dock,
+        final other => ActionBar(child: other),
+      },
     );
     // System bars follow the page surface (dark icons on the light page,
     // light on the dark page).
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: AknTheme.overlayFor(c.brightness),
-      child: scaffold,
+      // v4 §6: one loop budget per page (the band light + one focus loop).
+      child: AknAmbientBudget(child: scaffold),
     );
   }
 }
@@ -426,7 +515,11 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.actions,
     required this.bottom,
     this.titleIsBand = false,
+    this.collapsedTitle,
   });
+
+  /// Shown instead of [title] once content scrolls under a pushed bar.
+  final String? collapsedTitle;
 
   /// [titleWidget] is an [AknPageBand]: it spans the bar between the page
   /// gutters and marks its own title as the header.
@@ -462,17 +555,26 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
       final style =
           (root ? AknTheme.rootAppBarTitle(t) : AknTheme.appBarTitle(t))
               .copyWith(color: c.ink);
+      // v4: a pushed page's bar shows the object's name once it scrolls.
+      final shown = !root && scrolled && collapsedTitle != null
+          ? collapsedTitle!
+          : title!;
       titleBlock = MediaQuery.withClampedTextScaling(
         maxScaleFactor: titleScale,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              title!,
-              style: style,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            FadeThroughSwitcher(
+              duration: AknMotion.statusFade,
+              alignment: AlignmentDirectional.centerStart,
+              child: Text(
+                shown,
+                key: ValueKey(shown),
+                style: style,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             if (subtitle != null)
               Text(
@@ -497,13 +599,26 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
     // Icon buttons (back, close ✕) sit in the circle; any other leading
     // widget keeps the platform's slot.
-    final circled = lead is IconButton || lead is AknIconButton;
+    final circled =
+        lead is IconButton || lead is AknIconButton || lead is AknHomeButton;
     if (lead != null && circled) lead = _BarLeading(child: lead);
-    final titled = titleBlock == null
-        ? null
-        : titleIsBand
-        ? titleBlock
-        : Semantics(header: true, child: titleBlock);
+    final spacing = lead == null ? AknSpace.page : (circled ? 8.0 : 0.0);
+    final Widget? titled;
+    if (titleBlock == null) {
+      titled = null;
+    } else if (titleIsBand) {
+      // The toolbar leaves only [spacing] after its middle: a band behind a
+      // back or house button still ends on the page gutter, in line with the
+      // switcher and the ledgers under it.
+      titled = lead == null || spacing >= AknSpace.page
+          ? titleBlock
+          : Padding(
+              padding: EdgeInsetsDirectional.only(end: AknSpace.page - spacing),
+              child: titleBlock,
+            );
+    } else {
+      titled = Semantics(header: true, child: titleBlock);
+    }
 
     return _FrostedTop(
       frosted: scrolled,
@@ -515,7 +630,7 @@ class _AknAppBar extends StatelessWidget implements PreferredSizeWidget {
         excludeHeaderSemantics: titleIsBand,
         title: titled,
         centerTitle: false,
-        titleSpacing: lead == null ? AknSpace.page : (circled ? 8 : 0),
+        titleSpacing: spacing,
         leading: lead,
         leadingWidth: circled ? _leadingWidth : null,
         automaticallyImplyLeading: false,
@@ -822,8 +937,53 @@ class ContentMaxWidth extends StatelessWidget {
 /// plus the safe area. When the dock first appears its actions rise into
 /// place (fade + 16 px, [AknMotion.sheet], emphasized). One primary region
 /// per screen.
+///
+/// v4: [ActionBar.decision] builds the decision dock (one 52 dp primary,
+/// an optional caption, a row of borderless 48 dp ghosts).
 class ActionBar extends StatelessWidget {
   const ActionBar({super.key, required this.child});
+
+  /// The decision dock (design v4 §4): the [primary] full width at 52 dp —
+  /// it must be enabled (P3: the next real step, never a dead button;
+  /// asserted in debug) — an optional [caption] 13/18 dim under it, then
+  /// the [secondaries] in one row of borderless 48 dp ghosts 12 apart (a
+  /// `danger` secondary, "Reddet", keeps its `danger.fg` label). The
+  /// primary's label morphs when the step changes ("Çek görselini yükle" →
+  /// "Teklifi onayla"; pass `celebrate: true` for the check pop).
+  ///
+  /// ```dart
+  /// AppScaffold(
+  ///   actionBar: ActionBar.decision(
+  ///     primary: AknButton(label: 'Çek görselini yükle', onPressed: upload),
+  ///     caption: 'Yükledikten sonra teklifi onaylayabilirsiniz',
+  ///     secondaries: [
+  ///       AknButton.ghost(label: 'Revize iste', onPressed: revise),
+  ///       AknButton.danger(label: 'Reddet', onPressed: reject),
+  ///     ],
+  ///   ),
+  /// )
+  /// ```
+  factory ActionBar.decision({
+    Key? key,
+    required AknButton primary,
+    String? caption,
+    List<AknButton> secondaries = const [],
+  }) {
+    assert(
+      primary.onPressed != null || primary.onPressedAsync != null,
+      'ActionBar.decision: the primary names a step the viewer can take now '
+      '(v4 P3); turn a missing prerequisite into the primary instead of '
+      'disabling it.',
+    );
+    return ActionBar(
+      key: key,
+      child: _DecisionDock(
+        primary: primary,
+        caption: caption,
+        secondaries: secondaries,
+      ),
+    );
+  }
 
   final Widget child;
 
@@ -875,15 +1035,133 @@ class ActionBar extends StatelessWidget {
   }
 }
 
-/// The web panel's page band (`.page-hero`, design law: soft orange tint,
-/// icon tile, title, one-line description, sentence-case eyebrow) on a
-/// mobile root page: a card with the 90° wash `brandInk` 8 % → 3 % → surface,
-/// a 1 px line tinted 14 % toward `brandInk`, radius 16; the [icon] in a
-/// 40 px white tile with a 22 % tinted line and a Pas glyph; the [eyebrow]
-/// in Pas 12/16 600, the [title] 20/24 700 ink (the page's header for
-/// screen readers) and the [description] 13/18 dim, one line each; the
-/// [actions] (icon buttons, the bell) at the right. Text grows up to
-/// [maxTextScale]; [heightFor] gives its height for the bar.
+/// The body of [ActionBar.decision].
+class _DecisionDock extends StatelessWidget {
+  const _DecisionDock({
+    required this.primary,
+    required this.caption,
+    required this.secondaries,
+  });
+
+  final AknButton primary;
+  final String? caption;
+  final List<AknButton> secondaries;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final p = primary;
+    final main = AknButton(
+      key: p.key,
+      label: p.label,
+      onPressed: p.onPressed,
+      onPressedAsync: p.onPressedAsync,
+      size: AknButtonSize.large,
+      icon: p.icon,
+      trailingIcon: p.trailingIcon,
+      loading: p.loading,
+      success: p.success,
+      showSuccess: p.showSuccess,
+      expand: true,
+      haptic: p.haptic,
+      semanticLabel: p.semanticLabel,
+      loadingLabel: p.loadingLabel,
+      celebrate: p.celebrate,
+    );
+    final cap = caption;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        main,
+        if (cap != null && cap.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            cap,
+            textAlign: TextAlign.center,
+            style: t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim),
+          ),
+        ],
+        if (secondaries.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              for (var i = 0; i < secondaries.length; i++) ...[
+                if (i > 0) const SizedBox(width: 12),
+                Expanded(child: _ghost(secondaries[i])),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  static AknButton _ghost(AknButton b) => AknButton(
+    key: b.key,
+    label: b.label,
+    onPressed: b.onPressed,
+    onPressedAsync: b.onPressedAsync,
+    variant:
+        b.variant == AknButtonVariant.danger ||
+            b.variant == AknButtonVariant.ghostDanger
+        ? AknButtonVariant.ghostDanger
+        : AknButtonVariant.ghost,
+    size: AknButtonSize.medium,
+    icon: b.icon,
+    loading: b.loading,
+    success: b.success,
+    showSuccess: b.showSuccess,
+    expand: true,
+    haptic: b.haptic,
+    semanticLabel: b.semanticLabel,
+    loadingLabel: b.loadingLabel,
+  );
+}
+
+/// One clause of a page band's status line (design v4 §3.2): the viewer's
+/// move in Pas 600 ([AknStatusClause.yourMove]), the overdue part in
+/// `danger.fg` 600 ([AknStatusClause.overdue]), the rest dim. Clauses are
+/// joined with " · ".
+///
+/// ```dart
+/// AppScaffold(
+///   title: 'Onaylar',
+///   status: const [
+///     AknStatusClause.yourMove('9 talep kararınızı bekliyor'),
+///     AknStatusClause.overdue("2'si gecikti"),
+///   ],
+///   …
+/// )
+/// ```
+@immutable
+class AknStatusClause {
+  const AknStatusClause(this.text, {this.tone});
+
+  /// The viewer's move (Pas 600).
+  const AknStatusClause.yourMove(this.text) : tone = AknTone.brand;
+
+  /// Overdue (`danger.fg` 600).
+  const AknStatusClause.overdue(this.text) : tone = AknTone.danger;
+
+  final String text;
+
+  /// [AknTone.brand], [AknTone.danger]; anything else is dim.
+  final AknTone? tone;
+}
+
+/// The web panel's page band (`.page-hero`) on a mobile root page — design
+/// v4 §4 "AknPageBand v4": a card with the 90° wash `brandInk` 8 % → 3 % →
+/// surface and a 1 px line tinted 14 % toward `brandInk` (dark: a flat 4 %
+/// tint and a 10 % line), radius 16; the tab's own glyph ([icon], the same
+/// as in the bar) in Pas on a 36 dp white tile; the [title] 20/24 700 ink —
+/// the tab's word, the page's header for screen readers — and ONE [status]
+/// line 13/18 that says what waits ([AknStatusClause]s, a String with a
+/// [statusTone], or an `InlineSpan`); at most two [actions]
+/// (`AknIconButton`s) at the right. No eyebrow ([eyebrow] is ignored) and
+/// no bell. ≈ 66 dp tall (plus [margin] above and below). A new status line
+/// fades through (250 ms). Text grows up to [maxTextScale].
 class AknPageBand extends StatelessWidget {
   const AknPageBand({
     super.key,
@@ -892,13 +1170,34 @@ class AknPageBand extends StatelessWidget {
     this.eyebrow,
     this.description,
     this.actions = const [],
+    this.status,
+    this.statusTone,
+    this.onStatusTap,
   });
 
   final IconData icon;
   final String title;
+
+  /// Ignored (v4: no eyebrow).
   final String? eyebrow;
+
+  /// Kept for old call sites: the status line when [status] is null.
   final String? description;
+
+  /// At most two `AknIconButton`s (search, filter).
   final List<Widget> actions;
+
+  /// The live status line: a `String`, an `InlineSpan`, an
+  /// [AknStatusClause] or a `List<AknStatusClause>`.
+  final Object? status;
+
+  /// The tone of a String [status] (brand: Pas 600, danger: `danger.fg`
+  /// 600; else dim).
+  final AknTone? statusTone;
+
+  /// Tapping the status line (e.g. the overdue clause scrolls to
+  /// "Gecikmiş").
+  final VoidCallback? onStatusTap;
 
   /// Space above and below the band inside the bar.
   static const double margin = 8;
@@ -906,30 +1205,83 @@ class AknPageBand extends StatelessWidget {
   /// The band's texts clamp at 1.5× (like the root titles).
   static const double maxTextScale = 1.5;
 
-  static const double _padding = 10;
-  static const double _tile = 40;
+  static const double _padding = 8;
+  static const double _tile = 36;
 
-  /// The band's height (border included) at [scaler].
+  /// The status the band shows ([status], else [description]).
+  Object? get _line => status ?? description;
+
+  /// The band's height (border included) at [scaler]; [description] means
+  /// "has a status line". [eyebrow] is ignored (v4).
   static double heightFor(
     TextScaler scaler, {
-    bool eyebrow = true,
+    bool eyebrow = false,
     bool description = true,
   }) {
     final s = scaler.clamp(maxScaleFactor: maxTextScale);
     final lines =
-        (eyebrow ? s.scale(12) * 16 / 12 : 0) +
-        s.scale(20) * 24 / 20 +
-        (description ? s.scale(13) * 18 / 13 : 0);
+        s.scale(20) * 24 / 20 + (description ? s.scale(13) * 18 / 13 : 0);
     return math.max(lines, AknSpace.minTap) + _padding * 2 + 2;
   }
 
-  /// The band's card: the 90° wash `brandInk` 8 % → 3 % → surface (at night
-  /// a flat 6 % tint), a 1 px line tinted 14 % toward `brandInk`, radius 16.
-  /// Detail pages wrap their object title in it too.
+  /// The plain text of a status value (tests, semantics, switch keys).
+  static String plainStatus(Object? status) => switch (status) {
+    null => '',
+    final String s => s,
+    final InlineSpan span => span.toPlainText(),
+    final AknStatusClause c => c.text,
+    final List<AknStatusClause> l => l.map((c) => c.text).join(' · '),
+    _ => '$status',
+  };
+
+  /// The status value as a span in palette [c].
+  static InlineSpan statusSpan(
+    AknColors c,
+    AknTextStyles t,
+    Object status, {
+    AknTone? tone,
+  }) {
+    final base = t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim);
+    TextStyle styleOf(AknTone? tn) => switch (tn) {
+      AknTone.brand => base.copyWith(
+        fontWeight: FontWeight.w600,
+        color: c.brandInk,
+      ),
+      AknTone.danger => base.copyWith(
+        fontWeight: FontWeight.w600,
+        color: c.danger.fg,
+      ),
+      _ => base,
+    };
+    return switch (status) {
+      final String s => TextSpan(text: s, style: styleOf(tone)),
+      final InlineSpan span => TextSpan(style: base, children: [span]),
+      final AknStatusClause cl => TextSpan(
+        text: cl.text,
+        style: styleOf(cl.tone),
+      ),
+      final List<AknStatusClause> l => TextSpan(
+        style: base,
+        children: [
+          for (var i = 0; i < l.length; i++) ...[
+            if (i > 0) const TextSpan(text: ' · '),
+            TextSpan(text: l[i].text, style: styleOf(l[i].tone)),
+          ],
+        ],
+      ),
+      _ => TextSpan(text: '$status', style: base),
+    };
+  }
+
+  /// The band's card: the 90° wash `brandInk` 8 % → 3 % → surface and a
+  /// 1 px line tinted 14 % toward `brandInk` (at night a flat 4 % tint and a
+  /// 10 % line), radius 16.
   static BoxDecoration decorationOf(AknColors c) => BoxDecoration(
     borderRadius: const BorderRadius.all(Radius.circular(16)),
-    border: Border.all(color: Color.lerp(c.line, c.brandInk, 0.14)!),
-    color: c.isDark ? Color.lerp(c.surface, c.brandInk, 0.06) : null,
+    border: Border.all(
+      color: Color.lerp(c.line, c.brandInk, c.isDark ? 0.10 : 0.14)!,
+    ),
+    color: c.isDark ? Color.lerp(c.surface, c.brandInk, 0.04) : null,
     gradient: c.isDark
         ? null
         : LinearGradient(
@@ -942,7 +1294,7 @@ class AknPageBand extends StatelessWidget {
           ),
   );
 
-  /// The band's 40 px icon tile: white, a 22 % tinted line, a Pas glyph.
+  /// The band's 36 dp icon tile: white, a 22 % tinted line, a Pas glyph.
   /// Decorative.
   static Widget tileOf(BuildContext context, IconData icon) {
     final c = context.akn;
@@ -951,7 +1303,7 @@ class AknPageBand extends StatelessWidget {
         width: _tile,
         height: _tile,
         decoration: BoxDecoration(
-          color: c.surface,
+          color: c.isDark ? c.surfaceAlt : c.surface,
           borderRadius: const BorderRadius.all(Radius.circular(12)),
           border: Border.all(color: Color.lerp(c.line, c.brandInk, 0.22)!),
         ),
@@ -965,18 +1317,36 @@ class AknPageBand extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
-    final hero = c.brandInk;
+    final line = _line;
+    final plain = plainStatus(line);
+    Widget? statusText;
+    if (line != null && plain.isNotEmpty) {
+      statusText = Text.rich(
+        statusSpan(c, t, line, tone: status == null ? null : statusTone),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+      if (onStatusTap != null) {
+        statusText = Semantics(
+          button: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onStatusTap,
+            child: statusText,
+          ),
+        );
+      }
+      // A new status line fades through (v4 §6 Add 6).
+      statusText = FadeThroughSwitcher(
+        duration: AknMotion.statusFade,
+        alignment: AlignmentDirectional.centerStart,
+        child: KeyedSubtree(key: ValueKey(plain), child: statusText),
+      );
+    }
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (eyebrow != null)
-          Text(
-            eyebrow!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: t.caption.copyWith(fontWeight: FontWeight.w600, color: hero),
-          ),
         Semantics(
           header: true,
           child: Text(
@@ -986,13 +1356,7 @@ class AknPageBand extends StatelessWidget {
             style: t.title.copyWith(height: 24 / 20, color: c.ink),
           ),
         ),
-        if (description != null)
-          Text(
-            description!,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: t.label.copyWith(fontWeight: FontWeight.w500, color: c.dim),
-          ),
+        ?statusText,
       ],
     );
     return MediaQuery.withClampedTextScaling(
@@ -1002,7 +1366,7 @@ class AknPageBand extends StatelessWidget {
         // Keep the title (header) and every action its own node.
         child: Padding(
           padding: EdgeInsetsDirectional.fromSTEB(
-            12,
+            10,
             _padding,
             actions.isEmpty ? 14 : 2,
             _padding,
@@ -1010,13 +1374,16 @@ class AknPageBand extends StatelessWidget {
           child: Semantics(
             container: true,
             explicitChildNodes: true,
-            child: Row(
-              children: [
-                tileOf(context, icon),
-                const SizedBox(width: 12),
-                Expanded(child: text),
-                ...actions,
-              ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+              child: Row(
+                children: [
+                  tileOf(context, icon),
+                  const SizedBox(width: 12),
+                  Expanded(child: text),
+                  ...actions,
+                ],
+              ),
             ),
           ),
         ),

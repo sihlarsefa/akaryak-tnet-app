@@ -156,12 +156,9 @@ class _TemplateRow extends ConsumerWidget {
     final used = item.lastUsedAt == null
         ? 'Henüz kullanılmadı'
         : 'Son kullanım ${TurkishText.lower(Fmt.relative(item.lastUsedAt))}';
-    return A2Card(
+    return AknCard(
+      padding: EdgeInsets.zero,
       child: AknListTile(
-        leading: const A2IconTile(
-          icon: PhosphorIconsRegular.bookmarkSimple,
-          tone: AknTone.brand,
-        ),
         padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
         titleStyle: a2RowTitle(t, c),
         title: item.name,

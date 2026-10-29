@@ -82,7 +82,7 @@ class _StaffPageState extends ConsumerState<StaffPage> {
                   onChanged: c.setQuery,
                 ),
               ),
-              BayiSegmented<StaffFilter>(
+              AknSegmented<StaffFilter>(
                 segments: [
                   for (final f in StaffFilter.values)
                     FilterOption(value: f, label: f.label, count: s.countOf(f)),

@@ -210,7 +210,7 @@ Future<void> showUserActionsSheet(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           AknListTile(
-            leading: const CmIconTile(icon: PhosphorIconsRegular.pencilSimple),
+            leadingIcon: PhosphorIconsRegular.pencilSimple,
             titleStyle: cmRowTitle(context),
             padding: const EdgeInsets.symmetric(vertical: 10),
             title: 'Bilgileri ve rolü düzenle',
@@ -221,9 +221,7 @@ Future<void> showUserActionsSheet(
           ),
           if (user.isActive)
             AknListTile(
-              leading: const CmIconTile(
-                icon: PhosphorIconsRegular.envelopeSimpleOpen,
-              ),
+              leadingIcon: PhosphorIconsRegular.envelopeSimpleOpen,
               titleStyle: cmRowTitle(context),
               padding: const EdgeInsets.symmetric(vertical: 10),
               title: 'Bağlantıyı yeniden gönder',
@@ -237,12 +235,10 @@ Future<void> showUserActionsSheet(
             ),
           if (!user.isSelf)
             AknListTile(
-              leading: CmIconTile(
-                icon: user.isActive
-                    ? PhosphorIconsRegular.userMinus
-                    : PhosphorIconsFill.user,
-                tone: user.isActive ? AknTone.danger : AknTone.ok,
-              ),
+              leadingIcon: user.isActive
+                  ? PhosphorIconsRegular.userMinus
+                  : PhosphorIconsFill.user,
+              leadingTone: user.isActive ? AknTone.danger : null,
               titleStyle: cmRowTitle(context),
               padding: const EdgeInsets.symmetric(vertical: 10),
               title: user.isActive ? 'Pasifleştir' : 'Aktifleştir',

@@ -2,16 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/session_controller.dart';
+import '../../core/routing/app_routes.dart';
 import '../../core/ui/ui.dart';
 import '../destinations.dart';
 import 'shell_badges.dart';
 
-/// "Diğer" sayfası (spec A.2; tasarım v3 §4): alt menüye sığmayan hedefler + Bildirimler, Asistan,
-/// Profil. Sayfa açık gri (`bg`; koyu temada `surface`); hedefler beyaz, gölgeli gruplu kartlarda (koyu
-/// temada `surfaceRaised` + 1 px çizgi; önce iş hedefleri, sonra hesap: Bildirimler, Asistan, Profil).
-/// Her satır: 40 px yuvarlatılmış kare simge kutusu (`surfaceAlt`, mürekkep simge), ad, rozet (koyu
-/// turuncu sayı hapı) ve ok. Satırlar sırayla kayarak gelir; basınca hafifçe küçülür. Ekran okuyucu
-/// "Onaylarım, 3 bekleyen" der.
+/// "Diğer" sayfası (v4 §3.1): en üstte kişi kartı (48 px avatar, ad 17/22 700, "Şirket · rol" 14/20
+/// dim; Profil'i açar), altında gruplu defterler — müşteride Siparişler · Finans · Şirket · Hesap,
+/// bayide İş · Yönetim · Hesap — 13/18 600 dim başlıklarla. Satırlar 56 dp, 40 dp nötr simge kutusu;
+/// sayı hapı yalnızca sıra sizde olan satırlarda. Sayfa açık gri (`bg`; koyu temada `surface`), satırlar
+/// sırayla gelir, basınca hafifçe küçülür. Ekran okuyucu "Onaylar, 3 bekleyen" der.
 Future<void> showMoreSheet(BuildContext context, List<AppDestination> items) {
   final c = context.akn;
   return showAppSheet<void>(
@@ -35,42 +36,82 @@ class MoreSheetBody extends ConsumerWidget {
   /// Sayfa kapandıktan sonra gezinme bu bağlamla yapılır.
   final BuildContext rootContext;
 
+  /// Profil'i açan kişi kartının anahtarı (testler).
+  static const profileKey = ValueKey('more-profile');
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final badges = ref.watch(destinationBadgesProvider);
-    // İş hedefleri bir kartta, hesap hedefleri (Bildirimler, Asistan, Profil) ayrı kartta.
-    final groups = [
-      [
-        for (final d in items)
-          if (!d.isExtra) d,
-      ],
-      [
-        for (final d in items)
-          if (d.isExtra) d,
-      ],
-    ].where((g) => g.isNotEmpty).toList();
+    final policy = ref.watch(accessPolicyProvider);
+    final access = ref.watch(sessionControllerProvider).access;
+    final customer = policy.isCustomer;
+    // Kişi kartı Profil'i açar; Profil satırı ayrıca listelenmez.
+    final rows = [
+      for (final d in items)
+        if (d.id != DestinationId.profile) d,
+    ];
+    final groups = <MoreGroup, List<AppDestination>>{};
+    for (final d in rows) {
+      groups.putIfAbsent(moreGroupOf(d, customer: customer), () => []).add(d);
+    }
+    final ordered = [
+      for (final g in MoreGroup.values)
+        if (groups[g]?.isNotEmpty ?? false) g,
+    ];
+    final name = access?.displayName ?? '';
+    final role = customer
+        ? (access?.customerUserRoleLabel ??
+              (policy.customerRole.isUnknown
+                  ? null
+                  : policy.customerRole.label))
+        : (access?.bayiRoleNames.isNotEmpty ?? false)
+        ? access!.bayiRoleNames.first
+        : policy.isPlatform
+        ? 'Merkez'
+        : null;
+    final org =
+        access?.organizationTitle ??
+        (policy.isPlatform ? 'AkaryakıtNet merkez' : null);
     var index = 0;
     return StaggerScope(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var g = 0; g < groups.length; g++) ...[
-            if (g > 0) const SizedBox(height: 14),
+          StaggerItem(
+            index: index++,
+            child: _PersonCard(
+              key: MoreSheetBody.profileKey,
+              name: name.isEmpty ? 'Profil' : name,
+              line: [?org, ?role].join(' · '),
+              onTap: () => _go(context, AppRoutes.profile),
+            ),
+          ),
+          for (final g in ordered) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+              child: Semantics(
+                header: true,
+                child: Text(
+                  g.label,
+                  style: context.aknText.label.copyWith(color: context.akn.dim),
+                ),
+              ),
+            ),
             _Group(
               children: [
-                for (final d in groups[g])
+                for (final d in groups[g]!)
                   StaggerItem(
                     index: index++,
                     child: Semantics(
                       button: true,
-                      label: destinationSemantics(d, badges[d.id] ?? 0),
+                      label: destinationSemantics(d, _badgeOf(d, badges)),
                       excludeSemantics: true,
-                      onTap: () => _open(context, d),
+                      onTap: () => _go(context, d.path),
                       child: _MoreRow(
                         destination: d,
-                        badge: badges[d.id] ?? 0,
-                        onTap: () => _open(context, d),
+                        badge: _badgeOf(d, badges),
+                        onTap: () => _go(context, d.path),
                       ),
                     ),
                   ),
@@ -82,15 +123,79 @@ class MoreSheetBody extends ConsumerWidget {
     );
   }
 
-  void _open(BuildContext sheetContext, AppDestination d) {
+  /// Sayı hapı yalnızca sıra sizde olan satırlarda (okunmamış bildirim sayısı burada gösterilmez).
+  static int _badgeOf(AppDestination d, Map<DestinationId, int> badges) =>
+      yourMoveDestinations.contains(d.id) ? (badges[d.id] ?? 0) : 0;
+
+  void _go(BuildContext sheetContext, String path) {
     AknHaptics.selection();
     Navigator.of(sheetContext).pop();
-    GoRouter.of(rootContext).push(d.path);
+    GoRouter.of(rootContext).push(path);
   }
 }
 
-/// Beyaz grup kartı: r20 yuvarlatılmış kare, kart gölgesi (koyu temada `surfaceRaised` + 1 px çizgi);
-/// satırlar arasında simgeden sonra başlayan ince çizgi.
+/// Kişi kartı: 48 px avatar, ad 17/22 700, "Şirket · rol" 14/20 dim, sağda ok; Profil'i açar.
+class _PersonCard extends StatelessWidget {
+  const _PersonCard({
+    super.key,
+    required this.name,
+    required this.line,
+    required this.onTap,
+  });
+
+  final String name;
+  final String line;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Semantics(
+      button: true,
+      label: line.isEmpty ? '$name, profili aç' : '$name, $line. Profili aç',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: _Group(
+        children: [
+          _Pressable(
+            onTap: onTap,
+            minHeight: 72,
+            child: Row(
+              children: [
+                AknAvatar(name: name, size: 48),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.headline.copyWith(color: c.ink),
+                      ),
+                      if (line.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(line, style: t.bodySmall.copyWith(color: c.dim)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(PhosphorIconsRegular.caretRight, size: 18, color: c.dim),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Beyaz grup defteri: r20, yalnızca ince çizgi (koyu temada `surfaceRaised` + 1 px çizgi); satırlar
+/// arasında simgeden sonra başlayan ince çizgi.
 class _Group extends StatelessWidget {
   const _Group({required this.children});
 
@@ -106,7 +211,7 @@ class _Group extends StatelessWidget {
           borderRadius: AknRadius.card,
           side: c.isDark ? BorderSide(color: c.line) : BorderSide.none,
         ),
-        shadows: AknShadows.card(c),
+        shadows: c.isDark ? null : [AknShadows.hairline(c)],
       ),
       child: ClipRSuperellipse(
         borderRadius: AknRadius.card,
@@ -133,31 +238,28 @@ class _Group extends StatelessWidget {
   }
 }
 
-/// Bir hedef satırı: simge kutusu, ad, rozet, ok. Basılıyken `surfaceAlt` dolgu ve 0,97 ölçek.
-class _MoreRow extends StatefulWidget {
-  const _MoreRow({
-    required this.destination,
-    required this.badge,
+/// Basılabilir satır yüzeyi: basılıyken `surfaceAlt` dolgu ve 0,97 ölçek.
+class _Pressable extends StatefulWidget {
+  const _Pressable({
     required this.onTap,
+    required this.child,
+    this.minHeight = 56,
   });
 
-  final AppDestination destination;
-  final int badge;
   final VoidCallback onTap;
+  final Widget child;
+  final double minHeight;
 
   @override
-  State<_MoreRow> createState() => _MoreRowState();
+  State<_Pressable> createState() => _PressableState();
 }
 
-class _MoreRowState extends State<_MoreRow> {
+class _PressableState extends State<_Pressable> {
   bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final t = context.aknText;
-    final d = widget.destination;
-    final badge = widget.badge;
     return InkWell(
       onTap: widget.onTap,
       onHighlightChanged: (v) {
@@ -174,56 +276,78 @@ class _MoreRowState extends State<_MoreRow> {
         color: _pressed
             ? (c.isDark ? c.line : c.surfaceAlt)
             : Colors.transparent,
-        constraints: const BoxConstraints(minHeight: 64),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        constraints: BoxConstraints(minHeight: widget.minHeight),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: AnimatedScale(
           scale: _pressed && !AknMotion.reduced(context)
               ? AknMotion.pressScale
               : 1,
           duration: _pressed ? AknMotion.press : AknMotion.pressOut,
           curve: _pressed ? AknMotion.standard : AknMotion.spring,
-          child: Row(
-            children: [
-              DecoratedBox(
-                decoration: ShapeDecoration(
-                  // Koyu temada kart `surfaceRaised`: kutu bir ton açık çizgi rengi.
-                  color: c.isDark ? c.line : c.surfaceAlt,
-                  shape: const RoundedSuperellipseBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(AknRadius.sm),
-                    ),
-                  ),
-                ),
-                child: SizedBox.square(
-                  dimension: 40,
-                  child: Center(child: Icon(d.icon, size: 22, color: c.ink)),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  d.label,
-                  style: t.bodyStrong.copyWith(color: c.ink),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (badge > 0) ...[
-                const SizedBox(width: 8),
-                _CountPill(count: badge),
-              ],
-              const SizedBox(width: 6),
-              Icon(PhosphorIconsRegular.caretRight, size: 18, color: c.dim),
-            ],
-          ),
+          child: widget.child,
         ),
       ),
     );
   }
 }
 
-/// Rozet: koyu turuncu (`brandFillPressed`) hap, beyaz 12 w800 tablo rakamları (≥ 4,5:1). İlk
-/// görünüşte ve sayı değişince hafifçe zıplar, sonra nefes alır.
+/// Bir hedef satırı (56 dp): 40 dp nötr simge kutusu, ad, sıra sizdeyse sayı hapı, ok.
+class _MoreRow extends StatelessWidget {
+  const _MoreRow({
+    required this.destination,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final AppDestination destination;
+  final int badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final d = destination;
+    return _Pressable(
+      onTap: onTap,
+      child: Row(
+        children: [
+          DecoratedBox(
+            decoration: ShapeDecoration(
+              // Koyu temada kart `surfaceRaised`: kutu bir ton açık çizgi rengi.
+              color: c.isDark ? c.line : c.surfaceAlt,
+              shape: const RoundedSuperellipseBorder(
+                borderRadius: BorderRadius.all(Radius.circular(AknRadius.sm)),
+              ),
+            ),
+            child: SizedBox.square(
+              dimension: 40,
+              child: Center(child: Icon(d.icon, size: 20, color: c.ink)),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              d.label,
+              style: t.bodyStrong.copyWith(color: c.ink),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (badge > 0) ...[
+            const SizedBox(width: 8),
+            _CountPill(count: badge),
+          ],
+          const SizedBox(width: 6),
+          Icon(PhosphorIconsRegular.caretRight, size: 18, color: c.dim),
+        ],
+      ),
+    );
+  }
+}
+
+/// Sıra sizde sayısı: `brandSoft` hap, Pas 12 w800 tablo rakamları; ilk görünüşte ve sayı değişince
+/// hafifçe zıplar (listeler sakin durur: nefes almaz).
 class _CountPill extends StatelessWidget {
   const _CountPill({required this.count});
 
@@ -237,14 +361,14 @@ class _CountPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: c.brandFillPressed,
+        color: c.brandSoft,
         borderRadius: AknRadius.pillAll,
       ),
       child: Text(
         count > 99 ? '99+' : '$count',
         textScaler: TextScaler.noScaling,
         style: context.aknText.captionStrong.copyWith(
-          color: c.onBrandFill,
+          color: c.brandInk,
           fontSize: 12,
           height: 16 / 12,
           fontWeight: FontWeight.w800,
@@ -258,14 +382,7 @@ class _CountPill extends StatelessWidget {
         tween: Tween<double>(begin: 0.6, end: 1),
         duration: AknMotion.of(context, AknMotion.slow),
         curve: AknMotion.pop,
-        child: AknAmbient(
-          period: AknMotion.breathe,
-          reverse: true,
-          builder: (context, v, child) => v == 0
-              ? child!
-              : Transform.scale(scale: 1 + 0.06 * v, child: child),
-          child: pill,
-        ),
+        child: pill,
         builder: (context, s, child) => Transform.scale(scale: s, child: child),
       ),
     );

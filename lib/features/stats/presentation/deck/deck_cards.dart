@@ -721,13 +721,42 @@ class _DeckFigure extends StatelessWidget {
   }
 }
 
+/// The head's chip slot of one deck card; it knows when it is disposed
+/// (late frame callbacks of the body leave it alone then).
+class DeckChipSlot extends ValueNotifier<Widget?> {
+  DeckChipSlot() : super(null);
+
+  bool _disposed = false;
+  bool get disposed => _disposed;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
+/// Bir kartın başlığındaki fark çipi yeri (v4): kartın içeriğindeki fark satırı çipini buraya
+/// bırakır, kendisi yalnızca cümleyi çizer.
+class DeckHeadChip extends InheritedWidget {
+  const DeckHeadChip({super.key, required this.sink, required super.child});
+
+  final DeckChipSlot sink;
+
+  static DeckChipSlot? of(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<DeckHeadChip>()?.sink;
+
+  @override
+  bool updateShouldNotify(DeckHeadChip old) => old.sink != sink;
+}
+
 /// Fark çipi ve karşılaştırma cümlesi ("▲ %9,4 geçen ayın aynı günlerine göre"); cümle sığmazsa çipin
 /// yanından sözcük sözcük alta akar. Çip (tasarım v3 §4): r8, 24 px, 13 w700 tabular; plakada açık
 /// turuncu zemin (`deltaFill`) + pas yazı (`brandInk`), kâğıtta sakin kuyu + mürekkep. Renkler
 /// desteden ([DeckCardScope]) gelir ki kart plakayı devralırken çip de yumuşakça geçsin. Plakada
 /// iyi / kötü rengi yoktur; cümle 13/18 500 soluk. Kart öne gelince çip "pop" ile oturur, oku
 /// yönünde kayarak girer ve cümle hafifçe yükselerek belirir.
-class _DeckDelta extends StatelessWidget {
+class _DeckDelta extends StatefulWidget {
   const _DeckDelta({
     required this.label,
     required this.direction,
@@ -755,16 +784,26 @@ class _DeckDelta extends StatelessWidget {
   final String spoken;
 
   @override
-  Widget build(BuildContext context) {
+  State<_DeckDelta> createState() => _DeckDeltaState();
+}
+
+/// v4: inside a deck card the chip moves to the card's head ([DeckHeadChip])
+/// and the line keeps the sentence.
+class _DeckDeltaState extends State<_DeckDelta> {
+  DeckChipSlot? _sink;
+  Widget? _published;
+
+  Widget _chip(BuildContext context) {
     final c = context.akn;
     final scope = DeckCardScope.maybeOf(context);
     final fill = scope?.chipFill ?? c.deltaFill;
     final ink = scope?.chipInk ?? c.brandInk;
+    final direction = widget.direction;
     final arrow =
         direction == AknDeltaDirection.up ||
         direction == AknDeltaDirection.down;
     final down = direction == AknDeltaDirection.down;
-    final chip = Container(
+    return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(color: fill, borderRadius: AknRadius.tag),
@@ -779,7 +818,7 @@ class _DeckDelta extends StatelessWidget {
             const SizedBox(width: 5),
           ],
           Text(
-            label,
+            widget.label,
             maxLines: 1,
             softWrap: false,
             style: deckChipStyle(context).copyWith(color: ink),
@@ -787,8 +826,47 @@ class _DeckDelta extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _publish(Widget chip) {
+    final sink = _sink;
+    if (sink == null) return;
+    _published = chip;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || sink.disposed || !identical(_published, chip)) return;
+      sink.value = MediaQuery.withNoTextScaling(child: _PopIn(child: chip));
+    });
+  }
+
+  @override
+  void dispose() {
+    final sink = _sink;
+    if (sink != null && _published != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!sink.disposed && sink.value != null) sink.value = null;
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _sink = DeckHeadChip.of(context);
+    final chip = _chip(context);
+    if (_sink != null) {
+      _publish(chip);
+      return Semantics(
+        label: widget.spoken,
+        excludeSemantics: true,
+        child: StatsRise(
+          delay: const Duration(milliseconds: 160),
+          offset: 6,
+          child: Text(widget.sentence, style: deckSentenceStyle(context)),
+        ),
+      );
+    }
     return Semantics(
-      label: spoken,
+      label: widget.spoken,
       excludeSemantics: true,
       child: StatsRise(
         delay: const Duration(milliseconds: 160),
@@ -806,7 +884,7 @@ class _DeckDelta extends StatelessWidget {
                   ),
                 ),
               ),
-              TextSpan(text: sentence),
+              TextSpan(text: widget.sentence),
             ],
           ),
           style: deckSentenceStyle(context),
@@ -1012,8 +1090,8 @@ class _RankedRows extends StatelessWidget {
                       ? 0
                       : rows[i].fraction.clamp(0.0, rows[i].track),
                   track: rows[i].track.clamp(0.0, 1.0),
-                  trackColor: c.chartTrack,
-                  trackFill: twoSeries ? c.chartContext : null,
+                  trackColor: c.plateChartTrack,
+                  trackFill: twoSeries ? c.plateChartContext : null,
                   fill: fill,
                   fillStart: fillStart,
                   glow: plate && !twoSeries,
@@ -1040,7 +1118,7 @@ class _RankedRows extends StatelessWidget {
                           gradient: l.filled
                               ? LinearGradient(colors: [fillStart, fill])
                               : null,
-                          color: l.filled ? null : c.chartContext,
+                          color: l.filled ? null : c.plateChartContext,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),

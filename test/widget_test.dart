@@ -2,6 +2,7 @@
 // (alt menü + ana sayfa) ulaşır. Ağ yok; sahte sunucu gecikmesiz.
 import 'package:akaryakitnet/app/app.dart';
 import 'package:akaryakitnet/app/destinations.dart';
+import 'package:akaryakitnet/app/shell/more_sheet.dart';
 import 'package:akaryakitnet/app/shell/platform_home.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
@@ -235,7 +236,17 @@ void main() {
           find.descendant(of: bar, matching: find.text('Diğer')),
         );
         await _pumpFor(tester, const Duration(milliseconds: 800));
-        for (final d in layout.more) {
+        // v4 §3.1: Profil is the person card at the top, not a row.
+        expect(
+          find.descendant(
+            of: find.byType(BottomSheet),
+            matching: find.byKey(MoreSheetBody.profileKey),
+          ),
+          findsOneWidget,
+        );
+        for (final d in layout.more.where(
+          (d) => d.id != DestinationId.profile,
+        )) {
           await tester.scrollUntilVisible(
             find.text(d.label).last,
             80,

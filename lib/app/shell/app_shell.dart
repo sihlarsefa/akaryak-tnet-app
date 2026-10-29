@@ -6,6 +6,7 @@ import '../../core/push/push_permission_primer.dart';
 import '../../core/ui/ui.dart';
 import '../../features/auth/api.dart';
 import '../destinations.dart';
+import '../tasks/task_inbox.dart';
 import 'more_sheet.dart';
 import 'shell_badges.dart';
 
@@ -18,6 +19,12 @@ import 'shell_badges.dart';
 /// Tasarım v3 "Akış": sekme içeriği yönlendiricinin `FadeThroughIndexedStack`'i ile geçer (yeni
 /// sekme 0,96 → 1 ölçekle belirir); alt menünün turuncu hapı seçilen sekmeye yaylanarak kayar.
 /// "Diğer" sayfası açıkken hap "Diğer"in üzerinde durur, sayfa kapanınca geri döner.
+///
+/// v4 "Sade" (§3.1): Android'de geri tuşu bir sekme kökünde Ana sayfa'ya döner (hap yaylanarak
+/// eve kayar); "Diğer" noktası yalnızca "Diğer"deki sıra sizde işler için yanar (okunmamış
+/// bildirimler için asla); Sipariş ver tuşunun ışığı yalnızca ana sayfa sakinken (bekleyen iş
+/// yokken) nefes alır. Sekme sayfaları [AknTabScope] içindedir (kök sayfada "Ana sayfa" düğmesi
+/// çıkmaz).
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     super.key,
@@ -62,12 +69,24 @@ class _AppShellState extends ConsumerState<AppShell> {
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
   }
 
+  /// Android geri: bir sekme kökünde Ana sayfa'ya (ilk sekmeye) döner.
+  void _backToHome() {
+    final shell = widget.navigationShell;
+    if (shell.currentIndex == 0) return;
+    AknHaptics.selection();
+    shell.goBranch(0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final layout = widget.layout;
     final badges = ref.watch(destinationBadgesProvider);
-    final moreHasBadge = layout.more.any((d) => (badges[d.id] ?? 0) > 0);
+    final moreHasBadge = layout.more.any(
+      (d) => yourMoveDestinations.contains(d.id) && (badges[d.id] ?? 0) > 0,
+    );
     final center = layout.center;
+    // Tuşun ışığı yalnızca bekleyen iş yokken nefes alır.
+    final calm = ref.watch(taskCountProvider) == 0;
     final items = [
       for (final d in layout.bar)
         AknNavItem(
@@ -88,8 +107,9 @@ class _AppShellState extends ConsumerState<AppShell> {
               : NavLayout.moreLabel,
         ),
     ];
-    return Scaffold(
-      body: widget.navigationShell,
+    final atHome = widget.navigationShell.currentIndex == 0;
+    final scaffold = Scaffold(
+      body: AknTabScope(child: widget.navigationShell),
       extendBody: false,
       bottomNavigationBar: AnimatedBottomBar(
         items: items,
@@ -102,9 +122,18 @@ class _AppShellState extends ConsumerState<AppShell> {
             : AknCenterAction(
                 icon: center.icon,
                 label: center.label,
+                breathe: calm,
                 onPressed: () => context.push(center.path),
               ),
       ),
+    );
+    // Sekme kökünde geri: önce Ana sayfa (uygulamadan çıkmaz).
+    return PopScope(
+      canPop: atHome,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _backToHome();
+      },
+      child: scaffold,
     );
   }
 }

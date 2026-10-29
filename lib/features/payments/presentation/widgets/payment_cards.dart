@@ -6,6 +6,7 @@ import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
 import '../../../approvals/api.dart' show isLargeText;
+import '../../copy.dart';
 import '../../data/payment_models.dart';
 
 /// Vade ipucunun tonu (tasarım v3): geciken kırmızı, bugün ya da 3 gün içinde Pas ("sıra sizde"
@@ -90,10 +91,40 @@ bool financeWorthShowing(OrderFinanceStatus s) =>
     s == OrderFinanceStatus.infoRequested ||
     s == OrderFinanceStatus.rejected;
 
-/// Ödeme satırı (tasarım v3 liste kartının içi): cari, sağda tutar (tablo rakamları); ikinci satırda
-/// sipariş no ve yöntem, sağda vade günü (tahminiyse "tahmini" ve vade ikinci satıra geçer); durum
-/// satırında çip ve vade ipucu. Finans onayı bekleyen, bilgi istenen ya da reddedilen ödemede finans
-/// durumu ikinci satırda.
+/// Satırın sağındaki kısa vade bilgisi (v4 `AknListTile.metaWidget`): 13/18; gecikmede tehlike 600,
+/// 3 gün içinde Pas 600, diğerleri sönük 500.
+class DueMeta extends StatelessWidget {
+  const DueMeta({super.key, required this.text, required this.tone});
+
+  final String text;
+  final AknTone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final strong = tone == AknTone.danger || tone == AknTone.brand;
+    return Text(
+      text,
+      maxLines: 1,
+      softWrap: false,
+      style: context.aknText.label.copyWith(
+        fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
+        color: switch (tone) {
+          AknTone.danger => c.danger.fg,
+          AknTone.brand => c.brandInk,
+          _ => c.dim,
+        },
+        fontFeatures: AknNumerals.tabular,
+      ),
+    );
+  }
+}
+
+/// Ödeme satırı (tasarım v4 §4 defter satırı): L1 cari ve tutar ("tahmini" altında); L2 yöntem ·
+/// taksit · vade günü, sağda kısa vade ipucu ("5 gün gecikti" tehlike, "3 gün kaldı" Pas); L3
+/// yalnızca istisnada: belgesi yüklenen ödemede "Belgeyi kontrol edin" (Pas), finans onayı / bilgi /
+/// ret ya da karşılıksız, iade, iptal ve tahsil edildi gibi sonuçlar (küçük lamba). Bekleyen ödeme
+/// normal durumdur, yazılmaz (v4 P4); sipariş numarası ayrıntıda.
 class PaymentRowCard extends StatelessWidget {
   const PaymentRowCard({super.key, required this.row, required this.onTap});
 
@@ -111,14 +142,15 @@ class PaymentRowCard extends StatelessWidget {
         ? (row.financeLabel ?? row.financeStatus.label)
         : null;
     final second = [
-      row.orderNumber,
       ?row.methodName,
       if (row.installments != null && row.installments! > 1)
         '${row.installments} taksit',
-      if (row.isEstimate && row.dueDate != null) 'vade ${dueDay(row.dueDate)}',
-      if (finance != null) lowerFirst(finance),
-    ].join(', ');
+      if (row.dueDate != null) 'vade ${dueDay(row.dueDate)}',
+    ].join(' · ');
     final hint = row.dueHint;
+    final checking = row.paymentStatus == PaymentStatus.documentUploaded;
+    // Normal durum (bekliyor) yazılmaz; belge kontrolü fiil satırıdır.
+    final exception = row.paymentStatus != PaymentStatus.pending && !checking;
     final semantic = [
       row.customerTitle,
       if (amount != null)
@@ -132,30 +164,36 @@ class PaymentRowCard extends StatelessWidget {
       ?finance,
     ].join(', ');
     return AknListTile(
-      padding: kPaymentRowPadding,
       title: row.customerTitle,
-      subtitle: second,
-      amount: amount == null ? null : Fmt.money(amount),
-      amountMeta: row.isEstimate
-          ? 'tahmini'
-          : (row.dueDate == null ? null : 'vade ${dueDay(row.dueDate)}'),
-      status: AknStatusLine(
-        lamp: AknLamp.style(status),
-        trailing: hint == null
-            ? null
-            : DueHint(
-                text: dueHintText(hint),
-                tone: dueTone(overdue: overdue, due: row.dueDate),
-              ),
-      ),
+      subtitle: second.isEmpty ? null : second,
+      // Tahmini tutar "≈" ile (v4 §5 13 diliyle); ekran okuyucu "tahmini" der.
+      amount: amount == null
+          ? null
+          : '${row.isEstimate ? '≈ ' : ''}${rowMoney(amount)}',
+      metaWidget: hint == null
+          ? null
+          : DueMeta(
+              text: dueHintText(hint),
+              tone: dueTone(overdue: overdue, due: row.dueDate),
+            ),
+      next: checking ? PaymentsCopy.checkNext : null,
+      status: !exception && finance == null
+          ? null
+          : AknStatusLine(
+              lamp: exception ? AknLamp.style(status) : null,
+              trailing: finance == null || exception
+                  ? null
+                  : _FinanceNote(finance, status: row.financeStatus),
+            ),
       semanticLabel: semantic,
       onTap: onTap,
     );
   }
 }
 
-/// Çek / senet satırı (tasarım v3 kartın içi): cari, sağda tutar; ikinci satırda tür ve seri no, banka
-/// ve şube (ya da borçlu), sağda vade günü; durum satırında çip ve vade ipucu.
+/// Çek / senet satırı (tasarım v4 §4 defter satırı): L1 cari (ödeme ayrıntısında tür ve seri no) ve
+/// tutar; L2 tür ve seri no · banka ve şube (ya da borçlu) · vade günü, sağda kısa vade ipucu; L3
+/// yalnızca sonuçlanan belgede durum lambası (portföydeki açık belge normaldir).
 class InstrumentRowCard extends StatelessWidget {
   const InstrumentRowCard({
     super.key,
@@ -176,9 +214,11 @@ class InstrumentRowCard extends StatelessWidget {
     final status = instrumentLamp(i);
     final source = instrumentSource(i);
     final kind = [i.displayKindLabel, ?i.serialNo].join(' ');
-    final second = showCustomer
-        ? [kind, if (source.isNotEmpty) source].join(', ')
-        : source;
+    final second = [
+      if (showCustomer) kind,
+      if (source.isNotEmpty) source,
+      if (i.dueDate != null) 'vade ${dueDay(i.dueDate)}',
+    ].join(' · ');
     final hint = i.isOpen ? i.dueHint : null;
     final semantic = [
       i.customerTitle,
@@ -192,24 +232,50 @@ class InstrumentRowCard extends StatelessWidget {
       if (i.orderNumber != null) 'sipariş ${i.orderNumber}',
     ].join(', ');
     return AknListTile(
-      padding: kPaymentRowPadding,
       title: showCustomer ? i.customerTitle : kind,
       subtitle: second.isEmpty ? null : second,
-      amount: Fmt.money(i.amount),
-      amountMeta: i.dueDate == null ? null : 'vade ${dueDay(i.dueDate)}',
-      status: AknStatusLine(
-        lamp: AknLamp.style(status),
-        trailing: hint == null
-            ? null
-            : DueHint(
-                text: dueHintText(hint),
-                tone: dueTone(overdue: i.isOverdue, due: i.dueDate),
-              ),
-      ),
+      amount: rowMoney(i.amount),
+      metaWidget: hint == null
+          ? null
+          : DueMeta(
+              text: dueHintText(hint),
+              tone: dueTone(overdue: i.isOverdue, due: i.dueDate),
+            ),
+      status: i.isOpen ? null : AknStatusLine(lamp: AknLamp.style(status)),
       semanticLabel: semantic,
       onTap: onTap,
     );
   }
+}
+
+/// Satır tutarı: kuruşsuzsa tam ("247.200 ₺"), yoksa kuruşlu.
+String rowMoney(double? v) {
+  if (v == null) return Fmt.dash;
+  return (v - v.roundToDouble()).abs() < 0.005
+      ? Fmt.moneyWhole(v)
+      : Fmt.money(v);
+}
+
+/// Ödemenin finans durumu (satırın üçüncü satırı, istisna): sola yaslı söz; ret tehlike tonunda.
+class _FinanceNote extends StatelessWidget {
+  const _FinanceNote(this.text, {required this.status});
+
+  final String text;
+  final OrderFinanceStatus status;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: AlignmentDirectional.centerStart,
+    child: Text(
+      text,
+      style: context.aknText.label.copyWith(
+        fontWeight: FontWeight.w600,
+        color: status == OrderFinanceStatus.rejected
+            ? context.akn.danger.fg
+            : context.akn.dim,
+      ),
+    ),
+  );
 }
 
 /// Belgenin kaynağı: banka ve şube ("Ziraat Bankası Pendik"), banka yoksa cariden farklı borçlu.

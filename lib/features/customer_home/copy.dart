@@ -17,7 +17,7 @@ abstract final class HomeCopy {
   static const track = 'Takip et';
   static const plannedArrival = 'planlanan varış';
   static const plannedDelivery = 'planlanan teslim';
-  static const limits = 'Limitlerim';
+  static const limits = 'Limitler';
   static const templates = 'Şablonlarım';
   static const spending = 'Harcamalar';
   static const monthPlate = 'Bu ay harcama';
@@ -48,6 +48,42 @@ abstract final class HomeCopy {
   static const unlimitedMessage = 'Bu bayide alım limitiniz yok.';
   static const spendingCaption = 'Onaylanmış teklif tutarları; fatura değildir';
   static const station = 'Bayiniz';
+
+  // v4 "Sade" (§3.3): görev kartı, ilk açılış ipucu ve bölümler.
+  static const calmCreate = 'Yeni sipariş için + tuşuna dokunun.';
+  static const calmView = 'Siparişlerinizi Siparişler sekmesinden izleyin.';
+  static const onTheWay = 'Yolda';
+  static const arrivingToday = 'Bugün gelecek';
+  static const quickOrder = 'Hızlı sipariş';
+  static const reorderLast = 'Son siparişi tekrarla';
+  static const firstOrder = 'İlk siparişinizi verin';
+  static const call = 'Ara';
+
+  /// Talep eden: siparişi şirketin onayına gönderir.
+  static const requesterSteps = [
+    'Sipariş ver tuşuyla ürünü, miktarı ve teslim yerini seçin.',
+    'Talebiniz şirketinizdeki onaylayana gider.',
+    'Onaylanınca bayiniz teklif verir; siparişi Siparişler sekmesinden izleyin.',
+  ];
+
+  /// Görüntüleyen: sipariş vermez, izler.
+  static const viewerSteps = [
+    'Siparişlerinizi Siparişler sekmesinden izleyin.',
+    'Yoldaki araç ana sayfada, Yolda bölümünde görünür.',
+    'Teslim edilen yakıtı Teslimatlar sekmesinde bulun.',
+  ];
+
+  /// "Limit · Demir Petrol".
+  static String limitTitle(String? title) {
+    final s = shortCompany(title);
+    return s.isEmpty ? 'Limit' : 'Limit · $s';
+  }
+
+  /// "Bayiniz · Demir Petrol".
+  static String stationTitle(String? title) {
+    final s = shortCompany(title);
+    return s.isEmpty ? HomeCopy.station : '${HomeCopy.station} · $s';
+  }
 
   static String greeting(DateTime wall) {
     final h = wall.hour;

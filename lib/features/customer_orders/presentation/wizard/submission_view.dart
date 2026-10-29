@@ -289,7 +289,8 @@ class _CreatedList extends StatelessWidget {
         style: t.bodySmall.copyWith(color: c.dim),
       );
     }
-    return A2Card(
+    return AknCard(
+      padding: EdgeInsets.zero,
       child: AknLedger(
         children: [
           for (final (i, o) in orders.indexed)
@@ -297,7 +298,7 @@ class _CreatedList extends StatelessWidget {
               index: i,
               child: AknListTile(
                 dense: true,
-                leading: A2IconTile(
+                leading: AknIconBox(
                   icon: o.financeStatus == OrderFinanceStatus.pending
                       ? PhosphorIconsRegular.bank
                       : PhosphorIconsRegular.receipt,
@@ -393,7 +394,7 @@ class _Success extends ConsumerWidget {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                   child: FadeUp(
                     delay: AknMotion.staggerDelay(3),
-                    child: A2Card(
+                    child: AknCard(
                       padding: const EdgeInsets.all(14),
                       child: FactLine(
                         icon: PhosphorIconsRegular.timer,
@@ -443,7 +444,7 @@ class _Success extends ConsumerWidget {
               if (state.templateSaved == true)
                 const Padding(
                   padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: A2Card(
+                  child: AknCard(
                     padding: EdgeInsets.all(14),
                     child: FactLine(
                       icon: PhosphorIconsFill.checkCircle,
@@ -545,7 +546,7 @@ class _DocumentCardState extends State<_DocumentCard> {
 
   Widget _card(CapturedImage? image) => Padding(
     padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-    child: A2Card(
+    child: AknCard(
       padding: const EdgeInsets.all(18),
       child: PaymentDocumentPanel(
         target: widget.target,

@@ -293,7 +293,7 @@ class _DisputePageState extends ConsumerState<DisputePage> {
                   index: 0,
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-                    child: CmCard(
+                    child: AknCard(
                       padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
                       child: Column(
                         children: [

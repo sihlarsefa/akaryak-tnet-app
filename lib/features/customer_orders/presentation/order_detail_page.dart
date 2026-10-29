@@ -10,10 +10,12 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/connectivity.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../../core/utils/turkish_text.dart';
 import '../application/home_controller.dart';
 import '../application/loadable.dart';
 import '../application/order_view_controller.dart';
@@ -31,14 +33,25 @@ import 'widgets/payment_document_flow.dart';
 import 'widgets/quote_decision_card.dart';
 import 'widgets/tracking_card.dart';
 
-/// Sipariş ayrıntısı (spec A.4; tasarım v3 §4, pano ekran 5).
+/// Sipariş ayrıntısı (spec A.4; tasarım v4 §5 ekran 05).
 ///
-/// İtilmiş çubuk "SIP-…" + ⋯ → "Motorin, 8.000 L" (display) ve nokta / teslim günü → aşama şeridi
-/// → durum satırı (lamba + geri sayım) → **teklif kartı** (ekranın tek kahraman kartı; karar
-/// müşterideyse nefes alan turuncu bir çerçevenin içinde) → ödeme satırı → "Son alımlarınızla
-/// kıyas" → yolda / sevkiyatlar → "Sipariş akışı" → ödeme, bilgiler, belgeler; bölümler beyaz
-/// kartlarda birbiri ardına yükselerek gelir, durum değişince içerik yumuşakça yer değiştirir.
-/// Karar sırası müşterideyse buzlu alt çubukta "Teklifi onayla" + "Revize iste" / "Reddet".
+/// ```
+/// (←) Sipariş (⋯)                       kaydırınca çubukta "Motorin, 8.000 L"
+/// Motorin, 8.000 L                      AknObjectHeader (başlık, nokta · gün, kopyalanan kod)
+/// Tuzla Şantiye · 29 Ekim
+/// SIP-20261028-12002
+/// ●━━━━●━━━━[»]┄┄┄┄○┄┄┄┄○              » Akış çizgisi (Sipariş · Teklif · Onay · Yolda · Teslim)
+/// Teklifi onaylayın          ⏱ 2 sa 59 dk   StageNow: kimin sırası, ne zamana kadar
+/// ╭ Demir Petrol teklifi · bugün 18:17 ╮   teklif plakası (r26, çerçevesiz)
+/// │ 338.800,00 ₺ · 42,35 ₺/L · çek … │
+/// ══ [ Çek görselini yükle ] → "Teklifi onayla"   karar çubuğu (ActionBar.decision)
+///    Revize iste        Reddet
+/// ```
+///
+/// Altında: yoldaki araç, sevkiyatlar, ödeme, sipariş bilgileri, "Sipariş geçmişi ›" (akış
+/// çizelgesi sayfada açılır) ve belgeler. Birincil düğme her zaman yapılabilecek adımdır: eksik
+/// belge önce yüklenir, sonra düğme "Teklifi onayla"ya dönüşür. `?focus=quote|documents` teklif
+/// plakasını, `?focus=delivery` sevkiyatı gösterir ve parlatır.
 ///
 /// Teklif / yoldaki araç beklenirken 30 sn'de bir yoklanır; çevrimdışıyken son kayıt gösterilir
 /// ve kararlar kapalıdır.
@@ -222,7 +235,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         '“$name” şablon olarak kaydedildi.',
         type: AppToastType.success,
         context: context,
-        actionLabel: 'Şablonlarım',
+        actionLabel: OrdersCopy.templates,
         onAction: () => context.push(templatesRoute),
       );
       _refreshEverything();
@@ -234,7 +247,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
   }
 
   void _reorder(OrderDetail d) =>
-      context.push('${AppRoutes.orderNew}?reorder=${d.id}');
+      context.push(AppRoutes.orderNewFrom(reorder: d.id));
 
   /// ⋯: siparişi tekrarla, şablon olarak kaydet, sipariş belgeleri.
   Future<void> _openMenu(
@@ -244,7 +257,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
   }) async {
     final choice = await showAppSheet<String>(
       context: context,
-      title: v.detail.orderNumber,
+      title: orderTitle(v.detail.productName, v.detail.quantityLiters),
       padding: const EdgeInsets.only(bottom: 12),
       builder: (ctx) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -252,20 +265,13 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         children: [
           if (canCreate) ...[
             AknListTile(
-              leading: const A2IconTile(
-                icon: PhosphorIconsRegular.arrowCounterClockwise,
-                tone: AknTone.brand,
-              ),
-              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
+              leadingIcon: PhosphorIconsRegular.arrowCounterClockwise,
               title: OrdersCopy.reorder,
               subtitle: 'Aynı ürün ve noktayla yeni sipariş',
               onTap: () => Navigator.of(ctx).pop('reorder'),
             ),
             AknListTile(
-              leading: const A2IconTile(
-                icon: PhosphorIconsRegular.bookmarkSimple,
-              ),
-              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
+              leadingIcon: PhosphorIconsRegular.bookmarkSimple,
               title: OrdersCopy.makeTemplate,
               subtitle: 'Sonraki siparişlerde tek dokunuşla kullanın',
               onTap: () => Navigator.of(ctx).pop('template'),
@@ -273,8 +279,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           ],
           if (canDocs)
             AknListTile(
-              leading: const A2IconTile(icon: PhosphorIconsRegular.folderOpen),
-              titleStyle: a2RowTitle(ctx.aknText, ctx.akn),
+              leadingIcon: PhosphorIconsRegular.folderOpen,
               title: 'Sipariş belgeleri',
               subtitle: 'Sipariş formu, teklif, teslim tutanağı',
               onTap: () => Navigator.of(ctx).pop('docs'),
@@ -295,6 +300,19 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     }
   }
 
+  /// "Sipariş geçmişi": sunucunun takip adımları sayfada açılır (v4 §5: ayrıntıdaki akış kartı
+  /// yerine bir satır).
+  void _openHistory(OrderTracking tracking, bool yourMove) => unawaited(
+    showAppSheet<void>(
+      context: context,
+      title: OrdersCopy.history,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        child: OrderFlowTimeline(steps: tracking.steps, yourMove: yourMove),
+      ),
+    ),
+  );
+
   // ------------------------------------------------------------------ Görünüm
 
   @override
@@ -308,22 +326,11 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final canDocs =
         policy.can(Pg.customerDocuments) &&
         policy.canAny(const [Pg.customerOrders, Pg.customerQuotes]);
-    final decisionOpen =
-        v != null &&
-        v.detail.status == OrderStatus.awaitingApproval &&
-        v.latestQuote != null;
-    final reported = v?.tracking?.shipments
-        .where((x) => x.status == ShipmentStatus.reported)
-        .firstOrNull;
-    final closed =
-        v != null &&
-        (v.detail.status == OrderStatus.completed ||
-            v.detail.status == OrderStatus.rejected ||
-            v.detail.status == OrderStatus.expired);
+    final focus = focusParamOf(context);
 
     Widget body;
     if (v == null && s.isFirstLoad) {
-      body = const SkeletonList(itemCount: 4, lines: 3);
+      body = const SkeletonList(itemCount: 4, lines: 3, leading: false);
     } else if (v == null) {
       body = Center(
         child: SingleChildScrollView(
@@ -341,23 +348,150 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           padding: EdgeInsets.only(
             bottom: 32 + MediaQuery.paddingOf(context).bottom,
           ),
-          children: [ContentWidth(child: _content(context, v, s, canDocs))],
+          children: [
+            ContentWidth(
+              child: _content(context, v, s, canDocs: canDocs, focus: focus),
+            ),
+          ],
         ),
       );
     }
 
-    Widget? dock;
-    if (v != null && decisionOpen && canDecide) {
-      dock = _DecisionDock(
-        view: v,
-        online: online,
-        pending: _pending,
-        checking: _checking,
-        onDecide: (a) => _decide(v, a),
+    return AppScaffold(
+      title: OrdersCopy.orderDetail,
+      collapsedTitle: v == null
+          ? null
+          : orderTitle(v.detail.productName, v.detail.quantityLiters),
+      largeTitle: false,
+      refreshing: s.refreshing,
+      actions: [
+        if (v != null && (canCreate || canDocs))
+          AknIconButton(
+            icon: PhosphorIconsRegular.dotsThree,
+            semanticLabel: 'Diğer seçenekler',
+            onPressed: () =>
+                _openMenu(v, canCreate: canCreate, canDocs: canDocs),
+          ),
+      ],
+      actionBar: v == null
+          ? null
+          : _dock(
+              v,
+              online: online,
+              canDecide: canDecide,
+              canCreate: canCreate,
+            ),
+      body: body,
+    );
+  }
+
+  /// Alt çubuk (v4 P3): her zaman şimdi yapılabilecek adım. Karar müşterideyken
+  /// [ActionBar.decision]: eksik belge önce birincil düğmedir ("Çek görselini yükle"); yüklenince
+  /// düğme "Teklifi onayla"ya dönüşür (onay işareti çıkar). Bakiye yetmiyorsa bayi aranır.
+  /// Çevrimdışıyken düğme yok, neden yazılır.
+  Widget? _dock(
+    OrderView v, {
+    required bool online,
+    required bool canDecide,
+    required bool canCreate,
+  }) {
+    final d = v.detail;
+    final decisionOpen =
+        d.status == OrderStatus.awaitingApproval &&
+        v.latestQuote != null &&
+        !d.financeStatus.isAwaitingDecision;
+    if (decisionOpen && canDecide) {
+      if (!online && _pending == null) {
+        return const ActionBar(
+          child: _DockNote(
+            icon: PhosphorIconsRegular.cloudSlash,
+            text: OrdersCopy.decisionOffline,
+          ),
+        );
+      }
+      final busy = _pending != null;
+      final target = v.documentTarget;
+      final home = ref.read(customerHomeProvider).data;
+      final station = home?.station?.id == d.stationId ? home?.station : null;
+      final tel = ContactLinks.tel(station?.callNumber);
+      final revise = AknButton.ghost(
+        label: OrdersCopy.revise,
+        loading: _pending == QuoteAction.revise,
+        onPressed: busy ? null : () => _decide(v, QuoteAction.revise),
       );
-    } else if (reported != null &&
-        (v?.tracking?.canAcceptDeliveries ?? false)) {
-      dock = AknButton(
+      final reject = AknButton.danger(
+        label: OrdersCopy.reject,
+        loading: _pending == QuoteAction.reject,
+        onPressed: busy ? null : () => _decide(v, QuoteAction.reject),
+      );
+      AknButton primary;
+      String? caption;
+      var secondaries = <AknButton>[revise, reject];
+      if (v.paymentDocumentMissing && target != null && target.isUploadable) {
+        primary = AknButton(
+          label: AknStatus.uploadAction(target.kind),
+          icon: PhosphorIconsRegular.camera,
+          celebrate: true,
+          onPressed: () => unawaited(_upload(v)),
+        );
+        caption = 'Yükledikten sonra teklifi onaylayabilirsiniz';
+      } else if (v.paymentDocumentMissing) {
+        // Belgeyi bu kullanıcı yükleyemez: yapılabilecek adım revize istemek.
+        primary = AknButton(
+          label: OrdersCopy.revise,
+          loading: _pending == QuoteAction.revise,
+          onPressed: () => _decide(v, QuoteAction.revise),
+        );
+        secondaries = [reject];
+        caption =
+            target?.message ??
+            '${target?.label ?? 'Ödeme belgesi'} yüklenmeden onaylanamaz; '
+                'şirket yöneticiniz yükleyebilir.';
+      } else if (v.advanceInsufficient) {
+        caption =
+            'Ön ödemeli bakiye yetersiz: kullanılabilir ${Fmt.money(v.advanceBalance)}';
+        if (tel != null) {
+          primary = AknButton(
+            label: 'Bayinizi arayın',
+            icon: PhosphorIconsRegular.phone,
+            onPressed: () => unawaited(
+              openExternal(
+                context,
+                ref,
+                tel,
+                failMessage: 'Arama başlatılamadı.',
+              ),
+            ),
+          );
+        } else {
+          primary = AknButton(
+            label: OrdersCopy.revise,
+            loading: _pending == QuoteAction.revise,
+            onPressed: () => _decide(v, QuoteAction.revise),
+          );
+          secondaries = [reject];
+        }
+      } else {
+        primary = AknButton(
+          label: OrdersCopy.approve,
+          celebrate: true,
+          loading: _pending == QuoteAction.approve,
+          onPressed: () => _decide(v, QuoteAction.approve),
+        );
+      }
+      if (_checking) caption = OrdersCopy.decisionChecking;
+      return ActionBar.decision(
+        primary: primary,
+        caption: caption,
+        secondaries: secondaries,
+      );
+    }
+
+    final reported = v.tracking?.shipments
+        .where((x) => x.status == ShipmentStatus.reported)
+        .firstOrNull;
+    if (reported != null && (v.tracking?.canAcceptDeliveries ?? false)) {
+      return AknButton(
         label: OrdersCopy.confirmDelivery,
         icon: PhosphorIconsFill.checkCircle,
         expand: true,
@@ -369,43 +503,41 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           await ref.read(orderViewProvider(_id).notifier).reload();
         },
       );
-    } else if (closed && canCreate) {
-      dock = AknButton(
+    }
+    if (d.financeStatus == OrderFinanceStatus.infoRequested && canDecide) {
+      final id = d.financeApprovalRequestId;
+      return AknButton(
+        label: 'Bilgi gönder',
+        icon: PhosphorIconsRegular.paperPlaneTilt,
+        expand: true,
+        onPressed: () => context.push(
+          id == null ? AppRoutes.financeInfo : AppRoutes.approval(id),
+        ),
+      );
+    }
+    final closed =
+        d.status == OrderStatus.completed ||
+        d.status == OrderStatus.rejected ||
+        d.status == OrderStatus.expired;
+    if (closed && canCreate) {
+      return AknButton(
         label: OrdersCopy.reorder,
         icon: PhosphorIconsRegular.arrowCounterClockwise,
         expand: true,
         semanticLabel: 'Bu siparişi tekrarla',
-        onPressed: () => _reorder(v.detail),
+        onPressed: () => _reorder(d),
       );
     }
-
-    return AppScaffold(
-      title: v?.detail.orderNumber ?? OrdersCopy.orderDetail,
-      largeTitle: false,
-      showBell: false,
-      refreshing: s.refreshing,
-      actions: [
-        if (v != null && (canCreate || canDocs))
-          AknIconButton(
-            icon: PhosphorIconsRegular.dotsThree,
-            semanticLabel: 'Diğer seçenekler',
-            onPressed: () =>
-                _openMenu(v, canCreate: canCreate, canDocs: canDocs),
-          ),
-      ],
-      actionBar: dock,
-      body: body,
-    );
+    return null;
   }
 
   Widget _content(
     BuildContext context,
     OrderView v,
-    Loadable<OrderView> s,
-    bool canDocs,
-  ) {
-    final t = context.aknText;
-    final c = context.akn;
+    Loadable<OrderView> s, {
+    required bool canDocs,
+    required String? focus,
+  }) {
     final d = v.detail;
     final home = ref.watch(customerHomeProvider).data;
     final form = ref.watch(orderFormProvider).data;
@@ -414,13 +546,13 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final viewer = customerViewer(policy);
     final station = home?.station?.id == d.stationId ? home?.station : null;
     final point = form?.point(d.deliveryPointId);
-    final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final tracking = v.tracking;
     final active = tracking?.activeShipment;
     final awaitingQuote =
         d.status == OrderStatus.awaitingQuote ||
         d.status == OrderStatus.revisionRequested ||
         d.status == OrderStatus.created;
+    final short = shortCompany(d.stationTitle);
 
     final lamp = orderLampFor(
       viewer,
@@ -428,6 +560,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       serverLabel: d.statusDisplay,
       shipment: active?.status,
       finance: d.financeStatus,
+      actor: short.isEmpty ? null : short,
     );
 
     // Plakadaki teklif: karar ekranında en son sürüm; sonrasında seçili teklif kendi adıyla.
@@ -435,9 +568,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final decision = d.status == OrderStatus.awaitingApproval;
     final quoteTitle = switch (d.status) {
       OrderStatus.awaitingApproval =>
-        shortCompany(d.stationTitle).isEmpty
-            ? 'Teklif'
-            : '${shortCompany(d.stationTitle)} teklifi',
+        short.isEmpty ? 'Teklif' : '$short teklifi',
       OrderStatus.approved || OrderStatus.completed => 'Onaylanan teklif',
       OrderStatus.revisionRequested => 'Revize istenen teklif',
       OrderStatus.rejected => 'Reddedilen teklif',
@@ -448,20 +579,20 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         ? null
         : (decision ? v.latestQuote : d.currentQuote);
     final deliveryDiffers =
-        decision &&
         quote?.deliveryDate != null &&
         d.requestedDeliveryDate != null &&
         !TrTime.isSameDay(quote!.deliveryDate!, d.requestedDeliveryDate!);
 
     final expiryOn = config.expiryEnabled(tracking?.expiryEnabled ?? true);
     final expires = d.expiresAt;
-    final showCountdown =
+    final deadline =
         expiryOn &&
-        expires != null &&
-        !d.financeStatus.isAwaitingDecision &&
-        (decision || awaitingQuote);
+            expires != null &&
+            !d.financeStatus.isAwaitingDecision &&
+            (decision || awaitingQuote)
+        ? config.deviceDeadline(expires)
+        : null;
 
-    final strip = _stripFor(lamp, active?.status);
     final pointName =
         point?.name ??
         (d.deliveryPointName.isEmpty ? null : d.deliveryPointName);
@@ -471,6 +602,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final cancelled = (tracking?.shipments.length ?? 0) - shipments.length;
     final versions = v.quoteVersions;
     final comparison = tracking?.priceComparison;
+    final t = context.aknText;
+    final c = context.akn;
 
     Widget pad(Widget child, {double top = 14, Key? key}) => Padding(
       key: key,
@@ -478,23 +611,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       child: child,
     );
 
-    final statusLine = AknStatusLine(
-      lamp: AknLamp.status(lamp),
-      trailing: showCountdown
-          ? CountdownBadge(
-              deadline: config.deviceDeadline(expires),
-              start: quote?.createdAt == null || !decision
-                  ? null
-                  : config.deviceDeadline(quote!.createdAt!),
-              yourMove: lamp.yourMove,
-              subject: decision ? 'Teklif' : 'Teklif süresi',
-            )
-          : null,
-    );
-    // Karar sırası müşterideyken durum satırı teklif plakasının çerçevesine taşınır (§7.8: karar
-    // kartı vurgulu); diğer durumlarda aşama şeridinin altında durur.
-    final framed = decision && quote != null && quoteTitle != null;
-
+    // Ekranın tek kutusu: teklif plakası (karar ekranında son alımlarla kıyas da içinde); teklif
+    // yoksa tahmini tutar.
     Widget? plate;
     if (quote != null && quoteTitle != null) {
       plate = QuotePlate(
@@ -502,116 +620,114 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         detail: d,
         title: quoteTitle,
         stamp: _stamp,
+        line: [
+          Fmt.unitPrice(quote.unitPriceTry),
+          if (d.paymentMethodCode != null) paymentShortOf(d),
+          if (deliveryDiffers)
+            'teslim ${dayMonthLong(quote.deliveryDate)} '
+                '(${TurkishText.lower(OrdersCopy.deliveryDiffers)})',
+        ].join(' · '),
+        below: decision && PriceComparison.shows(comparison)
+            ? PriceComparison(
+                comparison: comparison!,
+                offer: quote.unitPriceTry,
+                onPlate: true,
+              )
+            : null,
       );
-      if (framed) {
-        plate = _DecisionFrame(
-          status: statusLine,
-          yourMove: lamp.yourMove,
-          child: plate,
-        );
-      }
     } else if (awaitingQuote && d.estimatedAmount != null) {
       plate = EstimatePlate(detail: d);
     }
 
+    final countdown = deadline == null
+        ? null
+        : CountdownBadge(
+            deadline: deadline,
+            yourMove: lamp.yourMove,
+            compact: true,
+            subject: decision ? 'Teklif' : 'Teklif süresi',
+          );
+    // Büyük yazıda (≥ 1,3×) geri sayım cümlenin altına iner: satır taşmaz, cümle kesilmez.
+    final largeText = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final Widget stage = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StageNow(
+          sentence: lamp.label,
+          yourMove: lamp.yourMove,
+          trailing: largeText ? null : countdown,
+          detail: _stageDetail(
+            v,
+            lamp: lamp,
+            station: short,
+            deadline: deadline,
+            active: active,
+            pointWindow: point?.windowLabel,
+          ),
+        ),
+        if (largeText && countdown != null) ...[
+          const SizedBox(height: 6),
+          Align(alignment: AlignmentDirectional.centerStart, child: countdown),
+        ],
+      ],
+    );
+
+    final hasHistory = tracking != null && tracking.steps.isNotEmpty;
+    final moreRows = <Widget>[
+      if (hasHistory)
+        AknListTile(
+          title: OrdersCopy.history,
+          subtitle: 'Siparişin adımları ve zamanları',
+          showChevron: true,
+          onTap: () => _openHistory(tracking, lamp.yourMove),
+        ),
+      if (canDocs)
+        AknListTile(
+          title: 'Sipariş belgeleri',
+          subtitle: 'Sipariş formu, teklif, teslim tutanağı',
+          showChevron: true,
+          onTap: () {
+            AknHaptics.selection();
+            context.push('${AppRoutes.documents}?orderId=${d.id}');
+          },
+        ),
+    ];
+
+    final dockUpload =
+        decision &&
+        v.paymentDocumentMissing &&
+        (v.documentTarget?.isUploadable ?? false) &&
+        policy.can(Pg.customerQuotes, Perm.edit);
+
     // Sayfanın blokları: açılışta sırayla yükselerek gelir, sonradan eklenen blok (uyarı, yeni
     // bölüm) kendi yerinde belirir.
     final blocks = <(String, Widget)>[
-      // Nesne başlığı.
+      // Nesne başlığı: insan adıyla sipariş; kod kopyalanan alt yazı.
       (
         'title',
-        pad(
-          top: 8,
-          // Web panelinin sayfa bandı: açık turuncu zemin, simge karosu, üst satır, başlık ve
-          // tek satırlık açıklama (nokta ve teslim günü).
-          DecoratedBox(
-            decoration: AknPageBand.decorationOf(c),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 14, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AknPageBand.tileOf(context, PhosphorIconsRegular.drop),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          OrdersCopy.orderDetail,
-                          style: t.caption.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: c.brandInk,
-                          ),
-                        ),
-                        // Büyük yazıda başlık ürün adından kırılır; litre birimiyle aynı satırda
-                        // kalır.
-                        Semantics(
-                          header: true,
-                          child: A2UnitText(
-                            orderTitle(d.productName, d.quantityLiters),
-                            style: t.display.copyWith(
-                              fontSize: 24,
-                              height: 30 / 24,
-                              color: c.ink,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.only(top: 1),
-                              child: Icon(
-                                PhosphorIconsRegular.mapPinLine,
-                                size: 16,
-                                color: c.dim,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                [
-                                  ?pointName,
-                                  if (d.requestedDeliveryDate != null)
-                                    '${dayMonthWeekday(d.requestedDeliveryDate)} teslim',
-                                ].join(', '),
-                                style: t.label.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color: c.dim,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        AknObjectHeader(
+          title: orderTitle(d.productName, d.quantityLiters),
+          line: [
+            ?pointName,
+            if (d.requestedDeliveryDate != null)
+              dayMonthLong(d.requestedDeliveryDate),
+          ].join(' · '),
+          caption: d.orderNumber,
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
         ),
       ),
-      // Aşama şeridi sayfa genişliğinde (etiketler 340 px'ten dar alanda tek satır özete iner);
-      // karar müşterideyken durum satırı karar kartına taşınır.
+      // » Akış çizgisi sayfa genişliğinde, altında kimin sırası olduğu.
       (
         'journey',
         pad(
-          top: 20,
+          top: 0,
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              StageStrip(
-                stages: [for (final st in AknStage.stops()) st.label],
-                current: strip.$1,
-                yourMove: lamp.yourMove,
-                problem: strip.$2,
-                // Büyük yazıda tek satır özet ("Aşama 3 / 6: Karar"); ayrıntılı akış aşağıda.
-                fallback: StageStripFallback.compact,
-              ),
-              if (!framed) ...[const SizedBox(height: 18), statusLine],
+              AknFlowLine(flow: AknFlow.customer(lamp)),
+              const SizedBox(height: 16),
+              stage,
             ],
           ),
         ),
@@ -651,108 +767,67 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               : const SizedBox(key: ValueKey('calm'), width: double.infinity),
         ),
       ),
-      for (final (i, w) in _financeWells(context, d).indexed)
-        ('finance-$i', pad(w)),
-      for (final (i, w) in _statusWells(d).indexed) ('status-$i', pad(w)),
-      // Ekranın tek plakası: teklif; teklif yoksa tahmini tutar.
-      if (plate != null) ('plate', pad(top: framed ? 14 : 16, plate)),
-      if (deliveryDiffers)
-        (
-          'differs',
-          pad(
-            A2Card(
-              padding: const EdgeInsets.all(14),
-              child: FactLine(
-                icon: PhosphorIconsRegular.calendarX,
-                tone: AknTone.warn,
-                text:
-                    '${OrdersCopy.deliveryDiffers}: istediğiniz gün ${dayMonthWeekday(d.requestedDeliveryDate)}.',
-              ),
-            ),
-          ),
-        ),
-      if (decision && v.advanceInsufficient)
-        (
-          'advance',
-          pad(
-            AknBanner(
-              tone: AknTone.danger,
-              icon: PhosphorIconsRegular.wallet,
-              title: 'Ön ödemeli bakiye yetersiz',
-              message:
-                  'Kullanılabilir bakiye ${Fmt.money(v.advanceBalance)}, teklif tutarı '
-                  '${Fmt.money(quote?.totalAmountTry)}. Bakiye yüklemek için bayinizle görüşün.',
-            ),
-          ),
-        ),
-      if (d.paymentMethodCode != null && (decision || quote != null))
-        (
-          'payment-line',
-          pad(
-            A2Swap(
-              child: PaymentFactLine(
-                key: ValueKey(v.paymentDocumentMissing),
-                view: v,
-                onUpload: v.documentTarget?.isUploadable == true
-                    ? () => _upload(v)
-                    : null,
-              ),
-            ),
-          ),
-        ),
-      if (decision && quote != null && PriceComparison.shows(comparison))
-        (
-          'compare',
-          pad(
-            A2Card(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-              child: PriceComparison(
-                comparison: comparison!,
-                offer: quote.unitPriceTry,
-              ),
-            ),
-          ),
-        ),
-      if (awaitingQuote && !d.financeStatus.isAwaitingDecision)
-        (
-          'awaiting',
-          OrderSection(
-            title: d.status == OrderStatus.revisionRequested
-                ? 'Revize teklif bekleniyor'
-                : 'Teklif bekleniyor',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  '${OrdersCopy.awaitingQuoteHint}.',
-                  style: t.body.copyWith(color: c.ink),
-                ),
-                if (d.status == OrderStatus.revisionRequested &&
-                    quote?.revisionNote != null) ...[
-                  const SizedBox(height: 8),
-                  FactRow(label: 'Revize notunuz', value: quote!.revisionNote!),
-                ],
-                if (station != null) ...[
-                  const SizedBox(height: 12),
-                  StationContactButtons(
-                    station: station,
-                    message:
-                        '${d.orderNumber} numaralı siparişim hakkında yazıyorum.',
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
+      // Yoldaki araç teklif plakasından önce gelir (o anın asıl bilgisi).
       if (active != null)
         (
           'active',
-          ActiveShipmentSection(
-            order: d,
-            shipment: active,
-            point: point,
-            station: awaitingQuote ? null : station,
-            canAccept: tracking?.canAcceptDeliveries ?? false,
+          AknFocusFlash(
+            active: focus == 'delivery',
+            child: ActiveShipmentSection(
+              order: d,
+              shipment: active,
+              point: point,
+              station: awaitingQuote ? null : station,
+              canAccept: tracking?.canAcceptDeliveries ?? false,
+            ),
+          ),
+        ),
+      if (plate != null)
+        (
+          'plate',
+          pad(
+            top: 18,
+            AknFocusFlash(
+              active: focus == 'quote' || focus == 'documents',
+              borderRadius: AknRadius.plate,
+              child: plate,
+            ),
+          ),
+        ),
+      if (d.status == OrderStatus.revisionRequested &&
+          quote?.revisionNote != null)
+        (
+          'revision',
+          pad(
+            top: 12,
+            FactLine(
+              icon: PhosphorIconsRegular.chatText,
+              text: 'Revize notunuz: ',
+              strong: quote!.revisionNote,
+            ),
+          ),
+        ),
+      // Teklif beklenirken bayiyle iletişim (karo yok, tek satır).
+      if (awaitingQuote && station != null)
+        (
+          'station',
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: AknLedger(
+              children: [
+                AknListTile(
+                  title: short.isEmpty ? 'Bayiniz' : 'Bayiniz · $short',
+                  subtitle: OrdersCopy.awaitingQuoteHint,
+                  subtitleMaxLines: 2,
+                  footer: StationContactButtons(
+                    station: station,
+                    dense: true,
+                    message:
+                        '${d.orderNumber} numaralı siparişim hakkında yazıyorum.',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       // Kısmi teslim kabul edildi, açık sevkiyat yok: siparişin neden açık kaldığı (sunucunun notu;
@@ -761,45 +836,48 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         (
           'completion',
           pad(
-            AknBanner(
-              tone: AknTone.info,
-              icon: PhosphorIconsRegular.info,
-              title: 'Sipariş henüz tamamlanmadı',
-              message: v.completionHint!,
+            top: 16,
+            MergeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sipariş henüz tamamlanmadı',
+                    style: t.bodyStrong.copyWith(color: c.ink),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    v.completionHint!,
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       if (shipments.isNotEmpty)
         (
           'shipments',
-          OrderSection(
-            title: 'Sevkiyatlar',
-            count: shipments.length,
-            bleed: true,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ShipmentRows(shipments: shipments, viewer: viewer),
-                if (cancelled > 0)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
-                    child: Text(
-                      '$cancelled sevkiyat planı iptal edildi.',
-                      style: t.bodySmall.copyWith(color: c.dim),
+          AknFocusFlash(
+            active: focus == 'delivery' && active == null,
+            child: OrderSection(
+              title: 'Sevkiyatlar',
+              count: shipments.length,
+              bleed: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ShipmentRows(shipments: shipments, viewer: viewer),
+                  if (cancelled > 0)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+                      child: Text(
+                        '$cancelled sevkiyat planı iptal edildi.',
+                        style: t.bodySmall.copyWith(color: c.dim),
+                      ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      if (tracking != null && tracking.steps.isNotEmpty)
-        (
-          'flow',
-          OrderSection(
-            title: OrdersCopy.tracking,
-            child: OrderFlowTimeline(
-              steps: tracking.steps,
-              yourMove: lamp.yourMove,
+                ],
+              ),
             ),
           ),
         ),
@@ -817,6 +895,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           'payment',
           PaymentBlock(
             view: v,
+            dockUpload: dockUpload,
             onUpload: v.documentTarget?.isUploadable == true
                 ? () => _upload(v)
                 : null,
@@ -829,7 +908,6 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FactRow(label: 'Sipariş no', value: d.orderNumber),
               if (d.stationTitle.isNotEmpty)
                 FactRow(label: 'Bayi', value: d.stationTitle),
               FactRow(label: 'Nokta', value: pointName ?? Fmt.dash),
@@ -851,23 +929,12 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           ),
         ),
       ),
-      if (canDocs)
+      if (moreRows.isNotEmpty)
         (
-          'docs',
-          OrderSection(
-            title: 'Belgeler',
-            bleed: true,
-            child: AknListTile(
-              leading: const A2IconTile(icon: PhosphorIconsRegular.folderOpen),
-              padding: a2RowPadding,
-              title: 'Sipariş belgeleri',
-              subtitle: 'Sipariş formu, teklif, teslim tutanağı',
-              showChevron: true,
-              onTap: () {
-                AknHaptics.selection();
-                context.push('${AppRoutes.documents}?orderId=${d.id}');
-              },
-            ),
+          'more',
+          Padding(
+            padding: const EdgeInsets.only(top: 18),
+            child: AknLedger(children: moreRows),
           ),
         ),
     ];
@@ -881,278 +948,106 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           LastUpdatedNote(updatedAt: s.updatedAt, fromCache: s.fromCache),
           for (final (i, (id, block)) in blocks.indexed)
             A2Rise(key: ValueKey(id), index: i, child: block),
-          if (canCreate && !decision) const SizedBox(height: 8),
         ],
       ),
     );
   }
 
-  /// Şeritteki konum ve sorun işareti.
-  (int, StageProblem?) _stripFor(StatusLamp lamp, ShipmentStatus? shipment) {
-    final n = AknStage.stops().length;
-    if (lamp.complete) return (n, null);
-    final i = lamp.stageIndex() ?? 0;
-    final problem = !lamp.problem
-        ? null
-        : (shipment == ShipmentStatus.disputed
-              ? StageProblem.attention
-              : StageProblem.rejected);
-    return (i < 0 ? 0 : i, problem);
-  }
+  /// StageNow'un ikinci satırı (v4 §3b): kim, ne zamana kadar ("Demir Petrol teklif verdi ·
+  /// bugün 21:00'e kadar").
+  String? _stageDetail(
+    OrderView v, {
+    required StatusLamp lamp,
+    required String station,
+    required DateTime? deadline,
+    required TrackingShipment? active,
+    String? pointWindow,
+  }) {
+    final d = v.detail;
+    final who = station.isEmpty ? 'Bayiniz' : station;
+    String? until() {
+      final at = deadline;
+      if (at == null) return null;
+      return '${relativeDay(at)} ${withDative(Fmt.time(at))} kadar';
+    }
 
-  List<Widget> _financeWells(BuildContext context, OrderDetail d) {
     switch (d.financeStatus) {
       case OrderFinanceStatus.pending:
-        return [
-          const AknBanner(
-            tone: AknTone.info,
-            icon: PhosphorIconsRegular.bank,
-            title: 'Finans onayında',
-            message:
-                'Bayinin finans ekibi siparişinizi inceliyor; onaylanınca bayi teklif verir.',
-          ),
-        ];
+        return 'Bayinin finans ekibi siparişinizi inceliyor; onaylanınca teklif gelir.';
       case OrderFinanceStatus.infoRequested:
-        final id = d.financeApprovalRequestId;
-        return [
-          AknBanner(
-            tone: AknTone.warn,
-            icon: PhosphorIconsRegular.envelopeSimple,
-            title: 'Finans ek bilgi istedi',
-            message:
-                'Yanıtınız ve istenen belge gelene kadar teklif verilemez.',
-            actionLabel: 'Yanıtla',
-            onAction: () => context.push(
-              id == null ? AppRoutes.financeInfo : AppRoutes.approval(id),
-            ),
-          ),
-        ];
+        return 'Yanıtınız ve istenen belge gelene kadar teklif verilemez.';
       case OrderFinanceStatus.rejected:
-        return [
-          AknBanner(
-            tone: AknTone.danger,
-            icon: PhosphorIconsRegular.prohibit,
-            title: 'Finans reddetti',
-            message:
-                d.financeReasons ??
-                'Bayinin finans ekibi bu siparişi onaylamadı; bayinizle görüşün.',
-          ),
-        ];
-      case OrderFinanceStatus.conditionallyApproved:
-        return [
-          const AknBanner(
-            tone: AknTone.ok,
-            icon: PhosphorIconsRegular.sealCheck,
-            title: 'Koşullu onaylandı',
-            message: 'Finans, ödeme koşullarını güncelleyerek onayladı.',
-          ),
-        ];
+        return d.financeReasons ??
+            'Bayinin finans ekibi bu siparişi onaylamadı; bayinizle görüşün.';
       default:
-        return const [];
+        break;
     }
-  }
-
-  List<Widget> _statusWells(OrderDetail d) => switch (d.status) {
-    OrderStatus.expired => [
-      const AknBanner(
-        tone: AknTone.neutral,
-        icon: PhosphorIconsRegular.hourglassLow,
-        title: 'Süresi doldu',
-        message:
-            'Bu siparişin teklif süresi doldu. Aynı siparişi yeniden verebilirsiniz.',
-      ),
-    ],
-    OrderStatus.rejected => [
-      const AknBanner(
-        tone: AknTone.neutral,
-        icon: PhosphorIconsRegular.minusCircle,
-        title: 'Reddedildi',
-        message: 'Bu sipariş kapandı.',
-      ),
-    ],
-    _ => const [],
-  };
-}
-
-/// Karar kartı (tasarım v3, §7.8 "sıra sizde"): teklif plakası yumuşak turuncu (`brandSoft`) bir
-/// çerçevenin içinde durur, çerçevenin başında durum satırı (lamba + geri sayım). Karar
-/// müşterideyken çerçevenin turuncu halesi yavaşça nefes alır ([AknAmbient]; testlerde ve hareket
-/// azaltıldığında durgun); karar yetkisi yoksa çerçeve sessiz kuyu rengindedir.
-class _DecisionFrame extends StatelessWidget {
-  const _DecisionFrame({
-    required this.status,
-    required this.child,
-    required this.yourMove,
-  });
-
-  final Widget status;
-  final Widget child;
-  final bool yourMove;
-
-  static const _radius = BorderRadius.all(
-    Radius.circular(AknRadius.plateRadius + 6),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final frame = DecoratedBox(
-      decoration: BoxDecoration(
-        color: yourMove ? c.brandSoft : c.surfaceAlt,
-        borderRadius: _radius,
-        border: Border.all(color: yourMove ? c.brandLine : c.line),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              child: status,
-            ),
-            child,
-          ],
-        ),
-      ),
-    );
-    if (!yourMove) return frame;
-    return AknAmbient(
-      period: AknMotion.breathe * 2,
-      reverse: true,
-      builder: (context, t, child) => DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: _radius,
-          boxShadow: [
-            BoxShadow(
-              color: c.brand.withValues(alpha: 0.10 + 0.14 * t),
-              offset: const Offset(0, 10),
-              blurRadius: 28,
-              spreadRadius: -6,
-            ),
-          ],
-        ),
-        child: child,
-      ),
-      child: RepaintBoundary(child: frame),
-    );
-  }
-}
-
-/// Karar çubuğu (§7.8): "Teklifi onayla" (tam genişlik; belge eksikse / avans yetmezse /
-/// çevrimdışıyken kapalı ve nedeni altında), altında "Revize iste" ve "Reddet". Belirsiz sonuçta
-/// "Kararınız kontrol ediliyor".
-class _DecisionDock extends StatelessWidget {
-  const _DecisionDock({
-    required this.view,
-    required this.online,
-    required this.pending,
-    required this.checking,
-    required this.onDecide,
-  });
-
-  final OrderView view;
-  final bool online;
-  final QuoteAction? pending;
-  final bool checking;
-  final ValueChanged<QuoteAction> onDecide;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final c = context.akn;
-    final busy = pending != null;
-    final stacked = MediaQuery.textScalerOf(context).scale(15) > 19.5;
-    final target = view.documentTarget;
-    final blockedReason = !online
-        ? OrdersCopy.decisionOffline
-        : view.paymentDocumentMissing
-        ? '${target?.label ?? 'Ödeme belgesi'} yüklenmeden onaylanamaz'
-        : view.advanceInsufficient
-        ? 'Bakiye yetersiz; bayinizle görüşün'
-        : null;
-    final approve = AknButton(
-      label: OrdersCopy.approve,
-      expand: true,
-      loading: pending == QuoteAction.approve,
-      semanticLabel: blockedReason == null
-          ? OrdersCopy.approve
-          : '${OrdersCopy.approve}, kapalı: $blockedReason',
-      onPressed: busy || blockedReason != null
+    final s = active?.status;
+    if (s != null &&
+        (d.status == OrderStatus.approved ||
+            d.status == OrderStatus.completed)) {
+      final when = active?.scheduledAt;
+      final day = when == null
           ? null
-          : () => onDecide(QuoteAction.approve),
-    );
-    final revise = AknButton.secondary(
-      label: OrdersCopy.revise,
-      size: AknButtonSize.medium,
-      expand: true,
-      loading: pending == QuoteAction.revise,
-      onPressed: busy || !online ? null : () => onDecide(QuoteAction.revise),
-    );
-    final reject = AknButton.danger(
-      label: OrdersCopy.reject,
-      size: AknButtonSize.medium,
-      expand: true,
-      loading: pending == QuoteAction.reject,
-      onPressed: busy || !online ? null : () => onDecide(QuoteAction.reject),
-    );
-    Widget note(IconData icon, String text, {Widget? lead, Key? key}) =>
-        Padding(
-          key: key,
-          padding: const EdgeInsets.only(top: 6, bottom: 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              lead ?? Icon(icon, size: 16, color: c.dim),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
-              ),
-            ],
+          : '${relativeDay(when)}${pointWindow == null ? '' : ', $pointWindow'}';
+      return switch (s) {
+        ShipmentStatus.planned => day == null ? null : '$day teslim',
+        ShipmentStatus.inTransit => day == null ? null : 'Tahmini teslim $day',
+        ShipmentStatus.reported => [
+          if (active?.deliveredLiters != null)
+            '${Fmt.liters(active!.deliveredLiters)} teslim edildi',
+          if (active?.deliveredAt != null) relativeMoment(active!.deliveredAt),
+        ].join(' · '),
+        ShipmentStatus.disputed =>
+          active?.disputeNote == null
+              ? 'İtirazınız bayiye iletildi.'
+              : 'İtirazınız: ${active!.disputeNote}',
+        _ => null,
+      };
+    }
+    return switch (d.status) {
+      OrderStatus.awaitingApproval =>
+        lamp.yourMove
+            ? ['$who teklif verdi', ?until()].join(' · ')
+            : 'Şirket yöneticiniz teklifi onaylayacak.',
+      OrderStatus.awaitingQuote ||
+      OrderStatus.created => 'Teklif gelince size haber veririz.',
+      OrderStatus.revisionRequested => '$who yeni teklif hazırlıyor.',
+      OrderStatus.approved => '$who sevkiyatı planlayacak.',
+      OrderStatus.completed =>
+        (v.tracking?.acceptedLiters ?? 0) > 0
+            ? '${Fmt.liters(v.tracking!.acceptedLiters)} teslim alındı.'
+            : null,
+      OrderStatus.rejected => 'Bu sipariş kapandı.',
+      OrderStatus.expired =>
+        'Teklif süresi doldu. Aynı siparişi yeniden verebilirsiniz.',
+      _ => null,
+    };
+  }
+}
+
+/// Karar çubuğunda düğme yerine bir neden (çevrimdışı): simge ve 14/20 soluk cümle.
+class _DockNote extends StatelessWidget {
+  const _DockNote({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+      child: Row(
+        children: [
+          ExcludeSemantics(child: Icon(icon, size: 20, color: c.dim)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
           ),
-        );
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        approve,
-        // Not satırı durum değişince söner / belirir (v3 §5).
-        A2Swap(
-          child: checking
-              ? note(
-                  key: const ValueKey('checking'),
-                  PhosphorIconsRegular.arrowsClockwise,
-                  OrdersCopy.decisionChecking,
-                  lead: const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: ChevronSpinner(size: 16),
-                  ),
-                )
-              // Büyük yazıda neden çubukta tekrarlanmaz (sayfadaki uyarı ve düğmenin ekran
-              // okuyucu etiketi söyler); çevrimdışıyken üstteki çevrimdışı satırı söyler.
-              : blockedReason != null && !busy && !stacked
-              ? note(
-                  key: ValueKey(blockedReason),
-                  PhosphorIconsRegular.info,
-                  blockedReason,
-                )
-              : const SizedBox(key: ValueKey('none'), width: double.infinity),
-        ),
-        const SizedBox(height: 10),
-        if (stacked) ...[
-          revise,
-          const SizedBox(height: 8),
-          reject,
-        ] else
-          Row(
-            children: [
-              Expanded(child: revise),
-              const SizedBox(width: 10),
-              Expanded(child: reject),
-            ],
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

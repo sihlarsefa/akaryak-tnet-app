@@ -27,7 +27,11 @@ abstract final class FieldCopy {
   static const pendingEmptyMessage =
       'Gönderilen formlar onay kademesine göre burada listelenir.';
   static const rejectedEmptyTitle = 'Reddedilen form yok';
+  static const rejectedEmptyMessage =
+      'Reddedilen formlar, ret nedeniyle birlikte burada görünür.';
   static const leadsEmptyTitle = 'Henüz ön kayıt yok';
+  static const leadsTeamEmptyMessage =
+      'Saha ekibinin açtığı ön kayıtlar burada görünür.';
   static const leadsEmptyMessage =
       'Yeni bir firmayı ziyaret ettiğinizde ön kaydı buradan açın; vergi levhasını fotoğraflayıp finansa gönderin.';
   static const portfolioEmptyTitle = 'Portföyünüz boş';

@@ -3,9 +3,15 @@
 ///
 /// Finans ve Tahsilat (yine A5) ortak parçaları buradan alır: sayfalı liste durumu ve görünümü,
 /// hata ekranları, belge ızgarası, yükleme, belirsiz sonuç kuralları ve sahte depo.
+///
+/// v4: çekirdek (görev kutusu, kabuk rozetleri) `application/`, `data/` dışa açımlarını ekledi.
 library;
 
+export 'application/approvals_providers.dart'
+    show approvalsListProvider, approvalBadgeProvider, refreshApprovalCounters;
 export 'approvals_routes.dart' show approvalsRoutes;
+export 'data/approval_models.dart' show ApprovalRow, ApprovalScope;
+export 'data/approvals_repository.dart' show ApprovalsQuery;
 export 'fake/a5_fake_store.dart' show A5FakeStore;
 export 'shared/action_outcome.dart';
 export 'shared/attachment_grid.dart';

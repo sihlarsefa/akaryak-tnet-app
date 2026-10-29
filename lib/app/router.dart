@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../core/auth/session_state.dart';
 import '../core/env/app_config_controller.dart';
 import '../core/env/app_env.dart';
 import '../core/models/app_config.dart';
+import '../core/push/local_read_marks.dart';
 import '../core/routing/app_location.dart';
 import '../core/routing/app_routes.dart';
 import '../core/routing/nav_keys.dart';
@@ -74,6 +77,7 @@ class AppRouter {
       refreshListenable: _refresh,
       errorBuilder: (context, state) => const _NotFoundPage(),
     );
+    router.routerDelegate.addListener(_onRouteChanged);
     // Rota tablosu yönlendirmeden önce güncellenir: giriş anında kabuk hazır olur.
     _subs.addAll([
       ref.listen(sessionControllerProvider, (prev, next) {
@@ -167,8 +171,64 @@ class AppRouter {
           () => ref.read(pendingDeepLinkProvider.notifier).set(null),
         );
       }
+      // v4 §3.5 cold start: go to the first tab, then push the target, so
+      // back always ends on Ana sayfa.
+      final target = result.location;
+      final layout = ref.read(navLayoutProvider);
+      if (target != null &&
+          target != layout.initialLocation &&
+          !isShellLocation(router, target)) {
+        _pushAfterFrame(target);
+        return layout.initialLocation;
+      }
     }
+    if (result.denied) _toastAfterFrame('Bu sayfayı açma yetkiniz yok.');
     return result.location;
+  }
+
+  /// The cold-start target waiting for the first tab (pushed once the
+  /// router has landed there).
+  String? _pendingPush;
+
+  void _pushAfterFrame(String target) {
+    _pendingPush = target;
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _flushPendingPush() {
+    final target = _pendingPush;
+    if (target == null) return;
+    if (ref.read(sessionControllerProvider) is! SessionAuthenticated) return;
+    final here = router.routerDelegate.currentConfiguration.uri.path;
+    if (here != ref.read(navLayoutProvider).initialLocation) return;
+    _pendingPush = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(sessionControllerProvider) is! SessionAuthenticated) return;
+      unawaited(router.push<Object?>(target));
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  void _toastAfterFrame(String message) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = rootNavigatorKey.currentContext;
+      AppToast.info(message, context: context);
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
+  }
+
+  /// v4 §3.5: opening an entity marks its notifications as read locally.
+  void _onRouteChanged() {
+    final uri = router.routerDelegate.currentConfiguration.uri;
+    final location = uri.toString();
+    _flushPendingPush();
+    Future.microtask(() {
+      try {
+        ref.read(localReadMarksProvider.notifier).mark(location);
+      } on Object {
+        // Disposed with the router: nothing to mark.
+      }
+    });
   }
 
   /// Kabuk açıkken gelen push dokunuşu: hemen git.
@@ -183,6 +243,7 @@ class AppRouter {
     for (final s in _subs) {
       s.close();
     }
+    router.routerDelegate.removeListener(_onRouteChanged);
     router.dispose();
     _refresh.dispose();
     _config.dispose();
@@ -196,7 +257,12 @@ class RedirectResult {
     this.location, {
     this.defer,
     this.consumedDeferred = false,
+    this.denied = false,
   });
+
+  /// v4 §3.5: the asked page is not allowed; [location] is its nearest
+  /// allowed parent (a toast says why).
+  final bool denied;
 
   /// Gidilecek konum (null = olduğu yerde kal).
   final String? location;
@@ -333,9 +399,34 @@ RedirectResult computeRedirect({
     return go(layout.initialLocation);
   }
   if (!RouteAccess.isAllowed(location, policy, features)) {
-    return go(layout.initialLocation);
+    // v4 §3.5: the nearest allowed parent (a tab or list page), else the
+    // first tab — with a toast there.
+    final parent = allowedParentOf(path, layout, policy, features);
+    return RedirectResult(parent ?? layout.initialLocation, denied: true);
   }
   return stay();
+}
+
+/// The nearest allowed parent page of [path] (v4 §3.5): `/orders/12/x` →
+/// `/orders` when allowed. Only real list / tab pages qualify (the
+/// destinations' roots and the bar); null when none is allowed.
+String? allowedParentOf(
+  String path,
+  NavLayout layout,
+  AccessPolicy policy,
+  AppFeatures features,
+) {
+  final roots = {for (final d in appDestinations) d.path};
+  final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+  for (var n = parts.length - 1; n >= 1; n--) {
+    final candidate = '/${parts.sublist(0, n).join('/')}';
+    if (!roots.contains(candidate)) continue;
+    if (candidate == AppRoutes.home && !layout.inBar(DestinationId.home)) {
+      continue;
+    }
+    if (RouteAccess.isAllowed(candidate, policy, features)) return candidate;
+  }
+  return null;
 }
 
 /// Özelliklerin rotaları (her özellik kendi `<f>_routes.dart` dosyasında tanımlar; spec C.3).

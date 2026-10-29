@@ -17,9 +17,11 @@ import 'package:akaryakitnet/core/storage/prefs_store.dart';
 import 'package:akaryakitnet/core/storage/secure_store.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/stats/api.dart';
+import 'package:akaryakitnet/features/stats/copy.dart';
 import 'package:akaryakitnet/features/stats/presentation/deck/manager_stats_deck.dart';
 import 'package:akaryakitnet/features/stats/stats_fake.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -266,23 +268,32 @@ DeckCardView topCard(WidgetTester tester) => tester
 /// En üstteki kartın kimliği (`DeckCards`).
 String topCardId(WidgetTester tester) => topCard(tester).card.id;
 
-/// Şeritteki konum metni ("2 / 6"; aynı zamanda "Sonraki kart" düğmesi).
-final Finder deckPositionText = find.descendant(
-  of: find.byType(LanePager),
-  matching: find.byWidgetPredicate(
-    (w) => w is Text && RegExp(r'^\d+ / \d+$').hasMatch(w.data ?? ''),
-  ),
-);
+/// Destenin şeridi (v4 §4: şerit artık "1 / N" yazmaz; konum [LanePager.index] / [LanePager.count]
+/// ve ekran okuyucu etiketinde). Tek kartlı destede şerit yoktur.
+final Finder deckPositionText = find.byType(LanePager);
 
-/// Alt satırdaki konum: "2 / 6" → (2, 6).
+/// Şeritteki konum: (2, 6).
 (int, int) deckPosition(WidgetTester tester) {
-  final text = tester.widget<Text>(deckPositionText);
-  final m = RegExp(r'^(\d+) / (\d+)$').firstMatch(text.data!)!;
-  return (int.parse(m[1]!), int.parse(m[2]!));
+  final p = tester.widget<LanePager>(find.byType(LanePager));
+  return (p.index + 1, p.count);
 }
 
-/// "1 / 8" düğmesine dokunur (sonraki kart).
-Future<void> tapDeckNext(WidgetTester tester) => tester.tap(deckPositionText);
+/// "Sonraki kart": destenin kendi ekran okuyucu eylemi (v4: şeritte gizli düğme yok).
+Future<void> tapDeckNext(WidgetTester tester) async {
+  final handle = tester.ensureSemantics();
+  final node = tester.getSemantics(
+    find.bySemanticsLabel(RegExp(r'karttan \d+\. kart: ')),
+  );
+  node.owner!.performAction(
+    node.id,
+    SemanticsAction.customAction,
+    CustomSemanticsAction.getIdentifier(
+      const CustomSemanticsAction(label: StatsCopy.deckNext),
+    ),
+  );
+  handle.dispose();
+  await tester.pump();
+}
 
 /// Şeritteki [lane]. çizgiye dokunur (0'dan; etkin çizgi 24, diğerleri 10 geniş, aralık 6).
 Future<void> tapDeckLane(WidgetTester tester, int lane) async {
@@ -290,16 +301,18 @@ Future<void> tapDeckLane(WidgetTester tester, int lane) async {
   final active = pos - 1;
   var left = 0.0;
   for (var i = 0; i < lane; i++) {
-    left += (i == active ? 24 : 10) + 6;
+    left += (i == active ? 20 : 6) + 10;
   }
-  final w = lane == active ? 24.0 : 10.0;
+  final w = lane == active ? 20.0 : 6.0;
   final origin = tester.getTopLeft(find.byType(LanePager));
-  await tester.tapAt(origin + Offset(left + w / 2, 24));
+  await tester.tapAt(origin + Offset(left + w / 2, 20));
 }
 
 /// Destedeki tüm kartların sırası: "Sonraki kart" ile baştan sona dolaşır (hareket azaltma açıkken).
 Future<List<String>> deckOrder(WidgetTester tester) async {
-  if (deckPositionText.evaluate().isEmpty) return [topCardId(tester)];
+  if (deckPositionText.evaluate().isEmpty || deckPosition(tester).$2 < 2) {
+    return [topCardId(tester)];
+  }
   final (_, n) = deckPosition(tester);
   final ids = <String>[];
   for (var i = 0; i < n; i++) {

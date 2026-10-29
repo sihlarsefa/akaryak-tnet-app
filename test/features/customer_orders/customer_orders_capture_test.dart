@@ -235,13 +235,13 @@ void main() {
       await open(
         '/orders/$waiting',
         'detay_3_teklif_bekleniyor',
-        until: find.byType(StageStrip),
+        until: find.byType(AknFlowLine),
       );
       if (done != null) {
         await open(
           '/orders/$done',
           'detay_4_tamamlandi',
-          until: find.byType(StageStrip),
+          until: find.byType(AknFlowLine),
         );
       }
       AppToast.dismiss();

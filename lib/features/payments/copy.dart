@@ -8,6 +8,16 @@ import '../../core/models/enums.dart';
 
 abstract final class PaymentsCopy {
   static const title = 'Tahsilat';
+
+  /// İtilmiş ayrıntının başlığı: nesnenin türü (v4 §3.2).
+  static const detailTitle = 'Ödeme';
+
+  /// Bant durumu (v4 §3.2): "Vadesi geçen 2 ödeme" (· tutar).
+  static String overdueStatus(int n) => 'Vadesi geçen $n ödeme';
+  static const calmStatus = 'Vadesi geçen ödeme yok';
+
+  /// Belgesi yüklenen ödemenin fiil satırı (kontrol sırası Tahsilat'ta).
+  static const checkNext = 'Belgeyi kontrol edin';
   static const paymentsTab = 'Ödemeler';
   static const instrumentsTab = 'Çek / senet';
   static const searchPayments = 'Sipariş no ya da cari ara';

@@ -8,6 +8,7 @@ import '../../../../core/models/attachment.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/network/app_failure.dart';
 import '../../../../core/offline/connectivity.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -124,12 +125,15 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
     final online = ref.watch(isOnlineProvider);
     final d = async.valueOrNull;
     final canAct = d != null && (d.actions.canAccept || d.actions.canDispute);
+    final focus = focusParamOf(context);
     return AppScaffold(
-      title: d?.code ?? 'Teslimat',
+      // v4 §3.2: çubukta nesnenin türü; kod başlıkta değil, alt yazıda.
+      title: 'Teslimat',
+      collapsedTitle: d == null ? null : _titleOf(d),
       refreshing: async.isLoading && d != null,
       actionBar: canAct
-          ? _ActionBar(
-              detail: d,
+          ? _dockOf(
+              d,
               online: online,
               accepting: _accepting,
               checking: _checking,
@@ -147,17 +151,14 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
           // Bloklar açılışta sırayla yükselerek gelir; sonradan eklenen blok kendi yerinde belirir.
           final blocks = <(String, Widget)>[
             ('hero', _Hero(detail: d)),
-            if (d.isDelivered) ('plate', DeliveredPlate(detail: d)),
-            if (d.actions.canAccept)
+            // `?focus=delivery`: teslim edilen miktar ve kanıt görünür ve parlar.
+            if (d.isDelivered)
               (
-                'accept',
-                const AknBanner(
-                  margin: EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  tone: AknTone.brand,
-                  icon: PhosphorIconsRegular.listChecks,
-                  title: 'Teslimatı kontrol edip onaylayın',
-                  message:
-                      'Teslim edilen miktarı, irsaliye numarasını ve fotoğrafları kontrol edin. Sorun varsa itiraz edin.',
+                'plate',
+                AknFocusFlash(
+                  active: focus == 'delivery',
+                  borderRadius: AknRadius.plate,
+                  child: DeliveredPlate(detail: d),
                 ),
               ),
             if (d.isDelivered) ('proof', ProofCard(detail: d)),
@@ -193,6 +194,57 @@ class _ShipmentDetailPageState extends ConsumerState<ShipmentDetailPage> {
       ),
     );
   }
+}
+
+/// "10.000 L motorin" (nesnenin insan adı).
+String _titleOf(ShipmentDetail d) {
+  final litres = Fmt.liters(d.deliveredLiters ?? d.plannedLiters);
+  final product = d.productName == null
+      ? null
+      : TurkishText.lower(d.productName!);
+  return product == null ? litres : '$litres $product';
+}
+
+/// Teslimat kararı (tasarım v4 §4 ActionBar.decision): birincil "Teslimatı onayla" (52 dp), altında
+/// ne kontrol edileceği, yanında hayalet "İtiraz et". Çevrimdışıyken düğme yok, neden yazılır;
+/// yalnızca itiraz edilebiliyorsa (onay kapalı) eski çubuk.
+Widget _dockOf(
+  ShipmentDetail d, {
+  required bool online,
+  required bool accepting,
+  required bool checking,
+  required VoidCallback onAccept,
+  required VoidCallback onDispute,
+}) {
+  if (online && d.actions.canAccept) {
+    return ActionBar.decision(
+      primary: AknButton(
+        label: _ActionBar._acceptLabel,
+        celebrate: true,
+        loading: accepting,
+        loadingLabel: checking ? CmCopy.acceptChecking : 'Gönderiliyor',
+        onPressed: onAccept,
+      ),
+      caption: checking
+          ? CmCopy.acceptChecking
+          : 'Miktarı, irsaliyeyi ve fotoğrafları kontrol edin',
+      secondaries: [
+        if (d.actions.canDispute)
+          AknButton.danger(
+            label: _ActionBar._disputeLabel,
+            onPressed: accepting ? null : onDispute,
+          ),
+      ],
+    );
+  }
+  return _ActionBar(
+    detail: d,
+    online: online,
+    accepting: accepting,
+    checking: checking,
+    onAccept: onAccept,
+    onDispute: onDispute,
+  );
 }
 
 class _ActionBar extends StatelessWidget {
@@ -313,11 +365,7 @@ class _Hero extends StatelessWidget {
       StatusViewer.customer(canDecide: d.actions.canAccept),
       serverLabel: d.statusLabel,
     );
-    final litres = Fmt.liters(d.deliveredLiters ?? d.plannedLiters);
-    final product = d.productName == null
-        ? null
-        : TurkishText.lower(d.productName!);
-    final title = product == null ? litres : '$litres $product';
+    final title = _titleOf(d);
     final day = d.deliveredAt ?? d.scheduledAt;
     final sub = [?d.place.name, if (day != null) _dayPhrase(day)].join(', ');
     final inTransit = d.status == ShipmentStatus.inTransit;
@@ -356,6 +404,26 @@ class _Hero extends StatelessWidget {
             const SizedBox(height: 4),
             Text(sub, style: t.bodySmall.copyWith(color: c.dim)),
           ],
+          // Kod yalnızca alt yazı: basılı tutunca kopyalanır (v4 P4).
+          const SizedBox(height: 2),
+          Semantics(
+            label: d.code,
+            hint: 'Kopyalamak için basılı tutun',
+            excludeSemantics: true,
+            onLongPress: () => copyText(context, d.code, 'Kod kopyalandı'),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: () => copyText(context, d.code, 'Kod kopyalandı'),
+              child: Text(
+                d.code,
+                style: t.label.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: c.dim,
+                  fontFeatures: AknNumerals.tabular,
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           AknStatusLine(
             lamp: AknLamp.status(lamp),
@@ -394,12 +462,12 @@ class _Hero extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               AknInlineLink(
-                label: 'Sipariş ${d.orderNumber}',
+                label: 'Siparişi aç',
                 onTap: () => context.push(AppRoutes.order(d.orderId)),
               ),
               if (d.stationTitle != null)
                 Text(
-                  d.stationTitle!,
+                  shortTitle(d.stationTitle!),
                   style: t.bodySmall.copyWith(color: c.dim),
                 ),
             ],
@@ -753,8 +821,12 @@ class _VehicleCard extends StatelessWidget {
         excludeSemantics: true,
         child: Row(
           children: [
-            const CmIconTile(icon: PhosphorIconsRegular.steeringWheel),
-            const SizedBox(width: 14),
+            Icon(
+              PhosphorIconsRegular.steeringWheel,
+              size: 20,
+              color: context.akn.dim,
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -794,11 +866,12 @@ class _PlaceCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CmIconTile(
-                icon: PhosphorIconsRegular.mapPin,
-                tone: AknTone.brand,
+              Icon(
+                PhosphorIconsRegular.mapPin,
+                size: 20,
+                color: context.akn.dim,
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -868,7 +941,7 @@ class _DocumentsCard extends StatelessWidget {
             DocumentTile(
               request: r,
               onTap: () => onOpen(r),
-              padding: CmCard.rowPadding,
+              padding: cmRowPadding,
             ),
         ],
       ),

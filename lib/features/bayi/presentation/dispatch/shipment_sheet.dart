@@ -14,7 +14,6 @@ import '../../application/bayi_actions.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/dispatch_controller.dart';
 import '../../data/dispatch_models.dart';
-import '../home/home_atoms.dart' show HomeIconTile;
 import '../widgets/bayi_widgets.dart';
 import 'driver_picker.dart';
 import 'report_sheet.dart';
@@ -433,7 +432,7 @@ class _Content extends ConsumerWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const HomeIconTile(icon: PhosphorIconsRegular.mapPin),
+            const AknIconBox(icon: PhosphorIconsRegular.mapPin, size: 36),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

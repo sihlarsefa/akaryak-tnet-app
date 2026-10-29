@@ -100,7 +100,10 @@ class KpiTile extends StatelessWidget {
         ? _KpiCellScope.wellOf(context)
         : AknCardScope.onSurface(context);
     final tc = tone == null ? null : c.tone(tone!);
-    final labelStyle = t.label.copyWith(color: c.ink);
+    // v4: on a card each column's label is 12/16 dim.
+    final labelStyle = well
+        ? t.caption.copyWith(fontSize: 12, height: 16 / 12, color: c.dim)
+        : t.label.copyWith(color: c.ink);
     final valueStyle = t.number.copyWith(color: tc?.fg ?? c.ink);
     final unitStyle = t.readoutUnit.copyWith(
       height: 1.2,
@@ -268,8 +271,9 @@ class KpiTile extends StatelessWidget {
 
 /// A row of KPI tiles (design v3 §4): equal columns [spacing] (12) apart,
 /// each cell a white card (radius 20, the soft card shadow; dark: a 1 px
-/// `line`) — or, on a card, a sheet or the hero card, a quiet well
-/// (`surfaceAlt`, radius 16) — with equal heights per line. Two cells per
+/// `line`) — or, on a card, a sheet or the hero card, a plain column (v4:
+/// no `surfaceAlt` wells; the label 12/16 dim over the value) — with equal
+/// heights per line. Two cells per
 /// line below 340 px or at text scale ≥ 1.3 (with more than two); at ≥ 1.6×
 /// one per line when a cell would be narrower than [minTileWidth], so
 /// labels wrap at word boundaries instead of breaking mid-word (WCAG
@@ -390,7 +394,7 @@ class _KpiCell extends StatelessWidget {
     Widget content = AknCardScope(
       child: Padding(
         padding: well
-            ? const EdgeInsets.fromLTRB(12, 10, 10, 12)
+            ? const EdgeInsets.fromLTRB(0, 4, 8, 4)
             : const EdgeInsets.fromLTRB(14, 12, 12, 14),
         child: child,
       ),
@@ -414,9 +418,11 @@ class _KpiCell extends StatelessWidget {
         ),
       );
     }
+    // v4 (§4): on a card the cells are plain equal columns — no
+    // `surfaceAlt` wells (one container per group, P6).
     return DecoratedBox(
       decoration: well
-          ? BoxDecoration(color: c.surfaceAlt, borderRadius: radius)
+          ? BoxDecoration(borderRadius: radius)
           : BoxDecoration(
               color: c.surface,
               borderRadius: radius,

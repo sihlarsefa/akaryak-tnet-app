@@ -9,6 +9,7 @@ import '../../core/network/fake/fake_personas.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/network/fake/fake_world.dart';
 import '../../core/utils/tr_time.dart';
+import '../../core/utils/turkish_text.dart';
 
 /// Şoför sahte uçları (sahibi A7, spec B.10 / D.4). Ortak dünyadaki sevkiyatlar kullanılır; yola çıkış ve
 /// teslim durumu ilerletir (Planlandı → Yolda → Kabul bekliyor) ve müşteri tarafı aynı kaydı görür.
@@ -63,8 +64,9 @@ void registerDriverFakes(FakeServer server) {
       s,
       eventCode: 'shipment.dispatched',
       title: 'Aracınız yola çıktı',
+      // v4: bildirim metninde kod ve tutar yok; ne, ne kadar, nereye.
       body:
-          '${s['orderNumber']} siparişinizin ${_liters(s['plannedLiters'])} teslimatı yolda.',
+          '${_liters(s['plannedLiters'])} ${_product(s)}, ${_place(w, s)} için yolda.',
       route: '/orders/${s['orderId']}',
       entityType: 'Order',
       entityId: s['orderId'] as int?,
@@ -218,7 +220,8 @@ void registerDriverFakes(FakeServer server) {
       eventCode: 'shipment.reported',
       title: 'Teslimatı onaylayın',
       body:
-          '${s['orderNumber']} için ${_liters(liters)} teslim edildi. Kontrol edip onaylayın.',
+          '${_place(w, s)} için ${_liters(liters)} ${_product(s)} teslim edildi. '
+          'Kontrol edip onaylayın.',
       route: '/shipments/$id',
       entityType: 'Shipment',
       entityId: id,
@@ -238,7 +241,7 @@ FakePersona _driver(FakeRequest req) {
   final p = req.requireUser();
   if (p.persona != Persona.bayi || !p.can(Pg.stationShipments)) {
     throw FakeResponse.forbidden(
-      'Teslimatlarım yalnızca bayi personeline açıktır.',
+      'Teslimatlar yalnızca bayi personeline açıktır.',
     );
   }
   return p;
@@ -482,6 +485,14 @@ String _liters(Object? v) {
 
 // ------------------------------------------------------------------ Bildirimler
 
+/// Bildirim metnindeki ürün: küçük harfle ("motorin").
+String _product(JsonMap s) =>
+    TurkishText.lower('${s['productName'] ?? 'yakıt'}');
+
+/// Bildirim metnindeki teslimat noktası ("Pendik Lojistik Merkezi").
+String _place(FakeWorld w, JsonMap s) =>
+    '${s['deliveryPointName'] ?? w.deliveryPoint(s['deliveryPointId'] as int?)?['name'] ?? 'teslimat noktanız'}';
+
 void _notifyCustomers(
   FakeWorld w,
   JsonMap s, {
@@ -523,7 +534,8 @@ void _notifyBayi(FakeWorld w, JsonMap s, {required String actor}) {
       eventCode: 'shipment.reported',
       title: 'Teslimat bildirildi',
       body:
-          '${s['orderNumber']}, ${s['customerName']}: müşteri onayı bekleniyor.',
+          '${s['customerName']} için ${_liters(s['deliveredLiters'] ?? s['plannedLiters'])} '
+          '${_product(s)} teslim edildi; müşteri onayı bekleniyor.',
       route: '/bayi/orders/${s['orderId']}',
       entityType: 'Order',
       entityId: s['orderId'] as int?,

@@ -50,7 +50,8 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage>
+    with WidgetsBindingObserver {
   final _user = TextEditingController();
   final _password = TextEditingController();
   final _phone = TextEditingController();
@@ -67,6 +68,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   /// Demo bölümü: alt bilgideki "Demo" bağlantısı buraya kaydırır.
   final _demoKey = GlobalKey(debugLabel: 'login.demo');
+
+  /// "Giriş yap" / "Kod gönder": klavye açılınca görünür kalır (v4 §5 01).
+  final _submitKey = GlobalKey(debugLabel: 'login.submit');
+  Timer? _keyboardSettle;
   AuthErrorInfo? _error;
   String? _userError;
   String? _passwordError;
@@ -75,6 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Kilit ekranından "Şifreyle giriş yap": kullanıcı adı hazır, şifreye odaklan.
     final prefill = ref.read(loginPrefillProvider);
     if (prefill != null && prefill.isNotEmpty) {
@@ -89,6 +95,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _keyboardSettle?.cancel();
     _user.dispose();
     _password.dispose();
     _phone.dispose();
@@ -96,6 +104,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _passwordFocus.dispose();
     _phoneFocus.dispose();
     super.dispose();
+  }
+
+  /// Klavye açılıp kapanırken (görünüm payı değişir) çağrılır: klavye yerleşince, bir giriş alanı
+  /// odaktaysa sayfa "Giriş yap" düğmesi klavyenin hemen üstünde görünecek kadar kayar. Alan kendi
+  /// görünürlüğünü zaten sağlar (düğme alanın altında; ikisi birlikte sığar).
+  @override
+  void didChangeMetrics() {
+    _keyboardSettle?.cancel();
+    _keyboardSettle = Timer(
+      const Duration(milliseconds: 220),
+      _keepSubmitVisible,
+    );
+  }
+
+  void _keepSubmitVisible() {
+    if (!mounted) return;
+    final focused =
+        _userFocus.hasFocus || _passwordFocus.hasFocus || _phoneFocus.hasFocus;
+    final target = _submitKey.currentContext;
+    // Düğme zaten görünüyorsa kaydırma olmaz (klavye kapanırken de).
+    if (!focused || target == null) return;
+    unawaited(
+      Scrollable.ensureVisible(
+        target,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        duration: AknMotion.of(context, AknMotion.base),
+        curve: AknMotion.standard,
+      ),
+    );
   }
 
   /// Telefonla giriş sunucuda kapandıysa şifreye döner.
@@ -418,13 +455,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         style: t.display.copyWith(color: c.ink),
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      demo
-                                          ? AuthCopy.welcomeLine
-                                          : AuthCopy.loginSubtitle,
-                                      style: t.body.copyWith(color: c.dim),
-                                    ),
+                                    // v4 §5 01: demo derlemesinde "Hoş geldiniz"in hemen altında
+                                    // kartlar gelir (alt satır yok); canlı derlemede kimin
+                                    // giriş yaptığını söyleyen tek satır kalır.
+                                    if (!demo) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        AuthCopy.loginSubtitle,
+                                        style: t.body.copyWith(color: c.dim),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
@@ -500,18 +540,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                 if (_busy || m == mode) return;
                                                 _setMode(m);
                                               },
+                                              // v4: yalın anahtar (simge yok).
                                               options: const [
                                                 (
                                                   value: LoginMode.password,
                                                   label: AuthCopy.modePassword,
-                                                  icon:
-                                                      PhosphorIconsRegular.lock,
+                                                  icon: null,
                                                 ),
                                                 (
                                                   value: LoginMode.phone,
                                                   label: AuthCopy.modePhone,
-                                                  icon: PhosphorIconsRegular
-                                                      .deviceMobile,
+                                                  icon: null,
                                                 ),
                                               ],
                                             ),
@@ -539,6 +578,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         ),
                                         const SizedBox(height: 20),
                                         AuthReveal(
+                                          key: _submitKey,
                                           index: 5,
                                           child: HoldAwareButton(
                                             scope: mode == LoginMode.password
@@ -669,12 +709,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // v4 §5 01: alanlarda simge yok (etiket üstte yeterli); şifrede yalnızca "Göster".
         AknTextField(
           controller: _user,
           focusNode: _userFocus,
           label: AuthCopy.userLabel,
-          // Web panelinin giriş alanları gibi baştaki simge.
-          prefixIcon: PhosphorIconsRegular.user,
           keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
           autofillHints: const [AutofillHints.username, AutofillHints.email],
@@ -689,7 +728,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           controller: _password,
           focusNode: _passwordFocus,
           label: AuthCopy.passwordLabel,
-          prefixIcon: PhosphorIconsRegular.lockSimple,
           labelActionText: large ? null : AuthCopy.forgotPassword,
           onLabelAction: large ? null : _openForgotPassword,
           obscureText: _obscure,
@@ -722,7 +760,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       controller: _phone,
       focusNode: _phoneFocus,
       label: AuthCopy.phoneLabel,
-      prefixIcon: PhosphorIconsRegular.deviceMobile,
       hint: AuthCopy.phoneHint,
       helper: AuthCopy.phoneHelper,
       keyboardType: TextInputType.phone,

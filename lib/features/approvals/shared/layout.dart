@@ -10,6 +10,17 @@ import '../../../core/utils/tr_time.dart';
 bool isLargeText(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(10) > 13;
 
+/// v4 §5 09 ("Diğer'den itilince de aynı görünür"): Onaylar, Finans ve Tahsilat alt menüde
+/// olmadığında tam ekran açılır; sayfa yine bandıyla görünür (`AppScaffold.largeTitle: true`).
+/// Önde geri dönülebiliyorsa çubuğun kendi geri düğmesi, dönülemiyorsa (soğuk açılış) "Ana sayfa"
+/// düğmesi; sekme kökünde hiçbiri.
+Widget? bandPageLeading(BuildContext context) {
+  if (ModalRoute.of(context)?.impliesAppBarDismissal ?? false) return null;
+  if (AknTabScope.isIn(context)) return null;
+  final home = AppChrome.maybeOf(context)?.onGoHome;
+  return home == null ? null : AknHomeButton(onPressed: home);
+}
+
 /// Zaman çizelgesi için kısa zaman damgası: bu yıl `21.10 14:20`, değilse `21.10.2025`.
 String shortStamp(DateTime? at) {
   if (at == null) return Fmt.dash;

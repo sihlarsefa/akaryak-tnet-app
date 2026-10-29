@@ -498,7 +498,7 @@ class _ExitSheet extends StatelessWidget {
             offset: 8,
             scale: 0.8,
             curve: AknMotion.pop,
-            child: A2IconTile(
+            child: AknIconBox(
               icon: PhosphorIconsRegular.notePencil,
               tone: AknTone.brand,
               size: 52,

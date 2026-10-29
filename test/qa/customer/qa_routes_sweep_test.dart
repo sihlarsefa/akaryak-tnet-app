@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../integration_test/smoke_flows.dart';
 import '../../support/a11y.dart';
+import '../../support/fonts.dart';
 import 'qa_support.dart';
 
 const _customerPersonas = ['musteri', 'talep', 'onay'];
@@ -49,6 +50,10 @@ const _routes = [
 ];
 
 void main() {
+  // Gerçek yüz (Archivo): "Sıra sizde" baş satırı cihazdaki gibi ölçülür (test yazı tipinde
+  // çekirdeğin satırı uzun geri sayımla taşar; çekirdeğe bildirildi).
+  setUpAll(loadRealFonts);
+
   for (final scale in [1.0, 2.0]) {
     for (final persona in _customerPersonas) {
       testWidgets('QA $persona ${scale}x: müşteri rotaları hatasız açılır', (

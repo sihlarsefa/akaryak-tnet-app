@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/permissions.dart';
+import '../../../../core/models/models.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -16,59 +17,101 @@ import '../../data/customer_models.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 
-/// Cariler (spec A.4, tasarım v3 "Akış"): kök başlık, arama kuyusu, cari kartları (limit kullanımı
-/// sağda, finans durumu çipi, açık sipariş sayısı, limite yaklaşanda dolarak gelen kullanım çubuğu);
-/// saha satış temsilcisi yalnızca portföyünü görür. Karta dokununca cari kartı (360-lite).
-class BayiCustomersPage extends ConsumerWidget {
+/// Cariler (tasarım v4 "Sade" §3.2): bant "Cariler" + canlı durum satırı ("24 cari · 3'ü limitine
+/// yakın") + ⌕ (arama şeridi bandın altında açılır); cariler tek defter kartında (limit kullanımı
+/// sağda, finans durumu yalnızca istisnada, limite yaklaşanda dolarak gelen kullanım çubuğu); saha
+/// satış temsilcisi yalnızca portföyünü görür. Satıra dokununca cari kartı (360-lite).
+class BayiCustomersPage extends ConsumerStatefulWidget {
   const BayiCustomersPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BayiCustomersPage> createState() => _BayiCustomersPageState();
+}
+
+class _BayiCustomersPageState extends ConsumerState<BayiCustomersPage> {
+  late bool _searching = ref.read(bayiCustomersProvider).query.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
     final s = ref.watch(bayiCustomersProvider);
     final c = ref.read(bayiCustomersProvider.notifier);
     final g = ref.watch(bayiGrantsProvider);
     final portfolio = !g.policy.can(Pg.stationCustomers) && g.isFieldSales;
     final total = s.list.totalCount;
+    // "24 cari · 3'ü limitine yakın" (yakın sayısı yüklenen satırlardan; liste bitmişse tam).
+    final near = s.list.items.where((r) {
+      final tone = limitTone(r.limitTone);
+      return tone == AknTone.warn || tone == AknTone.danger;
+    }).length;
+    final Object? status = total <= 0
+        ? null
+        : [
+            AknStatusClause('${Fmt.integer(total)} cari'),
+            if (near > 0 && !s.list.hasMore)
+              AknStatusClause('${_possessive(near)} limitine yakın'),
+          ];
     return AppScaffold(
       title: portfolio ? 'Portföyüm' : 'Cariler',
       bandIcon: PhosphorIconsRegular.usersThree,
-      eyebrow: 'Bayi',
-      description: 'Müşteriler, limit ve risk',
+      status: status,
       refreshing: s.list.refreshing,
-      body: PagedListBody<BayiCustomerRow>(
-        list: s.list,
-        header: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 2),
-            child: SearchField(
-              hint: 'Ünvan, vergi no, kod ya da şehir',
-              onChanged: c.setQuery,
+      actions: [
+        AknSearchReveal.button(
+          semanticLabel: 'Cari ara',
+          onPressed: () => setState(() => _searching = true),
+        ),
+      ],
+      body: Column(
+        children: [
+          AknSearchReveal(
+            open: _searching,
+            hint: 'Ünvan, vergi no, kod ya da şehir',
+            onChanged: c.setQuery,
+            onClose: () => setState(() => _searching = false),
+          ),
+          Expanded(
+            child: PagedListBody<BayiCustomerRow>(
+              list: s.list,
+              ledger: true,
+              header: const [SizedBox(height: 4)],
+              onRefresh: () => c.reload(silent: true),
+              onLoadMore: () => unawaited(c.loadMore()),
+              filtered: s.query.isNotEmpty,
+              query: s.query,
+              onClearFilters: () {
+                c.setQuery('');
+                setState(() => _searching = false);
+              },
+              empty: EmptyState(
+                compact: true,
+                title: BayiCopy.customersEmptyTitle,
+                message: portfolio
+                    ? BayiCopy.portfolioEmptyMessage
+                    : BayiCopy.customersEmptyMessage,
+                illustration: AknIllustration.customers,
+              ),
+              footer: total <= 0
+                  ? null
+                  : const ListFooterNote(
+                      'Pasif cariler de listede; satırında "Pasif" yazar.',
+                    ),
+              itemBuilder: (context, row, _) => CustomerRowCard(row: row),
             ),
           ),
         ],
-        onRefresh: () => c.reload(silent: true),
-        onLoadMore: () => unawaited(c.loadMore()),
-        filtered: s.query.isNotEmpty,
-        // Satır kendi basılı hâlini çizer (içeride küçülür); kart sabit kalır.
-        pressableCards: false,
-        onClearFilters: () => c.setQuery(''),
-        empty: EmptyState(
-          title: BayiCopy.customersEmptyTitle,
-          message: portfolio
-              ? BayiCopy.portfolioEmptyMessage
-              : BayiCopy.customersEmptyMessage,
-          illustration: AknIllustration.customers,
-        ),
-        footer: total <= 0
-            ? null
-            : ListFooterNote(
-                portfolio
-                    ? 'Portföyünüzde ${Fmt.integer(total)} cari var.'
-                    : 'Toplam ${Fmt.integer(total)} cari. Pasif cariler de listede, kartında "Pasif" yazar.',
-              ),
-        itemBuilder: (context, row, _) => CustomerRowCard(row: row),
       ),
     );
+  }
+
+  /// "3'ü", "2'si", "1'i".
+  static String _possessive(int n) {
+    const suffix = ['', 'i', 'si', 'ü', 'ü', 'i', 'sı', 'si', 'i', 'u'];
+    final ones = n % 10;
+    if (ones != 0) return "$n'${suffix[ones]}";
+    const tens = ['', 'u', 'si', 'u', 'ı', 'si', 'ı', 'i', 'i', 'ı'];
+    final t = (n ~/ 10) % 10;
+    if (t != 0) return "$n'${tens[t]}";
+    return (n ~/ 100) % 10 != 0 ? "$n'ü" : "$n'i";
   }
 }
 
@@ -93,16 +136,17 @@ class CustomerRowCard extends StatelessWidget {
         ? null
         : 'son sipariş ${TurkishText.lower(Fmt.relative(r.lastOrderAt))}';
     final near = tone == AknTone.warn || tone == AknTone.danger;
+    // v4 P4: cari kodu satırda yok (arama yine bulur); olağan finans durumu ("Onaylı") yazılmaz.
+    final exception = status != null && status != FinanceProfileStatus.approved;
     return AknListTile(
-      padding: kCardRowPadding,
       title: r.title,
-      subtitle: [?r.code, ?r.place, ?last].join(', '),
+      subtitle: [?r.place, ?last].join(' · '),
       amount: pct == null ? null : Fmt.percent(pct),
       amountMeta: pct == null ? null : 'limit kullanımı',
-      status: status == null && r.openOrders == 0 && tone == null
+      status: !exception && r.openOrders == 0 && !near
           ? null
           : AknStatusLine(
-              lamp: status != null
+              lamp: exception
                   ? AknLamp.style(
                       status.statusStyle.withLabel(r.financeStatusLabel),
                     )

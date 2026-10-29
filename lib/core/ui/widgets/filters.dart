@@ -9,6 +9,9 @@ import '../motion.dart';
 import '../theme.dart';
 import '../tokens.dart';
 import '../typography.dart';
+import 'buttons.dart';
+import 'inputs.dart' show SearchField;
+import 'sheets.dart';
 
 /// One choice of [FilterChips] or [AknSegmented].
 @immutable
@@ -511,8 +514,9 @@ class _EntranceState extends State<_Entrance>
 /// carrying the card shadow (dark: a lighter graphite) that slides on the
 /// spring curve and stretches a little in flight. Labels 14/18: selected Pas
 /// w700 (the panel's `.seg-btn`), others dim w600 — weight and colour
-/// animate; a count pill follows
-/// the label. Each segment is a screen-reader button with a tap action, a
+/// animate; v4: the count follows the label as text (it pops when it
+/// changes). One switcher per screen: AknSegmented for 2–4 views, or one
+/// FilterChips row for 5+ server segments — never both. Each segment is a screen-reader button with a tap action, a
 /// 48 dp touch target (64 in driver mode) and a press scale.
 class AknSegmented<T> extends StatelessWidget {
   const AknSegmented({
@@ -705,15 +709,29 @@ class _Segment extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                       ),
+                      // v4: the count is text (tabular, dim; Pas when
+                      // selected) that pops when it changes.
                       if ((count ?? 0) > 0) ...[
                         const SizedBox(width: 5),
                         TweenAnimationBuilder<double>(
-                          tween: Tween<double>(end: selected ? 1 : 0),
-                          duration: duration,
-                          builder: (context, s, _) => _CountPill(
-                            count: count!,
-                            background: _mix(c.line, c.brandSoft, s),
-                            color: _mix(c.dim, c.brandInk, s),
+                          key: ValueKey(count),
+                          tween: Tween<double>(begin: 0.7, end: 1),
+                          duration: AknMotion.of(
+                            context,
+                            const Duration(milliseconds: 320),
+                          ),
+                          curve: AknMotion.pop,
+                          builder: (context, s, child) =>
+                              Transform.scale(scale: s, child: child),
+                          child: AnimatedDefaultTextStyle(
+                            duration: duration,
+                            curve: AknMotion.standard,
+                            style: style.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: selected ? c.brandInk : c.dim,
+                              fontFeatures: AknNumerals.tabular,
+                            ),
+                            child: Text('$count', maxLines: 1, softWrap: false),
                           ),
                         ),
                       ],
@@ -817,6 +835,192 @@ class AknTab extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The filter button of a page band (design v4 §4): the sliders glyph
+/// (`slidersHorizontal` 24 — filters only; `gearSix` means settings) with a
+/// count badge of the active filters. It opens a sheet titled "Filtre"
+/// ([sheetBuilder]), or calls [onPressed].
+///
+/// ```dart
+/// AppScaffold(
+///   title: 'Siparişler',
+///   actions: [AknFilterButton(count: active, sheetBuilder: (_) => const OrderFilters())],
+/// )
+/// ```
+class AknFilterButton extends StatelessWidget {
+  const AknFilterButton({
+    super.key,
+    this.count = 0,
+    this.sheetBuilder,
+    this.onPressed,
+    this.title = 'Filtre',
+    this.actionsBuilder,
+  }) : assert(
+         sheetBuilder != null || onPressed != null,
+         'AknFilterButton needs a sheetBuilder or onPressed',
+       );
+
+  /// Active filters (0 hides the badge).
+  final int count;
+
+  /// The sheet's body (opened with `showAppSheet`, titled [title]).
+  final WidgetBuilder? sheetBuilder;
+
+  /// Overrides the sheet.
+  final VoidCallback? onPressed;
+  final String title;
+
+  /// Sticky sheet actions ("Uygula", "Temizle").
+  final WidgetBuilder? actionsBuilder;
+
+  @override
+  Widget build(BuildContext context) => AknIconButton(
+    icon: PhosphorIconsRegular.slidersHorizontal,
+    semanticLabel: count > 0 ? '$title, $count etkin' : title,
+    badgeCount: count,
+    badgeSemantics: (n) => '$n etkin',
+    onPressed:
+        onPressed ??
+        () => showAppSheet<void>(
+          context: context,
+          title: title,
+          builder: sheetBuilder!,
+          actionsBuilder: actionsBuilder,
+          showClose: true,
+        ),
+  );
+}
+
+/// The band's search (design v4 §4 "AknSearchReveal"): the ⌕ action in the
+/// band ([AknSearchReveal.button]) opens a search strip under the band —
+/// it opens in 250 ms (height + an 8 dp fade-up) and takes the focus. The
+/// strip stays while it has text; ✕ clears and closes it ([onClose]); an
+/// empty strip that loses the focus closes too.
+///
+/// ```dart
+/// AppScaffold(
+///   actions: [AknSearchReveal.button(onPressed: () => setState(() => _search = true))],
+///   body: Column(children: [
+///     AknSearchReveal(open: _search, hint: 'Ürün, kişi ya da sipariş ara',
+///         onChanged: _query, onClose: () => setState(() => _search = false)),
+///     Expanded(child: list),
+///   ]),
+/// )
+/// ```
+class AknSearchReveal extends StatefulWidget {
+  const AknSearchReveal({
+    super.key,
+    required this.open,
+    required this.onChanged,
+    required this.onClose,
+    this.hint = 'Ara',
+    this.controller,
+    this.padding = const EdgeInsets.fromLTRB(20, 4, 20, 8),
+  });
+
+  /// The ⌕ action for the band.
+  static Widget button({
+    Key? key,
+    required VoidCallback onPressed,
+    String semanticLabel = 'Ara',
+  }) => AknIconButton(
+    key: key,
+    icon: PhosphorIconsRegular.magnifyingGlass,
+    semanticLabel: semanticLabel,
+    onPressed: onPressed,
+  );
+
+  final bool open;
+
+  /// The (debounced) query; '' when the strip closes.
+  final ValueChanged<String> onChanged;
+
+  /// ✕, or an empty strip lost the focus: the page closes the strip.
+  final VoidCallback onClose;
+  final String hint;
+  final TextEditingController? controller;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  State<AknSearchReveal> createState() => _AknSearchRevealState();
+}
+
+class _AknSearchRevealState extends State<AknSearchReveal> {
+  late final TextEditingController _text =
+      widget.controller ?? TextEditingController();
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(_focusChanged);
+  }
+
+  void _focusChanged() {
+    if (!_focus.hasFocus && _text.text.trim().isEmpty && widget.open) {
+      widget.onClose();
+    }
+  }
+
+  @override
+  void didUpdateWidget(AknSearchReveal old) {
+    super.didUpdateWidget(old);
+    if (widget.open && !old.open) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focus.requestFocus();
+      });
+    }
+  }
+
+  void _close() {
+    _text.clear();
+    widget.onChanged('');
+    _focus.unfocus();
+    widget.onClose();
+  }
+
+  @override
+  void dispose() {
+    _focus.removeListener(_focusChanged);
+    _focus.dispose();
+    if (widget.controller == null) _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strip = Padding(
+      padding: widget.padding,
+      child: Row(
+        children: [
+          Expanded(
+            child: SearchField(
+              hint: widget.hint,
+              controller: _text,
+              focusNode: _focus,
+              autofocus: widget.open,
+              onChanged: widget.onChanged,
+            ),
+          ),
+          const SizedBox(width: 4),
+          AknIconButton(
+            icon: PhosphorIconsRegular.x,
+            semanticLabel: 'Aramayı kapat',
+            onPressed: _close,
+          ),
+        ],
+      ),
+    );
+    return AknAnimatedSize(
+      duration: AknMotion.statusFade,
+      curve: AknMotion.emphasizedCurve,
+      alignment: Alignment.topCenter,
+      child: widget.open
+          ? FadeUp(offset: 8, duration: AknMotion.statusFade, child: strip)
+          : const SizedBox(width: double.infinity),
     );
   }
 }

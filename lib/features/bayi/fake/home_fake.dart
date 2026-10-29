@@ -1,11 +1,13 @@
 import 'dart:math';
 
 import '../../../core/auth/permissions.dart';
+import '../../../core/models/enums.dart' show ApprovalSlaState;
 import '../../../core/models/json.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../approvals/fake/a5_fake_store.dart' show A5FakeStore;
 import 'fake_support.dart';
 import 'order_support.dart';
 import 'seed.dart';
@@ -22,6 +24,9 @@ void registerBayiHomeFakes(FakeServer s) {
       throw FakeResponse.forbidden();
     }
     ensureBayiSeed(req.world);
+    // Onaylar deposu kendi siparişlerini de tohumlar: ana sayfa dünyayı okumadan önce kurulur,
+    // bölümler hangi çağrının önce geldiğine bağlı kalmaz.
+    A5FakeStore.of(req.world);
     return bayiHomeJson(req.world, p);
   });
 }
@@ -201,11 +206,17 @@ JsonMap _shipments(FakeWorld w, FakePersona p) {
   };
 }
 
+/// Onaylar özeti (v4 §8 B: ana sayfa sahtesi kahramanla aynı şeyi söyler): Onaylar sayfasının deposu
+/// (A5) ve onun kuralı — Bende satırları ve `dueAt`tan hesaplanan süre durumu (`approvals/badge` ile
+/// aynı). "Kararınızı bekleyen 8 talep · 1'i gecikti" ile Onaylar'ın "Gecikmiş 1"i aynı sayıdır.
 JsonMap _approvals(FakeWorld w, FakePersona p) {
-  final mine = w.approvals.where((a) => w.canDecide(p, a)).toList();
+  final s = A5FakeStore.of(w);
+  final rows = [for (final a in s.inbox(p, 0)) s.row(p, a)];
   return {
-    'toMe': mine.length,
-    'overdue': mine.where((a) => a['slaState'] == 3).length,
+    'toMe': rows.length,
+    'overdue': rows
+        .where((r) => r['slaState'] == ApprovalSlaState.overdue.code)
+        .length,
   };
 }
 

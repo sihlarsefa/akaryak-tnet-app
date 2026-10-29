@@ -22,8 +22,18 @@ Future<void> _pumpFor(WidgetTester tester, Duration total) async {
   }
 }
 
-String _location(ProviderContainer c) =>
-    c.read(routerProvider).routerDelegate.currentConfiguration.uri.toString();
+/// The page on top (v4 §3.5: a cold-start target is pushed over the first
+/// tab, so the base location stays Ana sayfa).
+String _location(ProviderContainer c) => c
+    .read(routerProvider)
+    .routerDelegate
+    .currentConfiguration
+    .last
+    .matchedLocation;
+
+/// The base (tab) location under any pushed page.
+String _base(ProviderContainer c) =>
+    c.read(routerProvider).routerDelegate.currentConfiguration.uri.path;
 
 Future<void> _login(
   WidgetTester tester,
@@ -90,6 +100,11 @@ void main() {
     await _login(tester, c, 'musteri');
     expect(_location(c), '/orders/$orderId');
     expect(c.read(pendingDeepLinkProvider), isNull);
+    // v4 §3.5: the order is pushed over Ana sayfa; back ends there.
+    expect(_base(c), '/home');
+    c.read(routerProvider).pop();
+    await _pumpFor(tester, const Duration(milliseconds: 600));
+    expect(_location(c), '/home');
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

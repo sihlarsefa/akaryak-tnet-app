@@ -17,8 +17,16 @@ abstract final class NotificationsCopy {
   static const loadMore = 'Daha fazla göster';
   static const retry = 'Tekrar dene';
   static const lastUpdated = 'Son güncelleme';
-  static const offlineCached =
-      'Çevrimdışısınız; son kaydedilen bildirimler gösteriliyor.';
+
+  // ------------------------------------------------------------------ Bant (v4 §3.2)
+  /// Bandın durum satırı: "3 okunmamış".
+  static String unreadStatus(int n) => '$n okunmamış';
+
+  /// Okunmamış yokken.
+  static const calmStatus = 'Yeni bildiriminiz yok';
+
+  /// Çevrimdışı, son kaydedilen liste: "Son güncelleme 09:58".
+  static String cachedAt(String time) => '$lastUpdated $time';
 
   // ------------------------------------------------------------------ Boş / hata
   static const emptyTitle = 'Henüz bildiriminiz yok';

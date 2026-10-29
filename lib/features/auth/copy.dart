@@ -15,7 +15,6 @@ abstract final class AuthCopy {
 
   /// Giriş ekranının yumuşak üst alanındaki karşılama.
   static const welcome = 'Hoş geldiniz';
-  static const welcomeLine = 'Hesabınıza giriş yapın.';
   static const loginTitle = 'Giriş yapın';
   static const loginSubtitle = 'Bayi ve müşteri hesapları için tek giriş.';
   static const modePassword = 'Şifre ile';

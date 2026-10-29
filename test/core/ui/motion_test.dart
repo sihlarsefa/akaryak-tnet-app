@@ -66,7 +66,8 @@ void main() {
     expect(AknMotion.count, const Duration(milliseconds: 600));
     expect(AknMotion.stagger, const Duration(milliseconds: 520));
     expect(AknMotion.staggerStep, const Duration(milliseconds: 55));
-    expect(AknMotion.staggerMaxItems, 8);
+    // v4 §6: the stagger stops after 6 items.
+    expect(AknMotion.staggerMaxItems, 6);
     // Ambient loops (AknAmbient).
     expect(AknMotion.bandDrift, const Duration(seconds: 9));
     expect(AknMotion.breathe, const Duration(milliseconds: 1800));
@@ -89,10 +90,10 @@ void main() {
     expect(AknMotion.barDelay(0), Duration.zero);
     expect(AknMotion.barDelay(5), const Duration(milliseconds: 200));
     expect(AknMotion.barDelay(-1), Duration.zero);
-    // List items cascade 55 ms apart; past the eighth they enter together.
+    // List items cascade 55 ms apart; past the sixth they enter together.
     expect(AknMotion.staggerDelay(0), Duration.zero);
     expect(AknMotion.staggerDelay(3), const Duration(milliseconds: 165));
-    expect(AknMotion.staggerDelay(40), const Duration(milliseconds: 440));
+    expect(AknMotion.staggerDelay(40), const Duration(milliseconds: 330));
   });
 
   test('register roll: v(t) = 1 − (1 − t)^3.2 (§5)', () {

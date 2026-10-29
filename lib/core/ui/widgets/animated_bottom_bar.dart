@@ -47,18 +47,23 @@ class AknNavItem {
   final String? tooltip;
 }
 
-/// The key in the bar ("Sipariş ver", "Saha formu").
+/// The key in the bar ("Sipariş ver", "Yeni form").
 @immutable
 class AknCenterAction {
   const AknCenterAction({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.breathe = true,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
+
+  /// v4 (§6): the key's glow breathes only while the home is calm (nothing
+  /// waits); otherwise it rests.
+  final bool breathe;
 }
 
 /// Bottom navigation (design v3 §4 "Akış"): docked, full width, 64 + safe
@@ -107,6 +112,11 @@ class AnimatedBottomBar extends StatefulWidget {
   static const double barHeight = 64;
   static const double _maxWidth = 640;
 
+  /// Lets the next bar play its entrance again (v4: it plays once per
+  /// session; the app calls this on sign-out).
+  static void resetEntrance() =>
+      _AnimatedBottomBarState._enteredThisSession = false;
+
   /// Space above the pill (and the label line under it).
   static const double _top = 10;
   static const double _labelGap = 4;
@@ -129,14 +139,19 @@ class _AnimatedBottomBarState extends State<AnimatedBottomBar>
   );
   bool _started = false;
 
+  /// v4 (§6): the bar's entrance plays once per session (a new shell after
+  /// a layout change or a sign-in does not replay it).
+  static bool _enteredThisSession = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
-    if (AknMotion.reduced(context)) {
+    if (AknMotion.reduced(context) || _enteredThisSession) {
       _enter.value = 1;
     } else {
+      _enteredThisSession = true;
       _enter.forward();
     }
   }
@@ -918,12 +933,15 @@ class _NavBadgeState extends State<_NavBadge> with TickerProviderStateMixin {
           );
     Widget badge = body;
     if (_visible) {
+      // v4 (§6): after it pops the badge breathes three times, then rests
+      // (a new count replays it). The wrapper always stays in the tree.
       badge = AknAmbient(
         period: AknMotion.breathe,
         reverse: true,
-        builder: (context, t, child) => t == 0
-            ? child!
-            : Transform.scale(scale: 1 + 0.07 * t, child: child),
+        cycles: 3,
+        replay: (widget.count, widget.dot),
+        builder: (context, t, child) =>
+            Transform.scale(scale: 1 + 0.07 * t, child: child),
         child: badge,
       );
     }
@@ -980,6 +998,8 @@ class _NavKey extends StatelessWidget {
     final key = AknAmbient(
       period: AknMotion.breathe,
       reverse: true,
+      // v4: the glow breathes only while the home is calm.
+      cycles: action.breathe ? null : 0,
       builder: (context, v, child) => DecoratedBox(
         // Owner decision G: the key wears the primary button's orange
         // gradient and warm glow (AknShadows.button at rest), which breathes.
@@ -1033,10 +1053,10 @@ class _NavKey extends StatelessWidget {
                       maxLines: 1,
                       softWrap: false,
                       textAlign: TextAlign.center,
-                      // The action's own colour: orange text (Pas,
-                      // 5.18:1), so it never reads as a second selected tab.
+                      // v4 (§3.1): ink 700 — only the selected tab is
+                      // orange; the key itself carries the gradient.
                       style: t.navLabel.copyWith(
-                        color: c.brandInk,
+                        color: c.ink,
                         fontWeight: FontWeight.w700,
                       ),
                     ),

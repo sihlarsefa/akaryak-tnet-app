@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/models/models.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -17,10 +18,17 @@ import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 import 'order_filters_sheet.dart';
 
-/// Siparişler (spec A.4, tasarım v3 "Akış"): kök başlık, segment çipleri (`bayi/orders/counts`), arama
-/// kuyusu, durum / ödeme / finans / cari / tarih süzgeçleri, sonsuz kaydırma. Her sipariş sayfa
-/// zemininde süzülen beyaz bir kart: kartlar art arda yükselerek gelir (segment değişince yeniden),
-/// dokununca hafifçe küçülür ve sipariş ayrıntısını açar.
+/// Siparişler (tasarım v4 "Sade" §5 06).
+///
+/// * Bant: "Siparişler", canlı durum satırı ("4 sipariş teklifinizi bekliyor": altındaki "Teklif
+///   bekleyen 4" çipiyle aynı sayı), ⌕ (arama şeridi bandın altında açılır) ve Filtre (durum, ödeme,
+///   finans, cari, tarih, sıralama; rozet açık filtre sayısı).
+/// * Tek çip satırı: Tümü, sonra sayısı sıfırdan büyük her segment akış sırasıyla ("Müşteri
+///   kararında"); açılışta Teklifler alt menüdeyse Tümü, değilse "Teklif bekleyen"
+///   ([BayiOrdersController.defaultSegment]); `?segment=` derin bağlantısı segmenti seçer.
+/// * Liste tek bir defter kartı: iki satırlık satırlar (müşteri + litre; ürün · nokta + geri sayım ya
+///   da teslim günü); yalnızca Tümü'de üçüncü satır sipariş akışı (» noktaları + cümle). 3 saatten
+///   uzak geri sayım soluk; çip, ödeme satırı ve sipariş no yok (arama numarayı yine bulur).
 class BayiOrdersPage extends ConsumerStatefulWidget {
   const BayiOrdersPage({super.key});
 
@@ -29,15 +37,36 @@ class BayiOrdersPage extends ConsumerStatefulWidget {
 }
 
 class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
-  // Arama kutusu listeyle kayar; yazılan metin kutu ekrandan çıkınca kaybolmasın.
   late final TextEditingController _search;
+  late bool _searching;
+
+  /// Uygulanan son `?segment=` (aynı bağlantı tekrar uygulanmaz; elle seçim korunur).
+  String? _linked;
 
   @override
   void initState() {
     super.initState();
-    _search = TextEditingController(
-      text: ref.read(bayiOrdersProvider).filter.q,
-    );
+    final q = ref.read(bayiOrdersProvider).filter.q;
+    _search = TextEditingController(text: q);
+    _searching = q.trim().isNotEmpty;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final param = queryParamOf(context, 'segment');
+    if (param == _linked) return;
+    _linked = param;
+    final seg = param == null
+        ? null
+        : param == 'all'
+        ? null
+        : BayiOrderSegment.fromKey(param);
+    if (param == null || (seg == null && param != 'all')) return;
+    // Sağlayıcı kurulum sırasında değiştirilmez: kare çizildikten sonra.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(bayiOrdersProvider.notifier).setSegment(seg);
+    });
   }
 
   @override
@@ -46,10 +75,16 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
     super.dispose();
   }
 
+  void _closeSearch() {
+    if (!_searching) return;
+    setState(() => _searching = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(bayiOrdersProvider);
     final c = ref.read(bayiOrdersProvider.notifier);
+    final g = ref.watch(bayiGrantsProvider);
     final f = s.filter;
     final counts = s.counts;
     final segments = [
@@ -57,94 +92,129 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
         if (counts == null || counts.of(seg) > 0 || f.segment == seg) seg,
     ];
     final advanced = f.advancedCount;
-    final total = s.list.totalCount;
+    // Durum satırı altındaki çiple aynı sayıyı söyler: "4 sipariş teklifinizi bekliyor" =
+    // "Teklif bekleyen 4" (revize istenenlerin kendi çipi var, v4 §3.2).
+    final quotes = counts?.of(BayiOrderSegment.awaitingQuote) ?? 0;
+    final revisions = counts?.of(BayiOrderSegment.revisionRequested) ?? 0;
+    final toPlan = counts?.of(BayiOrderSegment.toPlan) ?? 0;
+    Object? status;
+    if (g.quoteOnOrder && quotes > 0) {
+      status = AknStatusClause.yourMove(
+        '${Fmt.integer(quotes)} sipariş teklifinizi bekliyor',
+      );
+    } else if (g.quoteOnOrder && revisions > 0) {
+      status = AknStatusClause.yourMove(
+        '${Fmt.integer(revisions)} siparişte revize istendi',
+      );
+    } else if (g.planShipment && toPlan > 0) {
+      status = AknStatusClause.yourMove(
+        '${Fmt.integer(toPlan)} sipariş planlanmayı bekliyor',
+      );
+    } else if (counts != null) {
+      status = 'Bekleyen işiniz yok';
+    }
+    final all = f.segment == null;
+    final query = f.q.trim();
     return AppScaffold(
       title: 'Siparişler',
       bandIcon: PhosphorIconsRegular.receipt,
-      eyebrow: 'Bayi',
-      description: 'Tüm müşteri siparişleri',
+      status: status,
       refreshing: s.list.refreshing,
       actions: [
-        FilterButton(
-          label: 'Süzgeçler',
+        AknSearchReveal.button(
+          semanticLabel: 'Sipariş ara',
+          onPressed: () => setState(() => _searching = true),
+        ),
+        AknFilterButton(
           count: advanced,
           onPressed: () => showOrderFiltersSheet(context),
         ),
       ],
-      // Segmentler, arama ve süzgeç özeti listeyle birlikte kayar.
-      body: PagedListBody<BayiOrderRow>(
-        list: s.list,
-        header: [
-          const SizedBox(height: 4),
-          FilterChips<BayiOrderSegment>(
-            options: [
-              for (final seg in segments)
-                FilterOption(
-                  value: seg,
-                  label: seg.label,
-                  count: counts?.of(seg),
-                ),
-            ],
-            selected: {?f.segment},
-            onChanged: (v) => c.setSegment(v.isEmpty ? null : v.first),
+      body: Column(
+        children: [
+          AknSearchReveal(
+            open: _searching,
+            controller: _search,
+            hint: 'Müşteri, ürün ya da sipariş ara',
+            onChanged: c.setQuery,
+            onClose: _closeSearch,
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 2),
-            child: SearchField(
-              hint: 'Sipariş no, cari, ürün ya da nokta',
-              controller: _search,
-              onChanged: c.setQuery,
-            ),
-          ),
-          if (advanced > 0)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-              child: Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 12,
-                children: [
-                  Text(
-                    _describe(f),
-                    style: context.aknText.label.copyWith(
-                      color: context.akn.dim,
-                      fontWeight: FontWeight.w400,
+          Expanded(
+            child: PagedListBody<BayiOrderRow>(
+              list: s.list,
+              ledger: true,
+              header: [
+                const SizedBox(height: 4),
+                FilterChips<BayiOrderSegment?>(
+                  allowEmpty: false,
+                  options: [
+                    const FilterOption<BayiOrderSegment?>(
+                      value: null,
+                      label: 'Tümü',
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                    for (final seg in segments)
+                      FilterOption<BayiOrderSegment?>(
+                        value: seg,
+                        label: seg.label,
+                        count: counts?.of(seg),
+                      ),
+                  ],
+                  selected: {f.segment},
+                  onChanged: (v) => c.setSegment(v.first),
+                ),
+                if (advanced > 0)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      children: [
+                        Text(
+                          _describe(f),
+                          style: context.aknText.label.copyWith(
+                            color: context.akn.dim,
+                            fontWeight: FontWeight.w400,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        AknInlineLink(
+                          label: BayiCopy.clearFilters,
+                          onTap: () => c.setFilter(f.clearAdvanced()),
+                        ),
+                      ],
+                    ),
                   ),
-                  AknInlineLink(
-                    label: BayiCopy.clearFilters,
-                    onTap: () => c.setFilter(f.clearAdvanced()),
-                  ),
-                ],
+                const SizedBox(height: 8),
+              ],
+              onRefresh: () => c.refresh(silent: true),
+              onLoadMore: () => unawaited(c.loadMore()),
+              filtered: f.isFiltered,
+              query: query,
+              onClearFilters: () {
+                _search.clear();
+                _closeSearch();
+                c.clearAll();
+              },
+              empty: const EmptyState(
+                compact: true,
+                title: BayiCopy.ordersEmptyTitle,
+                message: BayiCopy.ordersEmptyMessage,
+                illustration: AknIllustration.orders,
               ),
+              footer: all && advanced == 0 && query.isEmpty
+                  ? const ListFooterNote(
+                      'Tamamlanan ve iptal edilen siparişleri Filtre ile bulabilirsiniz.',
+                    )
+                  : null,
+              // Segment değişince satırlar yeniden akar (aramada değil: yazarken liste zıplamaz).
+              staggerKey: f.segment,
+              itemBuilder: (context, row, _) =>
+                  BayiOrderCard(row: row, flow: all),
             ),
+          ),
         ],
-        onRefresh: () => c.refresh(silent: true),
-        onLoadMore: () => unawaited(c.loadMore()),
-        filtered: f.isFiltered,
-        onClearFilters: () {
-          _search.clear();
-          c.clearAll();
-        },
-        empty: const EmptyState(
-          title: BayiCopy.ordersEmptyTitle,
-          message: BayiCopy.ordersEmptyMessage,
-          illustration: AknIllustration.orders,
-        ),
-        footer: total <= 0
-            ? null
-            : ListFooterNote(
-                f.isFiltered
-                    ? 'Süzgece uyan ${Fmt.integer(total)} sipariş gösteriliyor.'
-                    : 'Toplam ${Fmt.integer(total)} sipariş. Tamamlanan ve iptal olanları süzgeçten bulabilirsiniz.',
-              ),
-        // Segment değişince kartlar yeniden art arda gelir (aramada değil: yazarken liste zıplamaz).
-        staggerKey: f.segment,
-        // Satır kendi basılı hâlini çizer (içeride küçülür); kart sabit kalır.
-        pressableCards: false,
-        itemBuilder: (context, row, _) => BayiOrderCard(row: row),
       ),
     );
   }
@@ -173,122 +243,133 @@ ShipmentStatus? bayiShipmentStatus(BayiShipmentState s) => switch (s) {
   BayiShipmentState.partial || BayiShipmentState.none => null,
 };
 
-/// Sipariş kartı (tasarım v3 liste kartı, bayi; kartı [PagedListBody] çizer):
+/// Satıra sığan ürün adı: "Kurşunsuz Benzin 95" → "Kurşunsuz 95".
+String shortProduct(String name) =>
+    name.replaceFirst(RegExp(r'\s+[Bb]enzin(?=\s+\d)'), '').trim();
+
+/// Siparişin izleyene göre durumu: finans kararı bekleyen açık sipariş finansın; diğerleri izleyiciye
+/// göre (§10.3).
+StatusLamp bayiOrderLamp(BayiOrderRow r, StatusViewer viewer) {
+  final toPlan = r.status == OrderStatus.approved && r.remainingLiters > 0;
+  final shipment = toPlan ? null : bayiShipmentStatus(r.shipmentState);
+  if (r.financeStatus.isAwaitingDecision && r.status.isOpen) {
+    return StatusLamp(
+      tone: r.financeStatus.statusStyle.tone,
+      label: r.financeLabel ?? r.financeStatus.label,
+      icon: r.financeStatus.statusStyle.icon,
+      stage: AknStage.teklif,
+    );
+  }
+  return AknStatus.lampFor(
+    r.status,
+    viewer,
+    serverLabel: r.statusLabel,
+    shipment: shipment,
+  );
+}
+
+/// Sipariş satırı (v4 §5 06; satır defter kartının bir dilimi, kartı [PagedListBody] çizer):
 ///
 /// ```
-/// Körfez Nakliyat ve Ticaret                     338.800,00 ₺
-/// SIP-20261020-12009, Motorin, 10.000 L, …          42,35 ₺/L
-/// ● Müşteri kararında                       ⏱ 2 sa 57 dk kaldı
-/// [ödeme notu] [yolda ise rota çizgisi]
+/// Körfez Nakliyat ve Ticaret                               10.000 L
+/// Motorin · Körfez Garaj                                   ⏱ 41 dk
+/// ━━[»]┄┄┄┄  Teklif verin                    (yalnızca Tümü, [flow])
 /// ```
 ///
-/// Tutarlar tablo rakamlı; durum yumuşak tonlu çip; yoldaki siparişte tır rota çizgisinde ilerler.
+/// Geri sayım 3 saatten uzaksa soluk; 3 saat ve altında sıra sizdeyse Pas, 30 dakika ve altında
+/// kırmızı. Geri sayım yoksa teslim günü ya da planlanacak kalan litre. Hap yalnızca istisnada
+/// (karşılıksız ödeme). Satırda döngü yok.
 class BayiOrderCard extends ConsumerWidget {
-  const BayiOrderCard({super.key, required this.row});
+  const BayiOrderCard({super.key, required this.row, this.flow = false});
 
   final BayiOrderRow row;
+
+  /// Üçüncü satır: sipariş akışı (» noktaları + cümle); yalnızca Tümü'de.
+  final bool flow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final r = row;
     final viewer = ref.watch(bayiGrantsProvider).viewer;
-    final quoted = r.unitPrice != null;
+    final c = context.akn;
+    final t = context.aknText;
     final expires = r.expiresAt;
     final open = r.status.isOpen;
-    final showCountdown =
-        open && expires != null && expires.isAfter(DateTime.now().toUtc());
     final financeWait = r.financeStatus.isAwaitingDecision;
+    final showCountdown =
+        open &&
+        !financeWait &&
+        expires != null &&
+        expires.isAfter(DateTime.now().toUtc());
     final toPlan = r.status == OrderStatus.approved && r.remainingLiters > 0;
-    final shipment = toPlan ? null : bayiShipmentStatus(r.shipmentState);
+    final lamp = bayiOrderLamp(r, viewer);
 
-    // Lamba: finans kararı bekleyen sipariş finansın; diğerleri izleyiciye göre (§10.3).
-    final StatusLamp lamp;
-    if (financeWait && open) {
-      lamp = StatusLamp.fromStyle(
-        r.financeStatus.statusStyle.withLabel(r.financeLabel),
-      );
-    } else {
-      lamp = AknStatus.lampFor(
-        r.status,
-        viewer,
-        serverLabel: r.statusLabel,
-        shipment: shipment,
-      );
-    }
-
-    Widget? trailing;
+    Widget? meta;
+    String? metaText;
     if (showCountdown) {
-      trailing = CountdownBadge(
+      meta = CountdownBadge(
         deadline: expires,
         yourMove: lamp.yourMove,
+        compact: true,
         subject: 'Sipariş',
       );
     } else if (toPlan) {
-      trailing = _Note('Kalan ${Fmt.liters(r.remainingLiters)}');
+      metaText = 'Kalan ${Fmt.liters(r.remainingLiters)}';
     } else if (r.requestedDeliveryDate != null && open) {
-      trailing = _Note('${dayMonthLong(r.requestedDeliveryDate!)} teslim');
+      metaText = '${dayMonthLong(r.requestedDeliveryDate!)} teslim';
+    }
+    if (metaText != null) {
+      meta = Text(
+        keepUnits(metaText),
+        style: t.label.copyWith(
+          fontWeight: FontWeight.w500,
+          color: c.dim,
+          fontFeatures: AknNumerals.tabular,
+        ),
+      );
     }
 
-    final payment = r.paymentStatus == PaymentStatus.none
-        ? null
-        : [
-            ?r.paymentMethodName,
-            TurkishText.lower(r.paymentStatusLabel ?? r.paymentStatus.label),
-          ].join(', ');
-    final inTransit = r.shipmentState == BayiShipmentState.inTransit;
-
+    final place = r.deliveryPointName ?? r.deliveryCity;
+    final product = r.productName == null ? null : shortProduct(r.productName!);
+    final subtitle = [?product, ?place].join(' · ');
+    // Revize istenen siparişte bayinin işi teklifi yenilemek: cümle bunu söyler.
+    final sentence = r.status == OrderStatus.revisionRequested && lamp.yourMove
+        ? 'Teklifi yenileyin'
+        : lamp.label;
+    final bounced = r.paymentStatus == PaymentStatus.bounced;
+    // P5: cümle yalnızca iş 3 saat içinde dolacaksa Pas (geri sayım gibi); değilse satır
+    // mürekkep, » sakin.
+    final urgent =
+        showCountdown &&
+        expires.difference(DateTime.now().toUtc()) <= const Duration(hours: 3);
     return AknListTile(
-      padding: kCardRowPadding,
       title: r.customerTitle ?? Fmt.dash,
-      subtitle: keepUnits(
-        [
-          r.orderNumber,
-          ?r.productName,
-          Fmt.liters(r.quantityLiters),
-          ?(r.deliveryPointName ?? r.deliveryCity),
-        ].join(', '),
-      ),
-      amount: r.totalAmount == null ? null : Fmt.money(r.totalAmount),
-      amountMeta: quoted ? Fmt.unitPrice(r.unitPrice) : null,
-      status: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AknStatusLine(lamp: AknLamp.status(lamp), trailing: trailing),
-          if (payment != null) ...[
-            const SizedBox(height: 4),
-            RowNote(
-              icon: PhosphorIconsRegular.money,
-              text: payment,
-              tone: r.paymentStatus.statusStyle.tone,
-            ),
-          ],
-        ],
-      ),
-      footer: inTransit
-          ? TruckRoute(
-              moving: true,
-              semanticLabel:
-                  'Yolda. ${r.deliveryPointName ?? r.customerTitle ?? ''}',
+      subtitle: subtitle.isEmpty ? null : subtitle,
+      amount: Fmt.liters(r.quantityLiters),
+      metaWidget: meta,
+      flow: flow
+          ? AknFlowPips(
+              flow: AknFlow.bayi(lamp),
+              sentence: sentence,
+              urgent: urgent,
             )
           : null,
+      status: bounced
+          ? const AknLamp(label: 'Ödeme karşılıksız', tone: AknTone.danger)
+          : null,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      semanticLabel: [
+        r.customerTitle ?? '',
+        Fmt.liters(r.quantityLiters),
+        ?r.productName,
+        ?place,
+        sentence,
+        ?metaText,
+        if (showCountdown)
+          'süre ${Fmt.countdown(expires.difference(DateTime.now().toUtc()))}',
+        if (bounced) 'ödeme karşılıksız',
+      ].where((p) => p.isNotEmpty).join(', '),
       onTap: () => GoRouter.of(context).push(AppRoutes.bayiOrder(r.id)),
     );
   }
-}
-
-class _Note extends StatelessWidget {
-  const _Note(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: context.aknText.bodySmall.copyWith(
-      color: context.akn.ink,
-      fontWeight: FontWeight.w600,
-      fontFeatures: AknNumerals.tabular,
-    ),
-  );
 }

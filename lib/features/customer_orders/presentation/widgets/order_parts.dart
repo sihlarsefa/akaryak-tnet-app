@@ -7,7 +7,7 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
-import 'common.dart';
+import '../../data/payment_models.dart';
 
 /// Ortak sipariş parçaları (tasarım v3 "Akış"): kısa adlar, gün metinleri, aşama simgesi, bölüm
 /// kartı, olgu satırı ve izleyiciye göre durum lambası.
@@ -95,8 +95,11 @@ String shortCompany(String? title) {
 StatusViewer customerViewer(AccessPolicy policy) =>
     StatusViewer.customer(canDecide: policy.can(Pg.customerQuotes, Perm.edit));
 
-/// Siparişin müşteriye görünen lambası (§10.3): finans incelemesi sürerken finans lambası,
-/// değilse sipariş / sevkiyat lambası.
+/// Siparişin müşteriye görünen lambası (§10.3; v4 §3.2 müşteri sözcükleri): bayinin finansı
+/// incelerken "Bayinizde inceleniyor", bilgi isterken "Bayiniz bilgi istiyor" (karar verebilen için
+/// sıra sizde); değilse sipariş / sevkiyat lambası. Karar verebilen müşterinin teklifinde ödeme
+/// belgesi eksikse tek lamba belgeyi söyler ([missingDocument]: "Çek görselini yükleyin"); teklifi
+/// hazırlayan bayi [actor] ile adlandırılır ("Demir Petrol teklif hazırlıyor").
 StatusLamp orderLampFor(
   StatusViewer viewer, {
   required OrderStatus status,
@@ -104,14 +107,15 @@ StatusLamp orderLampFor(
   ShipmentStatus? shipment,
   OrderFinanceStatus finance = OrderFinanceStatus.notRequired,
   String? financeLabel,
+  String? actor,
+  String? missingDocument,
 }) {
   if (finance.isAwaitingDecision) {
     final s = AknStatus.finance(finance).withLabel(financeLabel);
+    final asked = finance == OrderFinanceStatus.infoRequested;
     return StatusLamp(
-      tone: AknTone.info,
-      label: finance == OrderFinanceStatus.infoRequested
-          ? 'Finans ek bilgi istedi'
-          : 'Finans onayında',
+      tone: asked && viewer.canDecide ? AknTone.brand : AknTone.info,
+      label: asked ? 'Bayiniz bilgi istiyor' : 'Bayinizde inceleniyor',
       icon: s.icon,
       stage: AknStage.talep,
     );
@@ -119,7 +123,7 @@ StatusLamp orderLampFor(
   if (finance == OrderFinanceStatus.rejected) {
     return StatusLamp(
       tone: AknTone.danger,
-      label: 'Finans reddetti',
+      label: 'Bayiniz onaylamadı',
       icon: AknStatus.finance(finance).icon,
       stage: AknStage.talep,
       problem: true,
@@ -130,11 +134,34 @@ StatusLamp orderLampFor(
     viewer,
     serverLabel: serverLabel,
     shipment: shipment,
+    actor: actor,
+    missingDocument: missingDocument,
   );
 }
 
-/// Siparişin aşamasını anlatan simge (kart başındaki [A2IconTile]): teklif bekleniyor (kum saati),
-/// karar (teklif), plan (takvim), yolda (tır), teslim (kontrol listesi), tamam (mühür), sorun.
+/// Eksik ödeme belgesinin buyruğu ("Çek görselini yükleyin"); belge türü bilinmiyorsa satırın ödeme
+/// yöntemi kodundan (çek, senet, havale) çıkarılır.
+String? missingDocumentPhrase({
+  required bool missing,
+  AttachmentKind? kind,
+  String? methodCode,
+}) {
+  if (!missing) return null;
+  final k = kind ?? attachmentKindForMethod(methodCode);
+  return AknStatus.uploadPhrase(k ?? AttachmentKind.unknown);
+}
+
+/// Ödeme yönteminin istediği belge (sunucunun yöntem kodları: CEK, SENET, HAVALE …).
+AttachmentKind? attachmentKindForMethod(String? code) =>
+    switch ((code ?? '').trim().asciiUpper) {
+      PaymentCodes.cheque => AttachmentKind.chequeImage,
+      PaymentCodes.promissoryNote => AttachmentKind.promissoryNoteImage,
+      PaymentCodes.transfer => AttachmentKind.transferReceipt,
+      _ => null,
+    };
+
+/// Siparişin aşamasını anlatan simge: teklif bekleniyor (kum saati), karar (teklif), plan
+/// (takvim), yolda (tır), teslim (kontrol listesi), tamam (mühür), sorun.
 IconData orderStageIcon(StatusLamp lamp) {
   if (lamp.problem) return PhosphorIconsRegular.warningOctagon;
   if (lamp.complete) return PhosphorIconsRegular.sealCheck;
@@ -150,12 +177,13 @@ IconData orderStageIcon(StatusLamp lamp) {
   };
 }
 
-/// Kart içindeki satırların dolgusu (kartın 18 px iç kenarıyla hizalı).
-const a2RowPadding = EdgeInsets.symmetric(horizontal: 18, vertical: 12);
+/// Kart içindeki satırların dolgusu (defter satırıyla aynı iç kenar).
+const a2RowPadding = EdgeInsets.symmetric(horizontal: 20, vertical: 12);
 
-/// Bölüm (tasarım v3 §4): beyaz r20 kart ([A2Card]) içinde başlık (18/24 800, sayı hapı, sağda
-/// eylem) ve içerik. İçerik kartın 18 px iç kenarıyla gelir; satırlar için [bleed] (kart genişliği,
-/// satırlar kendi dolgusunu taşır, aralarında içeriden çizgi).
+/// Bölüm (tasarım v4 §4): çekirdeğin [SectionHeader]'ı (17/22 700, sayı soluk metin, sağda
+/// eylem) ve altında tek defter kartı ([AknLedger]: beyaz r20, yalnızca ince gölge). İçerik kartın
+/// 20 px iç kenarıyla gelir; satırlar için [bleed] (satırlar kendi dolgusunu taşır, aralarında
+/// içeriden çizgi).
 class OrderSection extends StatelessWidget {
   const OrderSection({
     super.key,
@@ -177,39 +205,34 @@ class OrderSection extends StatelessWidget {
   final bool bleed;
 
   @override
-  Widget build(BuildContext context) => A2Card(
-    margin: const EdgeInsets.fromLTRB(AknSpace.page, 14, AknSpace.page, 0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SectionHeader(
-          title: title,
-          count: count,
-          caption: caption,
-          actionLabel: actionLabel,
-          onAction: onAction,
-          padding: EdgeInsets.fromLTRB(
-            18,
-            actionLabel == null ? 16 : 4,
-            actionLabel == null ? 18 : 8,
-            bleed ? 2 : 8,
-          ),
-        ),
-        if (bleed) ...[
-          child,
-          const SizedBox(height: 6),
-        ] else
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-            child: child,
-          ),
-      ],
-    ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      SectionHeader(
+        title: title,
+        count: count,
+        caption: caption,
+        actionLabel: actionLabel,
+        onAction: onAction,
+        padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
+      ),
+      AknLedger(
+        children: [
+          if (bleed)
+            child
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              child: child,
+            ),
+        ],
+      ),
+    ],
   );
 }
 
-/// Bir olgu cümlesi (§7.8 ödeme satırı): tonun yumuşak kuyusunda 32 px simge karosu + 15/22 metin.
+/// Bir olgu cümlesi: tonun renginde 20 px simge (karo yok) + 15/22 metin.
 class FactLine extends StatelessWidget {
   const FactLine({
     super.key,
@@ -222,7 +245,7 @@ class FactLine extends StatelessWidget {
   final IconData icon;
   final String text;
 
-  /// Simgenin rengi (ok yeşil, warn koyu sarı …); null ise sessiz.
+  /// Simgenin rengi (ok yeşil, warn koyu sarı …); null ise soluk.
   final AknTone? tone;
 
   /// Cümlenin sonuna kalın eklenen kısım.
@@ -233,30 +256,34 @@ class FactLine extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final style = t.body.copyWith(color: c.ink);
-    // Karo ilk satırın ortasında durur (çok satırlı cümlede üstte kalır).
+    final tn = tone;
+    final color = tn == null || tn == AknTone.neutral || tn == AknTone.info
+        ? c.dim
+        : c.tone(tn).fg;
+    // Simge ilk satırın ortasında durur (çok satırlı cümlede üstte kalır).
     final line = MediaQuery.textScalerOf(context).scale(15) * 22 / 15;
     return MergeSemantics(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          A2IconTile(icon: icon, tone: tone ?? AknTone.neutral, size: 32),
-          const SizedBox(width: 12),
+          Padding(
+            padding: EdgeInsets.only(top: ((line - 20) / 2).clamp(0, 8)),
+            child: ExcludeSemantics(child: Icon(icon, size: 20, color: color)),
+          ),
+          const SizedBox(width: 10),
           Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(top: ((32 - line) / 2).clamp(0, 16)),
-              child: Text.rich(
-                TextSpan(
-                  text: text,
-                  children: [
-                    if (strong != null)
-                      TextSpan(
-                        text: strong,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                  ],
-                ),
-                style: style,
+            child: Text.rich(
+              TextSpan(
+                text: text,
+                children: [
+                  if (strong != null)
+                    TextSpan(
+                      text: strong,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                ],
               ),
+              style: style,
             ),
           ),
         ],

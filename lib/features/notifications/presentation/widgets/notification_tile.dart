@@ -3,16 +3,23 @@ import 'package:flutter/semantics.dart';
 
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../application/notification_display.dart';
 import '../../copy.dart';
 import '../../data/notification_models.dart';
 
-/// Gelen kutusu satırı (tasarım v3): sayfanın üstünde yüzen beyaz kart (r20, kart gölgesi). Solda 40 px
-/// kategori karosu, başlık ve sağda saat (eş genişlikte rakamlar), altında metin ve kategori (uyarı /
-/// tehlike bildirimlerinde lamba). Okunmamış kartın zemininde çok hafif sıcak bir ışık, karosu turuncu ve
-/// başlık kalındır; sağ üstte turuncu nokta yavaşça nefes alır. Okundu olunca hepsi yumuşakça sakinleşir
-/// (ışık söner, karo griye döner, nokta küçülerek kaybolur). Okunmamış kart sağa kaydırınca okundu olur
-/// (kart yerinde kalır); ekran okuyucuda "Okundu işaretle" özel eylemi vardır. Basınca kart hafifçe içe
-/// çöker.
+/// Gelen kutusu satırı (tasarım v4 §5 10): günün defterinde ([AknLedger]) bir satır — kart değil,
+/// satırlar arasında ince çizgi.
+///
+/// * Solda 36 dp nötr karo (yalnızca uyarı / tehlike bildiriminde tonlu), olayın simgesi.
+/// * Başlık 15/20 (okunmamış 700, okunmuş 500), sağda saat 13/18 soluk (eş genişlikte rakamlar).
+/// * Altında metin 14/20 soluk, en çok 2 satır; iç kodlar gösterilmez ([NotificationDisplay.clean]).
+/// * Sıra görüntüleyendeyse (okunmamışken) tek eylem satırı: "Talebi incele ›" (13/18 600 ink).
+/// * Okunmamış: saatin önünde 8 dp sabit marka noktası (satırdaki tek turuncu; nefes almaz —
+///   listeler durgun durur, v4 §6).
+///
+/// Okundu olunca satır sakinleşir: nokta küçülerek kaybolur, başlık incelir, eylem satırı katlanır.
+/// Okunmamış satır sağa kaydırınca okundu olur (satır yerinde kalır); ekran okuyucuda "Okundu işaretle"
+/// özel eylemi vardır. Basınca satır hafifçe içe çöker ve zemini koyulaşır.
 class NotificationTile extends StatelessWidget {
   const NotificationTile({
     super.key,
@@ -30,10 +37,18 @@ class NotificationTile extends StatelessWidget {
   /// Göreli zaman için (testler).
   final DateTime? now;
 
-  /// Sıralı giriş (tasarım v3 §5): verilirse kart en yakın [StaggerScope]'a göre bu sırayla (ve
-  /// kaydırınca) kayarak gelir. Kaydırma hareketi girişin dışında kalır: giriş sürerken de kart
-  /// sağa kaydırılabilir.
+  /// Kullanılmıyor (v4: satırlar defterle birlikte bir kez dökülür, [AknLedger.pour]); API için.
   final int? revealIndex;
+
+  /// Satırın simgesi: olayın kategorisi (uyarı / tehlikede tonlu karo).
+  static IconData iconOf(UserNotification n) =>
+      NotificationCategory.icon(n.category);
+
+  /// Görünen okunmamış noktası (testler: satır başına bir nokta).
+  static const unreadDotKey = ValueKey<String>('notification.unreadDot');
+
+  /// Eylem satırı ("Talebi incele ›").
+  static const actionKey = ValueKey<String>('notification.action');
 
   @override
   Widget build(BuildContext context) {
@@ -41,146 +56,167 @@ class NotificationTile extends StatelessWidget {
     final t = context.aknText;
     final n = notification;
     final unread = !n.isRead;
+    final title = NotificationDisplay.clean(n.title);
+    final body = NotificationDisplay.clean(n.body);
+    final action = unread ? NotificationDisplay.actionOf(n) : null;
     final when = Fmt.relative(n.createdAt, now: now);
     final semantics = [
       if (unread) NotificationsCopy.unreadPrefix,
-      n.title,
-      if (n.body.isNotEmpty) n.body,
-      n.label,
+      title,
+      if (body.isNotEmpty) body,
       when,
+      ?action,
     ].join('. ');
     final duration = AknMotion.of(context, AknMotion.slow);
     final titleStyle = t.bodyStrong.copyWith(
-      fontSize: 16,
-      height: 22 / 16,
+      height: 20 / 15,
       color: c.ink,
-      fontWeight: unread ? FontWeight.w700 : FontWeight.w600,
+      fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
     );
-    final statusTone = n.tone == AknTone.danger || n.tone == AknTone.warn;
     final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
+    final timeStyle = t.label.copyWith(
+      fontWeight: FontWeight.w500,
+      color: c.dim,
+      fontFeatures: AknNumerals.tabular,
+    );
     final time = Text(
       when,
-      style: t.caption.copyWith(
-        color: unread ? c.brandInk : c.dim,
-        fontWeight: unread ? FontWeight.w700 : FontWeight.w500,
-        fontFeatures: AknNumerals.tabular,
-      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: timeStyle,
     );
-    final radius = AknRadius.card;
-    final warm = Color.lerp(c.surface, c.brandSoft, c.isDark ? 0.55 : 0.5)!;
-
-    final Widget content = Padding(
-      padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CategoryTile(
-            icon: NotificationCategory.icon(n.category),
-            tone: statusTone ? n.tone : null,
-            unread: unread,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (large) ...[
-                  AnimatedPadding(
-                    duration: duration,
-                    curve: AknMotion.emphasizedCurve,
-                    padding: EdgeInsetsDirectional.only(end: unread ? 18 : 0),
-                    child: AnimatedDefaultTextStyle(
-                      duration: duration,
-                      style: titleStyle,
-                      child: Text(n.title),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  time,
-                ] else
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: AnimatedDefaultTextStyle(
-                          duration: duration,
-                          style: titleStyle,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          child: Text(n.title),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Padding(
-                        padding: const EdgeInsets.only(top: 3),
-                        child: time,
-                      ),
-                      // Okunmamış noktasının yeri (saatle çakışmaz).
-                      AnimatedContainer(
-                        duration: duration,
-                        curve: AknMotion.emphasizedCurve,
-                        width: unread ? 16 : 0,
-                      ),
-                    ],
-                  ),
-                if (n.body.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    n.body,
-                    style: t.bodySmall.copyWith(color: c.text),
-                    maxLines: large ? 8 : 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-                const SizedBox(height: 8),
-                if (statusTone)
-                  AknLamp(label: n.label, tone: n.tone, size: AknLampSize.small)
-                else
-                  Text(n.label, style: t.caption.copyWith(color: c.dim)),
-              ],
+    final tinted = n.tone == AknTone.danger || n.tone == AknTone.warn;
+    final tone = tinted ? c.tone(n.tone) : null;
+    final tile = ExcludeSemantics(
+      child: SizedBox.square(
+        dimension: 36,
+        child: DecoratedBox(
+          decoration: ShapeDecoration(
+            color: tone?.bg ?? c.surfaceAlt,
+            shape: const RoundedSuperellipseBorder(
+              borderRadius: BorderRadius.all(Radius.circular(12)),
             ),
           ),
-        ],
-      ),
-    );
-
-    final Widget card = AnimatedContainer(
-      duration: duration,
-      curve: AknMotion.standard,
-      decoration: BoxDecoration(
-        color: unread ? warm : c.surface,
-        borderRadius: radius,
-        border: c.isDark
-            ? Border.all(color: unread ? c.brandLine : c.line)
-            : null,
-        boxShadow: AknShadows.card(c),
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radius,
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: c.surfaceAlt.withValues(alpha: 0.8),
-          child: Stack(
-            children: [
-              content,
-              // Okunmamış: sağ üstte nefes alan turuncu nokta.
-              PositionedDirectional(
-                top: 18,
-                end: 14,
-                child: _UnreadDot(visible: unread),
-              ),
-            ],
+          child: Center(
+            child: Icon(iconOf(n), size: 20, color: tone?.fg ?? c.ink),
           ),
         ),
       ),
     );
+    final titleText = AnimatedDefaultTextStyle(
+      duration: duration,
+      curve: AknMotion.standard,
+      style: titleStyle,
+      maxLines: large ? 4 : 2,
+      overflow: TextOverflow.ellipsis,
+      child: Text(title),
+    );
+    // Başlık satırı: başlık, (okunmamış) nokta ve saat. Saat başlığa yer bırakmıyorsa (büyük yazı, dar
+    // ekran) başlığın altına iner; hiçbir şey kesilmez, taşmaz.
+    final head = LayoutBuilder(
+      builder: (context, box) {
+        final tp = TextPainter(
+          text: TextSpan(text: when, style: timeStyle),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: 1,
+        )..layout();
+        final timeWidth = tp.width;
+        tp.dispose();
+        final stacked = large || timeWidth + 24 > box.maxWidth * 0.45;
+        if (stacked) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleText,
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  _UnreadDot(visible: unread),
+                  Flexible(child: time),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: titleText),
+            const SizedBox(width: 10),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _UnreadDot(visible: unread),
+                  time,
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
 
-    final index = revealIndex;
-    final Widget pressable = PressScale(child: card);
-    final Widget tappable = Semantics(
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 64),
+      child: Padding(
+        padding: AknSpace.row,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            tile,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  head,
+                  if (body.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      body,
+                      style: t.bodySmall.copyWith(color: c.dim),
+                      maxLines: large ? 6 : 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  // Eylem satırı okununca katlanarak kaybolur.
+                  AknAnimatedSize(
+                    alignment: Alignment.topCenter,
+                    duration: duration,
+                    curve: AknMotion.emphasizedCurve,
+                    child: action == null
+                        ? const SizedBox(width: double.infinity)
+                        : Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: _ActionLine(label: action),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final row = PressScale(
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: const BorderRadius.all(Radius.circular(16)),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: c.surfaceAlt,
+          child: content,
+        ),
+      ),
+    );
+
+    final tappable = Semantics(
       button: true,
       label: semantics,
       excludeSemantics: true,
@@ -191,12 +227,10 @@ class NotificationTile extends StatelessWidget {
                   onMarkRead,
             }
           : null,
-      child: index == null
-          ? pressable
-          : StaggerItem(index: index, child: pressable),
+      child: row,
     );
 
-    // Okunmuş kartta kaydırma kapalı; yapı aynı kalır, böylece okundu geçişi yumuşak oynar.
+    // Okunmuş satırda kaydırma kapalı; yapı aynı kalır, böylece okundu geçişi yumuşak oynar.
     return Dismissible(
       key: ValueKey('notification-${n.id}'),
       direction: unread ? DismissDirection.startToEnd : DismissDirection.none,
@@ -206,54 +240,43 @@ class NotificationTile extends StatelessWidget {
         onMarkRead();
         return false;
       },
-      background: ClipRRect(borderRadius: radius, child: _SwipeBackground()),
+      background: const _SwipeBackground(),
       child: tappable,
     );
   }
 }
 
-/// Kategori karosu: 40 px, r12. Okunmamışta yumuşak turuncu zemin ve turuncu simge, okunmuşta kuyu ve
-/// soluk simge; uyarı / tehlike bildiriminde tonun kuyusu. Renk değişimi yumuşak.
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({
-    required this.icon,
-    required this.tone,
-    required this.unread,
-  });
+/// Eylem satırı: "Talebi incele ›" — ink 13/18 600 ve küçük ok (turuncu değil: satırın tek turuncusu
+/// okunmamış noktasıdır).
+class _ActionLine extends StatelessWidget {
+  const _ActionLine({required this.label});
 
-  final IconData icon;
-  final AknTone? tone;
-  final bool unread;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final tc = tone == null ? null : c.tone(tone!);
-    final bg = tc?.bg ?? (unread ? c.brandSoft : c.surfaceAlt);
-    final fg = tc?.fg ?? (unread ? c.brandInk : c.dim);
-    return ExcludeSemantics(
-      child: AnimatedContainer(
-        duration: AknMotion.of(context, AknMotion.slow),
-        curve: AknMotion.standard,
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: AknRadius.buttonSmall,
+    final t = context.aknText;
+    return Row(
+      key: NotificationTile.actionKey,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            label,
+            style: t.label.copyWith(color: c.ink),
+            maxLines: 2,
+          ),
         ),
-        alignment: Alignment.center,
-        child: TweenAnimationBuilder<Color?>(
-          tween: ColorTween(end: fg),
-          duration: AknMotion.of(context, AknMotion.slow),
-          builder: (context, color, _) => Icon(icon, size: 20, color: color),
-        ),
-      ),
+        const SizedBox(width: 2),
+        Icon(PhosphorIconsBold.caretRight, size: 12, color: c.ink),
+      ],
     );
   }
 }
 
-/// Okunmamış noktası: 8 px logo turuncusu; çevresinde yumuşak bir hale nefes alır
-/// ([AknMotion.breathe]). Okundu olunca küçülerek kaybolur.
+/// Okunmamış noktası: 8 dp logo turuncusu, sabit (nefes almaz). Okundu olunca küçülerek kaybolur ve
+/// yeri kapanır; yeni geldiğinde zıplayarak belirir.
 class _UnreadDot extends StatelessWidget {
   const _UnreadDot({required this.visible});
 
@@ -262,42 +285,23 @@ class _UnreadDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final duration = AknMotion.of(context, AknMotion.slow);
     return ExcludeSemantics(
-      child: AnimatedScale(
-        scale: visible ? 1 : 0,
-        duration: AknMotion.of(context, AknMotion.slow),
-        curve: visible ? AknMotion.pop : AknMotion.exit,
-        child: SizedBox.square(
-          dimension: 16,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Hale: yalnızca ölçek ve opaklık değişir (yeniden yerleşim yok).
-              AknAmbient(
-                period: AknMotion.breathe,
-                reverse: true,
-                builder: (context, t, child) => Opacity(
-                  opacity: 0.85 - 0.6 * t,
-                  child: Transform.scale(scale: 0.5 + 0.5 * t, child: child),
-                ),
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: c.brand.withValues(alpha: 0.3),
-                  ),
-                ),
-              ),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: c.logo,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
+      child: AnimatedContainer(
+        duration: duration,
+        curve: AknMotion.emphasizedCurve,
+        width: visible ? 14 : 0,
+        height: 16,
+        alignment: AlignmentDirectional.centerStart,
+        child: AnimatedScale(
+          scale: visible ? 1 : 0,
+          duration: duration,
+          curve: visible ? AknMotion.pop : AknMotion.exit,
+          child: Container(
+            key: visible ? NotificationTile.unreadDotKey : null,
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: c.logo, shape: BoxShape.circle),
           ),
         ),
       ),
@@ -306,6 +310,8 @@ class _UnreadDot extends StatelessWidget {
 }
 
 class _SwipeBackground extends StatelessWidget {
+  const _SwipeBackground();
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;

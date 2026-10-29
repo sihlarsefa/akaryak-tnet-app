@@ -67,7 +67,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pump();
-    expect(find.text('Genel merkez'), findsOneWidget);
+    expect(find.text('Merkez · Yönetici'), findsOneWidget);
   });
 
   a11yMatrix('giriş (telefon sekmesi)', (tester, scale, b) async {
@@ -131,6 +131,59 @@ void main() {
     expect(find.text('Kullanıcı adı veya şifre hatalı.'), findsOneWidget);
     final password = tester.widget<TextField>(_field('Şifre'));
     expect(password.controller!.text, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('v4: alanlarda simge yok, şifrede yalnızca "Göster"', (
+    tester,
+  ) async {
+    setPhoneSize(tester);
+    await pumpAuthRoute(tester, '/login');
+    final fields = find.byType(AknTextField);
+    expect(fields, findsNWidgets(2));
+    final icons = find.descendant(of: fields, matching: find.byType(Icon));
+    // Yalnızca şifre alanının göz simgesi ("Göster" düğmesi).
+    expect(icons, findsOneWidget);
+    expect(
+      find.descendant(of: fields.last, matching: find.text('Göster')),
+      findsOneWidget,
+    );
+    // "Şifre ile / Numara ile" anahtarı da yalın (simgesiz).
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Şifre ile'),
+          matching: find.byType(Row),
+        ),
+        matching: find.byType(Icon),
+      ),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('v4: klavye açılınca "Giriş yap" klavyenin üstünde görünür', (
+    tester,
+  ) async {
+    setPhoneSize(tester, const Size(390, 844));
+    await pumpAuthRoute(tester, '/login');
+    await tapVisible(tester, _field('E-posta ya da kullanıcı adı'));
+    await tester.pump();
+    // Klavye: 336 dp.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 336);
+    addTearDown(tester.view.resetViewInsets);
+    await pumpFor(tester, const Duration(milliseconds: 900));
+    final button = tester.getRect(
+      find.ancestor(
+        of: find.text('Giriş yap'),
+        matching: find.byType(AknButton),
+      ),
+    );
+    expect(button.bottom, lessThanOrEqualTo(844 - 336 + 0.5));
+    expect(button.top, greaterThanOrEqualTo(0));
+    // Odaktaki alan da görünür kalır.
+    final field = tester.getRect(_field('E-posta ya da kullanıcı adı'));
+    expect(field.top, greaterThanOrEqualTo(0));
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -345,26 +398,26 @@ void main() {
       for (final p in fakePersonas) {
         expect(find.text(p.displayName), findsOneWidget, reason: p.key);
       }
-      // Kısa roller (sahip kararındaki adlar).
-      for (final role in [
-        'Şirket yöneticisi',
-        'Onaylayan',
-        'Talep eden',
-        'Bayi sahibi',
-        'Bayi müdürü',
-        'Finans müdürü',
-        'Finans uzmanı',
-        'Muhasebe',
-        'Satış müdürü',
-        'Saha satış',
-        'Sipariş masası',
-        'Sevkiyat',
-        'Şoför',
-        'Depo',
-        'Görüntüleyici',
-        'Genel merkez',
+      // v4 §5 01: her kartın alt satırı önce tarafı adlandırır ("Müşteri · Yönetici", "Bayi · Sahip").
+      for (final subtitle in [
+        'Müşteri · Yönetici',
+        'Müşteri · Onaylayan',
+        'Müşteri · Talep eden',
+        'Bayi · Sahip',
+        'Bayi · Müdür',
+        'Bayi · Finans müdürü',
+        'Bayi · Finans uzmanı',
+        'Bayi · Muhasebe',
+        'Bayi · Satış müdürü',
+        'Bayi · Saha satış',
+        'Bayi · Sipariş masası',
+        'Bayi · Sevkiyat',
+        'Bayi · Şoför',
+        'Bayi · Depo',
+        'Bayi · Görüntüleyici',
+        'Merkez · Yönetici',
       ]) {
-        expect(find.text(role), findsOneWidget, reason: role);
+        expect(find.text(subtitle), findsOneWidget, reason: subtitle);
       }
       // Kartlar yatay kayar: müşteri kartları aynı satırda, soldan sağa, aynı boyda.
       Finder card(String name) => find.ancestor(
@@ -379,12 +432,44 @@ void main() {
       // Ekran okuyucu kartı tek düğme olarak okur.
       final semantics = tester.ensureSemantics();
       expect(
-        find.bySemanticsLabel('Selin Aydın, Müşteri, Şirket yöneticisi'),
+        find.bySemanticsLabel('Selin Aydın, Müşteri, Yönetici'),
         findsOneWidget,
       );
       semantics.dispose();
       await tester.pumpWidget(const SizedBox());
     });
+
+    testWidgets(
+      'v4: 390 dp ekranda kartlar 156 dp, üçüncü kart ~34 dp görünür; ipucu satırı kalır',
+      (tester) async {
+        setPhoneSize(tester, const Size(390, 844));
+        await pumpAuthRoute(tester, '/login');
+        // Kartların açılış hareketi (sağdan kayarak) bitsin.
+        await pumpFor(tester, const Duration(milliseconds: 1200));
+        Finder card(String name) => find.ancestor(
+          of: find.text(name),
+          matching: find.byType(DemoPersonaCard),
+        );
+        final first = tester.getRect(card('Selin Aydın'));
+        final second = tester.getRect(card('Elif Demir'));
+        final third = tester.getRect(card('Burak Yılmaz'));
+        expect(first.width, demoCardWidth);
+        expect(first.left, 20);
+        expect(second.left - first.right, 12);
+        // Üçüncü kart ekranın sağ kenarından ~34 dp içeride başlar: kaydırılabildiği görünür.
+        expect(390 - third.left, closeTo(34, 1));
+        // İlk bakış: "Hoş geldiniz", hemen altında demo başlığı, ipucu ve kartlar; alt satır yok.
+        expect(find.text('Hesabınıza giriş yapın.'), findsNothing);
+        final welcome = tester.getRect(find.text('Hoş geldiniz'));
+        final hint = tester.getRect(
+          find.textContaining('Tek dokunuşla giriş.'),
+        );
+        expect(hint.top, greaterThan(welcome.bottom));
+        expect(first.top, greaterThan(hint.bottom));
+        expect(first.bottom, lessThan(844 / 2 + 80), reason: 'ilk ekranda');
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
     testWidgets('karta dokunmak o hesapla giriş yapar (müşteri)', (
       tester,

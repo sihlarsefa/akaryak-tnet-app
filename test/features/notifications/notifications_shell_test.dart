@@ -2,11 +2,16 @@
 // zilden ve sekmeden açılır, tercihler ve profil alt sayfaları alt menünün üstünde açılır, asistan tam
 // ekran açılıp kapatılır. Ağ yok; sahte sunucu gecikmesiz.
 import 'package:akaryakitnet/app/app.dart';
+import 'package:akaryakitnet/app/destinations.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
+import 'package:akaryakitnet/features/assistant/copy.dart';
+import 'package:akaryakitnet/features/driver/copy.dart';
+import 'package:akaryakitnet/features/notifications/copy.dart';
 import 'package:akaryakitnet/features/notifications/presentation/notification_settings_page.dart';
 import 'package:akaryakitnet/features/notifications/presentation/notifications_page.dart';
+import 'package:akaryakitnet/features/profile/copy.dart';
 import 'package:akaryakitnet/features/profile/presentation/sessions_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +52,24 @@ Finder _bar(String label) => find.descendant(
   matching: find.text(label),
 );
 
+/// [title] başlıklı sayfa bandı (v4 §3.2).
+Finder _band(String title) =>
+    find.ancestor(of: find.text(title), matching: find.byType(AknPageBand));
+
 void main() {
+  test(
+    'v4 §3.2: sayfa başlıkları sekmenin adıdır (Teslimatlar, Bildirimler, Asistan, Profil)',
+    () {
+      expect(DriverCopy.title, destinationOf(DestinationId.deliveries).label);
+      expect(
+        NotificationsCopy.title,
+        destinationOf(DestinationId.notifications).label,
+      );
+      expect(AssistantCopy.title, destinationOf(DestinationId.assistant).label);
+      expect(ProfileCopy.title, destinationOf(DestinationId.profile).label);
+    },
+  );
+
   testWidgets(
     'şoför: Bildirimler sekmesi gelen kutusunu açar, tercihler tam ekran',
     (tester) async {
@@ -57,6 +79,9 @@ void main() {
       await _pumpFor(tester, const Duration(seconds: 1));
       expect(find.byType(NotificationsPage), findsOneWidget);
       expect(find.text('Yeni teslimat atandı'), findsOneWidget);
+      // v4 §3.2: sekme kökünde bant — başlık sekmenin adı, durum satırı okunmamış sayısı.
+      expect(_band('Bildirimler'), findsOneWidget);
+      expect(find.text('1 okunmamış'), findsOneWidget);
       await tester.tap(find.byTooltip('Bildirim ayarları'));
       await _pumpFor(tester, const Duration(seconds: 1));
       expect(find.byType(NotificationSettingsPage), findsOneWidget);
@@ -73,6 +98,9 @@ void main() {
     await tester.tap(_bar('Profil'));
     await _pumpFor(tester, const Duration(milliseconds: 800));
     expect(find.text('Ahmet Kurt'), findsOneWidget);
+    // v4: sekme kökünde bant (başlık = sekmenin adı, durum satırı).
+    expect(_band('Profil'), findsOneWidget);
+    expect(find.text(ProfileCopy.bandStatus), findsOneWidget);
     await tester.ensureVisible(find.text('Aktif oturumlar'));
     await tester.pump();
     await tester.tap(find.text('Aktif oturumlar'));
@@ -95,6 +123,7 @@ void main() {
     await _pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Kabul ediyorum'), findsOneWidget);
     expect(find.byTooltip('Kapat'), findsNothing, reason: 'sekme kökü');
+    expect(_band('Asistan'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -105,6 +134,9 @@ void main() {
     await _launch(tester, 'musteri');
     await tester.tap(_bar('Diğer'));
     await _pumpFor(tester, const Duration(milliseconds: 800));
+    // v4: Diğer sayfası kişi kartı ve grup başlıklarıyla açılır; Asistan satırı aşağıda kalabilir.
+    await tester.ensureVisible(find.text('Asistan').last);
+    await _pumpFor(tester, const Duration(milliseconds: 300));
     await tester.tap(find.text('Asistan').last);
     await _pumpFor(tester, const Duration(seconds: 1));
     expect(find.text('Kabul ediyorum'), findsOneWidget);

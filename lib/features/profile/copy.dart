@@ -1,6 +1,9 @@
 /// Profil ve ayarlar metinleri (spec A.4 A8, C.7: "siz" dili, cümle düzeni; düğmeler ≤ 22 karakter).
 abstract final class ProfileCopy {
   static const title = 'Profil';
+
+  /// Sekme kökündeki bandın durum satırı (şoför, merkez; v4 §3.2: bekleyen yokken sakin cümle).
+  static const bandStatus = 'Hesabınız ve uygulama ayarları';
   static const editProfile = 'Profili düzenle';
 
   // ------------------------------------------------------------------ Bölümler

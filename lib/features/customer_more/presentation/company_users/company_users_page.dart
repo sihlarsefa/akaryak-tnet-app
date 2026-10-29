@@ -48,10 +48,8 @@ class CompanyUsersPage extends ConsumerWidget {
       );
     } else {
       // Kullanıcılar gruplanmış beyaz kartlarda (içeriden çizgilerle), bölümler sırayla yükselir.
-      Widget group(List<CompanyUser> users) => CmCard(
-        margin: const EdgeInsets.symmetric(horizontal: 20),
-        child: AknLedger(children: [for (final u in users) UserCard(user: u)]),
-      );
+      Widget group(List<CompanyUser> users) =>
+          AknLedger(children: [for (final u in users) UserCard(user: u)]);
       final blocks = <Widget>[
         SectionHeader(
           title: 'Kullanıcılar',
@@ -195,7 +193,7 @@ class UserCard extends ConsumerWidget {
         opacity: u.isActive ? 1 : 0.55,
         child: AknAvatar(name: u.displayName),
       ),
-      padding: CmCard.rowPadding,
+      padding: cmRowPadding,
       titleStyle: cmRowTitle(context),
       title: u.isSelf ? '${u.displayName} (siz)' : u.displayName,
       subtitle: contact.isEmpty ? null : contact,

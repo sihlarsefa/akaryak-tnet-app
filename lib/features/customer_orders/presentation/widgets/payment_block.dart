@@ -7,7 +7,6 @@ import '../../../../core/utils/turkish_text.dart';
 import '../../application/order_view_controller.dart';
 import '../../copy.dart';
 import '../../data/payment_models.dart';
-import 'common.dart';
 import 'order_parts.dart';
 
 String _methodName(String? code) => switch (code) {
@@ -81,56 +80,35 @@ String accusative(String noun) {
   return vowels.contains(last) ? '${w}n$suffix' : '$w$suffix';
 }
 
-/// Plakanın altındaki ödeme satırı (§7.8): beyaz küçük kartta "Çek ile, 30 gün vade. Çek görseli
-/// yüklendi." (yeşil onay). Zorunlu belge eksikse koyu sarı kuyu "Onaylamak için çek görselini
-/// yükleyin" + "Belge yükle".
-class PaymentFactLine extends StatelessWidget {
-  const PaymentFactLine({super.key, required this.view, this.onUpload});
-
-  final OrderView view;
-  final VoidCallback? onUpload;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = view.detail;
-    final target = view.documentTarget;
-    final sentence = '${paymentSentenceOf(d)}.';
-    if (target != null && view.paymentDocumentMissing) {
-      final label = accusative(TurkishText.lower(target.label));
-      return AknBanner(
-        tone: AknTone.warn,
-        icon: PhosphorIconsRegular.camera,
-        title: 'Onaylamak için $label yükleyin',
-        message: target.isUploadable
-            ? sentence
-            : (target.message ??
-                  '$sentence Bu belgeyi yükleme yetkiniz yok; şirket yöneticinize başvurun.'),
-        actionLabel: target.isUploadable && onUpload != null
-            ? 'Belge yükle'
-            : null,
-        onAction: onUpload,
-      );
-    }
-    // Olgu cümlesi küçük beyaz bir kartta (sayfada yüzen kartların ritmi).
-    return A2Card(
-      padding: const EdgeInsets.all(14),
-      child: target != null && view.hasPaymentDocument
-          ? FactLine(
-              icon: PhosphorIconsFill.checkCircle,
-              tone: AknTone.ok,
-              text: '$sentence ${target.label} yüklendi.',
-            )
-          : FactLine(icon: PhosphorIconsRegular.money, text: sentence),
-    );
-  }
+/// Teklif plakasının satırındaki kısa ödeme (v4 §5 ekran 05): "çek, 30 gün vade", "havale / EFT",
+/// "kredi / banka kartı, 3 taksit".
+String paymentShortOf(OrderDetail d) {
+  final name = _methodName(d.paymentMethodCode);
+  final parts = <String>[
+    name.isEmpty ? name : '${TurkishText.lower(name[0])}${name.substring(1)}',
+  ];
+  final t = d.paymentTermDays;
+  if (t != null && t > 0) parts.add('$t gün vade');
+  final inst = d.paymentInstallments;
+  if (inst != null && inst > 1) parts.add('$inst taksit');
+  return parts.join(', ');
 }
 
-/// "Ödeme" bölümü: yöntem, tahsilat durumu, tahmini tutar ve ödeme belgesi (eksikse yükleme).
+/// "Ödeme" bölümü: yöntem, tahsilat durumu, tahmini tutar ve ödeme belgesi (eksikse yükleme;
+/// karar çubuğu yüklemeyi zaten sunuyorsa [dockUpload] ile burada tekrarlanmaz).
 class PaymentBlock extends StatelessWidget {
-  const PaymentBlock({super.key, required this.view, this.onUpload});
+  const PaymentBlock({
+    super.key,
+    required this.view,
+    this.onUpload,
+    this.dockUpload = false,
+  });
 
   final OrderView view;
   final VoidCallback? onUpload;
+
+  /// Alt çubuğun birincil düğmesi belgeyi yüklüyor.
+  final bool dockUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -178,15 +156,15 @@ class PaymentBlock extends StatelessWidget {
                     state: AttachmentTileState.done,
                   ),
                 )
-            // Zorunlu belge eksikse yükleme çağrısı plakanın altındaki uyarıdadır.
-            else if (target.isUploadable &&
-                onUpload != null &&
-                !view.paymentDocumentMissing)
+            // Zorunlu belge eksikken yükleme karar çubuğunun birincil düğmesidir.
+            else if (target.isUploadable && onUpload != null && !dockUpload)
               AttachmentTile(
                 fileName: target.label,
-                kindLabel: 'İsteğe bağlı',
+                kindLabel: view.paymentDocumentMissing
+                    ? 'Zorunlu'
+                    : 'İsteğe bağlı',
                 onUpload: onUpload,
-                actionLabel: 'Ekle',
+                actionLabel: view.paymentDocumentMissing ? 'Yükle' : 'Ekle',
               ),
             if (instrument && docs.isNotEmpty)
               Padding(

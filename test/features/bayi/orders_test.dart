@@ -1,5 +1,5 @@
-// Siparişler: segment çipleri `bayi/orders/counts`tan (sıfır olanlar gizli) ve listeyi süzer; süzgeç
-// sayfası (durum, cari seçici) ve özet satırı; ayrıntı eylemleri yetkiye göre (spec A.1): sipariş masası
+// Siparişler (v4 §5 06): "Tümü" + segment çipleri `bayi/orders/counts`tan (sıfır olanlar gizli) ve
+// listeyi süzer; `?segment=` derin bağlantısı; Filtre sayfası (durum, cari seçici) ve özet satırı; ayrıntı eylemleri yetkiye göre (spec A.1): sipariş masası
 // Teklif ver, sevkiyat Sevkiyat planla, depo / görüntüleyici hiçbiri; teklif → cari kararı ya da finans
 // onayı; tüm litre teslim alınınca Tamamla.
 import 'package:akaryakitnet/core/models/models.dart';
@@ -19,7 +19,7 @@ Finder _inSheet(Finder f) =>
     find.descendant(of: find.byType(BottomSheet).last, matching: f);
 
 Finder _segChip(String label) => find.descendant(
-  of: find.byType(FilterChips<BayiOrderSegment>),
+  of: find.byType(FilterChips<BayiOrderSegment?>),
   matching: find.text(label),
 );
 
@@ -115,7 +115,7 @@ void main() {
       persona: 'sahip',
       location: '/bayi/orders',
     );
-    await scrollTap(tester, find.bySemanticsLabel('Süzgeçler'));
+    await scrollTap(tester, find.bySemanticsLabel('Filtre'));
     await scrollTap(
       tester,
       _inSheet(find.widgetWithText(FilterChip, OrderStatus.approved.label)),
@@ -144,7 +144,7 @@ void main() {
       ),
       isTrue,
     );
-    expect(find.bySemanticsLabel('Süzgeçler, 2 süzgeç açık'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^Filtre, 2 etkin')), findsOneWidget);
     expect(find.textContaining('Onaylandı, Marmara İnşaat'), findsOneWidget);
     await scrollTap(tester, find.text(BayiCopy.clearFilters));
     expect(app.container.read(bayiOrdersProvider).filter.advancedCount, 0);
@@ -379,6 +379,89 @@ void main() {
     expect(find.text('Sipariş henüz tamamlanmadı'), findsNothing);
     await app.finish(tester);
   });
+
+  testWidgets(
+    'v4: Tümü önce ve açılış; satırda hap ve sipariş no yok; Tümü\'de akış satırı; ?segment=',
+    (tester) async {
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'sahip',
+        location: '/bayi/orders',
+        size: const Size(390, 844),
+      );
+      final s = app.container.read(bayiOrdersProvider);
+      expect(s.filter.segment, isNull, reason: 'Teklifler alt menüde: Tümü');
+      expect(_segChip('Tümü'), findsOneWidget);
+      expect(
+        find.textContaining('teklifinizi bekliyor', findRichText: true),
+        findsOneWidget,
+      );
+      final rows = find.byType(BayiOrderCard);
+      expect(rows, findsWidgets);
+      // P4: hap ve sipariş no yok; Tümü'de » akış satırı.
+      expect(
+        find.descendant(of: rows, matching: find.byType(AknLamp)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: rows, matching: find.textContaining('SIP-')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: rows, matching: find.byType(AknFlowPips)),
+        findsWidgets,
+      );
+      // Ekranda en az 6 satır başlar (alt çubuk 746'da).
+      var visible = 0;
+      for (var i = 0; i < rows.evaluate().length; i++) {
+        if (tester.getRect(rows.at(i)).top < 746) visible++;
+      }
+      expect(visible, greaterThanOrEqualTo(6));
+      // Bir segmentte akış satırı yok (çip durumu zaten söylüyor).
+      await scrollTap(tester, _segChip(BayiOrderSegment.awaitingQuote.label));
+      expect(
+        find.descendant(
+          of: find.byType(BayiOrderCard),
+          matching: find.byType(AknFlowPips),
+        ),
+        findsNothing,
+      );
+      // Derin bağlantı: ?segment=awaitingCustomer.
+      await app.push(tester, '/bayi/orders?segment=awaitingCustomer');
+      expect(
+        app.container.read(bayiOrdersProvider).filter.segment,
+        BayiOrderSegment.awaitingCustomer,
+      );
+      expect(_segChip('Müşteri kararında'), findsWidgets);
+      await app.finish(tester);
+    },
+  );
+
+  testWidgets(
+    'v4 ayrıntı: "Sipariş" başlığı, müşteri üst satırı, » 4 durak, tek "Teklif ver"',
+    (tester) async {
+      final app = await BayiTestApp.start(
+        tester,
+        persona: 'sahip',
+        location: '/bayi/orders',
+        size: const Size(390, 844),
+      );
+      await _open(tester, app, _awaitingK95);
+      expect(find.text('Sipariş'), findsWidgets);
+      expect(find.byType(AknObjectHeader), findsOneWidget);
+      final line = tester.widget<AknFlowLine>(find.byType(AknFlowLine));
+      expect(line.flow.stops, AknFlow.bayiStops);
+      expect(line.flow.current, 0);
+      expect(find.textContaining('Aşama'), findsNothing);
+      // "Teklif ver(in)" en çok iki kez: StageNow + alt çubuk.
+      expect(find.text('Teklif verin'), findsOneWidget);
+      expect(find.text('Teklif ver'), findsOneWidget);
+      // Teklif yokken 46 dp tahmini tutar plakası yok: tahmin bir olgu satırı.
+      expect(find.byType(AknPlate), findsNothing);
+      expect(find.text('Liste fiyatıyla tahmin'), findsOneWidget);
+      await app.finish(tester);
+    },
+  );
 }
 
 /// Bayi 1'in teklifli, onaylı ilk siparişinin sevkiyatlarını değiştirir: sipariş litresinin

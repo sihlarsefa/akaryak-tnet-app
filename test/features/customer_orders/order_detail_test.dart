@@ -1,8 +1,9 @@
-// Sipariş ayrıntısı ve teklif kararı (spec A.4; tasarım v2 §7.8): teklif plakası (toplam, ₺/L, miktar,
-// teslim), aşama şeridi, son alımlarla kıyas, belge eksikken Teklifi onayla kapalı (yükleyince açılır),
-// onay özeti, revize ön ayar çipleri (web ile aynı),
+// Sipariş ayrıntısı ve teklif kararı (spec A.4; tasarım v4 §5 ekran 05): nesne başlığı (insan adı,
+// kopyalanan kod), » Akış çizgisi (müşteri sözcükleri), StageNow, tek kutu teklif plakası (toplam, ₺/L ·
+// ödeme, son alımlarla kıyas), karar çubuğu (belge eksikken birincil "Çek görselini yükle", yükleyince
+// "Teklifi onayla"ya döner; kapalı düğme yok), onay özeti, revize ön ayar çipleri (web ile aynı),
 // expectedQuoteId + anahtar, takip (yolda kamyon, "canlı konum değildir"), teklif bekleyen ipucu,
-// çevrimdışı karar kapalı, erişilebilirlik.
+// çevrimdışı karar kapalı, `?focus=`, erişilebilirlik.
 import 'dart:typed_data';
 
 import 'package:akaryakitnet/core/auth/session_controller.dart';
@@ -99,14 +100,22 @@ void main() {
       textScale: textScale,
       brightness: brightness,
     );
-    await pumpUntil(tester, find.byType(StageStrip));
+    await pumpUntil(tester, find.byType(AknFlowLine));
     await pumpReal(tester);
     return c;
   }
 
-  AknButton approveButton(WidgetTester tester) => tester.widget<AknButton>(
-    find.widgetWithText(AknButton, OrdersCopy.approve).first,
+  /// Karar çubuğu (alt çubuk).
+  Finder dock() => find.byType(ActionBar);
+
+  /// Çubuktaki düğme.
+  Finder dockButton(String label) => find.descendant(
+    of: dock(),
+    matching: find.widgetWithText(AknButton, label),
   );
+
+  AknFlow flowOf(WidgetTester tester) =>
+      tester.widget<AknFlowLine>(find.byType(AknFlowLine)).flow;
 
   /// ⋯ menüsünden bir seçenek.
   Future<void> openMenu(WidgetTester tester, String item) async {
@@ -117,24 +126,50 @@ void main() {
   }
 
   testWidgets(
-    'teklif plakası: toplam, ₺/L, miktar, teslim; geri sayım; aşama şeridi; son alımlarla kıyas',
+    'nesne başlığı, » Akış (müşteri sözcükleri), StageNow, tek kutu teklif plakası ve kıyas',
     (tester) async {
       await open(tester, o2);
+      // Çubukta nesnenin türü; başlık insan adıyla, kod alt yazıda.
+      final page = tester.widget<AppScaffold>(find.byType(AppScaffold));
+      expect(page.title, OrdersCopy.orderDetail);
+      expect(page.collapsedTitle, 'Motorin, 8.000 L');
+      expect(find.byType(AknObjectHeader), findsOneWidget);
+      final header = tester.widget<AknObjectHeader>(
+        find.byType(AknObjectHeader),
+      );
+      expect(header.title, 'Motorin, 8.000 L');
+      expect(header.caption, startsWith('SIP-'));
+      expect(header.line, startsWith('Tuzla Şantiye · '));
+      // » Akış: web'in sözcükleri, beş etiket; sıra sizde "Onay"da.
+      final flow = flowOf(tester);
+      expect(flow.stops, AknFlow.customerStops);
+      expect(flow.currentLabel, 'Onay');
+      expect(flow.yourMove, isTrue);
+      for (final stop in AknFlow.customerStops) {
+        expect(find.text(stop), findsWidgets, reason: 'etiket: $stop');
+      }
+      expect(find.textContaining('Aşama'), findsNothing);
+      // StageNow: kimin sırası ve ne zamana kadar.
+      expect(find.text('Teklifi onaylayın'), findsOneWidget);
+      expect(find.textContaining('Demir Petrol teklif verdi'), findsOneWidget);
+      expect(find.byType(CountdownBadge), findsOneWidget);
+      // Tek kutu: plaka; hap, uyarı ve karo yok.
       expect(find.byType(AknPlate), findsOneWidget, reason: 'tek plaka');
       expect(find.text('Demir Petrol teklifi'), findsOneWidget);
       expect(
         find.bySemanticsLabel(RegExp('Teklif toplamı 338.800,00 lira')),
         findsOneWidget,
       );
-      expect(find.textContaining('42,35'), findsWidgets);
-      expect(find.text('Kararınızı bekliyor'), findsOneWidget);
-      expect(find.byType(CountdownBadge), findsOneWidget);
-      final strip = tester.widget<StageStrip>(find.byType(StageStrip));
-      expect(strip.stages[strip.current], 'Karar');
-      expect(strip.yourMove, isTrue);
-      await tester.scrollUntilVisible(
-        find.text('Son alımlarınızla kıyas'),
-        150,
+      expect(find.text('42,35 ₺/L · çek, 30 gün vade'), findsOneWidget);
+      expect(find.byType(AknBanner), findsNothing);
+      expect(find.byType(AknLamp), findsNothing);
+      expect(find.text('Kararınızı bekliyor'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AknPlate),
+          matching: find.text('Son alımlarınızla kıyas'),
+        ),
+        findsOneWidget,
       );
       expect(
         find.textContaining('alımınızın ortalamasından litrede'),
@@ -145,19 +180,39 @@ void main() {
   );
 
   testWidgets(
-    'çek görseli eksik: Onayla kapalı; yükleyince açılır; onay özeti → onaylandı',
+    'karar çubuğu: bir birincil (açık) + iki hayalet düğme; kapalı birincil yok',
     (tester) async {
       await open(tester, o2);
+      final buttons = tester
+          .widgetList<AknButton>(
+            find.descendant(of: dock(), matching: find.byType(AknButton)),
+          )
+          .toList();
+      expect(buttons, hasLength(3));
+      final primary = buttons.first;
+      expect(primary.label, 'Çek görselini yükle');
+      expect(primary.onPressed, isNotNull);
+      expect(primary.variant, AknButtonVariant.primary);
+      expect(buttons[1].label, OrdersCopy.revise);
+      expect(buttons[1].variant, AknButtonVariant.ghost);
+      expect(buttons[2].label, OrdersCopy.reject);
+      expect(buttons[2].variant, AknButtonVariant.ghostDanger);
       expect(
-        find.text('Onaylamak için çek görselini yükleyin'),
+        find.text('Yükledikten sonra teklifi onaylayabilirsiniz'),
         findsOneWidget,
       );
-      expect(approveButton(tester).onPressed, isNull);
-      expect(find.textContaining('yüklenmeden onaylanamaz'), findsWidgets);
+      expect(dockButton(OrdersCopy.approve), findsNothing);
+      await tearDownUi(tester);
+    },
+  );
 
-      final upload = find.text('Belge yükle').first;
-      await tester.ensureVisible(upload);
-      await tester.pump();
+  testWidgets(
+    'çek görseli eksik: birincil "Çek görselini yükle"; yükleyince "Teklifi onayla"ya döner; '
+    'onay özeti → onaylandı',
+    (tester) async {
+      await open(tester, o2);
+      final upload = dockButton('Çek görselini yükle');
+      expect(tester.widget<AknButton>(upload).onPressed, isNotNull);
       await tester.tap(upload);
       await pumpUntil(tester, find.text('Galeriden seç'));
       await tester.tap(find.text('Galeriden seç'));
@@ -169,11 +224,14 @@ void main() {
       );
       await tester.pump(const Duration(seconds: 1));
       await pumpReal(tester, rounds: 10);
-      expect(approveButton(tester).onPressed, isNotNull);
+      // Aynı birincil düğme etiketini değiştirir (onay işareti çıkar).
+      final approve = dockButton(OrdersCopy.approve);
+      expect(approve, findsOneWidget);
+      expect(tester.widget<AknButton>(approve).onPressed, isNotNull);
+      expect(tester.widget<AknButton>(approve).celebrate, isTrue);
+      expect(dockButton('Çek görselini yükle'), findsNothing);
 
-      await tester.tap(
-        find.widgetWithText(AknButton, OrdersCopy.approve).first,
-      );
+      await tester.tap(approve);
       await pumpReal(tester);
       expect(find.text('Teklifi onaylıyor musunuz?'), findsOneWidget);
       expect(
@@ -186,8 +244,8 @@ void main() {
         find.text('Teklif onaylandı. Bayi sevkiyatı planlayacak.'),
         findsOneWidget,
       );
-      final strip = tester.widget<StageStrip>(find.byType(StageStrip));
-      expect(strip.stages[strip.current], 'Plan');
+      expect(flowOf(tester).currentLabel, 'Yolda');
+      expect(find.text('Sevkiyat planlanıyor'), findsOneWidget);
       expect(env.world.order(o2)!['status'], 3);
       final sent = env.controls.decisionRequests.last;
       final latestId =
@@ -246,14 +304,13 @@ void main() {
     await tearDownUi(tester);
   });
 
-  testWidgets('çevrimdışı: karar düğmeleri kapalı', (tester) async {
+  testWidgets('çevrimdışı: çubukta düğme yok, neden yazar', (tester) async {
     await open(tester, o2, extra: [isOnlineProvider.overrideWithValue(false)]);
     expect(find.text('Çevrimdışıyken karar verilemez'), findsOneWidget);
-    expect(approveButton(tester).onPressed, isNull);
-    final revise = tester.widget<AknButton>(
-      find.widgetWithText(AknButton, 'Revize iste'),
+    expect(
+      find.descendant(of: dock(), matching: find.byType(AknButton)),
+      findsNothing,
     );
-    expect(revise.onPressed, isNull);
     await tearDownUi(tester);
   });
 
@@ -283,7 +340,7 @@ void main() {
       expect(env.world.order(o2)!['status'], 5);
       expect(find.text('Onaylanan teklif'), findsNothing);
       expect(find.text('Revize istenen teklif'), findsOneWidget);
-      expect(find.text('Teslim tarihi uygun değil'), findsWidgets);
+      expect(find.textContaining('Teslim tarihi uygun değil'), findsWidgets);
       await tearDownUi(tester);
     },
   );
@@ -366,9 +423,12 @@ void main() {
   });
 
   testWidgets(
-    'takip: yoldaki araç, plaka, "canlı konum değildir", sevkiyat kartları',
+    'takip: yoldaki araç, plaka, "canlı konum değildir"; sevkiyat satırları; Sipariş geçmişi '
+    'sayfada açılır',
     (tester) async {
       await open(tester, o3);
+      expect(flowOf(tester).currentLabel, 'Yolda');
+      expect(find.textContaining('Tahmini teslim'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.textContaining('canlı konum değildir'),
         150,
@@ -376,7 +436,12 @@ void main() {
       expect(find.byType(TruckRoute), findsOneWidget);
       expect(find.byType(PlateBadge), findsWidgets);
       expect(find.text('Haritada aç'), findsOneWidget);
-      await tester.scrollUntilVisible(find.textContaining('SVK-').first, 150);
+      await tester.scrollUntilVisible(find.textContaining('Sevkiyatlar'), 150);
+      expect(find.textContaining('SVK-'), findsNothing, reason: 'kod yok');
+      await tester.scrollUntilVisible(find.text(OrdersCopy.history), 150);
+      await tester.pump();
+      await tester.tap(find.text(OrdersCopy.history));
+      await pumpUntil(tester, find.byType(StepTimeline));
       expect(find.byType(StepTimeline), findsWidgets);
       await tearDownUi(tester);
     },
@@ -411,8 +476,7 @@ void main() {
             as int;
     await open(tester, done);
     expect(find.text('Tamamlandı'), findsOneWidget);
-    final strip = tester.widget<StageStrip>(find.byType(StageStrip));
-    expect(strip.current, strip.stages.length, reason: 'tüm aşamalar bitti');
+    expect(flowOf(tester).delivered, isTrue, reason: 'tüm adımlar bitti');
     expect(find.widgetWithText(AknButton, OrdersCopy.reorder), findsOneWidget);
     expect(find.widgetWithText(AknButton, OrdersCopy.approve), findsNothing);
     await tearDownUi(tester);
@@ -428,7 +492,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Teklif bekleniyor'), findsWidgets);
+    expect(find.text('Demir Petrol teklif hazırlıyor'), findsOneWidget);
+    expect(flowOf(tester).currentLabel, 'Teklif');
     await tearDownUi(tester);
   });
 
@@ -444,16 +509,44 @@ void main() {
     await tearDownUi(tester);
   });
 
-  testWidgets('avans bakiyesi teklif tutarından azsa Onayla kapalı ve uyarı', (
-    tester,
-  ) async {
-    env.world.order(o2)!['paymentMethodCode'] = 'AVANS';
-    env.world.bag<Map<String, double>>('a2.advance', () => {'1': 250000})['1'] =
-        1000;
-    await open(tester, o2);
-    expect(find.text('Ön ödemeli bakiye yetersiz'), findsOneWidget);
-    expect(find.text('Onaylamak için çek görselini yükleyin'), findsNothing);
-    expect(approveButton(tester).onPressed, isNull);
+  testWidgets(
+    'avans bakiyesi teklif tutarından azsa birincil adım bayiyi aramak ya da revize',
+    (tester) async {
+      env.world.order(o2)!['paymentMethodCode'] = 'AVANS';
+      env.world.bag<Map<String, double>>(
+        'a2.advance',
+        () => {'1': 250000},
+      )['1'] = 1000;
+      await open(tester, o2);
+      expect(find.textContaining('Ön ödemeli bakiye yetersiz'), findsOneWidget);
+      expect(dockButton('Çek görselini yükle'), findsNothing);
+      expect(dockButton(OrdersCopy.approve), findsNothing);
+      final primary = tester
+          .widgetList<AknButton>(
+            find.descendant(of: dock(), matching: find.byType(AknButton)),
+          )
+          .first;
+      expect(primary.onPressed, isNotNull);
+      expect(primary.label, anyOf('Bayinizi arayın', OrdersCopy.revise));
+      await tearDownUi(tester);
+    },
+  );
+
+  testWidgets('?focus=quote: teklif plakası parlar', (tester) async {
+    final c = (await tester.runAsync(
+      () => env.signedIn('musteri', extra: mediaOverrides()),
+    ))!;
+    addTearDown(c.dispose);
+    await pumpA2(tester, c, initialLocation: '/orders/$o2?focus=quote');
+    await pumpUntil(tester, find.byType(AknFlowLine));
+    await pumpReal(tester);
+    final flash = tester.widget<AknFocusFlash>(
+      find.ancestor(
+        of: find.byType(AknPlate),
+        matching: find.byType(AknFocusFlash),
+      ),
+    );
+    expect(flash.active, isTrue);
     await tearDownUi(tester);
   });
 
@@ -490,7 +583,7 @@ void main() {
   ) async {
     await open(tester, o3, textScale: 2);
     expect(tester.takeException(), isNull);
-    await tester.scrollUntilVisible(find.textContaining('SVK-').first, 200);
+    await tester.scrollUntilVisible(find.textContaining('Sevkiyatlar'), 200);
     expect(tester.takeException(), isNull);
     await expectA11y(tester);
     await tearDownUi(tester);
@@ -524,7 +617,7 @@ void main() {
       await pumpReal(tester);
       expect(find.textContaining(OrdersCopy.lastUpdate), findsWidgets);
       expect(find.text(OrdersCopy.decisionOffline), findsOneWidget);
-      expect(approveButton(tester).onPressed, isNull);
+      expect(dockButton(OrdersCopy.approve), findsNothing);
       await tearDownUi(tester);
     },
   );

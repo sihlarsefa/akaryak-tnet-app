@@ -67,7 +67,7 @@ class DeliveryPointsPage extends ConsumerWidget {
               key: ValueKey(points[i].id),
               index: i,
               child: Padding(
-                padding: CmCard.listMargin,
+                padding: cmListMargin,
                 child: DeliveryPointCard(
                   point: points[i],
                   onEdit: policy.cmPointEdit && points[i].isActive
@@ -164,10 +164,6 @@ class DeliveryPointCard extends StatelessWidget {
     ].where((x) => x.isNotEmpty).join(', ');
     final edit = onEdit;
     final tile = AknListTile(
-      leading: CmIconTile(
-        icon: PhosphorIconsRegular.mapPin,
-        tone: p.isActive ? AknTone.brand : AknTone.neutral,
-      ),
       title: p.name,
       titleStyle: p.isActive
           ? cmRowTitle(context)
@@ -244,8 +240,8 @@ class DeliveryPointCard extends StatelessWidget {
     );
     final actions = p.contactPhone != null || p.hasLocation;
     // Kartın içinde düğme varsa kart basılmaz (düğme kendi basışını yapar); satır vurgulanır.
-    return CmCard(
-      pressable: edit != null && !actions,
+    return AknCard(
+      padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,

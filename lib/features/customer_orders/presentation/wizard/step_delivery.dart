@@ -533,7 +533,7 @@ class _LineOverride extends ConsumerWidget {
     final product = form?.product(l.productId)?.name ?? 'Ürün seçilmedi';
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
-      child: A2Card(
+      child: AknCard(
         padding: const EdgeInsets.fromLTRB(16, 4, 8, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

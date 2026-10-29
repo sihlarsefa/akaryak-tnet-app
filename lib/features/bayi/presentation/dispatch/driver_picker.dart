@@ -99,7 +99,7 @@ class _DriverPickerState extends ConsumerState<_DriverPicker> {
                 title: list.isEmpty ? 'Şoför hesabı yok' : 'Eşleşen şoför yok',
                 message: list.isEmpty
                     ? 'Bayinizde Şoför rolüyle tanımlı personel bulunmuyor.'
-                    : null,
+                    : 'Adı ya da telefon numarasını kontrol edin.',
                 illustration: AknIllustration.search,
               );
             }

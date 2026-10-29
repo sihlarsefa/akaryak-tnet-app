@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/offline/connectivity.dart';
 import '../../../../core/ui/ui.dart';
+import '../../../../core/utils/format.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/desk_controller.dart';
 import '../../copy.dart';
@@ -16,13 +17,17 @@ import '../widgets/paged_list_body.dart';
 import 'desk_row_card.dart';
 import 'desk_sheets.dart';
 
-/// Teklif masası (spec A.4 / A.3 adım 3, tasarım v3 "Akış"): kök başlık, finans bekleyenler için kuyu,
-/// sayılı çipler (Tümü, Yeni, Revize, Süresi yaklaşan), her sipariş beyaz bir kart (kart içi ₺/L ve
-/// teslim günü; seçilince turuncu yumuşak zemin), "Önerileri uygula", "Aynı fiyatı uygula", çoklu
-/// seçim ve toplu gönderim; kart başına sonuç çipi süzülerek gelir (finansa gidenler uyarı tonunda),
-/// gönderim sonrası masa ve sayılar tazelenir. Kartlar art arda yükselerek gelir (görünüm ya da süzgeç
-/// değişince yeniden). Geri sayım yalnızca süre dolumu açıkken; `quotingBlocked` iken masa salt
-/// okunur.
+/// Teklifler (tasarım v4 "Sade" §5 13; teklif masası).
+///
+/// * Bant: "Teklifler", canlı durum satırı ("6 sipariş teklif bekliyor · en yakını 41 dk") ve Filtre
+///   (süresi yaklaşan, cari, ürün, sıralama; rozet açık filtre sayısı). Zil yok.
+/// * Tek anahtar: `AknSegmented` [Tümü | Yeni | Revize] (sayılar metin olarak), altında "Tümünü seç".
+/// * Satırlar kart (içlerinde alan var): seçim kutusu + müşteri + geri sayım; "Motorin · 10.000 L ·
+///   Körfez Garaj"; birim fiyat (ipucu öneri, "Öneri" doldurur) ve teslim günü; "≈ 415.500 ₺" (yazdıkça
+///   sayar) ve "Son: 41,55 ₺/L · 27 Eki" (dokununca son alımlar).
+/// * Finans onayında bekleyenler notu listenin sonunda.
+/// * Alt çubuk: çerçeveli "Önerilen fiyatları yaz"; bir satıra fiyat yazılınca birincil "Teklifleri
+///   gönder (3) · 1.245.000 ₺" 16 dp yükselerek üstüne gelir.
 class QuoteDeskPage extends ConsumerStatefulWidget {
   const QuoteDeskPage({super.key, this.initialCustomerId});
 
@@ -101,37 +106,59 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
     final blocked = header?.quotingBlocked ?? false;
     final editable =
         grants.quoteOnDesk && (header?.canSubmit ?? false) && !blocked;
-    final today = s.today;
-    final views = [
-      DeskView.all,
-      DeskView.awaitingQuote,
-      DeskView.revision,
-      if (s.expiryEnabled) DeskView.expiringSoon,
-    ];
+    final expiring = s.view == DeskView.expiringSoon;
     final filterCount =
-        (s.customerId == null ? 0 : 1) + (s.productId == null ? 0 : 1);
-    final todayLine = header == null
-        ? null
-        : [
-            'Bugün ${today.ordersToday} yeni sipariş, ${today.quotedToday} teklif',
-            if (today.avgFirstQuoteMinutes != null)
-              'ilk teklif ortalama ${today.avgFirstQuoteMinutes} dk',
-          ].join(', ');
+        (s.customerId == null ? 0 : 1) +
+        (s.productId == null ? 0 : 1) +
+        (expiring ? 1 : 0);
+    final segment = expiring ? DeskView.all : s.view;
+
+    // Durum satırı: "6 sipariş teklif bekliyor · en yakını 41 dk".
+    final waiting = s.counts.of(DeskView.all) ?? 0;
+    Object? status;
+    if (header != null) {
+      if (waiting <= 0) {
+        status = 'Teklif bekleyen sipariş yok';
+      } else {
+        final first = '${Fmt.integer(waiting)} sipariş teklif bekliyor';
+        DateTime? nearest;
+        for (final d in s.deadlines.values) {
+          if (!d.isAfter(DateTime.now().toUtc())) continue;
+          if (nearest == null || d.isBefore(nearest)) nearest = d;
+        }
+        final left = nearest?.difference(DateTime.now().toUtc());
+        status = [
+          if (editable)
+            AknStatusClause.yourMove(first)
+          else
+            AknStatusClause(first),
+          if (left != null)
+            AknStatusClause(
+              'en yakını ${Fmt.countdown(left)}',
+              tone: left <= const Duration(minutes: 30) ? AknTone.danger : null,
+            ),
+        ];
+      }
+    }
+
     return AppScaffold(
-      title: 'Teklif masası',
+      title: 'Teklifler',
       bandIcon: PhosphorIconsRegular.invoice,
-      eyebrow: 'Bayi',
-      description: 'Teklif bekleyen siparişler',
+      status: status,
       refreshing: s.list.refreshing,
       actions: [
-        FilterButton(
-          label: 'Süzgeç ve sıralama',
+        AknFilterButton(
           count: filterCount,
           onPressed: () => showDeskFilterSheet(context),
         ),
       ],
       actionBar: editable && s.rows.isNotEmpty
-          ? _DeskActionBar(online: online, onSubmit: () => unawaited(_submit()))
+          ? ActionBar(
+              child: _DeskDock(
+                online: online,
+                onSubmit: () => unawaited(_submit()),
+              ),
+            )
           : null,
       body: PagedListBody<DeskRow>(
         list: s.list,
@@ -146,13 +173,16 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           c.setView(DeskView.all);
         },
         empty: const EmptyState(
-          title: BayiCopy.deskEmptyTitle,
-          message: BayiCopy.deskEmptyMessage,
+          compact: true,
+          title: 'Teklif verilecek sipariş yok',
+          message: 'Yeni sipariş gelince bildirim alırsınız.',
           illustration: AknIllustration.orders,
         ),
-        footer: const ListFooterNote(
-          'Teklif verdiğiniz siparişler müşterinin kararına gider; Siparişler sayfasında izlenir.',
-        ),
+        footer: (header?.financeHeld ?? 0) > 0
+            ? ListFooterNote(
+                '${header!.financeHeld} sipariş finans onayında; finans onaylayınca buraya düşer.',
+              )
+            : null,
         header: [
           UpdatedCaption(
             updatedAt: s.list.updatedAt,
@@ -167,44 +197,44 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
               message:
                   header?.quotingBlockedReason ??
                   'Bekleyen siparişleri yalnızca görüntüleyebilirsiniz.',
-            ),
-          if (header?.epdkWarning != null)
+            )
+          else if (header?.epdkWarning != null)
             PageWell(
               tone: AknTone.warn,
               icon: PhosphorIconsRegular.shieldCheck,
               message: header!.epdkWarning!,
             ),
-          if ((header?.financeHeld ?? 0) > 0)
-            PageWell(
-              tone: AknTone.info,
-              icon: PhosphorIconsRegular.bank,
-              message:
-                  '${header!.financeHeld} sipariş finans onayında; finans onaylayınca masaya düşer.',
-            ),
           if (!grants.quoteOnDesk && header != null)
-            const PageWell(
-              tone: AknTone.neutral,
-              icon: PhosphorIconsRegular.eye,
-              message:
-                  'Teklif masasını görüntüleyebilirsiniz; teklif verme yetkiniz yok.',
+            const ListFooterNote(
+              'Teklifleri görüntüleyebilirsiniz; teklif verme yetkiniz yok.',
             ),
           const SizedBox(height: 8),
-          FilterChips<DeskView>(
-            allowEmpty: false,
-            options: [
-              for (final v in views)
+          AknSegmented<DeskView>(
+            segments: [
+              for (final v in const [
+                DeskView.all,
+                DeskView.awaitingQuote,
+                DeskView.revision,
+              ])
                 FilterOption(value: v, label: v.label, count: s.counts.of(v)),
             ],
-            selected: {s.view},
-            onChanged: (v) => c.setView(v.first),
+            value: segment,
+            onChanged: c.setView,
           ),
-          if (s.isFiltered)
+          if (s.isFiltered || expiring)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 4,
                 children: [
+                  if (expiring)
+                    InputChip(
+                      label: Text(DeskView.expiringSoon.label),
+                      onDeleted: () => c.setView(DeskView.all),
+                      deleteButtonTooltipMessage:
+                          'Süresi yaklaşan filtresini kaldır',
+                    ),
                   if (s.customerId != null)
                     InputChip(
                       label: Text(
@@ -234,8 +264,8 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
             ),
           if (editable && s.rows.isNotEmpty && !isLargeText(context))
             const _SelectAllRow()
-          else if (todayLine != null)
-            ListFooterNote(todayLine),
+          else
+            const SizedBox(height: 4),
         ],
         itemBuilder: (context, row, _) => DeskRowCard(
           key: ValueKey(row.orderId),
@@ -252,8 +282,7 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
   }
 }
 
-/// Listenin üstünde "Tümünü seç" satırı: satırların seçim kutularıyla aynı hizada üç durumlu kutu ve
-/// sağda bugünün özeti.
+/// Listenin üstünde "Tümünü seç": satırların seçim kutularıyla aynı hizada üç durumlu kutu.
 class _SelectAllRow extends ConsumerWidget {
   const _SelectAllRow();
 
@@ -266,68 +295,55 @@ class _SelectAllRow extends ConsumerWidget {
     final selected = s.selected.length;
     final all = selected > 0 && selected == s.rows.length;
     final value = all ? true : (selected == 0 ? false : null);
-    final today = s.today;
     void toggle() => all || selected > 0 ? c.clearSelection() : c.selectAll();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 8, 20, 0),
-      child: Row(
-        children: [
-          Semantics(
-            label: all || selected > 0 ? 'Seçimi kaldır' : 'Tümünü seç',
-            button: true,
-            excludeSemantics: true,
+      padding: const EdgeInsets.fromLTRB(24, 4, 20, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Semantics(
+          label: all || selected > 0 ? 'Seçimi kaldır' : 'Tümünü seç',
+          button: true,
+          excludeSemantics: true,
+          onTap: toggle,
+          child: InkWell(
             onTap: toggle,
-            child: InkWell(
-              onTap: toggle,
-              borderRadius: AknRadius.button,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 48,
-                      child: IgnorePointer(
-                        child: Checkbox(
-                          tristate: true,
-                          value: value,
-                          onChanged: (_) {},
-                        ),
+            borderRadius: AknRadius.button,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: IgnorePointer(
+                      child: Checkbox(
+                        tristate: true,
+                        value: value,
+                        onChanged: (_) {},
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      all || selected > 0 ? 'Seçimi kaldır' : 'Tümünü seç',
-                      style: t.bodyStrong.copyWith(color: k.ink),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    all || selected > 0 ? 'Seçimi kaldır' : 'Tümünü seç',
+                    style: t.bodyStrong.copyWith(color: k.ink),
+                  ),
+                  const SizedBox(width: 12),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              'Bugün ${today.ordersToday} yeni, ${today.quotedToday} teklif',
-              textAlign: TextAlign.end,
-              maxLines: 2,
-              style: t.label.copyWith(
-                fontWeight: FontWeight.w400,
-                color: k.dim,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Alt eylem çubuğu (§7.7): seçim yokken ipucu + "Önerileri uygula" (hayalet); seçim varken
-/// "3 sipariş seçildi" + "Önerileri uygula", altında "Aynı fiyatı uygula" (ikincil) ve
-/// "Teklifleri gönder (3)" (birincil). Büyük yazıda toplu araçlar tek düğmeyle açılan sayfada.
-class _DeskActionBar extends ConsumerWidget {
-  const _DeskActionBar({required this.online, required this.onSubmit});
+/// Alt çubuk (v4 §5 13): çerçeveli "Önerilen fiyatları yaz" (seçim varken yanında "Aynı fiyatı
+/// uygula"); fiyatı yazılmış seçili satır varsa birincil "Teklifleri gönder (3) · 1.245.000 ₺" 16 dp
+/// yükselerek üstte belirir. Büyük yazıda toplu araçlar tek düğmeyle açılan sayfada.
+class _DeskDock extends ConsumerWidget {
+  const _DeskDock({required this.online, required this.onSubmit});
 
   final bool online;
   final VoidCallback onSubmit;
@@ -340,6 +356,12 @@ class _DeskActionBar extends ConsumerWidget {
     final k = context.akn;
     final selected = s.selected.length;
     final ready = c.readyCount;
+    var total = 0.0;
+    for (final r in s.rows) {
+      if (!s.selected.contains(r.orderId)) continue;
+      final p = s.draftOf(r.orderId).price ?? 0;
+      if (p > 0) total += p * r.quantityLiters;
+    }
     // Büyük yazı ölçeğinde öğeler alt alta dizilir (yan yana sıkışıp ekranı kaplamasın).
     final large = isLargeText(context);
     void suggest() {
@@ -352,95 +374,94 @@ class _DeskActionBar extends ConsumerWidget {
       );
     }
 
-    final status = Semantics(
-      liveRegion: true,
-      child: Text(
-        selected == 0
-            ? BayiCopy.deskSubmitHint
-            : ready == selected
-            ? '$selected sipariş seçildi'
-            : '$selected sipariş seçildi, $ready hazır',
-        style: selected == 0
-            ? t.bodySmall.copyWith(color: k.dim)
-            : t.bodyStrong.copyWith(color: k.ink),
-      ),
-    );
+    final sendLabel = s.checking
+        ? 'Kontrol ediliyor'
+        : 'Teklifleri gönder ($selected)${total > 0 ? ' · ${Fmt.moneyWhole(total)}' : ''}';
     final send = AknButton(
-      label: s.checking ? 'Kontrol ediliyor' : 'Teklifleri gönder ($selected)',
+      key: const ValueKey('desk-send'),
+      label: sendLabel,
+      semanticLabel: 'Teklifleri gönder, $selected sipariş',
       expand: true,
-      size: AknButtonSize.medium,
       loading: s.submitting,
       loadingLabel: s.checking ? BayiCopy.checking : 'Gönderiliyor',
-      onPressed: online && ready > 0 ? onSubmit : null,
+      onPressed: online
+          ? onSubmit
+          : () => AppToast.info(BayiCopy.deskOffline, context: context),
     );
-    final same = AknButton.secondary(
-      label: 'Aynı fiyatı uygula',
-      expand: true,
-      size: AknButtonSize.medium,
-      onPressed: selected == 0 ? null : () => showBulkSameSheet(context, ref),
-    );
+    final Widget tools;
+    if (large) {
+      // Büyük yazıda çubuk listeyi örtmesin: toplu araçlar tek düğmeyle açılan sayfada.
+      tools = AknButton.secondary(
+        label: 'Toplu işlemler',
+        icon: PhosphorIconsRegular.listChecks,
+        size: AknButtonSize.small,
+        expand: true,
+        onPressed: () => _showDeskTools(context, ref),
+      );
+    } else {
+      // Simgeli, çerçeveli ikinciller: alttaki açıklamanın başlığı gibi değil, düğme gibi
+      // okunur (üstteki birincil tek dolu düğme kalır, P5).
+      tools = Row(
+        children: [
+          Expanded(
+            child: AknButton.secondary(
+              label: 'Önerilen fiyatları yaz',
+              icon: selected > 0 ? null : PhosphorIconsRegular.magicWand,
+              size: AknButtonSize.medium,
+              onPressed: suggest,
+            ),
+          ),
+          if (selected > 0) ...[
+            const SizedBox(width: 12),
+            Expanded(
+              child: AknButton.secondary(
+                label: 'Aynı fiyatı uygula',
+                size: AknButtonSize.medium,
+                onPressed: () => showBulkSameSheet(context, ref),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (large) ...[
-          // Büyük yazıda çubuk listeyi örtmesin: seçim ve toplu araçlar tek düğmeyle açılan sayfada;
-          // ipucu metni o sayfanın alt başlığındadır (seçim yokken burada gösterilmez).
-          if (selected > 0) ...[status, const SizedBox(height: 6)],
-          AknButton.secondary(
-            label: 'Toplu işlemler',
-            icon: PhosphorIconsRegular.listChecks,
-            size: AknButtonSize.small,
-            expand: true,
-            onPressed: () => _showDeskTools(context, ref),
-          ),
-          if (selected > 0) ...[const SizedBox(height: 8), send],
-        ] else ...[
-          Row(
-            children: [
-              Expanded(child: status),
-              const SizedBox(width: 8),
-              AknButton.ghost(
-                label: 'Önerileri uygula',
-                size: AknButtonSize.small,
-                onPressed: suggest,
+        // Bir satıra fiyat yazılınca birincil 16 dp yükselerek gelir.
+        AknAnimatedSize(
+          duration: AknMotion.sheet,
+          curve: AknMotion.emphasizedCurve,
+          alignment: Alignment.bottomCenter,
+          child: ready > 0 || s.submitting
+              ? FadeUp(
+                  key: const ValueKey('send-on'),
+                  offset: 16,
+                  duration: AknMotion.sheet,
+                  curve: AknMotion.emphasizedCurve,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: send,
+                  ),
+                )
+              : const SizedBox(
+                  key: ValueKey('send-off'),
+                  width: double.infinity,
+                ),
+        ),
+        tools,
+        if (selected == 0 && !large)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              BayiCopy.deskSubmitHint,
+              textAlign: TextAlign.center,
+              style: t.label.copyWith(
+                fontWeight: FontWeight.w500,
+                color: k.dim,
               ),
-            ],
-          ),
-          if (selected > 0) ...[
-            const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final half = (constraints.maxWidth - 10) / 2;
-                final fits =
-                    AknButton.fitsOneLine(
-                      context,
-                      'Aynı fiyatı uygula',
-                      half,
-                      bordered: true,
-                    ) &&
-                    AknButton.fitsOneLine(
-                      context,
-                      'Teklifleri gönder ($selected)',
-                      half,
-                    );
-                if (!fits) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [same, const SizedBox(height: 8), send],
-                  );
-                }
-                return Row(
-                  children: [
-                    Expanded(child: same),
-                    const SizedBox(width: 10),
-                    Expanded(child: send),
-                  ],
-                );
-              },
             ),
-          ],
-        ],
+          ),
         if (selected > 0 && !online)
           Padding(
             padding: const EdgeInsets.only(top: 6),
@@ -455,8 +476,8 @@ class _DeskActionBar extends ConsumerWidget {
   }
 }
 
-/// Büyük yazı ölçeğinde alt çubuğun toplu araçları: tümünü seç / seçimi kaldır, önerileri uygula,
-/// seçilenlere aynı fiyat.
+/// Büyük yazı ölçeğinde alt çubuğun toplu araçları: tümünü seç / seçimi kaldır, önerilen fiyatları
+/// yaz, seçilenlere aynı fiyat.
 Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
     showAppSheet<void>(
       context: context,
@@ -486,7 +507,7 @@ Future<void> _showDeskTools(BuildContext context, WidgetRef ref) =>
               ),
               const SizedBox(height: 8),
               AknButton.secondary(
-                label: 'Önerileri uygula',
+                label: 'Önerilen fiyatları yaz',
                 icon: PhosphorIconsRegular.magicWand,
                 expand: true,
                 onPressed: () {

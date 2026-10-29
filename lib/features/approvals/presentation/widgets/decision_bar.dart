@@ -26,6 +26,45 @@ String decisionDescription(ApprovalDecision d) => switch (d) {
   ApprovalDecision.unknown => '',
 };
 
+/// "Diğer kararlar" sayfası (v4 karar rıhtımının "Diğer" düğmesi ve eski çubuk): kararlar sırayla
+/// yükselen satırlarda; seçilen karar [onDecision]'a, "Merkeze ilet" [onForward]'a gider.
+Future<void> showMoreDecisions(
+  BuildContext context, {
+  required ApprovalDetail detail,
+  required List<ApprovalDecision> modes,
+  required void Function(ApprovalDecision decision) onDecision,
+  VoidCallback? onForward,
+}) async {
+  const forwardKey = 'forward';
+  final picked = await showAppSheet<Object>(
+    context: context,
+    title: 'Diğer kararlar',
+    builder: (ctx) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: a5Staggered([
+        for (final m in modes)
+          AknListTile(
+            leadingIcon: decisionIcon(m),
+            title: detail.modeLabel(m),
+            subtitle: decisionDescription(m),
+            subtitleMaxLines: 3,
+            onTap: () => Navigator.of(ctx).pop(m),
+          ),
+        if (onForward != null)
+          AknListTile(
+            leadingIcon: PhosphorIconsRegular.uploadSimple,
+            title: 'Merkeze ilet',
+            subtitle: 'Cari açılışını merkez onaylar.',
+            subtitleMaxLines: 3,
+            onTap: () => Navigator.of(ctx).pop(forwardKey),
+          ),
+      ]),
+    ),
+  );
+  if (picked is ApprovalDecision) onDecision(picked);
+  if (picked == forwardKey) onForward?.call();
+}
+
 /// Çubuktaki ikincil karar düğmesi.
 typedef _Secondary = ({
   String label,
@@ -58,29 +97,13 @@ class DecisionBar extends ConsumerWidget {
   /// Ön kayıt "Merkeze ilet" (yetkinlik approve.finance.lead).
   final VoidCallback? onForward;
 
-  Future<void> _more(BuildContext context, List<ApprovalDecision> modes) async {
-    final picked = await showAppSheet<ApprovalDecision>(
-      context: context,
-      title: 'Diğer kararlar',
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: a5Staggered([
-          for (final m in modes)
-            AknListTile(
-              leadingIcon: decisionIcon(m),
-              leadingTone: m == ApprovalDecision.reject
-                  ? AknTone.danger
-                  : AknTone.brand,
-              title: detail.modeLabel(m),
-              subtitle: decisionDescription(m),
-              subtitleMaxLines: 3,
-              onTap: () => Navigator.of(ctx).pop(m),
-            ),
-        ]),
-      ),
-    );
-    if (picked != null) onDecision(picked);
-  }
+  Future<void> _more(BuildContext context, List<ApprovalDecision> modes) =>
+      showMoreDecisions(
+        context,
+        detail: detail,
+        modes: modes,
+        onDecision: onDecision,
+      );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

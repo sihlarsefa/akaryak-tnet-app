@@ -47,7 +47,7 @@ class PaymentDetailPage extends ConsumerWidget {
 
     if (d == null) {
       return AppScaffold(
-        title: PaymentsCopy.title,
+        title: PaymentsCopy.detailTitle,
         body: async.hasError
             ? Center(
                 child: SingleChildScrollView(
@@ -131,7 +131,9 @@ class PaymentDetailPage extends ConsumerWidget {
     ];
 
     return AppScaffold(
-      title: row.orderNumber,
+      // v4 §3.2: itilmiş sayfa nesnenin türüyle adlanır; kaydırınca carinin adı.
+      title: PaymentsCopy.detailTitle,
+      collapsedTitle: row.customerTitle,
       refreshing: async.isLoading,
       actionBar: _dock(
         context,

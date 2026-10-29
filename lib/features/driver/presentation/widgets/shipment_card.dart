@@ -12,7 +12,7 @@ import '../../data/deliver_draft.dart';
 import '../../data/driver_models.dart';
 import 'op_status.dart';
 
-/// Teslimatlarım kartı (tasarım v3 §4 liste kartı, §7.11 "Sonraki duraklar"): beyaz kart (r20,
+/// Teslimatlar kartı (tasarım v3 §4 liste kartı, §7.11 "Sonraki duraklar"): beyaz kart (r20,
 /// yumuşak kart gölgesi; koyu temada 1 px çizgi) sayfanın 20 px kenarında yüzer. Güzergâh numarası
 /// (32 px yumuşak daire; tamamlananda yeşil onay), müşteri, nokta, sağda litre (tablo rakamları) ve
 /// ürün; altında durum lambası ve saat. İtiraz edilmişse müşteri notu (kırmızı kuyu) ve "Teslimatı

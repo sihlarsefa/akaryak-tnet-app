@@ -6,11 +6,11 @@ import '../../../../core/models/models.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../../core/utils/turkish_text.dart';
 import '../../copy.dart';
 import '../../data/form_models.dart';
 import '../../data/home_models.dart';
 import '../../data/order_models.dart';
-import 'common.dart';
 import 'contact_actions.dart';
 import 'order_parts.dart';
 
@@ -55,9 +55,11 @@ class OrderFlowTimeline extends StatelessWidget {
   );
 }
 
-/// Etkin sevkiyat bölümü (§7.4 "Yolda", §7.10): yoldaysa büyük rota çizgisi (» araç), çıkış ve
-/// varış etiketleri, sürücü ve plaka, "Haritada aç"; planlıysa tarih; teslim bildirildiyse kabul
-/// çağrısı (asıl düğme alttaki çubukta).
+/// Etkin sevkiyat kartı (§7.10; v4 §5 ekran 05): sayfanın StageNow satırı durumu ve tahmini
+/// teslimi zaten söyler ("Yolda · Tahmini teslim bugün, 08:00–18:00"); kart onları tekrar etmez.
+/// Yoldaysa büyük rota çizgisi (» araç; çıkış ve varış etiketleri, "canlı konum değildir"),
+/// teslim bildirildiyse ne yapılacağı ve irsaliye; sürücü ve plaka; "Haritada aç" ve bayi
+/// iletişimi. Söyleyecek bir şey yoksa çizilmez.
 class ActiveShipmentSection extends ConsumerWidget {
   const ActiveShipmentSection({
     super.key,
@@ -85,12 +87,6 @@ class ActiveShipmentSection extends ConsumerWidget {
     final reported = s.status == ShipmentStatus.reported;
     final pointName = point?.name ?? order.deliveryPointName;
     final window = point?.windowLabel;
-    final title = switch (s.status) {
-      ShipmentStatus.inTransit => 'Yolda',
-      ShipmentStatus.reported => 'Teslim edildi',
-      ShipmentStatus.disputed => 'İtirazlı teslimat',
-      _ => 'Sevkiyat planlandı',
-    };
     final eta = s.scheduledAt == null
         ? null
         : '${relativeDay(s.scheduledAt)}${window == null ? '' : ', $window'}';
@@ -113,27 +109,12 @@ class ActiveShipmentSection extends ConsumerWidget {
               '${eta == null ? '' : ', tahmini teslim $eta'}.',
         ),
         const SizedBox(height: 10),
-        if (eta != null)
-          FactRow(label: OrdersCopy.estimatedDelivery, value: eta),
         Text(
           '${OrdersCopy.inTransitCaption}.',
           style: t.bodySmall.copyWith(color: c.dim),
         ),
       ]);
     } else if (reported) {
-      final liters = s.deliveredLiters;
-      children.add(
-        FactLine(
-          icon: PhosphorIconsRegular.gasPump,
-          text: [
-            if (liters != null) '${Fmt.liters(liters)} teslim edildi',
-            if (s.deliveredAt != null) relativeMoment(s.deliveredAt),
-            if (s.deliveryDocumentNo != null)
-              'irsaliye ${s.deliveryDocumentNo}',
-          ].join(', '),
-        ),
-      );
-      children.add(const SizedBox(height: 8));
       children.add(
         Text(
           canAccept
@@ -142,37 +123,29 @@ class ActiveShipmentSection extends ConsumerWidget {
           style: t.bodySmall.copyWith(color: c.dim),
         ),
       );
-    } else if (s.status == ShipmentStatus.disputed) {
-      children.add(
-        FactLine(
-          icon: PhosphorIconsRegular.warningCircle,
-          tone: AknTone.danger,
-          text: s.disputeNote == null
-              ? 'İtirazınız bayiye iletildi.'
-              : 'İtirazınız: ${s.disputeNote}',
-        ),
-      );
-    } else if (eta != null) {
-      children.add(
-        FactLine(
-          icon: PhosphorIconsRegular.calendarDot,
-          text: '${pointName.isEmpty ? 'Teslimat' : pointName}, $eta teslim',
-        ),
-      );
+      if (s.deliveryDocumentNo != null) {
+        children.addAll([
+          const SizedBox(height: 6),
+          FactRow(label: 'İrsaliye', value: s.deliveryDocumentNo!),
+        ]);
+      }
     }
 
     final driver = s.driverName.trim();
     final plate = s.vehiclePlate.trim();
     if (driver.isNotEmpty || plate.isNotEmpty) {
       children.addAll([
-        const SizedBox(height: 14),
+        if (children.isNotEmpty) const SizedBox(height: 14),
         Row(
           children: [
-            const A2IconTile(
-              icon: PhosphorIconsRegular.steeringWheel,
-              size: 36,
+            ExcludeSemantics(
+              child: Icon(
+                PhosphorIconsRegular.steeringWheel,
+                size: 20,
+                color: c.dim,
+              ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             // Sürücü solda, plaka sağda; büyük yazıda yan yana sığmazlarsa plaka adın altına iner
             // (sütundan genişse kendi içinde küçülür) — satır taşmaz.
             Expanded(
@@ -202,9 +175,12 @@ class ActiveShipmentSection extends ConsumerWidget {
 
     final hasMap =
         point != null && (point!.hasLocation || point!.fullAddress.isNotEmpty);
-    if (hasMap || station != null) {
-      children.add(const SizedBox(height: 12));
-      children.add(
+    final contact =
+        station != null &&
+        (station!.callNumber != null || station!.whatsappNumber != null);
+    if (hasMap || contact) {
+      children.addAll([
+        if (children.isNotEmpty) const SizedBox(height: 12),
         StationContactButtons(
           station: station,
           dense: true,
@@ -230,21 +206,29 @@ class ActiveShipmentSection extends ConsumerWidget {
               ),
           ],
         ),
-      );
+      ]);
     }
-
-    return OrderSection(
-      title: title,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
+    if (children.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: AknLedger(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Sevkiyat satırları (§6.8): "10.000 L planlandı" / "9.980 L teslim edildi", kod, plaka ve
-/// sürücü; izleyiciye göre lamba ("Teslimatı onaylayın" sıra sizde). Dokununca teslimat ayrıntısı
+/// Sevkiyat satırları (§6.8; v4 defter satırı): "10.000 L planlandı" / "9.980 L teslim edildi",
+/// plaka ve sürücü, sağda gün; sıra müşterideyse yapılacak iş Pas satırda ("Teslimatı
+/// onaylayın"), yalnızca itirazlı sevkiyatta durum hapı. Dokununca teslimat ayrıntısı
 /// (`/shipments/{id}`: teslim kanıtı, kabul / itiraz) açılır.
 class ShipmentRows extends StatelessWidget {
   const ShipmentRows({
@@ -264,28 +248,25 @@ class ShipmentRows extends StatelessWidget {
         () {
           final lamp = AknStatus.shipmentLamp(s.status, viewer);
           final delivered = s.deliveredLiters;
-          final title = delivered == null
+          // "10.000 L planlandı", "10.000 L yolda", "9.980 L teslim edildi"; sıra sizdeyken ya da
+          // sorunlu sevkiyatta durum ayrı satırdadır.
+          final title = delivered != null
+              ? '${Fmt.liters(delivered)} teslim edildi'
+              : lamp.yourMove || lamp.problem
               ? Fmt.liters(s.plannedLiters)
-              : '${Fmt.liters(delivered)} teslim edildi';
+              : '${Fmt.liters(s.plannedLiters)} ${TurkishText.lower(lamp.label)}';
           final sub = [
-            s.displayCode,
             if (s.vehiclePlate.trim().isNotEmpty) Fmt.plate(s.vehiclePlate),
             if (s.driverName.trim().isNotEmpty) s.driverName.trim(),
-          ].join(', ');
+          ].join(' · ');
           final when = s.deliveredAt ?? s.dispatchedAt ?? s.scheduledAt;
           return AknListTile(
-            leading: A2IconTile(
-              icon: delivered == null
-                  ? PhosphorIconsRegular.truck
-                  : PhosphorIconsRegular.gasPump,
-              tone: lamp.tone,
-            ),
             padding: a2RowPadding,
-            titleStyle: a2RowTitle(context.aknText, context.akn),
             title: title,
-            subtitle: sub,
+            subtitle: sub.isEmpty ? null : sub,
             meta: when == null ? null : relativeDay(when),
-            status: AknStatusLine(lamp: AknLamp.status(lamp)),
+            next: lamp.yourMove ? lamp.label : null,
+            status: lamp.problem ? AknLamp.status(lamp) : null,
             semanticLabel:
                 '$title, sevkiyat ${s.displayCode}, ${lamp.label}. Ayrıntı için dokunun.',
             onTap: () {

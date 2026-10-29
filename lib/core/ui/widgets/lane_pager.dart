@@ -5,16 +5,14 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../motion.dart';
 import '../theme.dart';
-import '../typography.dart';
 
 /// The lane pager under the stats deck and the onboarding pages (design v3
 /// §4 "Pager dots"): 6 × 6 dots in `lineStrong` (3:1 on the page), the active lane a
 /// 20 × 6 capsule in the logo orange (gap 10). When the lane changes the
 /// capsule hands over on [AknMotion.spring] — the old one shrinks into a dot
-/// while the new dot stretches and warms to orange — and the position ("1 /
-/// 6", 14/20 w700, tabular, dim) gives a small bump. Right-aligned, an
-/// optional link ("İstatistikler ›", 14/20 w600 ink with a 16 px caret)
-/// presses in.
+/// while the new dot stretches and warms to orange. v4: a 40 dp row and no
+/// "1 / 6" text (its semantics stay). Right-aligned, an optional link
+/// ("İstatistikler ›", 14/20 w600 ink with a 16 px caret) presses in.
 ///
 /// * The dot strip is one 48 px tall tap target: a tap jumps to the nearest
 ///   lane ([onSelect]). Screen readers move with the deck's own custom
@@ -139,14 +137,6 @@ class _LanePagerState extends State<LanePager>
     final t = context.aknText;
     final n = math.max(0, widget.count);
     final active = _active;
-    final posStyle = t.number.copyWith(
-      fontSize: 14,
-      height: 20 / 14,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0.2,
-      color: c.dim,
-      fontFeatures: AknNumerals.tabular,
-    );
     final linkStyle = t.label.copyWith(
       fontSize: 14,
       height: 20 / 14,
@@ -169,7 +159,7 @@ class _LanePagerState extends State<LanePager>
     final onSelect = widget.onSelect;
     final strip = SizedBox(
       width: LanePager.stripWidth(n),
-      height: 48,
+      height: 40,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         // A pointer shortcut only: screen readers move through the deck with
@@ -200,62 +190,17 @@ class _LanePagerState extends State<LanePager>
       ),
     );
 
-    final posText = '${n == 0 ? 0 : active + 1} / $n';
     Widget? position;
+    // v4 (§4): "1 / N" is not drawn any more; its label stays for screen
+    // readers ("6 karttan 1."). Moving between lanes is the deck's own
+    // custom actions ("Sonraki kart", "Önceki kart"); a hidden button here
+    // would be an invisible tap target.
     if (widget.showPosition && n > 0) {
-      // The same Text all along: the figure changes at once and bumps.
-      final label = AnimatedBuilder(
-        animation: _move,
-        child: Text(posText, style: posStyle, maxLines: 1, softWrap: false),
-        builder: (context, child) {
-          final v = _move.value;
-          final bump = v >= 1 || _from == null
-              ? 0.0
-              : math.sin(math.pi * v) * (1 - v);
-          return Transform.scale(
-            scale: 1 + 0.2 * bump,
-            alignment: AlignmentDirectional.centerStart.resolve(
-              Directionality.of(context),
-            ),
-            child: child,
-          );
-        },
+      position = Semantics(
+        label: widget.positionSemanticLabel ?? '$n karttan ${active + 1}.',
+        excludeSemantics: true,
+        child: const SizedBox(width: 1, height: 40),
       );
-      final onTap = widget.onPositionTap;
-      position = onTap == null
-          ? Semantics(
-              label:
-                  widget.positionSemanticLabel ?? '$n karttan ${active + 1}.',
-              excludeSemantics: true,
-              child: label,
-            )
-          : Semantics(
-              button: true,
-              label: widget.positionSemanticLabel ?? posText,
-              hint: widget.positionSemanticHint,
-              excludeSemantics: true,
-              onTap: onTap,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  AknHaptics.selection();
-                  onTap();
-                },
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 48,
-                    minHeight: 48,
-                  ),
-                  // The label starts 12 after the strip; the 48 px target
-                  // extends to its right.
-                  child: Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    widthFactor: 1,
-                    child: label,
-                  ),
-                ),
-              ),
-            );
     }
 
     final caret = scaler.scale(16);
@@ -263,11 +208,7 @@ class _LanePagerState extends State<LanePager>
       padding: widget.padding,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final used =
-              LanePager.stripWidth(n) +
-              (position == null
-                  ? 0
-                  : 12 + math.max(48, measure(posText, posStyle)));
+          final used = LanePager.stripWidth(n) + (position == null ? 0 : 1);
           final link = widget.actionLabel;
           final onAction = widget.onAction;
           final linkWidth = link == null
@@ -277,12 +218,14 @@ class _LanePagerState extends State<LanePager>
               link != null &&
               onAction != null &&
               used + linkWidth <= constraints.maxWidth;
+          // v4: a 40 dp row; the link keeps a 48 dp target that reaches
+          // 4 dp past the row.
           return SizedBox(
-            height: 48,
+            height: 40,
             child: Row(
               children: [
                 strip,
-                if (position != null) ...[const SizedBox(width: 12), position],
+                ?position,
                 const Spacer(),
                 if (showLink)
                   Semantics(
@@ -298,7 +241,7 @@ class _LanePagerState extends State<LanePager>
                           onAction();
                         },
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(minHeight: 48),
+                          constraints: const BoxConstraints(minHeight: 40),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

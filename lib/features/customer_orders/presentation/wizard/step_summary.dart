@@ -153,7 +153,7 @@ class _StepSummaryState extends ConsumerState<StepSummary> {
           enter(
             'expiry',
             WizardPad(
-              A2Card(
+              AknCard(
                 padding: const EdgeInsets.all(14),
                 child: FactLine(
                   icon: PhosphorIconsRegular.timer,
@@ -287,7 +287,7 @@ class _StepSummaryState extends ConsumerState<StepSummary> {
             'template',
             WizardPad(
               top: 14,
-              A2Card(
+              AknCard(
                 padding: const EdgeInsets.fromLTRB(18, 4, 10, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,

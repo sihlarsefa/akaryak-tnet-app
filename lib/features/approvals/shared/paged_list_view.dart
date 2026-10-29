@@ -17,6 +17,10 @@ import 'paged_list.dart';
 ///
 /// [ledger]: öğeler tek beyaz kartta (r20, kart gölgesi) satırlardır, aralarında içeriden ince
 /// çizgi; iskelet de satır biçiminde. Kapalıyken her öğe kendi kartıdır (sayfa kenarı, aralıklı).
+///
+/// v4 (§4 AknLedger, §5 08/09): [groups] ile yüklenen satırlar gruplara ayrılır — her grup bir
+/// başlık ([AknLedgerGroup]: "Gecikmiş 2", "Bugün 4", "Yanıt bekleniyor") ve kendi defteri; boş
+/// gruplar çizilmez. Giriş sırası gruplar boyunca sürer.
 class A5PagedListView<T> extends StatefulWidget {
   const A5PagedListView({
     super.key,
@@ -32,6 +36,7 @@ class A5PagedListView<T> extends StatefulWidget {
     this.staggerKey,
     this.footer,
     this.ledger = false,
+    this.groups,
   });
 
   final PagedState<T> state;
@@ -57,8 +62,35 @@ class A5PagedListView<T> extends StatefulWidget {
   /// Tam genişlik defter satırları, aralarında ince çizgi.
   final bool ledger;
 
+  /// v4: yüklenen satırların grupları (yalnızca [ledger] ile); null tek defter.
+  final List<A5ListGroup<T>> Function(List<T> items)? groups;
+
   @override
   State<A5PagedListView<T>> createState() => _A5PagedListViewState<T>();
+}
+
+/// Defter listesinin bir grubu (v4 §4 [AknLedgerGroup]): başlık, sayı (null: sayısız, ör. "Yanıt
+/// bekleniyor"), ton (gecikmiş: tehlike) ve satırlar. [anchor] başlığa takılır (durum satırından
+/// "Gecikmiş"e kaydırma).
+@immutable
+class A5ListGroup<T> {
+  const A5ListGroup({
+    required this.id,
+    required this.items,
+    this.title,
+    this.count,
+    this.tone,
+    this.anchor,
+  });
+
+  final Object id;
+  final List<T> items;
+
+  /// Null: başlıksız (ör. tek grup).
+  final String? title;
+  final int? count;
+  final AknTone? tone;
+  final Key? anchor;
 }
 
 class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
@@ -131,7 +163,50 @@ class _A5PagedListViewState<T> extends State<A5PagedListView<T>> {
         );
       }
       final resolved = widget.padding.resolve(Directionality.of(context));
-      if (widget.ledger) {
+      final grouping = widget.groups;
+      if (widget.ledger && grouping != null) {
+        final blocks = <Widget>[];
+        var index = 0;
+        for (final g in grouping(s.items)) {
+          if (g.items.isEmpty) continue;
+          final title = g.title;
+          if (title != null) {
+            blocks.add(
+              AknLedgerGroup(
+                key: g.anchor,
+                title: title,
+                count: g.count,
+                tone: g.tone,
+                // İlk grup başlığı üstteki seçiciye daha yakın (ilk satır ≤ 230 dp, §9).
+                padding: blocks.isEmpty
+                    ? const EdgeInsets.fromLTRB(24, 12, 24, 6)
+                    : const EdgeInsets.fromLTRB(24, 16, 24, 6),
+              ),
+            );
+          }
+          blocks.add(
+            AknLedger(
+              key: ValueKey(('group', g.id)),
+              children: [
+                for (final item in g.items)
+                  A5StaggerItem(
+                    index: index,
+                    child: widget.itemBuilder(context, item, index++),
+                  ),
+              ],
+            ),
+          );
+        }
+        children.add(
+          StaggerScope(
+            key: ValueKey(widget.staggerKey),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: blocks,
+            ),
+          ),
+        );
+      } else if (widget.ledger) {
         children.add(
           StaggerScope(
             key: ValueKey(widget.staggerKey),

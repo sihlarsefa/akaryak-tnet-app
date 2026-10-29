@@ -70,7 +70,7 @@ class _LocationSectionState extends ConsumerState<LocationSection> {
                 offset: 8,
                 scale: 0.8,
                 curve: AknMotion.pop,
-                child: CmIconTile(
+                child: AknIconBox(
                   icon: PhosphorIconsRegular.gpsFix,
                   tone: AknTone.brand,
                   size: 52,

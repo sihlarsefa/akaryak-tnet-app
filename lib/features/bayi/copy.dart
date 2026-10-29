@@ -12,7 +12,8 @@ abstract final class BayiCopy {
   static const notFoundMessage =
       'Kayıt kaldırılmış ya da başka bir bayiye ait olabilir.';
   static const filteredEmptyTitle = 'Filtreye uyan kayıt yok';
-  static const filteredEmptyMessage = 'Süzgeçleri değiştirip yeniden deneyin.';
+  static const filteredEmptyMessage =
+      'Yazımı kontrol edin ya da filtreleri temizleyin.';
   static const clearFilters = 'Filtreleri temizle';
   static const retry = 'Tekrar dene';
   static const loadMoreFailed = 'Devamı yüklenemedi.';
@@ -24,9 +25,9 @@ abstract final class BayiCopy {
   static const checking = 'Sonuç kontrol ediliyor…';
 
   // Ana sayfa
-  static const homeEmptyTitle = 'Gösterilecek bölüm yok';
+  static const homeEmptyTitle = 'Hesabınıza henüz rol atanmadı';
   static const homeEmptyMessage =
-      'Hesabınıza bu ana sayfada özetlenecek bir yetki tanımlanmamış. Yöneticinizle görüşebilirsiniz.';
+      'Bayi yöneticiniz rol atayınca ana sayfanız dolar.';
 
   // Teklif masası
   static const deskEmptyTitle = 'Teklif bekleyen sipariş yok';
@@ -54,8 +55,52 @@ abstract final class BayiCopy {
   static const shipmentsEmptyMessage =
       'Planlanan sevkiyatlar burada listelenir.';
   static const todayLoadingsEmpty = 'Bugün yüklenecek sevkiyat yok.';
+  static const todayLoadingsEmptyMessage =
+      'Bugüne planlanan sevkiyatlar burada listelenir.';
 
   // Ekip
   static const staffEmptyTitle = 'Personel bulunamadı';
   static const staffEmptyMessage = 'Bayinizin personeli burada listelenir.';
+}
+
+/// Saatin yönelme eki, okunuşuna göre: "21:00'e", "09:17'ye", "10:30'a", "16:50'ye" (dakika sıfırsa
+/// saat okunur: "10:00'a").
+String timeDative(String time) {
+  final m = RegExp(r'(\d{1,2})[:.](\d{2})$').firstMatch(time.trim());
+  if (m == null) return "$time'e";
+  final hour = int.parse(m[1]!);
+  final minute = int.parse(m[2]!);
+  final word = _numberWord(minute == 0 ? hour : minute);
+  const vowels = 'aeıioöuü';
+  var last = 'e';
+  for (var i = word.length - 1; i >= 0; i--) {
+    if (vowels.contains(word[i])) {
+      last = word[i];
+      break;
+    }
+  }
+  final back = 'aıou'.contains(last);
+  final y = vowels.contains(word[word.length - 1]) ? 'y' : '';
+  return "$time'$y${back ? 'a' : 'e'}";
+}
+
+/// Sayının okunuşunun son kelimesi (ek uyumu için).
+String _numberWord(int n) {
+  const ones = [
+    'sıfır',
+    'bir',
+    'iki',
+    'üç',
+    'dört',
+    'beş',
+    'altı',
+    'yedi',
+    'sekiz',
+    'dokuz',
+  ];
+  const tens = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli'];
+  if (n < 10) return ones[n];
+  final unit = n % 10;
+  if (unit != 0) return ones[unit];
+  return tens[(n ~/ 10).clamp(0, 5)];
 }

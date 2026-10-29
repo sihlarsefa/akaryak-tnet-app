@@ -119,7 +119,7 @@ class _DocumentsPageState extends ConsumerState<DocumentsPage> {
               if (r != null) ctrl.setQuery(r.apply(q));
             },
           ),
-          CmSegmented<ArchiveShipmentFilter>(
+          AknSegmented<ArchiveShipmentFilter>(
             segments: [
               for (final f in ArchiveShipmentFilter.values)
                 FilterOption(value: f, label: f.label),
@@ -207,7 +207,7 @@ class _List extends ConsumerWidget {
               return StaggerItem(
                 index: i,
                 child: Padding(
-                  padding: CmCard.listMargin,
+                  padding: cmListMargin,
                   child: ArchiveRowCard(
                     row: row,
                     policy: policy,
@@ -312,20 +312,20 @@ class ArchiveRowCard extends StatelessWidget {
     final amount = r.totalAmountTry == null
         ? null
         : Fmt.money(r.totalAmountTry);
-    return CmCard(
-      pressable: quick.isEmpty,
+    return AknCard(
+      padding: EdgeInsets.zero,
       // Tutar başlığın yanına sığmazsa alt satıra iner.
       child: LayoutBuilder(
         builder: (context, box) {
           final beside = cmAmountBeside(
             context,
-            width: box.maxWidth - CmCard.rowPadding.horizontal - 56,
+            width: box.maxWidth - cmRowPadding.horizontal - 56,
             title: title,
             amount: amount,
           );
           return AknListTile(
-            leading: const CmIconTile(icon: PhosphorIconsRegular.folderOpen),
-            padding: CmCard.rowPadding,
+            leadingIcon: PhosphorIconsRegular.folderOpen,
+            padding: cmRowPadding,
             titleStyle: cmRowTitle(context),
             title: cmKeepUnits(title),
             subtitle: subtitle,
@@ -488,9 +488,10 @@ class _OrderDocumentsSheet extends ConsumerWidget {
             DocumentTile(request: r, onTap: () => open(r), padding: _sheetRow),
         ],
         if (orderDocs.isEmpty && shipDocs.isEmpty)
-          const EmptyState(
+          const EmptyState.compact(
             title: 'Bu sipariş için açabileceğiniz belge yok',
-            compact: true,
+            message:
+                'Teklif onaylanınca ve teslimat yapılınca belgeler burada oluşur.',
             illustration: AknIllustration.documents,
           ),
         const SizedBox(height: 12),

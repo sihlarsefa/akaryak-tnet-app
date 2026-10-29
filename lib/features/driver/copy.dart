@@ -2,7 +2,9 @@
 /// "Siz" dili, cümle düzeni; düğmeler ≤ 22, sekmeler ≤ 10 karakter.
 abstract final class DriverCopy {
   // ------------------------------------------------------------------ Genel
-  static const title = 'Teslimatlarım';
+  /// Sayfanın ve sekmenin adı (v4 §3.2: sayfa başlığı = sekme adı "Teslimatlar", alt çubukta
+  /// "Teslimat").
+  static const title = 'Teslimatlar';
   static const tabToday = 'Bugün';
   static const tabUpcoming = 'Yaklaşan';
   static const tabHistory = 'Geçmiş';
@@ -32,7 +34,7 @@ abstract final class DriverCopy {
       'Bağlantı yok. Bağlantı gelince bu sayfa kendiliğinden yenilenir.';
   static const forbiddenTitle = 'Bu ekranı görüntüleyemiyorsunuz';
   static const forbiddenMessage =
-      'Teslimatlarım yalnızca sevkiyat yetkisi olan bayi personeline açıktır.';
+      'Teslimatlar yalnızca sevkiyat yetkisi olan bayi personeline açıktır.';
   static const notFoundTitle = 'Bu kayıt artık görüntülenemiyor';
   static const notFoundMessage =
       'Teslimat başka bir şoföre atanmış ya da iptal edilmiş olabilir.';
@@ -49,8 +51,12 @@ abstract final class DriverCopy {
       ? '$open teslimat sırada'
       : '$open teslimat sırada, $done tamamlandı';
 
-  /// "Sıradaki teslimat, 1 / 3".
-  static String nextOf(int n, int total) => '$nextStop, $n / $total';
+  /// "Sıradaki teslimat 1 / 3".
+  static String nextOf(int n, int total) => '$nextStop $n / $total';
+
+  /// Yük çubuğunun yazısı (v4 §5 11): "18.000 L yük · 2 durak" (tankta kalan yük ve kalan durak).
+  static String loadCaption(String liters, int stops) =>
+      '$liters yük · $stops durak';
 
   /// Plakanın başlığı: "Motorin, bu durakta".
   static String onThisStop(String? product) =>
@@ -67,18 +73,27 @@ abstract final class DriverCopy {
   static String syncedAt(String time) => 'Eşitlendi $time';
   static String refreshFailed(String time) =>
       'Yenilenemedi. Son güncelleme $time.';
+
+  // Ana sayfanın eşitleme satırı (v4 §5 11): yalnızca eşitlenmemişken, uyarı satırı olarak.
+  static const offlineWarn = 'Çevrimdışı · teslimatlar telefona kaydediliyor';
+  static String offlineWarnCount(int n) => 'Çevrimdışı · $n işlem bekliyor';
+  static String refreshWarn(String time) =>
+      'Yenilenemedi · son güncelleme $time';
   static const doorNote = 'Kapı notu:';
   static const recipientRole = 'teslim alacak kişi';
   static const contactRole = 'yetkili';
   static String callSemantics(String name) => '$name kişisini ara';
 
-  // Plaka okumaları (§7.11). Canlı varış tahmini ve yol mesafesi API'de yok: plan saati ve
-  // telefon konumuna göre kuş uçuşu uzaklık gösterilir.
-  static const readoutPlan = 'Plan';
-  static String readoutPlanOn(String day) => 'Plan, $day';
+  // Plaka okumaları (§7.11; v4 §5 11: her sayı etiketli). Canlı varış tahmini ve yol mesafesi
+  // API'de yok: plan saati ve telefon konumuna göre kuş uçuşu uzaklık gösterilir.
+  static const readoutPlan = 'Varış planı';
+  static String readoutPlanOn(String day) => 'Varış planı, $day';
   static const readoutDistance = 'Uzaklık';
   static const readoutWindow = 'Teslim saati';
-  static const readoutTank = 'Tank';
+
+  /// Varış planının altındaki satır: "teslim aralığı 08:00–18:00".
+  static String windowCaption(String window) => 'teslim aralığı $window';
+  static const readoutTank = 'Tank kapasitesi';
   static const readoutPlanned = 'Planlanan';
   static const readoutDiff = 'Fark';
   static const readoutTime = 'Saat';
@@ -120,6 +135,9 @@ abstract final class DriverCopy {
   static String resumeDraftBody(String code, String step) =>
       '$code, $step adımında kaldınız.';
 
+  /// İtilen ayrıntı sayfasının başlığı: nesnenin türü (v4 §3.2); müşteri adı gövdenin ilk satırı,
+  /// kod kopyalanabilir alt yazı.
+  static const detailTitle = 'Teslimat';
   static const deliveryPoint = 'Teslimat noktası';
   static const accessNotes = 'Giriş ve erişim notları';
   static const tankCapacity = 'Tank kapasitesi';
@@ -189,7 +207,7 @@ abstract final class DriverCopy {
   static const deliverFailedTitle = 'Teslimat gönderilemedi';
   static const startFailedTitle = 'Yola çıkış gönderilemedi';
   static const sendingTitle = 'Gönderiliyor…';
-  static const backToList = 'Teslimatlarıma dön';
+  static const backToList = 'Teslimatlara dön';
   static const discardOpTitle = 'Bekleyen işlem silinsin mi?';
   static const discardOpBody =
       'Bu bilgiler sunucuya gönderilmeyecek ve eklenen fotoğraflar silinecek.';

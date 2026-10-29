@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../data/bayi_repository.dart';
 import '../data/order_models.dart';
+import 'bayi_grants.dart';
 import 'bayi_runtime.dart';
 import 'paged_loading.dart';
 
@@ -62,7 +64,24 @@ class BayiOrdersController extends Notifier<BayiOrdersState>
     ref.onDispose(sub.cancel);
     if (user == null) return const BayiOrdersState(list: PagedList());
     Future.microtask(refresh);
-    return const BayiOrdersState();
+    return BayiOrdersState(
+      filter: BayiOrdersFilter(
+        segment: defaultSegment(
+          ref.read(accessPolicyProvider),
+          ref.read(bayiGrantsProvider),
+        ),
+      ),
+    );
+  }
+
+  /// Açılış segmenti (v4 §5 06): Teklifler alt menüdeyse Tümü (teklif işi orada); değilse teklif
+  /// verebilen için "Teklif bekleyen" (Siparişler onun teklif listesidir); teklif veremeyen için Tümü.
+  /// Teklifler alt menüde: sahip / müdür, sipariş masası ve özel roller (öncelik sırası) masayı
+  /// görebiliyorsa.
+  static BayiOrderSegment? defaultSegment(AccessPolicy p, BayiGrants g) {
+    const tabbed = {RolePreset.owner, RolePreset.orderDesk, RolePreset.generic};
+    if (g.viewDesk && tabbed.contains(p.rolePreset)) return null;
+    return g.quoteOnOrder ? BayiOrderSegment.awaitingQuote : null;
   }
 
   @override

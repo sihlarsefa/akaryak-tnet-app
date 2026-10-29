@@ -1,40 +1,48 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/session_controller.dart';
-import '../../../core/env/app_config_controller.dart';
+import '../../../core/offline/connectivity.dart';
+import '../../../core/push/unread_count_provider.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
-import '../../../core/utils/format.dart';
-import '../../assistant/api.dart';
-import '../../field/api.dart' show TuprasStrip, tuprasPricesProvider;
+import '../../field/api.dart' show TuprasStrip;
 import '../../stats/api.dart'
     show ManagerStatsDeck, StatsScope, refreshManagerStats, statsScopeProvider;
 import '../application/bayi_grants.dart';
-import '../application/bayi_runtime.dart';
+import '../application/bayi_runtime.dart' show Loadable;
 import '../application/home_controller.dart';
 import '../application/role_tip.dart';
 import '../copy.dart';
+import '../data/bayi_repository.dart';
 import '../data/home_models.dart';
 import 'home/home_atoms.dart';
 import 'home/home_sections.dart';
 import 'home/order_pipeline.dart';
-import 'home/role_plate.dart';
-import 'widgets/bayi_widgets.dart' show openDestination, openPortal;
+import 'orders/quote_sheet.dart';
+import 'widgets/bayi_widgets.dart'
+    show openDestination, openPortal, showActionFailure;
 import 'widgets/paged_list_body.dart';
 
-/// Bayi ana sayfası (tasarım v3 "Akış").
+/// Bayi ana sayfası (tasarım v4 "Sade" §3.3, §5 03): ana sayfa bir iş listesidir.
 ///
-/// `AknHomeHeader` (turuncu şerit: logo karesi, bayi adı, "Ad Soyad, rol", zil) → ekranın tek kahraman
-/// kartı şeridin üstüne biner: istatistik yetkisi varsa yönetici destesi (`ManagerStatsDeck`), yoksa
-/// rol kartı (sipariş masası, sevkiyat, finans; ilk açılışta yükselerek gelir) → rolün bölümleri, her
-/// biri beyaz bir kart: "Sipariş hattı" + acil satır, "Tüpraş fiyatları", "Tahsilat", "Onaylarım",
-/// "Sevkiyatlar", "Kurulum uyarıları"… Kartlar art arda yükselerek gelir, aşağıdakiler kaydırdıkça
-/// kayarak girer. Bölümler `GET home/bayi` yükünden gelir (yetkisiz bölüm gelmez, yüklenemeyen bölüm
-/// "Bu bölüm yüklenemedi" der); önbellekten çevrimdışı açılır. Sınıf adı ve kurucu imzası sabittir
-/// (ana sayfa seçici).
+/// 1. Turuncu bant (`AknHomeHeader`, sahip kararı G; avatar Profil'i açar).
+/// 2. "Sıra sizde" (`AknTaskCard`) bandın üstüne biner: başlıkta işlerin sayısı ve "● sizin
+///    sıranız"; altında sipariş hattı (Finans · Teklif · Müşteri · Plan · Yolda · Teslim, her durak
+///    süzülmüş listesini açar); öndeki iş ve tek birincil düğme ("Teklif ver" o siparişin teklif
+///    sayfasını açar); en çok iki sıradaki iş; fazlası "Tümünü gör". İş yoksa sakin satır.
+/// 3. Yöneticilere istatistik destesi (`ManagerStatsDeck(raised: false)`), ilk ekranda.
+/// 4. İlk oturumda "Nasıl çalışır" ipucu (destenin altında: deste girişte görünür kalır).
+/// 5. "Bugün": rol bölümlerinin her biri tek satır; karta sığmayan işler en üstte.
+/// 6. Tüpraş fiyatları (tek kart) ve kurulum uyarıları (`tupras-today` hariç; o iş kartta).
+/// 7. "Son güncelleme" notu (önbellekten açılış ya da tazeleme hatası).
+///
+/// Sınıf adı ve kurucu imzası sabittir (ana sayfa seçici).
 class BayiHome extends ConsumerWidget {
   const BayiHome({super.key});
 
@@ -42,10 +50,6 @@ class BayiHome extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(bayiHomeProvider);
     final access = ref.watch(sessionControllerProvider.select((s) => s.access));
-    // Asistan girişleri: özellik açık ve sunucu 503 `assistant_disabled` demedi (spec A.6).
-    final assistant =
-        ref.watch(appConfigProvider.select((c) => c.features.assistant)) &&
-        ref.watch(assistantEnabledProvider);
     final controller = ref.read(bayiHomeProvider.notifier);
     final title = state.data?.stationTitle ?? '';
     final company = title.isNotEmpty ? title : (access?.stationTitle ?? 'Bayi');
@@ -53,9 +57,7 @@ class BayiHome extends ConsumerWidget {
       homeHeader: AknHomeHeader(
         company: company,
         person: homePersonLine(access),
-        // Ada dokununca Profil (§6.2) şimdilik kapalı: AknHomeHeader'ın dokunma düğümü etiketsiz ve
-        // 48 dp'den kısa (a11y kılavuzları); çekirdek düzeltilince `onOpenProfile` geri eklenecek.
-        // Profil "Diğer"den açılır.
+        onOpenProfile: () => GoRouter.of(context).push(AppRoutes.profile),
       ),
       refreshing: state.refreshing,
       body: LoadableBody<BayiHomeData>(
@@ -64,284 +66,279 @@ class BayiHome extends ConsumerWidget {
         skeleton: const _HomeSkeleton(),
         builder: (context, data) => PullToRefresh(
           onRefresh: () async {
-            await Future.wait([controller.refresh(), refreshManagerStats(ref)]);
+            await Future.wait([
+              controller.refresh(),
+              refreshManagerStats(ref),
+              ref.read(unreadCountProvider.notifier).refresh(),
+            ]);
           },
-          child: _HomeList(data: data, state: state, assistant: assistant),
+          child: _HomeList(data: data, state: state),
         ),
       ),
     );
   }
 }
 
-/// Ana sayfa bölüm anahtarları (sunucu bölümlerine ek olarak ekran parçaları).
-abstract final class _Slot {
-  static const pipeline = 'pipeline';
-  static const tip = 'tip';
-  static const tupras = 'tupras';
-  static const desk = BayiHomeSections.desk;
-  static const shipments = BayiHomeSections.shipments;
-  static const approvals = BayiHomeSections.approvals;
-  static const collections = BayiHomeSections.collections;
-  static const finance = BayiHomeSections.finance;
-  static const leads = BayiHomeSections.leads;
-  static const field = BayiHomeSections.field;
-  static const setup = BayiHomeSections.setup;
-  static const sales = BayiHomeSections.sales;
-}
+/// Tüpraş kartını gösteren roller (fiyat bağlamı teklif verenlere ve satışa ait).
+const _tuprasPresets = {
+  RolePreset.owner,
+  RolePreset.orderDesk,
+  RolePreset.salesManager,
+  RolePreset.viewer,
+  RolePreset.generic,
+};
 
 class _HomeList extends ConsumerWidget {
-  const _HomeList({
-    required this.data,
-    required this.state,
-    required this.assistant,
-  });
+  const _HomeList({required this.data, required this.state});
 
   final BayiHomeData data;
   final Loadable<BayiHomeData> state;
-  final bool assistant;
-
-  /// Rol ön ayarına göre bölüm sırası (§7.5, §7.6).
-  static List<String> order(RolePreset preset) => switch (preset) {
-    RolePreset.owner => const [
-      _Slot.pipeline,
-      _Slot.tip,
-      _Slot.tupras,
-      _Slot.collections,
-      _Slot.approvals,
-      _Slot.shipments,
-      _Slot.setup,
-    ],
-    RolePreset.finance || RolePreset.accounting => const [
-      _Slot.pipeline,
-      _Slot.tip,
-      _Slot.collections,
-      _Slot.finance,
-      _Slot.approvals,
-      _Slot.setup,
-    ],
-    RolePreset.salesManager => const [
-      _Slot.tip,
-      _Slot.approvals,
-      _Slot.field,
-      _Slot.leads,
-      _Slot.sales,
-      _Slot.tupras,
-    ],
-    RolePreset.orderDesk => const [
-      _Slot.pipeline,
-      _Slot.tip,
-      _Slot.desk,
-      _Slot.tupras,
-    ],
-    RolePreset.dispatch => const [_Slot.pipeline, _Slot.tip, _Slot.shipments],
-    RolePreset.viewer => const [
-      _Slot.pipeline,
-      _Slot.tip,
-      _Slot.tupras,
-      _Slot.approvals,
-      _Slot.shipments,
-      _Slot.sales,
-      _Slot.setup,
-    ],
-    _ => const [
-      _Slot.pipeline,
-      _Slot.tip,
-      _Slot.tupras,
-      _Slot.desk,
-      _Slot.collections,
-      _Slot.approvals,
-      _Slot.shipments,
-      _Slot.finance,
-      _Slot.field,
-      _Slot.leads,
-      _Slot.sales,
-      _Slot.setup,
-    ],
-  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final policy = ref.watch(accessPolicyProvider);
-    final grants = ref.watch(bayiGrantsProvider);
+    final g = ref.watch(bayiGrantsProvider);
+    final inbox = ref.watch(bayiTaskQueuesProvider);
+    final counts = ref.watch(bayiPipelineCountsProvider).valueOrNull;
     final scope = ref.watch(statsScopeProvider);
-    final tipVisible = ref.watch(bayiRoleTipProvider);
-    final assistantRow = assistant && ref.watch(bayiAssistantCardProvider);
-    final controller = ref.read(bayiHomeProvider.notifier);
+    final hint = ref.watch(bayiFirstRunHintProvider);
     final preset = policy.rolePreset;
     final deck = scope != StatsScope.none;
-    final finance =
-        preset == RolePreset.finance || preset == RolePreset.accounting;
+    final stops = pipelineStops(
+      context,
+      data,
+      preset: preset,
+      grants: g,
+      counts: counts,
+    );
 
-    Widget? slot(String key) {
-      switch (key) {
-        case _Slot.pipeline:
-          return _PipelineBlock(data: data, preset: preset, grants: grants);
-        case _Slot.tip:
-          final tip = RoleTip.forPolicy(policy);
-          // İpucu kapanınca yerinden süzülerek çekilir (liste zıplamaz).
-          return _Collapsible(
-            visible: tipVisible,
-            child: _RoleTipWell(
-              tip: tip,
-              onOpen: tip.route == null
-                  ? null
-                  : () => openDestination(context, tip.route!),
-              onClose: () => ref.read(bayiRoleTipProvider.notifier).dismiss(),
-            ),
-          );
-        case _Slot.tupras:
-          return _TuprasBlock(data: data);
-      }
-      if (data.failed(key)) {
-        return HomeSectionFailed(
+    List<AknTask> tasks({VoidCallback? before}) => [
+      for (final t in inbox.items)
+        if (_mine(t, g))
+          _task(
+            context,
+            ref,
+            t,
+            g,
+            data,
+            before: before,
+            pipeline: stops.isNotEmpty,
+          ),
+    ];
+    final heroTasks = tasks();
+    const shown = 1 + 2;
+    final overflow = heroTasks.length > shown
+        ? heroTasks.sublist(shown)
+        : const <AknTask>[];
+
+    final hero = AknBandOverlap(
+      child: AknTaskCard(
+        tasks: heroTasks,
+        // Tek tek işler değil kuyruklar: her satır kendi sayısını söyler (onay satırı = Onaylar
+        // rozeti), sipariş sayıları hattadır; başlıkta ikinci bir sayı olmaz (P2).
+        showCount: false,
+        overview: stops.isEmpty ? null : OrderPipeline(stops: stops),
+        // "● sizin sıranız" büyük yazıda başlık satırına sığmaz (çekirdek başlığı kaydırmaz): o
+        // ölçekte hat dikey listedir ve Pas sayılar kendini anlatır.
+        legend:
+            stops.any((s) => s.isYourMove) &&
+            MediaQuery.textScalerOf(context).scale(10) < 13,
+        onSeeAll: heroTasks.length > shown
+            ? () => _showAll(context, (close) => tasks(before: close))
+            : null,
+        calm: 'Yeni sipariş gelince bildirim alırsınız.',
+      ),
+    );
+    final hintCard = _Collapsible(
+      visible: hint,
+      child: AknFirstRunHint(
+        steps: BayiHintSteps.forPreset(preset),
+        onDismiss: () => ref.read(bayiFirstRunHintProvider.notifier).dismiss(),
+      ),
+    );
+    final setup = data.setup;
+    final sections = <Widget>[
+      if (deck)
+        const ManagerStatsDeck(
+          raised: false,
+          padding: EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 0),
+        ),
+      hintCard,
+      for (final key in data.failedSections)
+        HomeSectionFailed(
           title: BayiHomeSections.title(key),
-          onRetry: controller.refresh,
-        );
-      }
-      return switch (key) {
-        _Slot.desk =>
-          data.desk == null ? null : DeskSectionView(desk: data.desk!),
-        _Slot.shipments =>
-          data.shipments == null
-              ? null
-              : ShipmentsSectionView(
-                  section: data.shipments!,
-                  dispatcher: preset == RolePreset.dispatch,
-                ),
-        _Slot.approvals =>
-          data.approvals == null
-              ? null
-              : ApprovalsSectionView(section: data.approvals!),
-        _Slot.collections =>
-          data.collections == null
-              ? null
-              : CollectionsSectionView(
-                  section: data.collections!,
-                  detailed: finance,
-                ),
-        _Slot.finance =>
-          data.finance == null
-              ? null
-              : FinanceSectionView(section: data.finance!),
-        _Slot.leads =>
-          data.leads == null ? null : LeadsSectionView(section: data.leads!),
-        _Slot.field =>
-          data.field == null ? null : FieldSectionView(section: data.field!),
-        _Slot.setup =>
-          data.setup == null ? null : SetupSectionView(section: data.setup!),
-        _Slot.sales =>
-          data.sales == null
-              ? null
-              : SalesSectionView(section: data.sales!, summary: !deck),
-        _ => null,
-      };
-    }
+          onRetry: ref.read(bayiHomeProvider.notifier).refresh,
+        ),
+      BayiTodayLedger(
+        data: data,
+        // Planlanacak sipariş sayısını hat zaten söylüyor: "Bugün" yinelemez (§3.3).
+        overflow: [
+          for (final t in overflow)
+            if (!(stops.isNotEmpty && _pipelineShows(t.id))) t,
+        ],
+        heroKinds: {for (final t in inbox.items) t.id},
+        showSales: !deck,
+      ),
+      if (_tuprasPresets.contains(preset)) _TuprasBlock(data: data),
+      if (setup != null) SetupSectionView(section: setup),
+      HomeUpdatedLine(
+        updatedAt: state.updatedAt,
+        fromCache: state.fromCache,
+        error: state.error,
+      ),
+      if (data.isEmpty && heroTasks.isEmpty)
+        const Padding(
+          padding: EdgeInsets.only(top: 24),
+          child: EmptyState(
+            title: BayiCopy.homeEmptyTitle,
+            message: BayiCopy.homeEmptyMessage,
+            illustration: AknIllustration.inbox,
+          ),
+        ),
+    ];
 
-    final sections = <Widget>[];
-    for (final key in order(preset)) {
-      final w = slot(key);
-      if (w != null) sections.add(w);
-    }
-
-    // Sahip kararı G: ekranın tek kahraman kartı (deste ya da rol kartı) turuncu şeridin üstüne biner;
-    // şerit kartın ilk 48 px'inin arkasında devam eder (AknBandOverlap, liste üst boşluğu yok). Kart
-    // ilk açılışta yükselip büyüyerek gelir; bunu AknBandOverlap yapar (v3 §5 "heroRise").
-    final Widget? plate = deck
-        ? const AknBandOverlap(
-            padding: EdgeInsets.zero,
-            child: ManagerStatsDeck(
-              padding: EdgeInsets.symmetric(horizontal: AknSpace.page),
-            ),
-          )
-        : BayiRolePlate.supports(preset, data)
-        ? AknBandOverlap(
-            padding: AknSpace.pagePadding,
-            child: BayiRolePlate(
-              data: data,
-              preset: preset,
-              margin: EdgeInsets.zero,
-            ),
-          )
-        : null;
-
-    final team = grants.viewStaff || assistantRow
-        ? HomeSectionCard(
-            margin: const EdgeInsets.fromLTRB(
-              AknSpace.page,
-              20,
-              AknSpace.page,
-              0,
-            ),
-            bottom: 0,
-            child: AknLedger(
-              children: [
-                if (grants.viewStaff)
-                  AknListTile(
-                    leading: const HomeIconTile(
-                      icon: PhosphorIconsRegular.usersThree,
-                    ),
-                    title: 'Ekip',
-                    subtitle: 'Personel, roller ve şifre bağlantıları',
-                    showChevron: true,
-                    onTap: () => GoRouter.of(context).push(AppRoutes.bayiStaff),
-                  ),
-                if (assistantRow)
-                  AknListTile(
-                    leading: const HomeIconTile(
-                      icon: PhosphorIconsRegular.chatCircle,
-                      tone: AknTone.brand,
-                    ),
-                    title: 'Asistana sorun',
-                    subtitle:
-                        '"Bugün kaç teklif bekliyor?", "Koşullu onay ne demek?"',
-                    onTap: () => GoRouter.of(context).push(AppRoutes.assistant),
-                    trailing: AknIconButton(
-                      icon: PhosphorIconsRegular.x,
-                      semanticLabel: 'Asistan satırını kapat',
-                      size: 20,
-                      color: context.akn.dim,
-                      onPressed: () => ref
-                          .read(bayiAssistantCardProvider.notifier)
-                          .dismiss(),
-                    ),
-                  ),
-              ],
-            ),
-          )
-        : null;
-
-    // Bölümler art arda yükselir; aşağıdakiler kaydırdıkça kayarak girer.
-    var index = 0;
-    Widget stagger(Widget child) => StaggerItem(index: index++, child: child);
+    // Kahraman kendi yükselişiyle gelir; bölümler art arda (ve kaydırınca) belirir.
     return StaggerScope(
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.only(bottom: 32),
         children: [
-          ?plate,
-          if (plate == null) const SizedBox(height: 8),
-          HomeUpdatedLine(
-            updatedAt: state.updatedAt,
-            fromCache: state.fromCache,
-            error: state.error,
-          ),
-          if (data.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(top: 24),
-              child: FadeUp(
-                offset: 18,
-                scale: 0.96,
-                duration: AknMotion.slow,
-                child: EmptyState(
-                  title: BayiCopy.homeEmptyTitle,
-                  message: BayiCopy.homeEmptyMessage,
-                  illustration: AknIllustration.inbox,
-                ),
-              ),
-            ),
-          for (final s in sections) stagger(s),
-          if (team != null) stagger(team),
+          hero,
+          for (var i = 0; i < sections.length; i++)
+            StaggerItem(index: i + 1, child: sections[i]),
         ],
+      ),
+    );
+  }
+
+  /// Sayısını sipariş hattının bir durağı zaten söyleyen kuyruk (Plan; şoför ataması da planın
+  /// parçası): "Bugün" defterinde yinelenmez.
+  static bool _pipelineShows(Object id) => id == 'plan' || id == 'drivers';
+
+  /// İş izleyenin mi: teklif kuyruğu yalnızca teklif verebilene.
+  static bool _mine(TaskItem t, BayiGrants g) => switch (t.kind) {
+    TaskKind.quotes => g.quoteOnOrder || g.quoteOnDesk,
+    _ => true,
+  };
+
+  /// Kutudaki işi karta çevirir; ekran eylemleri burada (v4 §3.4).
+  static AknTask _task(
+    BuildContext context,
+    WidgetRef ref,
+    TaskItem t,
+    BayiGrants g,
+    BayiHomeData data, {
+    required bool pipeline,
+    VoidCallback? before,
+  }) {
+    void run(VoidCallback f) {
+      before?.call();
+      f();
+    }
+
+    void open() => run(() => _openTask(context, ref, t, g, data));
+    VoidCallback act = open;
+    final id = t.orderId;
+    if (t.actionKind == TaskActionKind.giveQuote && id != null) {
+      act = () => run(() => unawaited(_giveQuote(context, ref, id, g)));
+    }
+    return AknTask(
+      id: t.id,
+      title: t.title,
+      subtitle: t.subtitle,
+      icon: TaskItem.iconOf(t.kind),
+      tone: switch (t.tone) {
+        TaskTone.yourMove => AknTaskTone.yourMove,
+        TaskTone.danger => AknTaskTone.danger,
+        TaskTone.warn => AknTaskTone.warn,
+        TaskTone.neutral => AknTaskTone.neutral,
+      },
+      figure: t.figure,
+      amount: t.amount,
+      deadline: t.deadline,
+      time: t.time,
+      actionLabel: t.actionLabel,
+      onAction: act,
+      // Hat teklif sayısını zaten söylüyor: "6 sipariş teklif bekliyor" yinelenmez (P4).
+      caption: t.kind == TaskKind.quotes && pipeline ? null : t.caption,
+      note: t.note,
+      onTap: open,
+      counts: t.counts,
+    );
+  }
+
+  static void _openTask(
+    BuildContext context,
+    WidgetRef ref,
+    TaskItem t,
+    BayiGrants g,
+    BayiHomeData data,
+  ) {
+    switch (t.kind) {
+      case TaskKind.quotes:
+        final id = t.orderId;
+        if (id != null && g.viewOrders) {
+          unawaited(GoRouter.of(context).push(AppRoutes.bayiOrder(id)));
+        } else {
+          openDestination(context, AppRoutes.quoteDesk);
+        }
+      case TaskKind.tuprasToday:
+        final check = data.setup?.checks
+            .where((c) => c.key == 'tupras-today')
+            .firstOrNull;
+        unawaited(openPortal(context, ref, check?.portalPath ?? ''));
+      default:
+        openDestination(context, t.location);
+    }
+  }
+
+  /// "Teklif ver": siparişi alıp teklif sayfasını açar; teklif verilemiyorsa (yetki, finans engeli)
+  /// siparişi açar.
+  static Future<void> _giveQuote(
+    BuildContext context,
+    WidgetRef ref,
+    int orderId,
+    BayiGrants g,
+  ) async {
+    if (!ref.read(isOnlineProvider)) {
+      AppToast.info(
+        'Çevrimdışısınız; teklif için bağlantı gerekli.',
+        context: context,
+      );
+      return;
+    }
+    try {
+      final order = await ref.read(bayiRepositoryProvider).order(orderId);
+      if (!context.mounted) return;
+      if (!g.canQuoteOrder(order.status, order.financeStatus)) {
+        if (g.viewOrders) {
+          unawaited(GoRouter.of(context).push(AppRoutes.bayiOrder(orderId)));
+        } else {
+          openDestination(context, AppRoutes.quoteDesk);
+        }
+        return;
+      }
+      await showQuoteSheet(context, order);
+    } catch (e) {
+      if (context.mounted) showActionFailure(context, e);
+    }
+  }
+
+  /// "Tümünü gör": bütün işler bir sayfada, "Sıra sizde" satırlarıyla.
+  static void _showAll(
+    BuildContext context,
+    List<AknTask> Function(VoidCallback close) build,
+  ) {
+    unawaited(
+      showAppSheet<void>(
+        context: context,
+        title: 'Sıra sizde',
+        builder: (sheet) {
+          final tasks = build(() => Navigator.of(sheet).pop());
+          return AknLedger(
+            children: [for (final t in tasks) AknTaskRow(task: t)],
+          );
+        },
       ),
     );
   }
@@ -382,79 +379,15 @@ class _Collapsible extends StatelessWidget {
   }
 }
 
-/// "Sipariş hattı" başlığı ("şu an, 10:42"), hat ve süresi en yakın dolan teklifin acil satırı.
-class _PipelineBlock extends ConsumerWidget {
-  const _PipelineBlock({
-    required this.data,
-    required this.preset,
-    required this.grants,
-  });
-
-  final BayiHomeData data;
-  final RolePreset preset;
-  final BayiGrants grants;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stops = pipelineStops(context, data, preset: preset, grants: grants);
-    if (stops.isEmpty) return const SizedBox.shrink();
-    final state = ref.watch(bayiHomeProvider);
-    final at = data.generatedAt ?? state.updatedAt;
-    final caption = at == null
-        ? null
-        : state.fromCache
-        ? '${lowerFirst(Fmt.dayLabel(at))} ${Fmt.time(at)}'
-        : 'şu an, ${Fmt.time(at)}';
-    // Acil satır teklifle ilgilenenlere (masa ya da teklif yetkisi): sevkiyat ekibine gösterilmez.
-    final quoting = grants.viewDesk || grants.quoteOnOrder;
-    final urgent = quoting ? PipelineUrgentLine.mostUrgent(data.desk) : null;
-    VoidCallback? act;
-    if (urgent != null) {
-      if (grants.viewDesk && grants.quoteOnDesk) {
-        act = () => openDestination(
-          context,
-          '${AppRoutes.quoteDesk}?customerId=${urgent.customerId}',
-        );
-      } else if (grants.viewOrders && grants.quoteOnOrder) {
-        act = () =>
-            GoRouter.of(context).push(AppRoutes.bayiOrder(urgent.orderId));
-      }
-    }
-    // v3: hat beyaz bölüm kartında (22 köşe, kart gölgesi) ana sayfa zemininde süzülür; acil satır
-    // kartın dibinde tonun yumuşak kuyusunda.
-    return HomeSectionCard(
-      bottom: urgent == null ? 8 : 14,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          HomeCardHeader(
-            title: 'Sipariş hattı',
-            icon: PhosphorIconsRegular.flowArrow,
-            caption: caption,
-          ),
-          OrderPipeline(stops: stops),
-          if (urgent != null)
-            PipelineUrgentLine(
-              row: urgent,
-              onAction: act,
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// "Tüpraş fiyatları" şeridi: fiyat bağlamı için yükteki bir cari; bugünün fiyatı girilmediyse
-/// (kurulum kontrolü) uyarı kuyusu ve portal bağlantısı. Şerit çizecek bir şey yokken (yetki yok,
-/// fiyat gelmedi) boş beyaz kart bırakılmaz; fiyatlar gelince kart süzülerek açılır.
-class _TuprasBlock extends ConsumerWidget {
+/// "Tüpraş fiyatları" kartı: fiyat bağlamı için yükteki bir cari; bugünün fiyatı girilmediyse
+/// tarihin önünde uyarı noktası (fiyat girme işi "Sıra sizde" kartında).
+class _TuprasBlock extends StatelessWidget {
   const _TuprasBlock({required this.data});
 
   final BayiHomeData data;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final d = data.desk;
     final orders = [...?d?.expiring, ...?d?.awaitingQuoteList];
     final ships = [...?data.shipments?.today, ...?data.shipments?.disputeList];
@@ -462,172 +395,47 @@ class _TuprasBlock extends ConsumerWidget {
         ? orders.first.customerId
         : data.sales?.topCustomers.firstOrNull?.customerId ??
               ships.firstOrNull?.customerId;
-    final setup = data.setup;
-    final missing = setup?.tuprasMissingToday ?? false;
-    final check = setup?.checks
-        .where((c) => c.key == 'tupras-today' && c.portalPath != null)
-        .firstOrNull;
-    // Şeridin kendi görünürlük kuralı (aynı sağlayıcı; ek istek yok).
-    final snap = ref.watch(tuprasPricesProvider(hint)).valueOrNull;
-    return _Collapsible(
-      visible: snap != null || missing,
-      child: HomeSectionCard(
-        child: TuprasStrip(
-          customerHint: hint,
-          missingToday: missing,
-          // Başlık, eylemli kart başlıklarıyla aynı hizada (48 px satırın ortası).
-          headerPadding: const EdgeInsets.fromLTRB(20, 21, 8, 0),
-          onEnterPrice: check == null
-              ? null
-              : () => openPortal(context, ref, check.portalPath!),
-        ),
-      ),
+    return TuprasStrip(
+      customerHint: hint,
+      missingToday: data.setup?.tuprasMissingToday ?? false,
     );
   }
 }
 
-/// İlk giriş rol ipucu (tasarım v3): beyaz kart, turuncu yumuşak zeminde ampul karosu (hafifçe süzülür),
-/// başlık + cümle, mürekkep bağlantı ve "Kapat"; kapanınca yerinden süzülerek çekilir.
-class _RoleTipWell extends StatelessWidget {
-  const _RoleTipWell({
-    required this.tip,
-    required this.onOpen,
-    required this.onClose,
-  });
-
-  final RoleTip tip;
-  final VoidCallback? onOpen;
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    final t = context.aknText;
-    final bulb = Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: c.brandSoft,
-        borderRadius: BorderRadius.circular(AknRadius.sm),
-      ),
-      child: Icon(PhosphorIconsRegular.lightbulb, color: c.brandInk, size: 21),
-    );
-    return HomeSectionCard(
-      bottom: 0,
-      child: Semantics(
-        container: true,
-        child: Padding(
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 14, 4, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Ampul hafifçe süzülür (ortam hareketi).
-              ExcludeSemantics(
-                child: AknAmbient(
-                  period: AknMotion.float,
-                  reverse: true,
-                  builder: (context, v, child) => Transform.translate(
-                    offset: Offset(0, -2 + 4 * v),
-                    child: child,
-                  ),
-                  child: bulb,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tip.title,
-                        style: t.bodyStrong.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: c.ink,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tip.message,
-                        style: t.bodySmall.copyWith(color: c.dim),
-                      ),
-                      if (onOpen != null && tip.actionLabel != null) ...[
-                        const SizedBox(height: 4),
-                        AknInlineLink(label: tip.actionLabel!, onTap: onOpen!),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Kapat',
-                onPressed: () {
-                  AknHaptics.light();
-                  onClose();
-                },
-                icon: Icon(PhosphorIconsRegular.x, color: c.dim, size: 20),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// İlk yükleme iskeleti (tasarım v3): şeridin üstünde kahraman kart yerinde 26 köşeli blok, sonra
-/// bölüm kartları — beyaz kartların içinde nabız atan Beton bloklar.
+/// İlk yükleme iskeleti: şeridin üstünde kahraman kart yerinde 26 köşeli blok, altında deste ve
+/// defter yerinde sakin bloklar.
 class _HomeSkeleton extends StatelessWidget {
   const _HomeSkeleton();
 
   @override
-  Widget build(BuildContext context) {
-    Widget section(List<Widget> blocks) => Padding(
-      padding: const EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 0),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: context.akn.surface,
-          borderRadius: AknRadius.section,
-          boxShadow: AknShadows.card(context.akn),
+  Widget build(BuildContext context) => ListView(
+    physics: const NeverScrollableScrollPhysics(),
+    padding: EdgeInsets.zero,
+    children: const [
+      AknBandOverlap(
+        child: Shimmer(child: SkeletonBox(height: 320, radius: 26)),
+      ),
+      Padding(
+        padding: EdgeInsets.fromLTRB(AknSpace.page, 16, AknSpace.page, 0),
+        child: Shimmer(
+          semanticLabel: null,
+          child: SkeletonBox(height: 220, radius: 26),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Shimmer(
-            semanticLabel: null,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: blocks,
-            ),
+      ),
+      Padding(
+        padding: EdgeInsets.fromLTRB(AknSpace.page, 24, AknSpace.page, 0),
+        child: Shimmer(
+          semanticLabel: null,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SkeletonBox(width: 120, height: 20, radius: 6),
+              SizedBox(height: 12),
+              SkeletonBox(height: 140, radius: 20),
+            ],
           ),
         ),
       ),
-    );
-    return ListView(
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      children: [
-        const AknBandOverlap(
-          padding: AknSpace.pagePadding,
-          child: Shimmer(child: SkeletonBox(height: 260, radius: 26)),
-        ),
-        section(const [
-          SkeletonBox(width: 140, height: 20, radius: 6),
-          SizedBox(height: 18),
-          SkeletonBox(height: 72, radius: 12),
-        ]),
-        section(const [
-          SkeletonBox(width: 160, height: 20, radius: 6),
-          SizedBox(height: 16),
-          SkeletonBox(width: 220, height: 16, radius: 6),
-          SizedBox(height: 8),
-          SkeletonBox(width: 150, height: 14, radius: 6),
-          SizedBox(height: 18),
-          SkeletonBox(width: 220, height: 16, radius: 6),
-          SizedBox(height: 8),
-          SkeletonBox(width: 150, height: 14, radius: 6),
-        ]),
-      ],
-    );
-  }
+    ],
+  );
 }

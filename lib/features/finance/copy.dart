@@ -23,6 +23,25 @@ abstract final class FinanceCopy {
   static const clearFilters = 'Filtreleri temizle';
   static const notFoundTitle = 'Bu finans kartı artık görüntülenemiyor';
 
+  // ---------------------------------------------------------------- v4 (§3.2, §5 09)
+
+  /// Bant durumu: "1 cari finans onayınızı bekliyor"; dar bantta "1 cari onay bekliyor".
+  static String pendingStatus(int n, {bool short = false}) =>
+      short ? '$n cari onay bekliyor' : '$n cari finans onayınızı bekliyor';
+  static const calmStatus = 'Onay bekleyen cari yok';
+
+  /// Satırın üçüncü satırı (sıra izleyicide, Pas).
+  static const pendingYourMove = 'Finans onayınızı bekliyor';
+  static const unlimited = 'limitsiz';
+
+  static const groupAttention = 'Dikkat';
+  static const groupAll = 'Tüm cariler';
+  static const groupOthers = 'Diğer cariler';
+
+  static const filterRisk = 'Risk sınıfı';
+  static const filterReview = 'Gözden geçirme';
+  static const filterSort = 'Sıralama';
+
   /// Koşul JSON'unun (FinanceReview.ConditionsJson) okunur özeti.
   static String? describeConditions(String? json) {
     if (json == null || json.trim().isEmpty) return null;

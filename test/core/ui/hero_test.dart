@@ -67,25 +67,33 @@ void main() {
       expect(find.byType(OnHero), findsNothing);
     });
 
-    testBothThemes('root page band: the panel\'s page hero with the actions', (
+    testBothThemes('root page band v4: title = tab word, one status line', (
       tester,
       b,
     ) async {
       await pumpUi(
         tester,
-        AppScaffold(
-          title: 'Siparişler',
-          bandIcon: PhosphorIconsRegular.receipt,
-          eyebrow: 'Bayi',
-          description: 'Tüm müşteri siparişleri',
-          actions: [
-            AknIconButton(
-              icon: PhosphorIconsRegular.slidersHorizontal,
-              semanticLabel: 'Süzgeçler',
-              onPressed: () {},
-            ),
-          ],
-          body: const SizedBox.expand(),
+        AppChrome(
+          unreadCount: 3,
+          onOpenNotifications: () {},
+          child: AppScaffold(
+            title: 'Siparişler',
+            bandIcon: PhosphorIconsRegular.receipt,
+            // v4: the eyebrow is ignored; the status line says what waits.
+            eyebrow: 'Bayi',
+            status: const [
+              AknStatusClause.yourMove('4 sipariş teklifinizi bekliyor'),
+              AknStatusClause.overdue("2'si gecikti"),
+            ],
+            actions: [
+              AknIconButton(
+                icon: PhosphorIconsRegular.slidersHorizontal,
+                semanticLabel: 'Filtre',
+                onPressed: () {},
+              ),
+            ],
+            body: const SizedBox.expand(),
+          ),
         ),
         brightness: b,
         scaffold: false,
@@ -93,24 +101,52 @@ void main() {
       final c = b == Brightness.dark ? AknColors.dark : AknColors.light;
       final band = find.byType(AknPageBand);
       expect(band, findsOneWidget);
-      // Eyebrow (Pas 12 600), title (20 700 ink, the page header) and the
-      // one-line description (13 dim) next to the 40 px icon tile.
-      final eyebrow = tester.widget<Text>(find.text('Bayi')).style!;
-      expect(eyebrow.color, c.brandInk);
-      expect(eyebrow.fontSize, 12);
-      expect(eyebrow.fontWeight, FontWeight.w600);
+      // No eyebrow and no bell in the band.
+      expect(find.text('Bayi'), findsNothing);
+      expect(find.byIcon(PhosphorIconsRegular.bell), findsNothing);
+      // The title (20 700 ink, the page header).
       final title = tester.widget<Text>(find.text('Siparişler')).style!;
       expect(title.color, c.ink);
       expect(title.fontSize, 20);
       expect(title.fontWeight, FontWeight.w700);
-      final desc = tester.widget<Text>(find.text('Tüm müşteri siparişleri'));
-      expect(desc.style!.color, c.dim);
-      expect(desc.maxLines, 1);
       expect(
         tester.getSemantics(find.text('Siparişler')),
         matchesSemantics(label: 'Siparişler', isHeader: true),
       );
-      // The page actions sit inside the band, on its right.
+      // One status line: the viewer's move in Pas 600, the overdue clause
+      // in danger 600, joined with " · ".
+      final status = find.textContaining('teklifinizi bekliyor');
+      expect(status, findsOneWidget);
+      final rich = tester.widget<RichText>(
+        find.descendant(of: status, matching: find.byType(RichText)),
+      );
+      expect(
+        rich.text.toPlainText(),
+        "4 sipariş teklifinizi bekliyor · 2'si gecikti",
+      );
+      final spans = <TextSpan>[];
+      rich.text.visitChildren((span) {
+        if (span is TextSpan && span.text != null) spans.add(span);
+        return true;
+      });
+      final move = spans.firstWhere((x) => x.text!.contains('teklifinizi'));
+      final late = spans.firstWhere((x) => x.text!.contains('gecikti'));
+      expect(move.style!.color, c.brandInk);
+      expect(move.style!.fontWeight, FontWeight.w600);
+      expect(late.style!.color, c.danger.fg);
+      // The tab glyph in a 36 dp tile; the action inside the band.
+      expect(find.byIcon(PhosphorIconsRegular.receipt), findsOneWidget);
+      expect(
+        tester.getSize(
+          find
+              .ancestor(
+                of: find.byIcon(PhosphorIconsRegular.receipt),
+                matching: find.byType(Container),
+              )
+              .first,
+        ),
+        const Size(36, 36),
+      );
       expect(
         find.descendant(
           of: band,
@@ -118,14 +154,13 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.byIcon(PhosphorIconsRegular.receipt), findsOneWidget);
-      // The bar is as tall as the band and its margins; the band spans the
-      // 20 px gutters.
+      // ≈ 66 dp band plus the 8 dp margins; it spans the 20 px gutters.
       final bar = tester.widget<AppBar>(find.byType(AppBar));
       expect(
         bar.toolbarHeight,
         AknPageBand.heightFor(TextScaler.noScaling) + AknPageBand.margin * 2,
       );
+      expect(AknPageBand.heightFor(TextScaler.noScaling), 66);
       final rect = tester.getRect(band);
       expect(rect.left, AknSpace.page);
       final barWidth = tester.getSize(find.byType(AppBar)).width;

@@ -115,7 +115,7 @@ void main() {
         expect(c.read(sessionControllerProvider), isA<SessionAuthenticated>());
         final uid = findFakePersona(key)!.userId;
         await tester.runAsync(() async {
-          await c.read(bayiRoleTipProvider.notifier).dismiss();
+          await c.read(bayiFirstRunHintProvider.notifier).dismiss();
           await _seedTuprasHistory(c, uid);
         });
         await settleIo(tester);

@@ -6,6 +6,7 @@ import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../application/field_access.dart';
 import '../copy.dart';
+import '../data/field_outbox.dart';
 import 'forms_view.dart';
 import 'leads_view.dart';
 import 'portfolio_view.dart';
@@ -117,11 +118,20 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
     }
     final current = sections.contains(_section) ? _section! : sections.first;
     final add = _addAction(context, current, access);
+    // v4 §3.2: başlık alt menünün kelimesi ("Saha"), altında canlı durum satırı.
+    final waiting = ref
+        .watch(fieldQueuedItemsProvider)
+        .where((q) => q.isForm || q.isLead)
+        .length;
+    final Object? status = waiting > 0
+        ? AknStatusClause.yourMove('$waiting form gönderilmeyi bekliyor')
+        : access.mode == FieldMode.team
+        ? 'Ekibin formları ve ön kayıtları'
+        : null;
     return AppScaffold(
-      title: access.title,
-      subtitle: access.mode == FieldMode.team
-          ? 'Ekibin formları ve ön kayıtları'
-          : null,
+      title: access.mode == FieldMode.team ? 'Saha' : access.title,
+      bandIcon: PhosphorIconsRegular.identificationBadge,
+      status: status,
       actions: [?add],
       body: Column(
         children: [
@@ -190,23 +200,11 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
     };
     if (!show) return null;
     final spoken = label == 'Ön kayıt' ? 'Yeni ön kayıt' : 'Yeni saha formu';
-    // Büyük yazıda başlıkla yan yana sığması için yalnızca simge (etiketi ekran okuyucuda).
-    if (fieldLargeText(context)) {
-      return AknIconButton(
-        icon: PhosphorIconsRegular.plus,
-        semanticLabel: spoken,
-        onPressed: () => context.push(path),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsetsDirectional.only(end: 6),
-      child: AknButton(
-        label: label,
-        icon: PhosphorIconsRegular.plus,
-        size: AknButtonSize.small,
-        semanticLabel: spoken,
-        onPressed: () => context.push(path),
-      ),
+    // v4 §4: bandın eylemleri simge düğmesidir (en çok iki); etiket ekran okuyucuda.
+    return AknIconButton(
+      icon: PhosphorIconsRegular.plus,
+      semanticLabel: spoken,
+      onPressed: () => context.push(path),
     );
   }
 }

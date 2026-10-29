@@ -5,7 +5,7 @@
 //     --dart-define=AKN_SCREENS_DIR=/tam/yol/klasor
 //
 // 390 × 844 pt, 2× piksel, gerçek Mona Sans (test/flutter_test_config.dart yükler). Ana sayfa alttaki
-// şoför menüsüyle (Teslimatlarım, Bildirimler, Asistan, Profil) çizilir. Altın karşılaştırma değildir.
+// şoför menüsüyle (Teslimat, Bildirim, Asistan, Profil) çizilir. Altın karşılaştırma değildir.
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -56,12 +56,12 @@ Widget _app(
                 AknNavItem(
                   icon: PhosphorIconsRegular.truck,
                   selectedIcon: PhosphorIconsFill.truck,
-                  label: 'Teslimatlarım',
+                  label: 'Teslimat',
                 ),
                 AknNavItem(
                   icon: PhosphorIconsRegular.bell,
                   selectedIcon: PhosphorIconsFill.bell,
-                  label: 'Bildirimler',
+                  label: 'Bildirim',
                   badgeCount: 1,
                 ),
                 AknNavItem(

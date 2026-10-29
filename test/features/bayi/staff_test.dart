@@ -6,7 +6,6 @@ import 'package:akaryakitnet/features/bayi/application/staff_controller.dart';
 import 'package:akaryakitnet/features/bayi/copy.dart';
 import 'package:akaryakitnet/features/bayi/fake/staff_fake.dart';
 import 'package:akaryakitnet/features/bayi/presentation/staff/staff_page.dart';
-import 'package:akaryakitnet/features/bayi/presentation/widgets/bayi_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,7 +18,7 @@ Finder _inCard(String name, Finder f) =>
     find.descendant(of: _card(name), matching: f);
 
 Finder _segment(String label) => find.descendant(
-  of: find.byType(BayiSegmented<StaffFilter>),
+  of: find.byType(AknSegmented<StaffFilter>),
   matching: find.textContaining(label),
 );
 

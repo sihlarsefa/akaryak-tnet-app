@@ -31,13 +31,22 @@ import 'deck_cards.dart';
 ///
 /// Ana sayfalar yalnızca `const ManagerStatsDeck()` ekler. Varsayılan dış boşluk `20, 8, 20, 0`'dır
 /// (sayfa kenarı 20); sarmalayan bir dolgu varsa `padding: EdgeInsets.zero` verin.
+///
+/// v4 "Sade" (§4): `raised: false` — destenin altında durduğu ana sayfalarda kahraman "Sıra sizde"
+/// kartıdır; üst kart düz beyaz kalır ve arkadaki kartın hafif gölgesini (`plateBehind`) taşır. ⋯
+/// menüsü yok ("Detaylı" sayfa bağlantısında, "Yenile" aşağı çekince, "Nasıl hesaplanır?"
+/// /stats'ta); fark çipi başlığın sağında; kart 248 dp, arkada tek 8 dp kâğıt kenarı.
 class ManagerStatsDeck extends ConsumerStatefulWidget {
   const ManagerStatsDeck({
     super.key,
     this.padding = const EdgeInsets.fromLTRB(20, 8, 20, 0),
+    this.raised = true,
   });
 
   final EdgeInsetsGeometry padding;
+
+  /// False: the deck is not the hero (it sits under "Sıra sizde").
+  final bool raised;
 
   @override
   ConsumerState<ManagerStatsDeck> createState() => _ManagerStatsDeckState();
@@ -163,6 +172,7 @@ class _ManagerStatsDeckState extends ConsumerState<ManagerStatsDeck>
         cards: cards,
         onRefresh: _refresh,
         staleNote: fromCache || error != null ? updatedAt : null,
+        raised: widget.raised,
       );
     }
     // İskelet → deste, hata → deste: eski içerik solarken yenisi hafifçe büyüyerek belirir.
@@ -199,12 +209,12 @@ class _ManagerStatsDeckState extends ConsumerState<ManagerStatsDeck>
 /// Kart içeriğinin en büyük yazı ölçeği; bu ölçekte ve üstünde büyük yazı düzeni.
 const _maxTextScale = 1.6;
 
-/// Kart yüksekliği: 1,0×'te 300, yazıyla 1,6×'e kadar `300 + 170 × (s − 1)`; 1,6× ve üstünde büyük
-/// yazı düzeni ve 320.
+/// Kart yüksekliği (v4): 1,0×'te 248, yazıyla 1,6×'e kadar `248 + 170 × (s − 1)`; 1,6× ve üstünde
+/// büyük yazı düzeni ve 320.
 double deckCardHeight(BuildContext context) {
   final s = MediaQuery.textScalerOf(context).scale(1);
   if (s >= _maxTextScale) return 320;
-  return 300 + 170 * (s.clamp(1.0, _maxTextScale) - 1);
+  return 248 + 170 * (s.clamp(1.0, _maxTextScale) - 1);
 }
 
 /// Kartın başlık satırının iç boşlukları (soldan, üstten, sağdan) ve başlıkla içerik arası.
@@ -249,36 +259,31 @@ double deckCompactHeight(
 
   // Başlık satırı ([PlateHead]): 40 px simge kutusu (en çok 1,3×), başlık 16/20 700 (en çok 2 satır)
   // ve altında dönem 12/16 500, sağda ⋯ (48).
-  final tile = PlateHead.tileSize * math.min(s, 1.3);
+  // v4: no icon tile and no ⋯; the title 16/20 700 and the period 13/18 on one baseline (at most
+  // two lines), the delta chip (≈ 72) on the right.
   final titleStyle = t.headline.copyWith(
     fontSize: 16,
     height: 20 / 16,
     fontWeight: FontWeight.w700,
   );
-  final periodStyle = t.caption.copyWith(
-    fontSize: 12,
-    height: 16 / 12,
-    fontWeight: FontWeight.w500,
-  );
+  final periodStyle = t.label.copyWith(fontWeight: FontWeight.w500);
   final lineStyle = deckSentenceStyle(context);
   final chipStyle = deckChipStyle(context);
-  final titleRoom = width - _headPad.horizontal - tile - 12 - 2 - 48;
+  final titleRoom = width - _headPad.horizontal - 10 - 72;
   var best = 0.0;
   for (final card in cards) {
-    final titleH = measure(
-      TextSpan(text: card.title, style: titleStyle),
+    final head = measure(
+      TextSpan(
+        text: card.title,
+        style: titleStyle,
+        children: [
+          if (card.subtitle.isNotEmpty)
+            TextSpan(text: '  ${card.subtitle}', style: periodStyle),
+        ],
+      ),
       titleRoom,
       maxLines: 2,
     );
-    final periodH = card.subtitle.isEmpty
-        ? 0.0
-        : 1 +
-              measure(
-                TextSpan(text: card.subtitle, style: periodStyle),
-                titleRoom,
-                maxLines: 2,
-              );
-    final head = math.max(tile, titleH + periodH);
     // Rakam: `plateFigure` 46/52, en çok 1,3× yazı.
     var h = _headPad.top + head + _headGap + 52 * math.min(s, 1.3);
     final line = card.compactLine;
@@ -348,6 +353,7 @@ class SwipeDeck extends ConsumerStatefulWidget {
     required this.cards,
     required this.onRefresh,
     this.staleNote,
+    this.raised = true,
   });
 
   final List<DeckCardSpec> cards;
@@ -355,6 +361,9 @@ class SwipeDeck extends ConsumerStatefulWidget {
 
   /// Önbellekten / tazelenemeyen veride son güncelleme anı.
   final DateTime? staleNote;
+
+  /// False (v4): the top card stays flat white with the light shadow.
+  final bool raised;
 
   @override
   ConsumerState<SwipeDeck> createState() => _SwipeDeckState();
@@ -685,9 +694,6 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
     }
   }
 
-  /// "1 / 8" düğmesi: sonraki kart (titreşimi şerit verir).
-  void _next() => unawaited(_fly(-1, haptic: false));
-
   /// Şeritteki çizgiye dokununca o kart doğrudan üste gelir ve plakayı 200 ms'de yakar.
   void _goTo(String id) {
     if (_flying || _order.isEmpty || _order.first == id) return;
@@ -723,54 +729,6 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
     return live;
   }
 
-  // ---------------------------------------------------------------- menü
-
-  Future<void> _openMenu(DeckCardSpec card, BuildContext anchor) async {
-    final box = anchor.findRenderObject();
-    final overlay = Navigator.of(context).overlay?.context.findRenderObject();
-    if (box is! RenderBox || overlay is! RenderBox) return;
-    final rect = Rect.fromPoints(
-      box.localToGlobal(Offset.zero, ancestor: overlay),
-      box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
-    );
-    final c = context.akn;
-    // Menü desteyi açan sayfanın temasıyla açılır (plakanın paleti menüye geçmez).
-    final v = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromRect(rect, Offset.zero & overlay.size),
-      color: c.surfaceRaised,
-      elevation: 10,
-      shadowColor: c.ink.withValues(alpha: c.isDark ? 0.6 : 0.28),
-      shape: const RoundedSuperellipseBorder(borderRadius: AknRadius.card),
-      items: const [
-        PopupMenuItem(
-          value: 'details',
-          child: _MenuRow(PhosphorIconsRegular.chartBar, StatsCopy.deckDetails),
-        ),
-        PopupMenuItem(
-          value: 'refresh',
-          child: _MenuRow(
-            PhosphorIconsRegular.arrowClockwise,
-            StatsCopy.deckRefresh,
-          ),
-        ),
-        PopupMenuItem(
-          value: 'how',
-          child: _MenuRow(PhosphorIconsRegular.info, StatsCopy.deckHowTo),
-        ),
-      ],
-    );
-    if (!mounted) return;
-    switch (v) {
-      case 'details':
-        unawaited(context.push(AppRoutes.stats));
-      case 'refresh':
-        unawaited(widget.onRefresh());
-      case 'how':
-        unawaited(_showHowTo(context, card));
-    }
-  }
-
   // ---------------------------------------------------------------- görünüm
 
   @override
@@ -794,10 +752,14 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
             ? _compactHeight(context, _width)
             : deckCardHeight(context);
         final progress = _stepProgress;
-        final visible = _order.take(3).toList();
+        // v4: one 8 dp paper edge behind the top card (the third card
+        // fades in only while the deck turns).
+        final visible = _order
+            .take(progress > 0 || _tuck.isAnimating ? 3 : 2)
+            .toList();
         _live.removeWhere((id) => !visible.contains(id));
         return SizedBox(
-          height: height + 26,
+          height: height + 8,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -861,9 +823,6 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
           index: index,
           onSelect: n < 2 ? null : (i) => _goTo(_ids[i]),
           showPosition: n >= 2,
-          onPositionTap: n < 2 ? null : _next,
-          positionSemanticLabel:
-              '${StatsCopy.deckNext}, ${StatsCopy.deckPosition(index + 1, n)}',
           actionLabel: StatsCopy.deckStatsLink,
           onAction: () => unawaited(context.push(AppRoutes.stats)),
           padding: EdgeInsets.zero,
@@ -893,9 +852,10 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
     final isTop = depth == 0;
     // Arkadaki kartlar üstteki sürüklendikçe bir kademe öne gelir (uçuşta yayla, hafifçe aşarak).
     final d = isTop ? 0.0 : depth - progress;
-    var scale = 1 - 0.05 * d;
-    var down = 13.0 * d;
-    var opacity = (1 - 0.25 * (d - 1).clamp(0.0, 1.0)).clamp(0.0, 1.0);
+    var scale = 1 - 0.04 * d;
+    var down = 8.0 * d;
+    // Only one paper edge shows at rest: the card behind it fades away.
+    var opacity = (1 - (d - 1).clamp(0.0, 1.0)).clamp(0.0, 1.0);
     // Destenin arkasına yeni giren kart küçükten ve saydamdan süzülür.
     if (!isTop && last && card.id == _tuckId && _tuck.value < 1) {
       final k = AknMotion.emphasizedCurve.transform(_tuck.value);
@@ -984,12 +944,12 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
                               height: height,
                               raised: isTop,
                               plate: t,
+                              flat: !widget.raised,
                               onRefresh: widget.onRefresh,
                               outline: paper.line,
                               shadow: dragged
                                   ? AknShadows.dragged(paper)
                                   : const [],
-                              onMenu: _openMenu,
                               showBody: live,
                               bodyKey: ValueKey('${card.id}#${_gen[card.id]}'),
                             ),
@@ -1007,21 +967,6 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
     );
   }
 }
-
-/// "Nasıl hesaplanır?" sayfası (sayfanın temasıyla).
-Future<void> _showHowTo(BuildContext context, DeckCardSpec card) =>
-    showAppSheet<void>(
-      context: context,
-      title: card.title,
-      subtitle: StatsCopy.deckHowTo,
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          card.howTo,
-          style: ctx.aknText.body.copyWith(color: ctx.akn.text),
-        ),
-      ),
-    );
 
 /// "Son güncelleme 14:20, 5 dk önce" (çevrimdışı ya da tazelenemedi): saat simgesi ve soluk yazı.
 class _StaleNote extends StatelessWidget {
@@ -1077,7 +1022,12 @@ class DeckCardShell extends StatelessWidget {
     this.borderColor,
     this.shadow = const [],
     this.plate,
+    this.flat = false,
   });
+
+  /// v4: no warm wash and the light `plateBehind` shadow (the deck under
+  /// "Sıra sizde").
+  final bool flat;
 
   final Color tint;
   final bool raised;
@@ -1100,7 +1050,7 @@ class DeckCardShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final p = (plate ?? (raised ? 1.0 : 0.0)).clamp(0.0, 1.0);
+    final p = flat ? 0.0 : (plate ?? (raised ? 1.0 : 0.0)).clamp(0.0, 1.0);
     final base = color ?? c.surface;
     final shadows = shadow.isNotEmpty
         ? shadow
@@ -1162,19 +1112,22 @@ class DeckCardHeader extends StatelessWidget {
   final String subtitle;
   final Widget? trailing;
 
+  /// v4: no icon tile (the [icon] is kept for API stability); the title
+  /// and the period on one baseline, [trailing] (the delta chip) on the
+  /// right.
   @override
   Widget build(BuildContext context) => PlateHead(
-    icon: icon,
     title: title,
     period: subtitle.isEmpty ? null : subtitle,
     trailing: trailing,
   );
 }
 
-/// Destedeki tek kart: kabuk + başlık satırı (⋯ menüsü) + içerik. Renkler bağlamdan gelir (deste
-/// üst karta plaka paletini, arkadakilere kâğıt paletini verir). İçerik yalnızca [showBody] iken
-/// kurulur; [bodyKey] değişince içerik yeniden kurulur ve giriş hareketini baştan oynar.
-class DeckCardView extends StatelessWidget {
+/// Destedeki tek kart: kabuk + başlık satırı (v4: sağda fark çipi, ⋯ yok) + içerik. Renkler bağlamdan
+/// gelir (deste üst karta plaka paletini, arkadakilere kâğıt paletini verir). İçerik yalnızca
+/// [showBody] iken kurulur; [bodyKey] değişince içerik yeniden kurulur ve giriş hareketini baştan
+/// oynar. İçerikteki fark çipi başlığın sağına taşınır ([DeckHeadChip]).
+class DeckCardView extends StatefulWidget {
   const DeckCardView({
     super.key,
     required this.card,
@@ -1183,8 +1136,8 @@ class DeckCardView extends StatelessWidget {
     required this.onRefresh,
     this.outline,
     this.shadow = const [],
-    this.onMenu,
     this.plate,
+    this.flat = false,
     this.showBody = true,
     this.bodyKey,
   });
@@ -1192,17 +1145,19 @@ class DeckCardView extends StatelessWidget {
   /// Plaka kartı oranı (üst kart 1; devir sırasında arkadaki kart 0→1).
   final double? plate;
 
+  /// v4: düz beyaz kart ve hafif gölge (deste kahraman değil).
+  final bool flat;
+
   final DeckCardSpec card;
   final double height;
 
   /// En üstteki kart (plakayı giyen).
   final bool raised;
+
+  /// Kept for API stability (v4: refresh is pull-to-refresh).
   final Future<void> Function() onRefresh;
   final Color? outline;
   final List<BoxShadow> shadow;
-
-  /// ⋯ menüsünü açar (deste sayfanın temasıyla açar); verilmezse kartın kendi bağlamıyla.
-  final void Function(DeckCardSpec card, BuildContext anchor)? onMenu;
 
   /// İçerik kurulsun mu (arkada duran kartın içeriği görünmez; deste kurmaz).
   final bool showBody;
@@ -1211,130 +1166,64 @@ class DeckCardView extends StatelessWidget {
   final Key? bodyKey;
 
   @override
+  State<DeckCardView> createState() => _DeckCardViewState();
+}
+
+class _DeckCardViewState extends State<DeckCardView> {
+  final DeckChipSlot _chip = DeckChipSlot();
+
+  @override
+  void dispose() {
+    _chip.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final c = context.akn;
+    final w = widget;
     return DeckCardShell(
-      height: height,
+      height: w.height,
       tint: c.line,
-      raised: raised,
+      raised: w.raised,
       color: c.surface,
-      borderColor: outline,
-      shadow: shadow,
-      plate: plate,
+      borderColor: w.outline,
+      shadow: w.shadow,
+      plate: w.plate,
+      flat: w.flat,
       padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: _headPad,
-            child: DeckCardHeader(
-              icon: card.icon,
-              color: c.ink,
-              title: card.title,
-              subtitle: card.subtitle,
-              trailing: _MenuButton(
-                card: card,
-                onOpen: (anchor) {
-                  final open = onMenu;
-                  if (open != null) {
-                    open(card, anchor);
-                  } else {
-                    unawaited(_fallbackMenu(anchor));
-                  }
-                },
+      child: DeckHeadChip(
+        sink: _chip,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: _headPad,
+              child: DeckCardHeader(
+                icon: w.card.icon,
+                color: c.ink,
+                title: w.card.title,
+                subtitle: w.card.subtitle,
+                trailing: ValueListenableBuilder<Widget?>(
+                  valueListenable: _chip,
+                  builder: (context, chip, _) => chip == null
+                      ? const SizedBox.shrink()
+                      : ExcludeSemantics(child: chip),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: _headGap),
-          Expanded(
-            child: showBody
-                ? KeyedSubtree(
-                    key: bodyKey,
-                    child: Padding(padding: _bodyPad, child: card.body),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        ],
+            const SizedBox(height: _headGap),
+            Expanded(
+              child: w.showBody
+                  ? KeyedSubtree(
+                      key: w.bodyKey,
+                      child: Padding(padding: _bodyPad, child: w.card.body),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Future<void> _fallbackMenu(BuildContext anchor) async {
-    final v = await showMenu<String>(
-      context: anchor,
-      position: const RelativeRect.fromLTRB(1000, 80, 16, 0),
-      shape: const RoundedSuperellipseBorder(borderRadius: AknRadius.card),
-      items: const [
-        PopupMenuItem(
-          value: 'refresh',
-          child: _MenuRow(
-            PhosphorIconsRegular.arrowClockwise,
-            StatsCopy.deckRefresh,
-          ),
-        ),
-        PopupMenuItem(
-          value: 'how',
-          child: _MenuRow(PhosphorIconsRegular.info, StatsCopy.deckHowTo),
-        ),
-      ],
-    );
-    if (!anchor.mounted) return;
-    if (v == 'refresh') unawaited(onRefresh());
-    if (v == 'how') unawaited(_showHowTo(anchor, card));
-  }
-}
-
-/// ⋯ düğmesi (48 px hedef, mürekkep simge; basınca kartın sakin kuyusu belirir).
-class _MenuButton extends StatelessWidget {
-  const _MenuButton({required this.card, required this.onOpen});
-
-  final DeckCardSpec card;
-  final void Function(BuildContext anchor) onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    return IconButton(
-      key: ValueKey('deck-menu-${card.id}'),
-      onPressed: () {
-        AknHaptics.light();
-        onOpen(context);
-      },
-      tooltip: StatsCopy.deckMenu,
-      icon: Icon(PhosphorIconsRegular.dotsThree, size: 22, color: c.ink),
-      style: IconButton.styleFrom(
-        minimumSize: const Size(AknSpace.minTap, AknSpace.minTap),
-        fixedSize: const Size(AknSpace.minTap, AknSpace.minTap),
-        padding: EdgeInsets.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        highlightColor: c.surfaceAlt,
-      ),
-    );
-  }
-}
-
-class _MenuRow extends StatelessWidget {
-  const _MenuRow(this.icon, this.text);
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.akn;
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: c.ink),
-        const SizedBox(width: 12),
-        Flexible(
-          child: Text(
-            text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: context.aknText.bodyStrong.copyWith(color: c.ink),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -1355,9 +1244,9 @@ class _DeckSkeleton extends StatelessWidget {
       right: 0,
       top: 0,
       child: Transform.translate(
-        offset: Offset(0, 13.0 * d),
+        offset: Offset(0, 8.0 * d),
         child: Transform.scale(
-          scale: 1 - 0.05 * d,
+          scale: 1 - 0.04 * d,
           alignment: Alignment.bottomCenter,
           child: DeckCardShell(
             height: height,
@@ -1417,51 +1306,37 @@ class _SkeletonCardBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // v4 head: the title and the period on one line, the chip on the right.
         const Row(
           children: [
-            SkeletonBox(width: 40, height: 40, radius: 12),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SkeletonBox(width: 96, height: 14, radius: 7),
-                  SizedBox(height: 6),
-                  SkeletonBox(width: 64, height: 10, radius: 5),
-                ],
-              ),
-            ),
+            SkeletonBox(width: 150, height: 14, radius: 7),
+            Spacer(),
+            SkeletonBox(width: 56, height: 22, radius: 8),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         const Align(
           alignment: AlignmentDirectional.centerStart,
           child: SkeletonBox(width: 210, height: 44, radius: 12),
         ),
         const SizedBox(height: 10),
-        const Row(
-          children: [
-            SkeletonBox(width: 64, height: 24, radius: 8),
-            SizedBox(width: 10),
-            Expanded(child: SkeletonLine(widthFactor: 0.8, height: 12)),
-          ],
-        ),
+        const SkeletonLine(widthFactor: 0.7, height: 12),
         if (!compact) ...[
           const Spacer(),
           SizedBox(
-            height: 38,
+            height: 32,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 for (final h in heights)
-                  SkeletonBox(width: 22, height: 38 * h, radius: 8),
+                  SkeletonBox(width: 22, height: 32 * h, radius: 8),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          const SkeletonBox(height: 2, radius: 1),
           const SizedBox(height: 10),
+          const SkeletonBox(height: 2, radius: 1),
+          const SizedBox(height: 8),
           const Row(
             children: [
               Expanded(child: SkeletonBox(height: 36, radius: 10)),

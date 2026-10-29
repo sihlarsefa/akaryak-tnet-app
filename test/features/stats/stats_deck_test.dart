@@ -102,8 +102,63 @@ Future<void> _afterFlight(WidgetTester tester) async {
 }
 
 Future<void> _tapNext(WidgetTester tester) async {
-  await tapDeckNext(tester);
+  await _deckNext(tester);
   await tester.pump(const Duration(milliseconds: 320));
+}
+
+// v4 (§4): the pager no longer draws "1 / N" (its semantics stay), so the
+// deck's position is read from the LanePager and "Sonraki kart" is its
+// position action.
+LanePager _pager(WidgetTester tester) =>
+    tester.widget<LanePager>(find.byType(LanePager));
+
+(int, int) _deckPosition(WidgetTester tester) {
+  final p = _pager(tester);
+  return (p.index + 1, p.count);
+}
+
+/// "Sonraki kart": the deck's own custom action, as a screen reader does it
+/// (v4: the pager no longer carries a hidden button).
+Future<void> _deckNext(WidgetTester tester) async {
+  final handle = tester.ensureSemantics();
+  final node = tester.getSemantics(
+    find.bySemanticsLabel(RegExp(r'karttan \d+\. kart: ')),
+  );
+  node.owner!.performAction(
+    node.id,
+    SemanticsAction.customAction,
+    CustomSemanticsAction.getIdentifier(
+      const CustomSemanticsAction(label: StatsCopy.deckNext),
+    ),
+  );
+  handle.dispose();
+  await tester.pump();
+}
+
+Future<void> _deckLane(WidgetTester tester, int lane) async {
+  final (pos, _) = _deckPosition(tester);
+  final active = pos - 1;
+  var left = 0.0;
+  for (var i = 0; i < lane; i++) {
+    left += (i == active ? 20 : 6) + 10;
+  }
+  final w = lane == active ? 20.0 : 6.0;
+  final origin = tester.getTopLeft(find.byType(LanePager));
+  await tester.tapAt(origin + Offset(left + w / 2, 20));
+}
+
+Future<List<String>> _deckOrder(WidgetTester tester) async {
+  if (find.byType(LanePager).evaluate().isEmpty || _pager(tester).count < 2) {
+    return [topCardId(tester)];
+  }
+  final (_, n) = _deckPosition(tester);
+  final ids = <String>[];
+  for (var i = 0; i < n; i++) {
+    ids.add(topCardId(tester));
+    await _deckNext(tester);
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+  return ids;
 }
 
 /// Kartın renkleri (deste her katmana kendi paletini verir).
@@ -149,9 +204,9 @@ void main() {
         expect(topCardId(tester), DeckCards.sales);
         expect(find.text(StatsCopy.cardSales), findsOneWidget);
         expect(find.text(StatsCopy.deckStatsLink), findsOneWidget);
-        final order = await deckOrder(tester);
+        final order = await _deckOrder(tester);
         expect(order, _expectedBayi(d, own: false));
-        expect(order.length, deckPosition(tester).$2);
+        expect(order.length, _deckPosition(tester).$2);
         await app.finish(tester);
       });
     }
@@ -160,12 +215,12 @@ void main() {
       'rol bölümleri: sahipte ekip + tahsilat, izleyicide ikisi de yok',
       (tester) async {
         var app = await StatsTestApp.start(tester, persona: 'sahip');
-        var order = await deckOrder(tester);
+        var order = await _deckOrder(tester);
         expect(order, containsAll([DeckCards.collections, DeckCards.team]));
         await app.finish(tester);
 
         app = await StatsTestApp.start(tester, persona: 'izleyici');
-        order = await deckOrder(tester);
+        order = await _deckOrder(tester);
         expect(order, isNot(contains(DeckCards.collections)));
         expect(order, isNot(contains(DeckCards.team)));
         await app.finish(tester);
@@ -180,7 +235,7 @@ void main() {
       final d = _bayiData(app);
       expect(d.isOwn, isTrue);
       expect(find.text(StatsCopy.cardSalesOwn), findsOneWidget);
-      final order = await deckOrder(tester);
+      final order = await _deckOrder(tester);
       expect(order, _expectedBayi(d, own: true));
       expect(order.first, DeckCards.sales);
       expect(order.last, DeckCards.ownForms);
@@ -202,7 +257,7 @@ void main() {
         expect(app.container.read(statsScopeProvider), StatsScope.customer);
         expect(app.container.read(canSeeStatsDeckProvider), isTrue);
         expect(find.text(StatsCopy.cardSpend), findsOneWidget);
-        final order = await deckOrder(tester);
+        final order = await _deckOrder(tester);
         expect(order, _expectedCustomer(_customerData(app)));
         expect(order.first, DeckCards.spend);
         await app.finish(tester);
@@ -305,7 +360,7 @@ void main() {
           persona: 'sahip',
           overrides: [cacheStoreProvider.overrideWithValue(store)],
         );
-        final n = deckPosition(tester).$2;
+        final n = _deckPosition(tester).$2;
         expect(find.textContaining('Son güncelleme'), findsNothing);
         await first.finish(tester);
 
@@ -316,7 +371,7 @@ void main() {
           setup: (s) => s.failureMode = FakeFailureMode.offline,
         );
         expect(find.byType(SwipeDeck), findsOneWidget);
-        expect(deckPosition(tester).$2, n);
+        expect(_deckPosition(tester).$2, n);
         expect(find.textContaining('Son güncelleme'), findsOneWidget);
 
         second.server.failureMode = FakeFailureMode.none;
@@ -349,18 +404,18 @@ void main() {
         final semantics = tester.ensureSemantics();
         final app = await StatsTestApp.start(tester, persona: 'sahip');
         final haptics = _recordHaptics(tester);
-        final (start, n) = deckPosition(tester);
+        final (start, n) = _deckPosition(tester);
         expect(start, 1);
         expect(n, greaterThanOrEqualTo(6));
 
         await _tapNext(tester);
-        expect(deckPosition(tester), (2, n));
+        expect(_deckPosition(tester), (2, n));
         expect(topCardId(tester), DeckCards.fuel);
 
         // Şeritteki çizgiye dokunmak o karta götürür.
-        await tapDeckLane(tester, 4);
+        await _deckLane(tester, 4);
         await tester.pump(const Duration(milliseconds: 320));
-        expect(deckPosition(tester), (5, n));
+        expect(_deckPosition(tester), (5, n));
 
         // Ekran okuyucu: kart konumu, başlık ve özet; "Sonraki / Önceki kart" eylemleri.
         final deck = find.bySemanticsLabel(RegExp('^$n karttan 5\\. kart: '));
@@ -375,7 +430,7 @@ void main() {
           action(StatsCopy.deckNext),
         );
         await tester.pump(const Duration(milliseconds: 320));
-        expect(deckPosition(tester), (6, n));
+        expect(_deckPosition(tester), (6, n));
         final again = tester.getSemantics(
           find.bySemanticsLabel(RegExp('^$n karttan 6\\. kart: ')),
         );
@@ -385,13 +440,13 @@ void main() {
           action(StatsCopy.deckPrevious),
         );
         await tester.pump(const Duration(milliseconds: 320));
-        expect(deckPosition(tester), (5, n));
+        expect(_deckPosition(tester), (5, n));
 
         // Son karttan sonra başa döner.
         for (var i = 5; i <= n; i++) {
           await _tapNext(tester);
         }
-        expect(deckPosition(tester), (1, n));
+        expect(_deckPosition(tester), (1, n));
         // Her kart değişiminde bir titreşim: sonraki (1) + çizgi (1) + iki eylem (2) + başa dönüş (n - 4).
         expect(
           haptics.where((h) => h == 'HapticFeedbackType.selectionClick').length,
@@ -411,7 +466,7 @@ void main() {
           reduceMotion: false,
         );
         await StatsTestApp.settle(tester, rounds: 10);
-        final n = deckPosition(tester).$2;
+        final n = _deckPosition(tester).$2;
         expect(_topShift(tester), moreOrLessEquals(0, epsilon: 0.5));
         final restBehind = _behindWidth(tester);
 
@@ -446,7 +501,7 @@ void main() {
         expect(_topShift(tester), lessThan(-20));
         await tester.pump(const Duration(milliseconds: 650));
         expect(_topShift(tester), moreOrLessEquals(0, epsilon: 0.5));
-        expect(deckPosition(tester), (1, n));
+        expect(_deckPosition(tester), (1, n));
         expect(
           _behindWidth(tester),
           moreOrLessEquals(restBehind, epsilon: 0.5),
@@ -465,15 +520,15 @@ void main() {
           const Duration(milliseconds: 900),
         );
         await tester.pump();
-        expect(deckPosition(tester), (1, n), reason: 'uçuş sürüyor');
+        expect(_deckPosition(tester), (1, n), reason: 'uçuş sürüyor');
         await _afterFlight(tester);
-        expect(deckPosition(tester), (2, n));
+        expect(_deckPosition(tester), (2, n));
         expect(_topShift(tester), moreOrLessEquals(0, epsilon: 0.5));
 
         // Kısa ama hızlı atış (> 700 px/s) da kartı geçirir.
         await tester.fling(_topCardFinder, const Offset(-60, 0), 1600);
         await _afterFlight(tester);
-        expect(deckPosition(tester), (3, n));
+        expect(_deckPosition(tester), (3, n));
 
         // Sağa kaydırma da sıradaki kartı getirir (kart destenin arkasına geçer).
         await tester.timedDrag(
@@ -482,17 +537,16 @@ void main() {
           const Duration(milliseconds: 900),
         );
         await _afterFlight(tester);
-        expect(deckPosition(tester), (4, n));
+        expect(_deckPosition(tester), (4, n));
 
-        // "1 / 8" de uçarak geçer; şeritteki çizgi o kartı doğrudan üste getirir ve plaka 200 ms'de yanar.
-        await tapDeckNext(tester);
-        await tester.pump();
-        expect(deckPosition(tester), (4, n), reason: 'uçuş sürüyor');
+        // v4: "1 / 8" çizilmez; ekran okuyucunun "Sonraki kart" eylemi geçirir; şeritteki çizgi o
+        // kartı doğrudan üste getirir ve plaka 200 ms'de yanar.
+        await _deckNext(tester);
         await _afterFlight(tester);
-        expect(deckPosition(tester), (5, n));
-        await tapDeckLane(tester, 0);
+        expect(_deckPosition(tester), (5, n));
+        await _deckLane(tester, 0);
         await tester.pump();
-        expect(deckPosition(tester), (1, n));
+        expect(_deckPosition(tester), (1, n));
         await tester.pump(const Duration(milliseconds: 250));
         expect(
           _colorsOf(tester, topCard(tester)).surface,
@@ -523,55 +577,31 @@ void main() {
       await app.finish(tester);
     });
 
-    testWidgets('⋯ menüsü: Detaylı istatistikler, Yenile, Nasıl hesaplanır?', (
-      tester,
-    ) async {
-      final probe = StatsProbe();
-      final app = await StatsTestApp.start(
-        tester,
-        persona: 'sahip',
-        probe: probe,
-      );
-      final before = probe.bayi.length;
-      await tester.tap(find.byKey(const ValueKey('deck-menu-sales')));
-      await StatsTestApp.settle(tester, rounds: 8);
-      for (final item in [
-        StatsCopy.deckDetails,
-        StatsCopy.deckRefresh,
-        StatsCopy.deckHowTo,
-      ]) {
-        expect(find.text(item), findsOneWidget, reason: item);
-      }
-      // Menü sayfanın temasıyla açılır (plaka kartının paleti menüye geçmez). Sahip kararı G'de
-      // plaka beyaz karttır; plaka paletinde sakin dolgu `deltaFill` olur, sayfa paletinde olmaz.
-      final menuTheme = Theme.of(
-        tester.element(find.text(StatsCopy.deckRefresh)),
-      ).extension<AknColors>()!;
-      expect(menuTheme.surfaceAlt, isNot(menuTheme.deltaFill));
-      expect(menuTheme.line, isNot(menuTheme.plateLine));
-      await tester.tap(find.text(StatsCopy.deckRefresh));
-      await StatsTestApp.settle(tester);
-      expect(probe.bayi.length, before + 1);
-      expect(probe.bayi.toSet(), {'month'});
-
-      await tester.tap(find.byKey(const ValueKey('deck-menu-sales')));
-      await StatsTestApp.settle(tester, rounds: 8);
-      await tester.tap(find.text(StatsCopy.deckHowTo));
-      await StatsTestApp.settle(tester);
-      expect(find.text(StatsCopy.howSales), findsOneWidget);
-      await tester.tapAt(const Offset(200, 40));
-      await StatsTestApp.settle(tester);
-
-      await tester.tap(find.byKey(const ValueKey('deck-menu-sales')));
-      await StatsTestApp.settle(tester, rounds: 8);
-      await tester.tap(find.text(StatsCopy.deckDetails));
-      await StatsTestApp.settle(tester);
-      expect(
-        app.router.routerDelegate.currentConfiguration.last.matchedLocation,
-        '/stats',
-      );
-      await app.finish(tester);
-    });
+    testWidgets(
+      'v4: ⋯ menüsü yok; fark çipi başlıkta, "Detaylı" sayfa bağlantısında',
+      (tester) async {
+        final app = await StatsTestApp.start(tester, persona: 'sahip');
+        // No ⋯ on any card (refresh is pull-to-refresh, "how" lives on /stats).
+        expect(find.byKey(const ValueKey('deck-menu-sales')), findsNothing);
+        expect(find.byIcon(PhosphorIconsRegular.dotsThree), findsNothing);
+        expect(find.text(StatsCopy.deckRefresh), findsNothing);
+        // The delta chip sits in the card's head (PlateHead.trailing).
+        final head = _inTop(find.byType(PlateHead));
+        expect(head, findsOneWidget);
+        expect(
+          find.descendant(of: head, matching: find.byType(TriangleGlyph)),
+          findsOneWidget,
+        );
+        // "Detaylı istatistikler" is the pager link.
+        await tester.tap(find.text(StatsCopy.deckStatsLink));
+        await StatsTestApp.settle(tester);
+        expect(
+          app.router.routerDelegate.currentConfiguration.last.matchedLocation,
+          '/stats',
+        );
+        await app.finish(tester);
+      },
+    );
   });
 
   group('grafik', () {
@@ -614,8 +644,8 @@ void main() {
         persona: 'sahip',
         setup: _overLimit,
       );
-      final order = await deckOrder(tester);
-      await tapDeckLane(tester, order.indexOf(DeckCards.risk));
+      final order = await _deckOrder(tester);
+      await _deckLane(tester, order.indexOf(DeckCards.risk));
       await tester.pump(const Duration(milliseconds: 300));
       expect(topCardId(tester), DeckCards.risk);
       expect(_inTop(find.text('Aşım Ticaret Ltd.')), findsOneWidget);
@@ -644,7 +674,8 @@ void main() {
           final views = tester
               .widgetList<DeckCardView>(find.byType(DeckCardView))
               .toList();
-          expect(views, hasLength(3));
+          // v4: one paper edge behind the top card.
+          expect(views, hasLength(2));
           final top = views.singleWhere((v) => v.raised);
           final topColors = _colorsOf(tester, top);
           expect(topColors.surface, paper.plate);
@@ -658,10 +689,9 @@ void main() {
             expect(v.plate ?? 0, 0, reason: 'arkadaki kart kâğıt');
             expect(c.ink, paper.ink);
           }
-          // Hemen arkadaki Beton, en arkadaki kâğıt (yığının kenarı okunur).
+          // Hemen arkadaki Beton (yığının tek kenarı okunur).
           expect(behind.map((v) => _colorsOf(tester, v).surface).toSet(), {
             paper.surfaceAlt,
-            paper.surface,
           });
           await app.finish(tester);
         }
@@ -714,11 +744,11 @@ void main() {
   });
 
   group('yükseklik ve büyük yazı', () {
-    // 1,0×–1,6× arası 300 + 170 × (s − 1); büyük yazı düzeninde en uzun kartın içeriği kadar (en çok
-    // 320) — 2,0×'te karar satırı ilk ekranda kalsın (pano ekranı 9).
+    // v4: 1,0×–1,6× arası 248 + 170 × (s − 1); büyük yazı düzeninde en uzun kartın içeriği kadar (en
+    // çok 320) — 2,0×'te karar satırı ilk ekranda kalsın (pano ekranı 9).
     for (final (scale, height) in [
-      (1.0, 300.0),
-      (1.3, 351.0),
+      (1.0, 248.0),
+      (1.3, 299.0),
       (1.6, null),
       (2.0, null),
     ]) {
@@ -783,7 +813,7 @@ void main() {
         // ±10 px kayma (+ en çok 6° eğimin üst köşede birkaç pikseli).
         expect(moved, lessThanOrEqualTo(14));
         expect(_topShift(tester), moreOrLessEquals(0, epsilon: 0.5));
-        expect(deckPosition(tester).$1, 1, reason: 'ipucu kart değiştirmez');
+        expect(_deckPosition(tester).$1, 1, reason: 'ipucu kart değiştirmez');
         await app.finish(tester);
 
         app = await StatsTestApp.start(
@@ -835,10 +865,10 @@ void main() {
           moved = math.max(moved, _topShift(tester).abs());
         }
         expect(moved, lessThan(0.5));
-        final n = deckPosition(tester).$2;
-        await tapDeckNext(tester);
+        final n = _deckPosition(tester).$2;
+        await _deckNext(tester);
         await tester.pump();
-        expect(deckPosition(tester), (2, n));
+        expect(_deckPosition(tester), (2, n));
         // Kısa sürükleme hemen yerine döner; uzun sürükleme kartı hemen geçirir.
         await tester.timedDrag(
           _topCardFinder.last,
@@ -853,7 +883,7 @@ void main() {
           const Duration(milliseconds: 900),
         );
         await tester.pump();
-        expect(deckPosition(tester), (3, n));
+        expect(_deckPosition(tester), (3, n));
         semantics.dispose();
         await app.finish(tester);
       },
@@ -911,7 +941,7 @@ void main() {
             textScale: scale,
             size: const Size(320, 1400),
           );
-          final order = await deckOrder(tester);
+          final order = await _deckOrder(tester);
           expect(order, isNotEmpty);
           // Çizim hatası (taşma) olursa test kendiliğinden ayrıntısıyla düşer.
           await app.finish(tester);

@@ -51,7 +51,12 @@ void main() {
       tester,
     ) async {
       final app = await pumpField(tester, persona: 'satis', location: '/field');
-      expect(find.text(FieldCopy.tabTeam), findsOneWidget);
+      // v4 §3.2: başlık alt menünün kelimesi ("Saha"); ekip görünümü durum satırında.
+      expect(find.text('Saha'), findsWidgets);
+      expect(
+        find.textContaining('Ekibin formları', findRichText: true),
+        findsOneWidget,
+      );
       for (final s in [
         FieldCopy.forms,
         FieldCopy.pending,
@@ -115,16 +120,20 @@ void main() {
         await tapText(tester, FieldCopy.myLeads);
         // Yüzen düğme yok (tasarım v2 §4.2): ekleme üst çubukta.
         expect(find.byType(FloatingActionButton), findsNothing);
-        expect(find.widgetWithText(AknButton, 'Ön kayıt'), findsOneWidget);
+        expect(find.bySemanticsLabel('Yeni ön kayıt'), findsOneWidget);
         await finish(tester);
       },
     );
 
-    testWidgets('satış müdürü: sekmede "Saha formu" düğmesi', (tester) async {
-      await pumpField(tester, persona: 'satis', location: '/field');
-      expect(find.widgetWithText(AknButton, 'Saha formu'), findsOneWidget);
-      await finish(tester);
-    });
+    testWidgets(
+      'satış müdürü: bantta "Yeni saha formu" düğmesi; başlık "Saha"',
+      (tester) async {
+        await pumpField(tester, persona: 'satis', location: '/field');
+        expect(find.bySemanticsLabel('Yeni saha formu'), findsOneWidget);
+        expect(find.text('Saha'), findsWidgets);
+        await finish(tester);
+      },
+    );
 
     testWidgets('derin bağlantı: ?tab=leads&status=info', (tester) async {
       final app = await pumpField(
@@ -147,6 +156,10 @@ void main() {
       tester,
     ) async {
       final app = await pumpField(tester, persona: 'saha', location: '/home');
+      // v4 §3.3: "Sıra sizde" bandın üstündeki ilk kart; deste ve formlar altında.
+      expect(find.byType(AknTaskCard), findsOneWidget);
+      expect(find.text('Sıra sizde'), findsOneWidget);
+      await scrollToFind(tester, find.text('Onayda'));
       expect(find.text('Taslak'), findsWidgets);
       expect(find.text('Onayda'), findsWidgets);
       expect(find.text('Portföy'), findsWidgets);
