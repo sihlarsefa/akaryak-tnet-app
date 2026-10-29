@@ -18,7 +18,8 @@ import '../typography.dart';
 ///   #E5530A) with a WHITE 16 px w700 label and a warm orange glow under it
 ///   (owner decision G); one per screen region;
 /// * secondary / outline — white (`surface`) with a 1.5 px `lineStrong` 60 %
-///   border and an ink label (dark: a `surfaceAlt` fill, no border);
+///   border and an ink label (dark: a `surfaceAlt` fill with a full
+///   `lineStrong` border, so the key keeps its edge on a dark dock);
 /// * ghost — no fill, an ink label; pressed `surfaceAlt` (tertiary: "Vazgeç",
 ///   "Atla");
 /// * danger — the secondary look with a red label (the page-level
@@ -729,11 +730,12 @@ class _AknButtonState extends State<AknButton> {
     LinearGradient flat(Color color) =>
         LinearGradient(begin: g.begin, end: g.end, colors: [color, color]);
     final variant = widget.variant;
+    // Dark too: on a dark dock the `surfaceAlt` key is nearly the dock's
+    // colour; without its rim it reads as bare text (v4 A14).
     final bordered =
-        !c.isDark &&
-        (variant == AknButtonVariant.secondary ||
-            variant == AknButtonVariant.outline ||
-            variant == AknButtonVariant.danger);
+        variant == AknButtonVariant.secondary ||
+        variant == AknButtonVariant.outline ||
+        variant == AknButtonVariant.danger;
     // A constant border width keeps the label still when the state changes.
     final rim = bordered ? 1.5 : 0.0;
     BorderSide side(Color color) =>

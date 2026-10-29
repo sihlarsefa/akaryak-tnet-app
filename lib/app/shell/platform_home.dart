@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/session_controller.dart';
 import '../../core/env/app_env.dart';
 import '../../core/push/unread_count_provider.dart';
+import '../../core/routing/app_location.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/ui/ui.dart';
 import '../../core/utils/external_activity.dart';
 import '../tasks/task_inbox.dart';
 
 /// Merkez (Admin, HeadOffice) ana sayfası (v4 §3.3): turuncu bant (avatar, selamlama, "AkaryakıtNet
-/// merkez", zil) → bandın üstüne binen "Sıra sizde" kartı ("Onaylayın · n talep"; bekleyen yoksa
-/// sakin satır) → "Web portalı" satırı. Merkez mobilde yalnızca Onaylar, Bildirimler ve Profil
-/// kullanır; diğer işler web portalındadır.
+/// merkez", zil) → bandın üstüne binen "Sıra sizde" kartı ("Onayınızı bekleyen n talep"; bekleyen
+/// yoksa sakin satır) → "Web portalı" satırı. Merkez mobilde yalnızca Onaylar, Bildirimler ve
+/// Profil kullanır; diğer işler web portalındadır.
+///
+/// Onaylar ve Profil Merkez'in alt menü sekmeleridir: hepsi [openAppLocation] ile açılır (sekmeye
+/// geçilir; `push` kabuğu ikinci kez kurardı, QA SC-01).
 class PlatformHome extends ConsumerWidget {
   const PlatformHome({super.key});
 
@@ -30,15 +33,15 @@ class PlatformHome extends ConsumerWidget {
     final tasks = [
       for (final t in inbox.items)
         t.toAknTask(
-          onTap: () => context.go(t.location),
-          onAction: () => context.go(t.location),
+          onTap: () => context.openAppLocation(t.location),
+          onAction: () => context.openAppLocation(t.location),
         ),
     ];
     return AppScaffold(
       homeHeader: AknHomeHeader(
         company: company,
         person: name.isEmpty ? 'Merkez' : '$name, merkez',
-        onOpenProfile: () => context.push(AppRoutes.profile),
+        onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
       ),
       body: PullToRefresh(
         onRefresh: () => ref.read(unreadCountProvider.notifier).refresh(),
@@ -52,7 +55,7 @@ class PlatformHome extends ConsumerWidget {
                 tasks: tasks,
                 total: count,
                 calm: 'Üst onaya gelen talepler burada görünür.',
-                onSeeAll: () => context.go(AppRoutes.approvals),
+                onSeeAll: () => context.openAppLocation(AppRoutes.approvals),
               ),
             ),
             const SizedBox(height: AknSpace.s16),

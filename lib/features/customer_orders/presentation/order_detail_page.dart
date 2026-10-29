@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
@@ -236,7 +237,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         type: AppToastType.success,
         context: context,
         actionLabel: OrdersCopy.templates,
-        onAction: () => context.push(templatesRoute),
+        onAction: () => context.openAppLocation(templatesRoute),
       );
       _refreshEverything();
     } on AppFailure catch (f) {
@@ -294,8 +295,9 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       case 'template':
         await _makeTemplate(v);
       case 'docs':
-        unawaited(
-          context.push('${AppRoutes.documents}?orderId=${v.detail.id}'),
+        // Belgeler bazı düzenlerde alt menü sekmesidir (QA SC-01).
+        context.openAppLocation(
+          '${AppRoutes.documents}?orderId=${v.detail.id}',
         );
     }
   }
@@ -321,7 +323,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final v = s.data;
     final policy = ref.watch(accessPolicyProvider);
     final online = ref.watch(isOnlineProvider);
-    final canDecide = policy.can(Pg.customerQuotes, Perm.edit);
+    // Tek kural (v4 tur 2): teklif kararı onaylayanındır; talep edene karar çubuğu çıkmaz,
+    // aşama cümlesi "Onay bekleniyor" der (ana sayfa ve Onaylar ile aynı).
+    final canDecide = policy.customerDecides;
+    final answersInfo = customerAnswersInfo(policy);
     final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final canDocs =
         policy.can(Pg.customerDocuments) &&
@@ -379,6 +384,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               v,
               online: online,
               canDecide: canDecide,
+              answersInfo: answersInfo,
               canCreate: canCreate,
             ),
       body: body,
@@ -393,6 +399,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     OrderView v, {
     required bool online,
     required bool canDecide,
+    required bool answersInfo,
     required bool canCreate,
   }) {
     final d = v.detail;
@@ -504,13 +511,13 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         },
       );
     }
-    if (d.financeStatus == OrderFinanceStatus.infoRequested && canDecide) {
+    if (d.financeStatus == OrderFinanceStatus.infoRequested && answersInfo) {
       final id = d.financeApprovalRequestId;
       return AknButton(
         label: 'Bilgi gönder',
         icon: PhosphorIconsRegular.paperPlaneTilt,
         expand: true,
-        onPressed: () => context.push(
+        onPressed: () => context.openAppLocation(
           id == null ? AppRoutes.financeInfo : AppRoutes.approval(id),
         ),
       );
@@ -561,6 +568,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       shipment: active?.status,
       finance: d.financeStatus,
       actor: short.isEmpty ? null : short,
+      answersInfo: customerAnswersInfo(policy),
     );
 
     // Plakadaki teklif: karar ekranında en son sürüm; sonrasında seçili teklif kendi adıyla.
@@ -689,7 +697,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           showChevron: true,
           onTap: () {
             AknHaptics.selection();
-            context.push('${AppRoutes.documents}?orderId=${d.id}');
+            context.openAppLocation('${AppRoutes.documents}?orderId=${d.id}');
           },
         ),
     ];
@@ -698,7 +706,9 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         decision &&
         v.paymentDocumentMissing &&
         (v.documentTarget?.isUploadable ?? false) &&
-        policy.can(Pg.customerQuotes, Perm.edit);
+        policy.customerDecides;
+
+    final handled = _handledBanner(v, focus);
 
     // Sayfanın blokları: açılışta sırayla yükselerek gelir, sonradan eklenen blok (uyarı, yeni
     // bölüm) kendi yerinde belirir.
@@ -764,6 +774,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
                     onAction: () => setState(() => _uncertain = false),
                   ),
                 )
+              : handled != null
+              ? pad(key: const ValueKey('handled'), handled)
               : const SizedBox(key: ValueKey('calm'), width: double.infinity),
         ),
       ),
@@ -953,8 +965,63 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     );
   }
 
+  /// v4 §3.5.3: sayfa bir bildirimden ya da görevden (`?focus=quote|documents`) açıldı ama teklif
+  /// kararı artık verilmiş (başka bir yönetici ya da kendiniz): ne olduğu ve ne zaman olduğu tek
+  /// sakin bantta, "Sıradaki işiniz" görev kutusunun ilk işini açar. Sunucu takibi kararı vereni
+  /// adlandırmaz (`OrderTrackingStepDto`), bu yüzden bantta yalnızca zaman yazar. Belge için
+  /// açıldıysa ve belge hâlâ bekleniyorsa bant çıkmaz: sayfanın işi belgedir.
+  Widget? _handledBanner(OrderView v, String? focus) {
+    if (focus != 'quote' && focus != 'documents') return null;
+    if (focus == 'documents' && v.paymentDocumentMissing) return null;
+    final d = v.detail;
+    final steps = v.tracking?.steps ?? const <TrackingStep>[];
+    DateTime? stepAt(String key) =>
+        steps.where((s) => s.key == key).firstOrNull?.at;
+    final (String, AknTone, DateTime?)? outcome = switch (d.status) {
+      OrderStatus.approved || OrderStatus.completed => (
+        'Bu teklif onaylandı',
+        AknTone.ok,
+        stepAt('approval'),
+      ),
+      OrderStatus.revisionRequested => (
+        'Bu teklif için revize istendi',
+        AknTone.info,
+        stepAt('quote'),
+      ),
+      OrderStatus.rejected => (
+        'Bu teklif reddedildi',
+        AknTone.neutral,
+        stepAt('approval'),
+      ),
+      OrderStatus.expired => (
+        'Teklifin süresi doldu',
+        AknTone.neutral,
+        stepAt('approval'),
+      ),
+      _ => null,
+    };
+    if (outcome == null) return null;
+    final (what, tone, at) = outcome;
+    // Sıradaki iş: "Sıra sizde"nin sayılan ilk görevi; bu siparişinki (eski önbellek) değil. Talep
+    // edenin kutusu da yalnızca kendi işlerini taşır (v4 tur 2): her rolde aynı kural.
+    final next = ref
+        .watch(taskInboxProvider)
+        .items
+        .where((t) => t.counts && !t.external && t.orderId != d.id)
+        .firstOrNull;
+    return AknBanner(
+      tone: tone,
+      message: [what, if (at != null) relativeMoment(at)].join(' · '),
+      // Onay talebi ayrıntısıyla aynı söz (görev kutusunun tek etiketi).
+      actionLabel: next == null ? null : nextTaskLabel,
+      onAction: next == null
+          ? null
+          : () => context.openAppLocation(next.location),
+    );
+  }
+
   /// StageNow'un ikinci satırı (v4 §3b): kim, ne zamana kadar ("Demir Petrol teklif verdi ·
-  /// bugün 21:00'e kadar").
+  /// karar için son: bugün 21:00"). Son saat teklifin saatiyle karışmasın diye adıyla yazılır.
   String? _stageDetail(
     OrderView v, {
     required StatusLamp lamp,
@@ -968,7 +1035,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     String? until() {
       final at = deadline;
       if (at == null) return null;
-      return '${relativeDay(at)} ${withDative(Fmt.time(at))} kadar';
+      return 'karar için son: ${relativeMoment(at)}';
     }
 
     switch (d.financeStatus) {

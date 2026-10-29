@@ -392,8 +392,12 @@ void main() {
       final s = app.container.read(bayiOrdersProvider);
       expect(s.filter.segment, isNull, reason: 'Teklifler alt menüde: Tümü');
       expect(_segChip('Tümü'), findsOneWidget);
+      // Çiplerle aynı sayılar; 390 dp'de revize de sığsın diye kısa söz (v4 tur 2 B6).
       expect(
-        find.textContaining('teklifinizi bekliyor', findRichText: true),
+        find.textContaining(
+          RegExp(r'teklifinizi bekliyor|teklif · \d+ revize sizi bekliyor'),
+          findRichText: true,
+        ),
         findsOneWidget,
       );
       final rows = find.byType(BayiOrderCard);

@@ -434,7 +434,8 @@ class QuoteDeskController extends Notifier<DeskState> {
     final selected = Set<int>.of(state.selected);
     var applied = 0;
     for (final row in targets) {
-      final s = row.suggestedUnitPrice;
+      // Revize satırında önceki teklif yazılmaz (müşterinin geri çevirdiği fiyat, v4 tur 2).
+      final s = row.offeredUnitPrice;
       if (s == null || s <= 0) continue;
       drafts[row.orderId] = state
           .draftOf(row.orderId)

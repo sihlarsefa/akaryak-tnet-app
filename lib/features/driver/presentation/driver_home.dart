@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -205,11 +206,16 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
     final driverName =
         ref.watch(sessionControllerProvider).access?.displayName ?? '';
     final dateLine = _dateLine(now);
+    // Diğer'den açılan Teslimatlar (sahip, depo: alt menüde sekme değil) itilen bir sayfadır: bandın
+    // başında geri düğmesi, geri dönülemiyorsa "Ana sayfa" (v4 §3.5, tur 2). Şoförün sekmesinde yok.
+    final pushed = !AknTabScope.isIn(context);
+    final bandLeading = pushed ? _pushedLeading(context) : null;
     final bandHeader = AknHomeHeader(
       greeting: DriverCopy.title,
       company: plate == null ? dateLine : '$dateLine · ${Fmt.plate(plate)}',
       person: driverName.isEmpty ? null : '$driverName, şoför',
       showBell: false,
+      leading: bandLeading,
       onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
     );
     final slivers = <Widget>[
@@ -350,11 +356,32 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
     }
     return AppScaffold(
       showOfflineBanner: false,
-      appBar: !largeText,
+      // Büyük yazıda bant içerikle kayar; itilen sayfada yine de geri düğmeli çubuk kalır.
+      appBar: !largeText || pushed,
+      title: largeText && pushed ? DriverCopy.title : null,
       homeHeader: largeText ? null : bandHeader,
       refreshing: tabState?.refreshing ?? false,
       actionBar: dock,
       body: body,
+    );
+  }
+
+  /// İtilen Teslimatlar'ın bant düğmesi: geri dönülebiliyorsa geri, dönülemiyorsa (kabuksuz kök)
+  /// "Ana sayfa".
+  static Widget? _pushedLeading(BuildContext context) {
+    if (ModalRoute.of(context)?.impliesAppBarDismissal ?? false) {
+      return AknIconButton(
+        icon: PhosphorIconsRegular.arrowLeft,
+        semanticLabel: 'Geri',
+        onPressed: () => unawaited(Navigator.of(context).maybePop()),
+      );
+    }
+    final home = AppChrome.maybeOf(context)?.onGoHome;
+    if (home == null) return null;
+    return AknIconButton(
+      icon: PhosphorIconsRegular.house,
+      semanticLabel: 'Ana sayfa',
+      onPressed: home,
     );
   }
 
@@ -392,7 +419,7 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
   }
 
   /// Sıradaki durak (bandın üstüne yükselen kahraman kart); yoksa yükleniyor / hata / boş görünümü.
-  /// İtirazlı teslimat varsa kahramanın en üstünde tek tehlike satırı olur (v4 §5 11).
+  /// İtirazlı teslimat varsa kahramanın ÜSTÜNDE kendi tehlike şeridi olur (v4 §5 11, A13).
   Widget _top(
     AsyncValue<DriverListState> todayAsync,
     DriverRoutePlan plan,
@@ -427,14 +454,8 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Sırada durak yokken itiraz satırı kendi kartında, en üstte.
-          if (dispute != null)
-            AknBandOverlap(
-              child: AknCard(
-                padding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
-                child: dispute,
-              ),
-            ),
+          // Sırada durak yokken itiraz şeridi bandın üstünde tek başına.
+          if (dispute != null) AknBandOverlap(child: dispute),
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: EmptyState(
@@ -452,34 +473,47 @@ class _DriverHomeState extends ConsumerState<_DriverHomeView> {
       );
     }
     // Teslimat kaydedilince sıradaki durak plakaya kayarak gelir (§8.2, 300 ms).
-    return AknBandOverlap(
-      child: FadeThroughSwitcher(
-        child: KeyedSubtree(
-          key: const ValueKey('next-stop'),
-          child: SharedAxisSwitcher(
-            duration: AknMotion.stopSlide,
-            child: KeyedSubtree(
-              key: ValueKey(next.id),
-              child: ListenableBuilder(
-                listenable: _proximity,
-                builder: (context, _) => _NextStop(
-                  plan: plan,
-                  row: next,
-                  detail: detail,
-                  ops: ops[next.id],
-                  draft: drafts[next.id],
-                  distance: _proximity.distanceTo(
-                    detail?.latitude,
-                    detail?.longitude,
-                  ),
-                  now: now,
-                  onOpen: () => _open(next),
-                  notice: dispute,
+    final stop = FadeThroughSwitcher(
+      child: KeyedSubtree(
+        key: const ValueKey('next-stop'),
+        child: SharedAxisSwitcher(
+          duration: AknMotion.stopSlide,
+          child: KeyedSubtree(
+            key: ValueKey(next.id),
+            child: ListenableBuilder(
+              listenable: _proximity,
+              builder: (context, _) => _NextStop(
+                plan: plan,
+                row: next,
+                detail: detail,
+                ops: ops[next.id],
+                draft: drafts[next.id],
+                distance: _proximity.distanceTo(
+                  detail?.latitude,
+                  detail?.longitude,
                 ),
+                now: now,
+                onOpen: () => _open(next),
               ),
             ),
           ),
         ),
+      ),
+    );
+    // İtiraz, durak plakasının İÇİNDE değil, üstünde kendi şeridindedir (v4 §5 11, A13): plaka
+    // kısalmaz, alt kenarı rıhtıma yapışmaz; şerit açılınca plaka yumuşakça aşağı kayar.
+    return AknBandOverlap(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Şeridin altındaki 8 dp boşluk şeridin dokunma alanındadır.
+          AknAnimatedSize(
+            alignment: Alignment.topCenter,
+            child: dispute ?? const SizedBox(width: double.infinity),
+          ),
+          stop,
+        ],
       ),
     );
   }
@@ -910,7 +944,6 @@ class _NextStop extends StatelessWidget {
     required this.distance,
     required this.now,
     required this.onOpen,
-    this.notice,
   });
 
   final DriverRoutePlan plan;
@@ -918,9 +951,6 @@ class _NextStop extends StatelessWidget {
   final DriverShipmentDetail? detail;
   final DriverShipmentOps? ops;
   final DeliverDraft? draft;
-
-  /// Kartın en üstündeki tehlike satırı (itirazlı teslimat).
-  final Widget? notice;
 
   /// Kuş uçuşu uzaklık (metre); konum yoksa null.
   final double? distance;
@@ -1116,7 +1146,6 @@ class _NextStop extends StatelessWidget {
       readouts: _readouts,
       chart: _route,
       onTap: onOpen,
-      notice: notice,
       // Kartın üstü (durak kimliği) kendi düğmesidir; plaka okuması ayrı düğümdür.
       header: Semantics(
         container: true,
@@ -1348,10 +1377,12 @@ class _NextStopWeather extends ConsumerWidget {
   }
 }
 
-/// Düzeltme bekleyen teslimat (tasarım v4 §5 11): kahraman kartın en üstünde tek tehlike satırı —
-/// 36 dp tehlike karosu, "1 teslimat düzeltme bekliyor" (15/20 700, tehlike rengi) ve müşteri
-/// (13/18 soluk), sağda ok. ≥ 56 dp; basınca hafifçe içe çöker; dokununca ayrıntı açılır (birden
-/// çoksa Bugün listesi gösterilir). Not ve "Teslimatı düzelt" aşağıdaki "Düzeltme bekleyen" kartındadır.
+/// Düzeltme bekleyen teslimat (tasarım v4 §5 11, A13): durak plakasının ÜSTÜNDE, bandın üzerinde
+/// kendi kısa şeridi — beyaz kart (r16), tehlike simgesi ve "Müşteri itiraz etti · 1 teslimatı
+/// düzeltin" (tehlike rengi 700, en çok 2 satır; yalnızca " · "da kırılır), sağda ok. Dokunma
+/// hedefi kadar yüksek (sürücü kipinde 64), daha fazla değil: plaka rıhtıma yapışmaz. Müşteri adı
+/// ekran okuyucu metninde ve aşağıdaki "Düzeltme bekleyen" kartında; dokununca ayrıntı açılır
+/// (birden çoksa Bugün listesi gösterilir). Basınca hafifçe içe çöker.
 class _DisputeRow extends StatelessWidget {
   const _DisputeRow({
     required this.rows,
@@ -1379,6 +1410,12 @@ class _DisputeRow extends StatelessWidget {
     }
 
     final danger = c.tone(AknTone.danger);
+    const radius = BorderRadius.all(Radius.circular(16));
+    // Dokunma hedefi = kart + altındaki 8 dp boşluk (sürücü kipinde 56 + 8 = 64): şerit hedef kadar
+    // yer kaplar, fazlasını değil — plaka rıhtımdan ≥ 12 dp yukarıda biter (A13).
+    const gap = 8.0;
+    final card = math.max(AknSpace.minTap, context.minTap - gap);
+    final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     // Kısa kalsın: büyük yazıda en çok 1,6× (durak ve plaka ilk ekranda kalır).
     return MediaQuery.withClampedTextScaling(
       maxScaleFactor: 1.6,
@@ -1388,70 +1425,64 @@ class _DisputeRow extends StatelessWidget {
         hint: 'Ayrıntıları açmak için dokunun',
         onTap: tap,
         excludeSemantics: true,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            onTap: tap,
-            borderRadius: const BorderRadius.all(Radius.circular(16)),
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: c.surfaceAlt,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: context.minTap < 56 ? 56 : context.minTap,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  children: [
-                    SizedBox.square(
-                      dimension: 36,
-                      child: DecoratedBox(
-                        decoration: ShapeDecoration(
-                          color: danger.bg,
-                          shape: const RoundedSuperellipseBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(12)),
-                          ),
-                        ),
-                        child: Icon(
-                          PhosphorIconsRegular.warningOctagon,
-                          size: 20,
-                          color: danger.fg,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            title,
-                            style: t.bodyStrong.copyWith(
-                              height: 20 / 15,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: tap,
+          excludeFromSemantics: true,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: gap),
+            child: PressScale(
+              scale: 0.985,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: c.surface,
+                  borderRadius: radius,
+                  boxShadow: AknShadows.card(c),
+                ),
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: InkWell(
+                    onTap: tap,
+                    borderRadius: radius,
+                    splashFactory: NoSplash.splashFactory,
+                    highlightColor: c.surfaceAlt,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: card),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 5, 10, 5),
+                        child: Row(
+                          children: [
+                            Icon(
+                              PhosphorIconsRegular.warningOctagon,
+                              size: 22,
                               color: danger.fg,
-                              fontWeight: FontWeight.w700,
                             ),
-                          ),
-                          Text(
-                            who,
-                            style: t.label.copyWith(
+                            const SizedBox(width: 10),
+                            Expanded(
+                              // Büyük yazıda (≥ 1,3×) satır sınırı yok: söz kesilmez. İki satıra
+                              // inerse olgular arasında kırılır, satır sonunda "·" kalmaz
+                              // ("Müşteri itiraz etti" / "1 teslimatı düzeltin"; v4 tur 2).
+                              child: AknFactLine(
+                                title,
+                                maxLines: large ? null : 2,
+                                style: t.bodyStrong.copyWith(
+                                  height: 20 / 15,
+                                  color: danger.fg,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              PhosphorIconsRegular.caretRight,
+                              size: 20,
                               color: c.dim,
-                              fontWeight: FontWeight.w500,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      PhosphorIconsRegular.caretRight,
-                      size: 20,
-                      color: c.dim,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),

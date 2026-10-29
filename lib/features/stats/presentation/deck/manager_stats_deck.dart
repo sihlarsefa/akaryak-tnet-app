@@ -6,10 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/network/app_failure.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/storage/prefs_store.dart';
 import '../../../../core/ui/ui.dart';
@@ -218,7 +218,8 @@ double deckCardHeight(BuildContext context) {
 }
 
 /// Kartın başlık satırının iç boşlukları (soldan, üstten, sağdan) ve başlıkla içerik arası.
-const _headPad = EdgeInsets.fromLTRB(20, 12, 6, 0);
+/// Sağda fark çipi rakamla aynı 20 dp iç kenarda biter (v4 tur 2 A23; eskiden ⋯ düğmesi için 6).
+const _headPad = EdgeInsets.fromLTRB(20, 12, 20, 0);
 const _headGap = 10.0;
 
 /// Kart içeriğinin iç boşlukları.
@@ -824,7 +825,8 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
           onSelect: n < 2 ? null : (i) => _goTo(_ids[i]),
           showPosition: n >= 2,
           actionLabel: StatsCopy.deckStatsLink,
-          onAction: () => unawaited(context.push(AppRoutes.stats)),
+          // İstatistikler bir rolde alt menüde olabilir: sekmeye geçilir, değilse itilir (SC-01).
+          onAction: () => context.openAppLocation(AppRoutes.stats),
           padding: EdgeInsets.zero,
         ),
         AknAnimatedSize(
@@ -932,13 +934,14 @@ class _SwipeDeckState extends ConsumerState<SwipeDeck>
                             compact: compact,
                             roll: card.id == _rollId,
                             onRollStart: _markRollSeen,
-                            // Fark çipi: plakada açık turuncu zemin + pas yazı, kâğıtta sakin kuyu.
-                            chipFill: Color.lerp(
-                              paper.surfaceAlt,
-                              paper.deltaFill,
+                            // Fark çipi sakin (v4 tur 2 A11): zemin yok, mürekkep yazı, ince
+                            // çerçeve (plakada `plateLine`, kâğıtta `line`).
+                            chipInk: paper.ink,
+                            chipLine: Color.lerp(
+                              paper.line,
+                              paper.plateLine,
                               t,
                             ),
-                            chipInk: Color.lerp(paper.ink, paper.brandInk, t),
                             child: DeckCardView(
                               card: card,
                               height: height,

@@ -4,14 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/destinations.dart' show navLayoutProvider;
 import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/session_controller.dart';
-import '../../../core/offline/connectivity.dart';
 import '../../../core/push/unread_count_provider.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../field/api.dart' show TuprasStrip;
+import '../../finance/api.dart'
+    show myApprovalsBySubjectProvider, orderFinanceApprovals;
 import '../../stats/api.dart'
     show ManagerStatsDeck, StatsScope, refreshManagerStats, statsScopeProvider;
 import '../application/bayi_grants.dart';
@@ -19,14 +22,11 @@ import '../application/bayi_runtime.dart' show Loadable;
 import '../application/home_controller.dart';
 import '../application/role_tip.dart';
 import '../copy.dart';
-import '../data/bayi_repository.dart';
 import '../data/home_models.dart';
 import 'home/home_atoms.dart';
 import 'home/home_sections.dart';
+import 'home/home_tasks.dart';
 import 'home/order_pipeline.dart';
-import 'orders/quote_sheet.dart';
-import 'widgets/bayi_widgets.dart'
-    show openDestination, openPortal, showActionFailure;
 import 'widgets/paged_list_body.dart';
 
 /// Bayi ana sayfası (tasarım v4 "Sade" §3.3, §5 03): ana sayfa bir iş listesidir.
@@ -38,9 +38,13 @@ import 'widgets/paged_list_body.dart';
 ///    sayfasını açar); en çok iki sıradaki iş; fazlası "Tümünü gör". İş yoksa sakin satır.
 /// 3. Yöneticilere istatistik destesi (`ManagerStatsDeck(raised: false)`), ilk ekranda.
 /// 4. İlk oturumda "Nasıl çalışır" ipucu (destenin altında: deste girişte görünür kalır).
-/// 5. "Bugün": rol bölümlerinin her biri tek satır; karta sığmayan işler en üstte.
+/// 5. "Bugün": rol bölümlerinin her biri tek satır; karta sığmayan işler en üstte (hattın saydığı
+///    "Plan" sayısız: "Sevkiyatı planlayın").
 /// 6. Tüpraş fiyatları (tek kart) ve kurulum uyarıları (`tupras-today` hariç; o iş kartta).
 /// 7. "Son güncelleme" notu (önbellekten açılış ya da tazeleme hatası).
+///
+/// v4 tur 2: kartın "Tüm işler ›" satırı "Tüm işler" sayfasını iter (B18); yalnızca onaylar
+/// taşıyorsa Onaylar'ı açar. Öndeki teklif işinin başlığı müşteridir, fiil düğmede (A22).
 ///
 /// Sınıf adı ve kurucu imzası sabittir (ana sayfa seçici).
 class BayiHome extends ConsumerWidget {
@@ -57,7 +61,8 @@ class BayiHome extends ConsumerWidget {
       homeHeader: AknHomeHeader(
         company: company,
         person: homePersonLine(access),
-        onOpenProfile: () => GoRouter.of(context).push(AppRoutes.profile),
+        // Profil bazı rollerde alt menünün sekmesidir: `push` kabuğu ikinci kez kurardı (SC-01).
+        onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
       ),
       refreshing: state.refreshing,
       body: LoadableBody<BayiHomeData>(
@@ -104,32 +109,50 @@ class _HomeList extends ConsumerWidget {
     final hint = ref.watch(bayiFirstRunHintProvider);
     final preset = policy.rolePreset;
     final deck = scope != StatsScope.none;
+    // Finans durağı ön ayarda "sıra sizde" ise Bende'deki sipariş finansı talepleri sayılır: ek bilgi
+    // bekleyen sipariş müşterinin sırasıdır (v4 tur 2 B5); yüklenirken ön ayar geçerli.
+    final financeMine = pipelineYourMoves(preset).contains('Finans')
+        ? ref.watch(myApprovalsBySubjectProvider(orderFinanceApprovals))?.total
+        : null;
     final stops = pipelineStops(
       context,
       data,
       preset: preset,
       grants: g,
       counts: counts,
+      financeMine: financeMine,
     );
 
-    List<AknTask> tasks({VoidCallback? before}) => [
+    final pipeline = stops.isNotEmpty;
+    final mine = [
       for (final t in inbox.items)
-        if (_mine(t, g))
-          _task(
-            context,
-            ref,
-            t,
-            g,
-            data,
-            before: before,
-            pipeline: stops.isNotEmpty,
-          ),
+        if (BayiHomeTasks.mine(t, g)) t,
     ];
-    final heroTasks = tasks();
+    final heroTasks = BayiHomeTasks.all(
+      context,
+      ref,
+      mine,
+      g,
+      data,
+      pipeline: pipeline,
+    );
     const shown = 1 + 2;
-    final overflow = heroTasks.length > shown
-        ? heroTasks.sublist(shown)
-        : const <AknTask>[];
+    // Karta sığmayanlar "Bugün"ün başında; hattın saydığı Plan sayısız (v4 B18).
+    final overflow = [
+      for (final t in mine.skip(shown))
+        BayiHomeTasks.task(
+          context,
+          ref,
+          t,
+          g,
+          data,
+          pipeline: pipeline,
+          unnumbered: pipeline && BayiHomeTasks.pipelineCounts(t.id),
+        ),
+    ];
+    // "Tüm işler": yalnızca onaylar taşıyorsa Onaylar (orada hepsi), değilse bütün işlerin sayfası.
+    final onlyApprovals =
+        overflow.isNotEmpty && overflow.every((t) => t.id == 'approvals');
 
     final hero = AknBandOverlap(
       child: AknTaskCard(
@@ -144,7 +167,9 @@ class _HomeList extends ConsumerWidget {
             stops.any((s) => s.isYourMove) &&
             MediaQuery.textScalerOf(context).scale(10) < 13,
         onSeeAll: heroTasks.length > shown
-            ? () => _showAll(context, (close) => tasks(before: close))
+            ? () => onlyApprovals
+                  ? context.openAppLocation(AppRoutes.approvals)
+                  : GoRouter.of(context).push(bayiTasksPath)
             : null,
         calm: 'Yeni sipariş gelince bildirim alırsınız.',
       ),
@@ -152,7 +177,12 @@ class _HomeList extends ConsumerWidget {
     final hintCard = _Collapsible(
       visible: hint,
       child: AknFirstRunHint(
-        steps: BayiHintSteps.forPreset(preset),
+        steps: BayiHintSteps.forGrants(
+          preset,
+          ref.watch(bayiGrantsProvider),
+          inBar: (path) =>
+              ref.watch(navLayoutProvider).bar.any((d) => d.path == path),
+        ),
         onDismiss: () => ref.read(bayiFirstRunHintProvider.notifier).dismiss(),
       ),
     );
@@ -171,11 +201,8 @@ class _HomeList extends ConsumerWidget {
         ),
       BayiTodayLedger(
         data: data,
-        // Planlanacak sipariş sayısını hat zaten söylüyor: "Bugün" yinelemez (§3.3).
-        overflow: [
-          for (final t in overflow)
-            if (!(stops.isNotEmpty && _pipelineShows(t.id))) t,
-        ],
+        // Planlanacak sipariş sayısını hat zaten söylüyor: "Bugün" sayısız yazar (§3.3, B18).
+        overflow: overflow,
         heroKinds: {for (final t in inbox.items) t.id},
         showSales: !deck,
       ),
@@ -207,138 +234,6 @@ class _HomeList extends ConsumerWidget {
           for (var i = 0; i < sections.length; i++)
             StaggerItem(index: i + 1, child: sections[i]),
         ],
-      ),
-    );
-  }
-
-  /// Sayısını sipariş hattının bir durağı zaten söyleyen kuyruk (Plan; şoför ataması da planın
-  /// parçası): "Bugün" defterinde yinelenmez.
-  static bool _pipelineShows(Object id) => id == 'plan' || id == 'drivers';
-
-  /// İş izleyenin mi: teklif kuyruğu yalnızca teklif verebilene.
-  static bool _mine(TaskItem t, BayiGrants g) => switch (t.kind) {
-    TaskKind.quotes => g.quoteOnOrder || g.quoteOnDesk,
-    _ => true,
-  };
-
-  /// Kutudaki işi karta çevirir; ekran eylemleri burada (v4 §3.4).
-  static AknTask _task(
-    BuildContext context,
-    WidgetRef ref,
-    TaskItem t,
-    BayiGrants g,
-    BayiHomeData data, {
-    required bool pipeline,
-    VoidCallback? before,
-  }) {
-    void run(VoidCallback f) {
-      before?.call();
-      f();
-    }
-
-    void open() => run(() => _openTask(context, ref, t, g, data));
-    VoidCallback act = open;
-    final id = t.orderId;
-    if (t.actionKind == TaskActionKind.giveQuote && id != null) {
-      act = () => run(() => unawaited(_giveQuote(context, ref, id, g)));
-    }
-    return AknTask(
-      id: t.id,
-      title: t.title,
-      subtitle: t.subtitle,
-      icon: TaskItem.iconOf(t.kind),
-      tone: switch (t.tone) {
-        TaskTone.yourMove => AknTaskTone.yourMove,
-        TaskTone.danger => AknTaskTone.danger,
-        TaskTone.warn => AknTaskTone.warn,
-        TaskTone.neutral => AknTaskTone.neutral,
-      },
-      figure: t.figure,
-      amount: t.amount,
-      deadline: t.deadline,
-      time: t.time,
-      actionLabel: t.actionLabel,
-      onAction: act,
-      // Hat teklif sayısını zaten söylüyor: "6 sipariş teklif bekliyor" yinelenmez (P4).
-      caption: t.kind == TaskKind.quotes && pipeline ? null : t.caption,
-      note: t.note,
-      onTap: open,
-      counts: t.counts,
-    );
-  }
-
-  static void _openTask(
-    BuildContext context,
-    WidgetRef ref,
-    TaskItem t,
-    BayiGrants g,
-    BayiHomeData data,
-  ) {
-    switch (t.kind) {
-      case TaskKind.quotes:
-        final id = t.orderId;
-        if (id != null && g.viewOrders) {
-          unawaited(GoRouter.of(context).push(AppRoutes.bayiOrder(id)));
-        } else {
-          openDestination(context, AppRoutes.quoteDesk);
-        }
-      case TaskKind.tuprasToday:
-        final check = data.setup?.checks
-            .where((c) => c.key == 'tupras-today')
-            .firstOrNull;
-        unawaited(openPortal(context, ref, check?.portalPath ?? ''));
-      default:
-        openDestination(context, t.location);
-    }
-  }
-
-  /// "Teklif ver": siparişi alıp teklif sayfasını açar; teklif verilemiyorsa (yetki, finans engeli)
-  /// siparişi açar.
-  static Future<void> _giveQuote(
-    BuildContext context,
-    WidgetRef ref,
-    int orderId,
-    BayiGrants g,
-  ) async {
-    if (!ref.read(isOnlineProvider)) {
-      AppToast.info(
-        'Çevrimdışısınız; teklif için bağlantı gerekli.',
-        context: context,
-      );
-      return;
-    }
-    try {
-      final order = await ref.read(bayiRepositoryProvider).order(orderId);
-      if (!context.mounted) return;
-      if (!g.canQuoteOrder(order.status, order.financeStatus)) {
-        if (g.viewOrders) {
-          unawaited(GoRouter.of(context).push(AppRoutes.bayiOrder(orderId)));
-        } else {
-          openDestination(context, AppRoutes.quoteDesk);
-        }
-        return;
-      }
-      await showQuoteSheet(context, order);
-    } catch (e) {
-      if (context.mounted) showActionFailure(context, e);
-    }
-  }
-
-  /// "Tümünü gör": bütün işler bir sayfada, "Sıra sizde" satırlarıyla.
-  static void _showAll(
-    BuildContext context,
-    List<AknTask> Function(VoidCallback close) build,
-  ) {
-    unawaited(
-      showAppSheet<void>(
-        context: context,
-        title: 'Sıra sizde',
-        builder: (sheet) {
-          final tasks = build(() => Navigator.of(sheet).pop());
-          return AknLedger(
-            children: [for (final t in tasks) AknTaskRow(task: t)],
-          );
-        },
       ),
     );
   }

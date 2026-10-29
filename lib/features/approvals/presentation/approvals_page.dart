@@ -9,6 +9,8 @@ import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/enums.dart';
+import '../../../core/push/unread_count_provider.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/tr_time.dart';
@@ -86,22 +88,33 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
   String _search = '';
   bool _searchOpen = false;
 
+  /// Kullanıcı bir sekme seçti ya da bağlantı kapsamı verdi: sayfa kendiliğinden Bende'ye geçmez.
+  bool _scopeChosen = false;
+
   @override
   void initState() {
     super.initState();
     final policy = ref.read(accessPolicyProvider);
+    // Rozetin ve Diğer noktasının saydığı işler Bende'dedir: sayı neyi gösteriyorsa sayfa onunla
+    // açılır (v4 P2) — talep sahibi de olsa (ek bilgi yanıtı, ödeme belgesi).
+    final waiting = policy.isCustomer
+        ? ref.read(customerTasksProvider).count
+        : ref.read(unreadCountProvider).approvals;
     final initial = widget.initialScope;
+    _scopeChosen = initial != null;
     if (initial == ApprovalScope.all) {
       _all = _canSeeAll(policy);
-      _scope = _defaultScope(policy);
+      _scope = _defaultScope(policy, waiting: waiting);
     } else {
-      _scope = initial ?? _defaultScope(policy);
+      _scope = initial ?? _defaultScope(policy, waiting: waiting);
     }
     _type = policy.isCustomer ? null : widget.initialType;
   }
 
-  /// Karar veremeyen talep sahipleri (cari "Talep eden", saha temsilcisi) Taleplerim'le başlar.
-  static ApprovalScope _defaultScope(AccessPolicy p) {
+  /// Karar veremeyen talep sahipleri (cari "Talep eden", saha temsilcisi) Taleplerim'le başlar;
+  /// Bende'de onları bekleyen iş ([waiting]) varsa Bende'yle.
+  static ApprovalScope _defaultScope(AccessPolicy p, {int waiting = 0}) {
+    if (waiting > 0) return ApprovalScope.toMe;
     if (p.isCustomer && !p.customerRole.canApprove) return ApprovalScope.mine;
     if (p.isFieldSales &&
         !Caps.all.any((c) => c.startsWith('approve.') && p.hasCap(c))) {
@@ -128,6 +141,7 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
   );
 
   void _setScope(ApprovalScope s) {
+    _scopeChosen = true;
     if (s == _scope && !_all) return;
     setState(() {
       _scope = s;
@@ -158,8 +172,16 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     final customer = policy.isCustomer;
     final scopes = _scopes(policy);
     if (!scopes.contains(_scope)) _scope = scopes.first;
-    final inboxView = customer && _scope == ApprovalScope.toMe && !_all;
     final inbox = customer ? ref.watch(customerTasksProvider) : null;
+    // Rozet sayfa açıldıktan sonra yüklenirse de: talep sahibini bekleyen iş varsa Bende'ye geçilir
+    // (kullanıcı sekme seçmediyse).
+    final waiting = customer
+        ? inbox?.count ?? 0
+        : ref.watch(unreadCountProvider.select((u) => u.approvals));
+    if (!_scopeChosen && waiting > 0 && _scope == ApprovalScope.mine) {
+      _scope = ApprovalScope.toMe;
+    }
+    final inboxView = customer && _scope == ApprovalScope.toMe && !_all;
     final badge = customer
         ? null
         : ref.watch(approvalBadgeProvider).valueOrNull;
@@ -347,7 +369,7 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
         tone: AknTone.danger,
         items: late,
       ),
-      ..._dayGroups(rest),
+      ..._dayGroups(rest, arrivals: true),
       A5ListGroup(
         id: 'waiting',
         title: ApprovalsCopy.groupWaiting,
@@ -356,8 +378,12 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     ];
   }
 
-  /// Bugün → Dün → Daha önce (talebin geldiği güne göre).
-  static List<A5ListGroup<ApprovalRow>> _dayGroups(List<ApprovalRow> rows) {
+  /// Bugün → Dün → Daha önce (talebin geldiği güne göre). Bende'de ([arrivals]) gruplar
+  /// "Bugün gelenler" diye adlanır: satırın geri sayımıyla karışmaz (v4 B16).
+  static List<A5ListGroup<ApprovalRow>> _dayGroups(
+    List<ApprovalRow> rows, {
+    bool arrivals = false,
+  }) {
     final today = <ApprovalRow>[];
     final yesterday = <ApprovalRow>[];
     final earlier = <ApprovalRow>[];
@@ -376,19 +402,25 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     return [
       A5ListGroup(
         id: 'today',
-        title: ApprovalsCopy.groupToday,
+        title: arrivals
+            ? ApprovalsCopy.groupArrivedToday
+            : ApprovalsCopy.groupToday,
         count: today.length,
         items: today,
       ),
       A5ListGroup(
         id: 'yesterday',
-        title: ApprovalsCopy.groupYesterday,
+        title: arrivals
+            ? ApprovalsCopy.groupArrivedYesterday
+            : ApprovalsCopy.groupYesterday,
         count: yesterday.length,
         items: yesterday,
       ),
       A5ListGroup(
         id: 'earlier',
-        title: ApprovalsCopy.groupEarlier,
+        title: arrivals
+            ? ApprovalsCopy.groupArrivedEarlier
+            : ApprovalsCopy.groupEarlier,
         count: earlier.length,
         items: earlier,
       ),
@@ -530,7 +562,7 @@ class _CustomerBende extends StatelessWidget {
         message: ApprovalsCopy.customerEmptyMessage,
         illustration: AknIllustration.done,
         actionLabel: ApprovalsCopy.goToOrders,
-        onAction: () => context.go(AppRoutes.orders),
+        onAction: () => context.openAppLocation(AppRoutes.orders),
       );
     } else {
       body = Padding(
@@ -541,7 +573,10 @@ class _CustomerBende extends StatelessWidget {
             for (final t in tasks)
               AknTaskRow(
                 key: ValueKey(t.id),
-                task: t.toAknTask(onTap: () => context.push(t.location)),
+                // Sekme rotası olabilecek hedefler `go` ile (QA SC-01).
+                task: t.toAknTask(
+                  onTap: () => context.openAppLocation(t.location),
+                ),
               ),
           ],
         ),

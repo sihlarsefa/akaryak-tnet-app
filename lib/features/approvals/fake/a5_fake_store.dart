@@ -1443,9 +1443,51 @@ class A5FakeStore {
   bool canProvide(FakePersona p, JsonMap a) =>
       visible(p, a) && isRespondent(p, a);
 
-  /// Kullanıcıdan bir işlem bekleniyor mu ("Bende").
-  bool needsAction(FakePersona p, JsonMap a) =>
-      modesFor(p, a).isNotEmpty || canResume(p, a) || canProvide(p, a);
+  /// Ek bilgi yanıtı bu kadar saat gelmeyince onaylayan tarafı da talebi Bende'de görür (sunucu
+  /// `ApprovalEngine.InfoReminderHours`).
+  static const infoReminderHours = 48;
+
+  /// Ek bilginin istendiği an (sunucuda `UpdatedAt ?? CreatedAt`).
+  DateTime? _infoAskedAt(JsonMap a) =>
+      TrTime.parseUtc(extraOf(a).infoRequest?['at'] as String?) ??
+      TrTime.parseUtc(a['updatedAt'] as String?) ??
+      TrTime.parseUtc(a['createdAt'] as String?);
+
+  /// Kullanıcıdan bir işlem bekleniyor mu ("Bende", rozet; sunucu
+  /// `ApprovalInboxService.ActionableAsync`, v4 B5). Bekleyen talepte: karar verebiliyorsa. Ek bilgi
+  /// bekleyen talepte: yanıtı o veriyorsa (talep eden tarafı); onaylayan tarafına yalnızca talebin
+  /// talep edeni yoksa ya da yanıt [infoReminderHours] saattir gelmediyse ("Bilgi alındı" ya da
+  /// ret). Başkasının yanıtını bekleyen talep (saha temsilcisinin vergi levhası, carinin çeki) Bende'de
+  /// görünmez ve sayılmaz.
+  bool needsAction(FakePersona p, JsonMap a) {
+    if (a['status'] == ApprovalStatus.infoRequested.code) {
+      if (canProvide(p, a)) return true;
+      if (!canResume(p, a)) return false;
+      final requester = a['requestedByUserId'] as String?;
+      if (requester == null || requester.isEmpty) return true;
+      final asked = _infoAskedAt(a);
+      return asked != null &&
+          !asked.isAfter(
+            DateTime.now().toUtc().subtract(
+              const Duration(hours: infoReminderHours),
+            ),
+          );
+    }
+    return modesFor(p, a).isNotEmpty;
+  }
+
+  /// Kararlarım (sunucu `DecidedByMe`): bir kademesine karar verdiğim, sonuçlandırdığım ya da ek
+  /// bilgi istediğim talepler — ek bilgi isteyen, yanıt bekleyen talebi burada bulur.
+  bool decidedBy(FakePersona p, JsonMap a) {
+    final x = extraOf(a);
+    return x.deciders.contains(p.userId) ||
+        x.decidedByUserId == p.userId ||
+        x.events.any(
+          (e) =>
+              e['eventType'] == ApprovalEventKind.infoRequested.code &&
+              e['userId'] == p.userId,
+        );
+  }
 
   String? hintFor(FakePersona p, JsonMap a) {
     if (!_isOpen(a) || modesFor(p, a).isNotEmpty) return null;
@@ -1500,11 +1542,10 @@ class A5FakeStore {
     final list = <JsonMap>[];
     for (final a in world.approvals) {
       if (!visible(p, a)) continue;
-      final x = extraOf(a);
       final ok = switch (scope) {
         0 => needsAction(p, a),
         1 => a['requestedByUserId'] == p.userId,
-        2 => x.deciders.contains(p.userId),
+        2 => decidedBy(p, a),
         _ => true,
       };
       if (ok) list.add(a);
@@ -2592,7 +2633,9 @@ class A5FakeStore {
         'isStrategicPricing': false,
         'firstNOrdersRequireFinance': 3,
         'openBalance': 940000.0,
-        'overdueAmount': 120000.0,
+        // Bayinin kendi vadesi geçmiş alacağı yok (Tahsilat'ta Marmara'nın geciken ödemesi yok;
+        // gecikmeler banka raporunda): ana sayfa, Tahsilat ve Finans aynı hikâyeyi söyler (v4 tur 2).
+        'overdueAmount': 0.0,
         'nextReviewDate': local(TrTime.startOfDay(TrTime.addDays(now, -5))),
         'notes': 'Gecikmeler nedeniyle koşullu onaylı; vade 45 günle sınırlı.',
         'decidedAt': utc(TrTime.addDays(now, -90)),
@@ -2652,8 +2695,10 @@ class A5FakeStore {
         'collateralRatioPercent': 15.0,
         'approvedLimitAmount': 750000.0,
         'isStrategicPricing': false,
-        'openBalance': 210000.0,
-        'overdueAmount': 185000.0,
+        // Açık bakiyenin tamamı, vadesi 7 gün geçen açık hesap faturası (6.000 L × 41,20 = 247.200 ₺;
+        // bayi tohumu): ana sayfanın "Vadesi geçen 1 ödeme 247.200 ₺"ı ile Finans aynı tutarı söyler.
+        'openBalance': 247200.0,
+        'overdueAmount': 247200.0,
         'hasBouncedCheque': true,
         'nextReviewDate': local(TrTime.startOfDay(TrTime.addDays(now, 30))),
         'notes': 'Karşılıksız çek sonrası yeni siparişlerde peşin önerilir.',

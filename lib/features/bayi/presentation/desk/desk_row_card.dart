@@ -34,15 +34,18 @@ IconData outcomeIcon(DeskOutcome o) => switch (o) {
 /// ```
 /// [☐] Körfez Nakliyat ve Ticaret                               ⏱ 41 dk
 ///     Motorin · 10.000 L · Körfez Garaj
-///     [ Birim fiyat  41,55 (öneri) · Öneri ] [ Teslim 29 Eki ]
-///     ≈ 415.500 ₺                          Son: 41,55 ₺/L · 27 Eki ›
+///     [ Birim fiyat            Öneri 41,55 ] [ Teslim 29 Eki ]
+///     ≈ 415.500 ₺ (fiyat yazılınca)          Son: 41,55 ₺/L · 27 Eki ›
 /// ```
 ///
 /// Seçim kutusu solda (seçilen kart turuncu yumuşak zemine geçer); müşteri adı dokununca siparişi
-/// açar. Birim fiyat alanının ipucu önerilen fiyattır; etiketin yanındaki "Öneri" onu yazar. Teslim
-/// varsayılan olarak istenen gündür. "≈ tutar" yazdıkça sayar; "Son: …" dokununca son alımları
-/// açar. Hap ve ödeme satırı yok (ödeme yalnızca engelliyorsa, kırmızı not). Revize istenmişse
-/// müşterinin notu ve önceki teklif tek satırda. Gönderim sonucu ve satır hatası süzülerek belirir.
+/// açar. Boş fiyat alanı boş görünür (v4 B10: ipucu fiyat gibi okunmaz); önerilen fiyat yalnızca
+/// alanın içindeki hayalet "Öneri 41,55"tedir ve dokununca yazılır; bir şey yazılınca hayalet çekilir.
+/// Teslim varsayılan olarak istenen gündür. "≈ tutar" yalnızca fiyat yazılınca görünür ve yazdıkça
+/// sayar; "Son: …" dokununca son alımları açar. İkinci satırda her olgu kendi içinde bölünmez (satır
+/// yalnızca " · " yerinde kırılır, A17). Hap ve ödeme satırı yok (ödeme yalnızca engelliyorsa,
+/// kırmızı not). Revize istenmişse müşterinin notu ve önceki teklif tek satırda. Gönderim sonucu ve
+/// satır hatası süzülerek belirir.
 class DeskRowCard extends ConsumerStatefulWidget {
   const DeskRowCard({
     super.key,
@@ -166,24 +169,25 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     final price = widget.draft.price;
     final outcome = widget.outcome;
     final chip = r.payChip;
-    final suggestion = r.suggestedUnitPrice;
+    // Revize satırında önceki teklif öneri olarak gösterilmez (v4 tur 2).
+    final suggestion = r.offeredUnitPrice;
     final requested = r.requestedDeliveryDate;
 
-    // "≈ tutar": yazılan fiyatla (yoksa öneriyle) — yazdıkça sayar.
+    // "≈ tutar": yalnızca yazılan fiyatla (v4 B10: öneriyle hesaplanmış tutar teklif verilmiş gibi
+    // okunurdu) — yazdıkça sayar.
     final typed = price != null && price > 0;
-    final basis = typed ? price : suggestion;
-    final amount = basis == null ? null : basis * r.quantityLiters;
+    final amount = typed ? price * r.quantityLiters : null;
 
     final place = r.deliveryPointName ?? r.deliveryPointCity;
-    final line2 = keepUnits(
-      [
-        r.productName,
-        Fmt.liters(r.quantityLiters),
-        ?place,
-        if (!widget.editable && requested != null)
-          '${dayMonthLong(requested)} teslim',
-      ].join(' · '),
-    );
+    // Her olgu kendi içinde bölünmez: "Nilüfer Tesis" ya da "Motorin 10.000 L" iki satıra
+    // dağılmaz (v4 A17).
+    final line2 = [
+      r.productName,
+      Fmt.liters(r.quantityLiters),
+      ?place,
+      if (!widget.editable && requested != null)
+        '${dayMonthLong(requested)} teslim',
+    ].map(_unbroken).join(' · ');
 
     // Ödeme yalnızca engelliyorsa (karşılıksız, finans reddi) kırmızı not.
     final payTone = chip == null
@@ -209,7 +213,8 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
       children: [
         title,
         const SizedBox(height: 2),
-        Text(
+        // Satır yalnızca olgular arasında kırılır, sonda "·" kalmaz (v4 tur 2).
+        AknFactLine(
           line2,
           style: t.label.copyWith(fontWeight: FontWeight.w400, color: c.dim),
         ),
@@ -268,7 +273,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
           ].join(' · ');
     final amountStyle = t.bodyStrong.copyWith(
       fontWeight: FontWeight.w700,
-      color: typed ? c.ink : c.dim,
+      color: c.ink,
       fontFeatures: AknNumerals.tabular,
     );
     final foot = Wrap(
@@ -279,9 +284,7 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
       children: [
         if (amount != null)
           Semantics(
-            label: typed
-                ? 'Tahmini tutar ${Fmt.moneyWhole(amount)}'
-                : 'Önerilen fiyatla ${Fmt.moneyWhole(amount)}',
+            label: 'Tahmini tutar ${Fmt.moneyWhole(amount)}',
             excludeSemantics: true,
             child: AnimatedNumber(
               value: amount.round(),
@@ -363,7 +366,8 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
             price: _price,
             date: date,
             suggestion: suggestion,
-            applied: suggestion != null && price == suggestion,
+            // Bir şey yazıldıysa (öneri dahil) hayalet çekilir: alan yazılana kalır.
+            applied: widget.draft.priceText.trim().isNotEmpty,
             orderNumber: r.orderNumber,
             onPrice: (text) => _desk.setPrice(r.orderId, text),
             onSuggest: suggestion == null
@@ -482,6 +486,10 @@ class _DeskRowCardState extends ConsumerState<DeskRowCard> {
     );
   }
 
+  /// Olgunun sözcükleri bölünmez boşlukla bağlanır; sayı ile birimi de ([keepUnits]).
+  static String _unbroken(String fact) =>
+      keepUnits(fact).replaceAll(' ', '\u00A0');
+
   /// İki ton anahtarından daha dikkat isteyeni (tehlike > uyarı > diğerleri).
   static AknTone _worst(AknTone a, AknTone b) {
     int rank(AknTone t) => switch (t) {
@@ -515,10 +523,10 @@ class _Note extends StatelessWidget {
       ),
       const SizedBox(width: 6),
       Expanded(
-        child: Text(
+        // "Revize: … onaylıyoruz." / "önceki teklif 39,80 ₺/L": satır sonunda "·" kalmaz (v4 tur 2).
+        child: AknFactLine(
           text,
           maxLines: 2,
-          overflow: TextOverflow.ellipsis,
           style: context.aknText.label.copyWith(color: context.akn.ink),
         ),
       ),
@@ -568,8 +576,9 @@ class _Reveal extends StatelessWidget {
   }
 }
 
-/// Birim fiyat (%60; ipucu önerilen fiyat, etiketin yanındaki "Öneri" yazar) ve teslim günü (%40).
-/// Dar ekranda ya da büyük yazıda alt alta.
+/// Birim fiyat (%60) ve teslim günü (%40); dar ekranda ya da büyük yazıda alt alta. Boş alan boş
+/// görünür: önerisi olan satırda alanın içinde hayalet "Öneri 41,55" (dokununca yazar), önerisi
+/// yoksa ipucu "Fiyat yazın" (v4 B10).
 class _Inputs extends StatelessWidget {
   const _Inputs({
     required this.price,
@@ -597,6 +606,7 @@ class _Inputs extends StatelessWidget {
     final suggest = s == null || applied || onSuggest == null
         ? null
         : _SuggestButton(
+            value: formatUnitPrice(s),
             semanticLabel:
                 'Önerilen fiyatı yaz: ${Fmt.unitPrice(s)}, $orderNumber',
             onTap: onSuggest!,
@@ -604,8 +614,9 @@ class _Inputs extends StatelessWidget {
     final priceField = AknTextField(
       label: 'Birim fiyat',
       controller: price,
-      hint: s == null ? null : formatUnitPrice(s),
-      suffixText: '₺/L',
+      hint: suggest == null ? 'Fiyat yazın' : null,
+      // Birim hayalet çekilince (bir şey yazılınca) görünür: dar alanda ikisi yan yana sığmaz.
+      suffixText: suggest == null ? '₺/L' : null,
       suffixIcon: suggest,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: [TrNumberInputFormatter(decimals: 4)],
@@ -645,11 +656,18 @@ class _Inputs extends StatelessWidget {
   }
 }
 
-/// Fiyat alanının içindeki hayalet "Öneri": dokununca önerilen fiyatı yazar (14/20 600 mürekkep,
-/// 48 dp hedef).
+/// Fiyat alanının içindeki hayalet "Öneri 41,55": dokununca önerilen fiyatı yazar (14/20 600
+/// mürekkep, değer tablo rakamlarıyla; 48 dp hedef). Önerilen fiyat yalnızca burada görünür. v4 tur 2:
+/// çerçeveli küçük bir düğmedir (32 dp, r10, `lineStrong`), alana yazılmış bir değer gibi okunmaz.
 class _SuggestButton extends StatelessWidget {
-  const _SuggestButton({required this.semanticLabel, required this.onTap});
+  const _SuggestButton({
+    required this.value,
+    required this.semanticLabel,
+    required this.onTap,
+  });
 
+  /// "41,55".
+  final String value;
   final String semanticLabel;
   final VoidCallback onTap;
 
@@ -668,14 +686,28 @@ class _SuggestButton extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         child: Padding(
-          padding: const EdgeInsetsDirectional.only(start: 4, end: 10),
+          padding: const EdgeInsetsDirectional.only(start: 4, end: 8),
           child: Center(
             widthFactor: 1,
-            child: Text(
-              'Öneri',
-              style: context.aknText.bodySmall.copyWith(
-                fontWeight: FontWeight.w600,
-                color: context.akn.ink,
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: context.akn.lineStrong),
+              ),
+              child: Center(
+                widthFactor: 1,
+                child: Text(
+                  'Öneri $value',
+                  maxLines: 1,
+                  softWrap: false,
+                  style: context.aknText.label.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: context.akn.ink,
+                    fontFeatures: AknNumerals.tabular,
+                  ),
+                ),
               ),
             ),
           ),

@@ -307,6 +307,12 @@ class DeskRow {
   final DeskPayChip? payChip;
 
   bool get isRevision => status == OrderStatus.revisionRequested;
+
+  /// Satırda gösterilen ve "Önerilen fiyatları yaz"ın yazdığı öneri (v4 tur 2): revize istenen
+  /// satırda önceki teklif (`prev`) öneri değildir — müşterinin geri çevirdiği fiyattır; o satıra
+  /// fiyatı kullanıcı yazar.
+  double? get offeredUnitPrice =>
+      isRevision && suggestedSource == 'prev' ? null : suggestedUnitPrice;
 }
 
 /// `GET bayi/quote-desk` yanıtı.

@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
@@ -127,8 +127,9 @@ class _CustomerHomeState extends ConsumerState<CustomerHome> {
         person: access == null
             ? null
             : HomeCopy.person(access.displayName, role),
-        // Avatar ve adlar tek, etiketli, ≥ 48 px düğüm: profili açar.
-        onOpenProfile: () => context.push(AppRoutes.profile),
+        // Avatar ve adlar tek, etiketli, ≥ 48 px düğüm: profili açar (Profil bazı rollerde
+        // sekmedir: `openAppLocation`).
+        onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
       ),
       refreshing: s.refreshing,
       body: body,
@@ -187,7 +188,7 @@ class _HomeContent extends ConsumerWidget {
             dashboard: dash,
             months: months,
             onOpen: policy.can(Pg.customerSpending)
-                ? () => context.push(AppRoutes.spending)
+                ? () => context.openAppLocation(AppRoutes.spending)
                 : null,
           )
         : null;

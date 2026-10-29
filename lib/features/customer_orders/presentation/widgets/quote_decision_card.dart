@@ -113,9 +113,12 @@ class _Stamp extends StatelessWidget {
   }
 }
 
-/// "Son alımlarınızla kıyas" (§7.8): son üç kabul edilen birim fiyat (bağlam noktaları), onların
-/// ortalaması (mürekkep çentik), bu teklif (turuncu nokta) ve aradaki fark ("+0,87 ₺"); altında
-/// cümle. İkiden az önceki alım varsa gösterilmez ([shows]).
+/// "Son alımlarınızla kıyas" (§7.8; v4 §5 ekran 05 "önce rakam, sonra düğme"): tek çizgi ve tek
+/// cümle. Çizgide son üç kabul edilen birim fiyat (soluk bağlam noktaları), onların ortalaması
+/// (mürekkep çentik) ve bu teklif (mürekkep nokta; turuncu değil: plakada turuncu yalnızca eylem).
+/// Rakamlar bir kez söylenir: teklifin birim fiyatı plakanın satırında, fark cümlede ("Son iki
+/// alımınızın ortalamasından litrede 0,60 ₺ yüksek"); çizgide etiket yok. İkiden az önceki alım
+/// varsa gösterilmez ([shows]).
 class PriceComparison extends StatelessWidget {
   const PriceComparison({
     super.key,
@@ -150,55 +153,45 @@ class PriceComparison extends StatelessWidget {
     final same = diff.abs() < 0.005;
     final amount =
         '${Fmt.number(diff.abs(), minFraction: 2, maxFraction: 2)} ₺';
-    final sentence = same
-        ? 'Bu teklif, son $n alımınızın ortalamasıyla aynı.'
-        : 'Bu teklif, son $n alımınızın ortalamasından litrede $amount '
-              '${diff > 0 ? 'yüksek' : 'düşük'}.';
+    final direction = diff > 0 ? 'yüksek' : 'düşük';
+    // Ekranda tek cümle; ekran okuyucu çizgideki ortalamayı da duyar (çizgide etiket yok).
+    final spoken = same
+        ? 'Bu teklif, son $n alımınızın ortalamasıyla aynı: '
+              '${Fmt.unitPrice(avg)}.'
+        : 'Son $n alımınızın ortalaması ${Fmt.unitPrice(avg)}; bu teklif '
+              'litrede $amount $direction.';
     final style = (onPlate ? t.bodySmall : t.body).copyWith(color: c.ink);
     return Semantics(
       container: true,
-      label: sentence,
+      label: spoken,
       excludeSemantics: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Başlık ve birim yan yana; sığmazsa (büyük yazı, dar ekran) birim alt satıra iner
-          // (QA C-02: 2,0× yazıda 360 dp'de satır taşıyordu).
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.end,
-            spacing: 12,
-            runSpacing: 2,
-            children: [
-              // Bölüm başlıklarıyla aynı hiyerarşi (17/22 700); plakada küçük başlık.
-              Semantics(
-                header: true,
-                child: Text(
-                  'Son alımlarınızla kıyas',
-                  style: onPlate
-                      ? t.label.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: c.dim,
-                        )
-                      : a2SectionTitle(t, c),
-                ),
-              ),
-              Text('litre başına', style: t.bodySmall.copyWith(color: c.dim)),
-            ],
+          // Bölüm başlıklarıyla aynı hiyerarşi (17/22 700); plakada küçük başlık.
+          Semantics(
+            header: true,
+            child: Text(
+              'Son alımlarınızla kıyas',
+              style: onPlate
+                  ? t.label.copyWith(fontWeight: FontWeight.w600, color: c.dim)
+                  : a2SectionTitle(t, c),
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           _DotPlot(prices: prices, average: avg, offer: offer),
           const SizedBox(height: 8),
           if (same)
-            Text(sentence, style: style)
+            Text('Son $n alımınızın ortalamasıyla aynı.', style: style)
           else
             Text.rich(
               TextSpan(
-                text: 'Bu teklif, son $n alımınızın ortalamasından litrede ',
+                text: 'Son $n alımınızın ortalamasından litrede ',
                 children: [
+                  // "0,60 ₺ yüksek" bölünmez: ikinci satırda "yüksek." yalnız kalmaz (v4 tur 2).
                   TextSpan(
-                    text: '$amount ${diff > 0 ? 'yüksek' : 'düşük'}',
+                    text: '$amount $direction'.replaceAll(' ', '\u00A0'),
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const TextSpan(text: '.'),
@@ -212,8 +205,8 @@ class PriceComparison extends StatelessWidget {
   }
 }
 
-/// Nokta grafiği: iz çizgisi, bağlam noktaları, ortalama çentiği, teklif noktası, fark parçası ve
-/// etiketler (fark üstte; "son 3 alım ort." ve "bu teklif" altta).
+/// Nokta grafiği (etiketsiz): iz çizgisi, soluk bağlam noktaları, ortalama çentiği, mürekkep teklif
+/// noktası ve aradaki fark parçası. Rakamlar cümlede ve plakanın satırındadır.
 class _DotPlot extends StatelessWidget {
   const _DotPlot({
     required this.prices,
@@ -228,20 +221,6 @@ class _DotPlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
-    final t = context.aknText;
-    final scaler = MediaQuery.textScalerOf(context);
-    final small = t.caption.copyWith(color: c.dim);
-    final strong = t.captionStrong.copyWith(color: c.ink);
-    final diff = offer - average;
-    final diffText =
-        '${diff >= 0 ? '+' : '−'}${Fmt.number(diff.abs(), minFraction: 2, maxFraction: 2)} ₺';
-    final avgText =
-        'son ${prices.length} alım ort. ${Fmt.number(average, minFraction: 2, maxFraction: 2)}';
-    final offerText =
-        'bu teklif ${Fmt.number(offer, minFraction: 2, maxFraction: 2)}';
-    double lineH(TextStyle s) => scaler.scale(s.fontSize!) * (s.height ?? 1.3);
-    final topH = lineH(strong) + 6;
-    final bottomH = lineH(small) + 8;
     const plotH = 20.0;
     return LayoutBuilder(
       builder: (context, box) {
@@ -259,79 +238,27 @@ class _DotPlot extends StatelessWidget {
         double x(double v) => (v - lo) / (hi - lo) * w;
         final ax = x(average);
         final ox = x(offer);
-
-        TextPainter measure(String s, TextStyle st) => TextPainter(
-          text: TextSpan(text: s, style: st),
-          textDirection: TextDirection.ltr,
-          textScaler: scaler,
-          maxLines: 1,
-        )..layout();
-        double place(double center, double width) =>
-            (center - width / 2).clamp(0.0, math.max(0.0, w - width));
-
-        final avgP = measure(avgText, small);
-        final offP = measure(offerText, strong);
-        final diffP = measure(diffText, strong);
-        // Alt etiketler çakışırsa ortalama etiketi sola / sağa itilir.
-        var avgLeft = place(ax, avgP.width);
-        final offLeft = place(ox, offP.width);
-        if (ox >= ax && avgLeft + avgP.width + 8 > offLeft) {
-          avgLeft = math.max(0, offLeft - 8 - avgP.width);
-        } else if (ox < ax && offLeft + offP.width + 8 > avgLeft) {
-          avgLeft = math.min(w - avgP.width, offLeft + offP.width + 8);
-        }
-        final overlap =
-            (avgLeft < offLeft + offP.width && offLeft < avgLeft + avgP.width);
-        final diffLeft = place((ax + ox) / 2, diffP.width);
-        avgP.dispose();
-        offP.dispose();
-        diffP.dispose();
         return SizedBox(
-          height: topH + plotH + bottomH * (overlap ? 2 : 1),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: diffLeft,
-                top: 0,
-                child: Text(diffText, style: strong, maxLines: 1),
+          height: plotH,
+          // İlk görünüşte teklif noktası ortalamadan kendi yerine kayar ve fark parçası onunla
+          // birlikte uzar (v3 §5).
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: AknMotion.of(context, AknMotion.emphasized),
+            curve: AknMotion.emphasizedCurve,
+            builder: (context, p, _) => CustomPaint(
+              size: Size(w, plotH),
+              painter: _DotPlotPainter(
+                xs: [for (final p in prices) x(p)],
+                avgX: ax,
+                offerX: ax + (ox - ax) * p,
+                track: c.chartTrack,
+                context: c.dim,
+                ink: c.ink,
+                highlight: c.ink,
+                ring: c.surface,
               ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: topH,
-                height: plotH,
-                // İlk görünüşte teklif noktası ortalamadan kendi yerine kayar ve fark parçası
-                // onunla birlikte uzar (v3 §5).
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: AknMotion.of(context, AknMotion.emphasized),
-                  curve: AknMotion.emphasizedCurve,
-                  builder: (context, p, _) => CustomPaint(
-                    painter: _DotPlotPainter(
-                      xs: [for (final p in prices) x(p)],
-                      avgX: ax,
-                      offerX: ax + (ox - ax) * p,
-                      track: c.chartTrack,
-                      context: c.chartContext,
-                      ink: c.ink,
-                      highlight: c.chartHighlight,
-                      ring: c.surface,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: avgLeft,
-                top: topH + plotH + 4,
-                child: Text(avgText, style: small, maxLines: 1),
-              ),
-              Positioned(
-                left: offLeft,
-                top: topH + plotH + 4 + (overlap ? bottomH : 0),
-                child: Text(offerText, style: strong, maxLines: 1),
-              ),
-            ],
+            ),
           ),
         );
       },

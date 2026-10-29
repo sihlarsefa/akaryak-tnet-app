@@ -288,6 +288,11 @@ void main() {
       expect(StatsPeriod.lastMonth.compareShort, 'önceki aya göre');
       expect(StatsPeriod.quarter.compareShort, 'önceki 3 aya göre');
       expect(StatsPeriod.year.compareShort, 'geçen yılın aynı dönemine göre');
+      // Plakanın dönem satırındaki kısa adlar (v4 tur 2 A11: "1–29 Ekim · geçen aya göre").
+      expect(StatsPeriod.month.compareBrief, 'geçen aya göre');
+      expect(StatsPeriod.lastMonth.compareBrief, 'önceki aya göre');
+      expect(StatsPeriod.quarter.compareBrief, 'önceki 3 aya göre');
+      expect(StatsPeriod.year.compareBrief, 'geçen yıla göre');
       expect(
         [for (final p in StatsPeriod.values) p.key],
         ['month', 'lastMonth', 'quarter', 'year'],

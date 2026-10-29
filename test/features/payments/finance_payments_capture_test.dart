@@ -9,6 +9,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:akaryakitnet/core/ui/ui.dart' show AknFilterButton, AppSheet;
 import 'package:akaryakitnet/features/payments/presentation/widgets/payment_cards.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -49,6 +50,22 @@ Future<void> _scroll(WidgetTester tester, double dy) async {
   final pos = main.position;
   pos.jumpTo((pos.pixels + dy).clamp(0.0, pos.maxScrollExtent));
   await pumpFor(tester, const Duration(milliseconds: 400));
+}
+
+/// v4 (P7): Tahsilat'ın süzgeçleri bandın Filtre sayfasındadır (sayfada çip satırı yok). [labels]
+/// sırayla dokunulur; [close] ise sayfa kapanır ve süzülmüş liste görüntülenir.
+Future<void> _filter(
+  WidgetTester tester,
+  List<String> labels, {
+  bool close = true,
+}) async {
+  await tapFinder(tester, find.byType(AknFilterButton));
+  for (final s in labels) {
+    await tapFinder(tester, inSheet(find.text(s)).first);
+  }
+  if (!close) return;
+  Navigator.of(tester.element(find.byType(AppSheet).last)).pop();
+  await pumpFor(tester);
 }
 
 typedef _Shot = ({
@@ -141,23 +158,19 @@ void main() {
       name: 'cari-secici',
       persona: 'muhasebe',
       location: '/payments',
-      then: (t) => tapText(t, 'Cari: tümü'),
+      then: (t) => _filter(t, ['Cari: tümü'], close: false),
     ),
     (
       name: 'odemeler-gecikenler',
       persona: 'muhasebe',
       location: '/payments',
-      then: (t) => tapText(t, 'Gecikenler'),
+      then: (t) => _filter(t, ['Gecikenler']),
     ),
     (
       name: 'odemeler-tumu',
       persona: 'muhasebe',
       location: '/payments',
-      then: (t) async {
-        for (final s in ['Bekliyor', 'Belge yüklendi']) {
-          await tapFinder(t, find.text(s).first);
-        }
-      },
+      then: (t) => _filter(t, ['Bekliyor', 'Belge yüklendi']),
     ),
     (name: 'finans-liste', persona: 'finans', location: '/finance', then: null),
     (

@@ -313,7 +313,13 @@ abstract final class StatsFake {
         return !own || portfolio.contains(sh['customerId']);
       }),
       'collections': !own && p.can(Pg.stationPayments)
-          ? _collections(stationId, win, accepted.length, amount)
+          ? _collections(
+              stationId,
+              win,
+              accepted.length,
+              amount,
+              overdue: _overdueNow(w, stationId),
+            )
           : null,
       'team': own
           ? [
@@ -765,12 +771,39 @@ abstract final class StatsFake {
     };
   }
 
+  /// Bayinin şu an vadesi geçmiş ödemeleri (ana sayfanın "Vadesi geçen n ödeme"si ve Tahsilat'ın
+  /// gecikenleri ile aynı kural; v4 tur 2): onaylı ya da tamamlanmış sipariş, ödeme bekliyor ya da
+  /// kısmi, son ödeme günü bugünden önce. Destenin Tahsilat kartı başka bir sayı söylemez.
+  static ({int count, double amount}) _overdueNow(FakeWorld w, int stationId) {
+    final today = TrTime.todayStart();
+    var count = 0;
+    var total = 0.0;
+    for (final o in w.ordersOfStation(stationId)) {
+      final pay = o['paymentStatus'];
+      final st = o['status'];
+      final due = TrTime.parseLocal(o['paymentDueDate'] as String?);
+      if ((pay != 1 && pay != 2) || (st != 3 && st != 7)) continue;
+      if (due == null || !due.isBefore(today)) continue;
+      final quotes = ((o['quotes'] as List?) ?? const []).cast<JsonMap>();
+      final quote =
+          quotes.where((q) => q['isSelected'] == true).firstOrNull ??
+          quotes.lastOrNull;
+      count++;
+      total +=
+          (quote?['totalAmountTry'] as num?)?.toDouble() ??
+          (o['estimatedAmount'] as num?)?.toDouble() ??
+          0;
+    }
+    return (count: count, amount: total);
+  }
+
   static JsonMap _collections(
     int stationId,
     StatsWindow win,
     int orders,
-    double amount,
-  ) {
+    double amount, {
+    ({int count, double amount})? overdue,
+  }) {
     final w = TrTime.wall(win.from);
     final r = math.Random(
       stationId * 1000003 + w.year * 400 + w.month * 31 + win.period.index,
@@ -789,8 +822,9 @@ abstract final class StatsFake {
     return {
       'collectedAmount': _round(amount * (0.74 + r.nextDouble() * 0.08), 2),
       'collectedCount': (orders * 0.82).round(),
-      'overdueAmount': _round(amount * (0.03 + r.nextDouble() * 0.03), 2),
-      'overdueCount': 2 + r.nextInt(4),
+      'overdueAmount':
+          overdue?.amount ?? _round(amount * (0.03 + r.nextDouble() * 0.03), 2),
+      'overdueCount': overdue?.count ?? 2 + r.nextInt(4),
       'dueSoonAmount': _round(amount * (0.05 + r.nextDouble() * 0.04), 2),
       'dueSoonCount': 3 + r.nextInt(5),
       'dueSoonDays': 7,

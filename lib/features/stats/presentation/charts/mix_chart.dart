@@ -65,10 +65,15 @@ class StatsRankedList extends StatelessWidget {
     required this.items,
     this.legend = const [],
     this.threshold,
+    this.accent = true,
   });
 
   final List<RankedItem> items;
   final List<RankedLegend> legend;
+
+  /// İlk sıradaki satır turuncu vurgulu. Düz veri (ürün dağılımı) için false: ilk satır mürekkep,
+  /// ışıma yok (v4 tur 2 A20; P5: turuncu yalnızca eylem ve "sıra sizde").
+  final bool accent;
 
   /// İnce eşik çizgisi (0–1; limit satırlarında %80).
   final double? threshold;
@@ -87,6 +92,7 @@ class StatsRankedList extends StatelessWidget {
             item: items[i],
             index: i,
             lead: i == 0 && !twoSeries && items.length > 1,
+            accent: accent,
             twoSeries: twoSeries,
             threshold: threshold,
           ),
@@ -134,14 +140,16 @@ class _RankedRow extends StatefulWidget {
     required this.index,
     required this.lead,
     required this.twoSeries,
+    this.accent = true,
     this.threshold,
   });
 
   final RankedItem item;
   final int index;
 
-  /// Tek seride ilk sıradaki satır (turuncu vurgu).
+  /// Tek seride ilk sıradaki satır (turuncu vurgu; [accent] false ise mürekkep).
   final bool lead;
+  final bool accent;
 
   /// Listenin iki serili olduğu (form + siparişe dönüşen).
   final bool twoSeries;
@@ -268,7 +276,7 @@ class _RankedRowState extends State<_RankedRow> {
     if (custom != null) {
       fill = custom;
       fillStart = Color.lerp(custom, c.surface, 0.25)!;
-    } else if (twoSeries) {
+    } else if (twoSeries || (widget.lead && !widget.accent)) {
       fill = c.ink;
       fillStart = c.ink;
     } else if (widget.lead) {
@@ -286,7 +294,7 @@ class _RankedRowState extends State<_RankedRow> {
       trackFill: twoSeries ? c.chartContext : null,
       fill: fill,
       fillStart: fillStart,
-      glow: widget.lead && custom == null,
+      glow: widget.lead && widget.accent && custom == null,
       threshold: widget.threshold,
       tick: c.ink,
       delay: Duration(

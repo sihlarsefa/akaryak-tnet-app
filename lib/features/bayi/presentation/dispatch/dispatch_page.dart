@@ -63,6 +63,9 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
     if (lane == _linked) return;
     _linked = lane;
     if (lane == null) return;
+    // Sekmede uygulanan bağlantı adresten düşer (v4 tur 2): aynı göreve yeniden dokunmak yine
+    // uygulanır (sekme son adresini hatırlar; aynı adres "uygulanmış" sayılırdı).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _consumeLink());
     final g = ref.read(bayiGrantsProvider);
     final list = ref.read(shipmentListProvider.notifier);
     switch (lane) {
@@ -94,6 +97,19 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
           }
         });
     }
+  }
+
+  /// Sekmedeki sayfada `?lane=` uygulanınca yalın adrese dönülür; itilen sayfaya dokunulmaz.
+  void _consumeLink() {
+    if (!mounted || !AknTabScope.isIn(context)) return;
+    final router = GoRouter.of(context);
+    final uri = router.state.uri;
+    if (uri.path != AppRoutes.dispatch ||
+        !uri.queryParameters.containsKey('lane')) {
+      return;
+    }
+    _linked = null;
+    router.go(AppRoutes.dispatch);
   }
 
   @override
@@ -471,7 +487,7 @@ class _BoardList extends ConsumerWidget {
               tone: AknTone.warn,
               icon: PhosphorIconsRegular.userFocus,
               message:
-                  '${b.unassignedCount} planlı sevkiyatta uygulama şoförü yok; bu teslimatlar şoförün Teslimatlarım listesinde görünmez. Ayrıntıdan "Şoför değiştir" ile atayın.',
+                  '${b.unassignedCount} planlı sevkiyatta uygulama şoförü yok; bu teslimatlar şoförün Teslimatlar listesinde görünmez. Ayrıntıdan "Şoför değiştir" ile atayın.',
             ),
           if (!g.planShipment)
             PageWell(

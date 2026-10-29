@@ -43,13 +43,17 @@ abstract final class NotificationDisplay {
     return '${TurkishText.upper(s.substring(0, 1))}${s.substring(1)}';
   }
 
-  /// Sıra görüntüleyendeyse eylem satırı; değilse null.
-  static String? actionOf(UserNotification n) {
+  /// Sıra görüntüleyendeyse eylem satırı; değilse null. [canQuote] false: görüntüleyen teklif
+  /// veremez (izleyici, sevkiyat) — "Yeni sipariş" onun için bilgidir, eylemi yoktur.
+  static String? actionOf(UserNotification n, {bool canQuote = true}) {
     final route = n.route ?? '';
     return switch (n.eventCode) {
       // Müşteri: teklif geldi / süresi doluyor (bayinin kopyası bayi sipariş sayfasına gider).
       'order.quote_ready' ||
       'order.quote_expiring' when route.startsWith('/orders/') => 'Teklifi aç',
+      // Bayi: yeni sipariş geldi; teklif vermek bayinin işi (v4 B17).
+      'order.created' when canQuote && route.startsWith('/bayi/orders/') =>
+        'Teklif ver',
       // Müşteri: teslim bildirildi (bayiye giden kopya bilgi verir: "müşteri onayı bekleniyor").
       'shipment.reported' when route.startsWith('/shipments/') =>
         'Teslimatı onayla',
@@ -57,7 +61,43 @@ abstract final class NotificationDisplay {
       'approval.reminder' ||
       'approval.escalated' => 'Talebi incele',
       'order.finance_info' || 'approval.info_requested' => 'Bilgi gönder',
+      // Saha: finans ön kayıt için ek bilgi istedi (sunucu uyarı tonunda gönderir; onay, ret ve
+      // dönüşüm bilgi verir). Rota ön kaydın kendisidir (v4 tur 2).
+      'lead.updated'
+          when n.severity == 2 && route.startsWith('/field/leads/') =>
+        'Bilgi gönder',
       _ => null,
     };
+  }
+
+  /// Eylem satırının açtığı blok (`?focus=`, v4 §3.5): sayfa o bloğa kayar ve parlar — "Teklif ver"
+  /// ve "Teklifi aç" teklifi, "Teslimatı onayla" teslimatı, "Talebi incele" talebin karar bloğunu
+  /// açar. Eylemi olmayan olayda ya da bilinmeyen rotada null.
+  static String? focusOf(UserNotification n) {
+    if (actionOf(n) == null) return null;
+    final path = Uri.tryParse(n.route ?? '')?.path ?? '';
+    if (path.startsWith('/orders/') || path.startsWith('/bayi/orders/')) {
+      return switch (n.eventCode) {
+        'order.quote_ready' ||
+        'order.quote_expiring' ||
+        'order.created' => 'quote',
+        _ => null,
+      };
+    }
+    if (path.startsWith('/shipments/')) return 'delivery';
+    if (path.startsWith('/approvals/')) return 'request';
+    return null;
+  }
+
+  /// [route] (bildirimin erişilebilir hedefi) [focusOf] bloğuyla; rotada zaten `focus` varsa ya da
+  /// blok yoksa olduğu gibi.
+  static String withFocus(UserNotification n, String route) {
+    final focus = focusOf(n);
+    final uri = Uri.tryParse(route);
+    if (focus == null || uri == null) return route;
+    if (uri.queryParameters.containsKey('focus')) return route;
+    return uri
+        .replace(queryParameters: {...uri.queryParameters, 'focus': focus})
+        .toString();
   }
 }

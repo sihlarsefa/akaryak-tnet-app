@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/models/shipment.dart';
@@ -51,7 +50,9 @@ class _ShipmentsPageState extends ConsumerState<ShipmentsPage> {
     final s = ref.watch(shipmentsControllerProvider);
     final ctrl = ref.read(shipmentsControllerProvider.notifier);
     final policy = ref.watch(accessPolicyProvider);
-    final canDecide = policy.can(Pg.customerQuotes, Perm.edit);
+    // Tek kural (v4 tur 2): teslimatı onaylamak onaylayanın işidir; talep edenin bandı ve satırı
+    // "onay bekliyor" der (ana sayfası ve Onaylar'ı gibi).
+    final canDecide = policy.customerDecides;
     final c = s.counts;
     final awaiting = c.reported;
     final moving = c.of(ShipmentStatus.inTransit);

@@ -723,13 +723,19 @@ void main() {
     });
 
     testWidgets(
-      'başlık satırı: dönem yalnızca ("1–21 Ekim"), ikon kutusu yok',
+      'başlık satırı: dönem ve karşılaştırma ("1–21 Ekim · geçen aya göre"), ikon kutusu yok',
       (tester) async {
         final app = await StatsTestApp.start(tester, persona: 'sahip');
         final d = _bayiData(app);
         final period = StatsFmt.rangeShort(d.period.from, d.period.to);
-        expect(topCard(tester).card.subtitle, period);
-        expect(_inTop(find.text(period)), findsOneWidget);
+        // v4 tur 2: karşılaştırma başlıkta (/stats plakasıyla aynı söz); rakamın altında ayrı cümle yok.
+        final head = '$period · ${StatsPeriod.month.compareBrief}';
+        expect(topCard(tester).card.subtitle, head);
+        expect(_inTop(find.text(head)), findsOneWidget);
+        expect(
+          _inTop(find.textContaining(StatsPeriod.month.compareShort)),
+          findsNothing,
+        );
         expect(_inTop(find.byType(PlateHead)), findsOneWidget);
         // Satış kartı: kural ve üç okuma.
         expect(_inTop(find.byType(PlateRule)), findsOneWidget);
@@ -782,11 +788,46 @@ void main() {
           _inTop(find.byType(PlateReadouts)),
           compact ? findsNothing : findsOneWidget,
         );
-        // Rakam ve cümle her düzende.
+        // Rakam ve karşılaştırma her düzende (karşılaştırma başlığın dönem satırında, v4 tur 2).
         expect(_inTop(find.byType(PlateFigure)), findsOneWidget);
         expect(
-          _inTop(find.textContaining(StatsPeriod.month.compareShort)),
+          _inTop(find.textContaining(StatsPeriod.month.compareBrief)),
           findsOneWidget,
+        );
+        await app.finish(tester);
+      });
+    }
+  });
+
+  // v4 tur 2 (M3): 390×844'te ayrıntı küçülüp ortalanmaz — okuma etiketleri en az 11 dp çizilir ve
+  // ayrıntının sol kenarı başlıkla aynı çizgidedir (çubuklar kısalır, yazı küçülmez).
+  group('ayrıntı tam boyda, başlıkla hizalı (390×844)', () {
+    for (final (persona, label) in [
+      ('musteri', StatsCopy.kpiLitersCustomer),
+      ('sahip', StatsCopy.kpiLiters),
+    ]) {
+      testWidgets('$persona: "$label" ≥ 11 dp, sol kenar başlıkla aynı', (
+        tester,
+      ) async {
+        final app = await StatsTestApp.start(
+          tester,
+          persona: persona,
+          size: const Size(390, 844),
+        );
+        final readout = _inTop(find.text(label));
+        expect(readout, findsOneWidget);
+        // 12/16 etiket: çizilen satır yüksekliği 16 × ölçek; 11 dp yazı = 14,67.
+        expect(tester.getRect(readout).height, greaterThanOrEqualTo(14.6));
+        final title = _inTop(find.text(topCard(tester).card.title));
+        expect(title, findsOneWidget);
+        expect(
+          tester.getRect(readout).left,
+          moreOrLessEquals(tester.getRect(title).left, epsilon: 1),
+        );
+        // Rakam da aynı çizgide.
+        expect(
+          tester.getRect(_inTop(find.byType(PlateFigure))).left,
+          moreOrLessEquals(tester.getRect(title).left, epsilon: 1),
         );
         await app.finish(tester);
       });

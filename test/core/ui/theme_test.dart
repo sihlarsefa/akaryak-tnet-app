@@ -145,8 +145,9 @@ void main() {
         '$name secondary and ghost: ink labels, never orange; destructive flat red',
         () {
           final o = theme.outlinedButtonTheme.style!;
-          // Light: a white key with a 1.5 px lineStrong 60 % rim; dark: the
-          // well, no rim.
+          // Light: a white key with a 1.5 px lineStrong 60 % rim; dark (v4
+          // A14): the well with a full lineStrong rim, so the key keeps its
+          // edge on a dark dock next to a filled primary.
           final rest = o.backgroundColor!.resolve(_none);
           expect(rest, colors.isDark ? colors.surfaceAlt : colors.surface);
           if (colors.isDark) {
@@ -159,14 +160,25 @@ void main() {
           expect(o.foregroundColor!.resolve(_disabled), colors.faint);
           expect(
             AknTheme.secondaryBorder(colors),
-            colors.lineStrong.withValues(alpha: 0.6),
+            colors.isDark
+                ? colors.lineStrong
+                : colors.lineStrong.withValues(alpha: 0.6),
           );
           final side = o.side!.resolve(_none)!;
+          expect(side.color, AknTheme.secondaryBorder(colors));
+          expect(side.width, 1.5);
           if (colors.isDark) {
-            expect(side.width, 0);
-          } else {
-            expect(side.color, AknTheme.secondaryBorder(colors));
-            expect(side.width, 1.5);
+            // WCAG 1.4.11: the rim is ≥ 3:1 on the dock and on the key.
+            for (final bg in [
+              colors.surface,
+              colors.surfaceAlt,
+              colors.surfaceRaised,
+            ]) {
+              expect(
+                contrast(AknTheme.secondaryBorder(colors), bg),
+                greaterThanOrEqualTo(3),
+              );
+            }
           }
           expect(
             o.shape!.resolve(_none),

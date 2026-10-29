@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,14 +7,26 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
+import '../../../core/models/enums.dart'
+    show ApprovalSlaState, ApprovalStatus, ApprovalType;
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/connectivity.dart';
 import '../../../core/offline/outbox_op.dart' show OutboxStatus;
 import '../../../core/offline/outbox_providers.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../approvals/api.dart'
+    show ApprovalRow, ApprovalsQuery, approvalsListProvider;
+import '../../finance/api.dart'
+    show
+        MyApprovals,
+        approvalsOfType,
+        leadFinanceApprovals,
+        myApprovalsBySubjectProvider;
 import '../../stats/api.dart' show ManagerStatsDeck, refreshManagerStats;
 import '../../weather/api.dart';
 import '../application/field_access.dart';
@@ -97,7 +110,8 @@ class FieldHome extends ConsumerWidget {
       homeHeader: AknHomeHeader(
         company: me?.stationTitle ?? 'Saha satış',
         person: [if (name.isNotEmpty) name, fieldLowerFirst(role)].join(', '),
-        onOpenProfile: () => context.push(AppRoutes.profile),
+        // Profil bazı rollerde alt menünün sekmesidir: `push` kabuğu ikinci kez kurardı (SC-01).
+        onOpenProfile: () => context.openAppLocation(AppRoutes.profile),
       ),
       refreshing: state.refreshing,
       body: body,
@@ -370,6 +384,15 @@ class _SectionFailed extends ConsumerWidget {
 /// "Sıra sizde" (v4 §3.3 saha): gönderilmeyi bekleyen formlar ("Şimdi gönder": bekleyen işlemleri
 /// hemen dener), ek bilgi bekleyen ön kayıtlar, en sonda nötr ve sayılmayan taslaklar. İş yoksa
 /// sakin satır.
+///
+/// v4 tur 2 (B13): finansın bilgi istediği ön kayıt bir onay talebidir (Onaylar › Bende'de; Diğer'in
+/// noktası da onu sayar). "Bilgi gönder" o talebin yanıt alanını açar (`/approvals/:id?reply=1`):
+/// iş ve sayı tek sayfada. Birden çok talepte Onaylar ön kayıt türüne süzülü açılır; talep Bende'de
+/// bulunamazsa ön kayıt açılır.
+///
+/// v4 tur 2: Bende'nin ön kayıt dışındaki talepleri de (bilgi istenen saha formu) birer iştir:
+/// gecikmiş olan tehlike tonuyla öne geçer. Kartın sayısı Diğer › Onaylar'ın sayısıdır (gönderilecek
+/// formlar eklenir): ana sayfa ile Onaylar aynı sayıyı söyler (P2).
 class _FieldHero extends ConsumerWidget {
   const _FieldHero({required this.data, required this.queued});
 
@@ -403,7 +426,29 @@ class _FieldHero extends ConsumerWidget {
     final info = data.leadsNeedingInfoCount > 0
         ? data.leadsNeedingInfoCount
         : data.leadsNeedingInfo.length;
+    final mine = info > 0
+        ? ref.watch(myApprovalsBySubjectProvider(leadFinanceApprovals))
+        : null;
+    // Bende (Diğer › Onaylar'ın listesi ve sayısı): ön kayıt işinin taşımadığı talepler.
+    final bende = ref.watch(approvalsListProvider(const ApprovalsQuery()));
+    final now = TrTime.now();
+    final others = [
+      for (final a in bende.items)
+        if (!(info > 0 && a.type == ApprovalType.leadFinance)) a,
+    ];
+    bool late(ApprovalRow a) =>
+        a.slaState == ApprovalSlaState.overdue ||
+        (a.dueAt != null && !a.dueAt!.isAfter(now));
+    final overdue = [
+      for (final a in others)
+        if (late(a)) _requestTask(context, a, now, late: true),
+    ];
+    final onTime = [
+      for (final a in others)
+        if (!late(a)) _requestTask(context, a, now, late: false),
+    ];
     final tasks = <AknTask>[
+      ...overdue,
       if (waiting.isNotEmpty)
         AknTask(
           id: 'field-queue',
@@ -430,9 +475,10 @@ class _FieldHero extends ConsumerWidget {
                     .join(' · '),
           icon: PhosphorIconsRegular.question,
           actionLabel: 'Bilgi gönder',
-          onAction: () => _openInfo(context),
-          onTap: () => _openInfo(context),
+          onAction: () => _openInfo(context, mine),
+          onTap: () => _openInfo(context, mine),
         ),
+      ...onTime,
       if (data.drafts > 0)
         AknTask(
           id: 'field-drafts',
@@ -450,19 +496,90 @@ class _FieldHero extends ConsumerWidget {
           counts: false,
         ),
     ];
+    // Sayı = Diğer › Onaylar'ın sayısı (Bende'nin toplamı) + gönderilecek formlar; Bende okunamazsa
+    // kartın kendi işleri.
+    final total = bende.hasData
+        ? bende.totalCount + (waiting.isNotEmpty ? 1 : 0)
+        : null;
     return AknBandOverlap(
       child: AknTaskCard(
         tasks: tasks,
+        total: total == null
+            ? null
+            : math.max(total, tasks.where((t) => t.counts).length),
         calm: 'Ziyaretten sonra Yeni form ile siparişi yazın.',
         onSeeAll: () => context.go(AppRoutes.field),
       ),
     );
   }
 
-  void _openInfo(BuildContext context) {
+  /// Bende'deki bir talep "Sıra sizde" işi olarak: bilgi isteneni "… için bilgi gönderin" ve müşteri;
+  /// gecikmişse tehlike tonu ve "2 sa gecikti". Dokununca talebin yanıt alanı açılır (B13 ile aynı
+  /// sayfa).
+  static AknTask _requestTask(
+    BuildContext context,
+    ApprovalRow a,
+    DateTime now, {
+    required bool late,
+  }) {
+    final info = a.status == ApprovalStatus.infoRequested;
+    final title = !info
+        ? 'Talebi inceleyin'
+        : switch (a.type) {
+            ApprovalType.fieldFormFinance ||
+            ApprovalType.fieldOrderProfit => 'Saha formu için bilgi gönderin',
+            ApprovalType.leadFinance => 'Ön kayıt için bilgi gönderin',
+            _ => 'Bilgi gönderin',
+          };
+    final summary = (a.summary ?? '').split(' · ').first.trim();
+    final who = a.customerTitle ?? (summary.isEmpty ? null : summary);
+    final due = a.dueAt;
+    void open() => unawaited(
+      context.push(
+        info
+            ? '${AppRoutes.approval(a.id)}?reply=1'
+            : '${AppRoutes.approval(a.id)}?focus=request',
+      ),
+    );
+    return AknTask(
+      id: 'approval-${a.id}',
+      title: title,
+      subtitle: who,
+      icon: info
+          ? PhosphorIconsRegular.question
+          : PhosphorIconsRegular.checkCircle,
+      tone: late ? AknTaskTone.danger : AknTaskTone.yourMove,
+      amount: a.amount == null ? null : Fmt.moneyWhole(a.amount!),
+      deadline: !late && due != null ? due : null,
+      time: late && due != null
+          ? '${_lateShort(now.difference(due))} gecikti'
+          : null,
+      actionLabel: info ? 'Bilgi gönder' : 'Talebi incele',
+      onAction: open,
+      onTap: open,
+    );
+  }
+
+  /// "2 g", "5 sa", "40 dk": gecikmenin en büyük birimi (Onaylar satırıyla aynı söz).
+  static String _lateShort(Duration d) {
+    if (d.inDays > 0) return '${d.inDays} g';
+    if (d.inHours > 0) return '${d.inHours} sa';
+    return '${d.inMinutes.clamp(1, 59)} dk';
+  }
+
+  /// Bilgi isteyen talebin yanıt alanı (B13): tek talepte `/approvals/:id?reply=1`, birden çokta
+  /// Onaylar (ön kayıt türü). Bende okunamadıysa ya da talep orada değilse ön kayıt sayfaları.
+  void _openInfo(BuildContext context, MyApprovals? mine) {
     final leads = data.leadsNeedingInfo;
-    if (leads.length == 1) {
-      context.push(AppRoutes.fieldLead(leads.first.id));
+    final requests = [for (final l in leads) ?mine?[l.id]];
+    if (leads.length == 1 && requests.length == 1) {
+      unawaited(
+        context.push('${AppRoutes.approval(requests.single.id)}?reply=1'),
+      );
+    } else if (leads.length > 1 && requests.isNotEmpty) {
+      context.openAppLocation(approvalsOfType(ApprovalType.leadFinance));
+    } else if (leads.length == 1) {
+      unawaited(context.push(AppRoutes.fieldLead(leads.first.id)));
     } else {
       context.go('${AppRoutes.field}?tab=leads&status=info');
     }

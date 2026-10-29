@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../application/home_controller.dart';
@@ -23,6 +24,23 @@ import 'step_payment.dart';
 import 'step_products.dart';
 import 'step_summary.dart';
 import 'submission_view.dart';
+
+/// Sihirbazı kapatır ve [route] verildiyse o sayfayı açar (sonuç ekranından ayrılış). Sihirbaz
+/// hedef sayfanın üstünde açıldıysa (ör. Siparişler) aynı sayfa ikinci kez açılmaz. Siparişler alt
+/// menü sekmesidir: sihirbaz tam ekran bir sayfadan (sipariş ayrıntısı, talep, şablonlar) açıldıysa
+/// sekme yolunu `push` etmek kabuğu kök gezginde ikinci kez kurar (QA SC-01). Sekmeye `go`,
+/// ayrıntıya `push` ([openAppLocation]).
+void leaveOrderWizard(GoRouter router, [String? route]) {
+  if (!router.canPop()) {
+    router.go(route ?? AppRoutes.home);
+    return;
+  }
+  router.pop();
+  if (route == null) return;
+  final here = router.routerDelegate.currentConfiguration.uri.path;
+  if (here == Uri.parse(route).path) return;
+  openAppLocation(router, route);
+}
 
 /// "Sipariş ver" sihirbazı (spec A.3 adım 1, A.4 A2 kuralları, C.5 sihirbaz tarifi):
 /// Ürünler → Teslimat → Ödeme → Özet → gönder (C.4a). Taslak kullanıcı başına saklanır; uygulama
@@ -118,15 +136,7 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
   void _leaveResult([String? route]) {
     final router = GoRouter.of(context);
     ref.read(orderSubmitProvider.notifier).acknowledge();
-    if (!router.canPop()) {
-      router.go(route ?? AppRoutes.home);
-      return;
-    }
-    router.pop();
-    if (route == null) return;
-    // Sihirbaz hedef sayfanın üstünde açıldıysa (ör. Siparişlerim) aynı sayfa ikinci kez açılmaz.
-    final here = router.routerDelegate.currentConfiguration.uri.path;
-    if (here != Uri.parse(route).path) unawaited(router.push(route));
+    leaveOrderWizard(router, route);
   }
 
   void _next() {

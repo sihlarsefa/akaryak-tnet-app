@@ -106,10 +106,20 @@ abstract final class DriverCopy {
   static const reportedLamp = 'Teslim edildi, kabul bekliyor';
   static const acceptedLamp = 'Müşteri teslim aldı';
   static const deliverWaitingLamp = 'Teslimat telefonda, gönderilecek';
-  static String disputedCount(int n) => '$n teslimat düzeltme bekliyor';
+
+  /// Kahramanın üstündeki tehlike şeridi (v4 B16): ne oldu ve sıranın şoförde olduğu, edilgen
+  /// "düzeltme bekliyor" yerine. Olgular bölünmez boşlukla bağlı: satır yalnızca " · "da kırılır.
+  static String disputedCount(int n) {
+    const nb = '\u00A0';
+    final who = n == 1
+        ? 'Müşteri${nb}itiraz${nb}etti'
+        : 'Müşteriler${nb}itiraz${nb}etti';
+    return '$who · $n${nb}teslimatı${nb}düzeltin';
+  }
 
   // ------------------------------------------------------------------ İpucu
-  static const tipTitle = 'Teslimatı kaydırarak onaylayın';
+  /// Şoförün düğmesi "Teslimatı kaydet"tir; "onaylayın" müşterinin fiilidir (v4 B16).
+  static const tipTitle = 'Teslimatı kaydırarak kaydedin';
   static const tipBody =
       'Yola çıkarken ve teslim ederken düğmeyi sağa kaydırın; yanlışlıkla dokunmak işlem yapmaz. '
       'Bağlantı yoksa bilgiler telefonda saklanır ve sonra gönderilir.';

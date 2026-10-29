@@ -15,6 +15,7 @@ import '../../../core/models/me_access.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/outbox_providers.dart';
 import '../../../core/offline/pending_ops_chip.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
@@ -164,7 +165,10 @@ class ProfilePage extends ConsumerWidget {
                           icon: PhosphorIconsRegular.chatCircle,
                           title: ProfileCopy.askAssistant,
                           subtitle: ProfileCopy.askAssistantHint,
-                          onTap: () => context.push(AppRoutes.assistant),
+                          // Asistan şoförde alt menü sekmesidir: `push` kabuğu ikinci kez kurar
+                          // (QA SC-01, v4 B14); sekmeye `go`, diğerlerinde `push`.
+                          onTap: () =>
+                              context.openAppLocation(AppRoutes.assistant),
                         ),
                     ],
                   ),
@@ -671,7 +675,10 @@ class _AssistantConsentTile extends ConsumerWidget {
         icon: PhosphorIconsRegular.chatCircle,
         title: ProfileCopy.assistantConsent,
         subtitle: ProfileCopy.consentNotGiven,
-        onTap: enabled ? () => context.push(AppRoutes.assistant) : null,
+        // Asistan şoförde sekmedir (v4 B14): `openAppLocation`.
+        onTap: enabled
+            ? () => context.openAppLocation(AppRoutes.assistant)
+            : null,
       ),
       GateChecking() => const SettingsTile(
         icon: PhosphorIconsRegular.chatCircle,

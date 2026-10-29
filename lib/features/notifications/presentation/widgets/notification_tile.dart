@@ -13,11 +13,14 @@ import '../../data/notification_models.dart';
 /// * Solda 36 dp nötr karo (yalnızca uyarı / tehlike bildiriminde tonlu), olayın simgesi.
 /// * Başlık 15/20 (okunmamış 700, okunmuş 500), sağda saat 13/18 soluk (eş genişlikte rakamlar).
 /// * Altında metin 14/20 soluk, en çok 2 satır; iç kodlar gösterilmez ([NotificationDisplay.clean]).
-/// * Sıra görüntüleyendeyse (okunmamışken) tek eylem satırı: "Talebi incele ›" (13/18 600 ink).
+/// * Sıra görüntüleyendeyse tek eylem satırı: "Talebi incele ›" (13/18 600 ink). Okunmamışken
+///   her zaman; okunduktan sonra da iş hâlâ görüntüleyeni bekliyorsa ([waiting]: görev kutusunda) —
+///   eylem satırı "yeni" değil "sıra sizde" demektir (v4 A9, B17).
 /// * Okunmamış: saatin önünde 8 dp sabit marka noktası (satırdaki tek turuncu; nefes almaz —
 ///   listeler durgun durur, v4 §6).
 ///
-/// Okundu olunca satır sakinleşir: nokta küçülerek kaybolur, başlık incelir, eylem satırı katlanır.
+/// Okundu olunca satır sakinleşir: nokta küçülerek kaybolur, başlık incelir; iş artık görüntüleyeni
+/// beklemiyorsa eylem satırı katlanır.
 /// Okunmamış satır sağa kaydırınca okundu olur (satır yerinde kalır); ekran okuyucuda "Okundu işaretle"
 /// özel eylemi vardır. Basınca satır hafifçe içe çöker ve zemini koyulaşır.
 class NotificationTile extends StatelessWidget {
@@ -28,11 +31,29 @@ class NotificationTile extends StatelessWidget {
     required this.onMarkRead,
     this.now,
     this.revealIndex,
+    this.waiting = false,
+    this.canQuote = true,
   });
 
   final UserNotification notification;
   final VoidCallback onTap;
   final VoidCallback onMarkRead;
+
+  /// Bildirimin işi hâlâ görüntüleyeni bekliyor (görev kutusunda): eylem satırı okunduktan sonra da
+  /// kalır.
+  final bool waiting;
+
+  /// Görüntüleyen teklif verebilir: "Yeni sipariş" satırı "Teklif ver" der (izleyicide eylem yok).
+  final bool canQuote;
+
+  /// Satırın eylem satırı ("Teklifi aç"); sıra görüntüleyende değilse null.
+  static String? actionFor(
+    UserNotification n, {
+    bool waiting = false,
+    bool canQuote = true,
+  }) => !n.isRead || waiting
+      ? NotificationDisplay.actionOf(n, canQuote: canQuote)
+      : null;
 
   /// Göreli zaman için (testler).
   final DateTime? now;
@@ -58,7 +79,7 @@ class NotificationTile extends StatelessWidget {
     final unread = !n.isRead;
     final title = NotificationDisplay.clean(n.title);
     final body = NotificationDisplay.clean(n.body);
-    final action = unread ? NotificationDisplay.actionOf(n) : null;
+    final action = actionFor(n, waiting: waiting, canQuote: canQuote);
     final when = Fmt.relative(n.createdAt, now: now);
     final semantics = [
       if (unread) NotificationsCopy.unreadPrefix,

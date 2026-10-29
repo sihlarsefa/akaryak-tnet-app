@@ -519,7 +519,7 @@ class _ShipmentDetailPageState extends ConsumerState<_ShipmentDetailView> {
         message: DriverCopy.notFoundMessage,
         illustration: AknIllustration.search,
         actionLabel: DriverCopy.backToList,
-        onAction: () => context.go(DriverPaths.home),
+        onAction: () => backToDriverList(context),
       ),
       _ => ErrorState(
         offline: f is OfflineFailure,

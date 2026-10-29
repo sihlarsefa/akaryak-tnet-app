@@ -8,6 +8,7 @@ import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
@@ -45,15 +46,12 @@ String monthToDateLabel(DateTime wall) => wall.day == 1
 
 // ─────────────────────────────── Sıra sizde ───────────────────────────────
 
-/// Ana sayfa kahramanının görevleri (tasarım v4 §3.3): görev kutusunun sırası; talep eden yalnızca
-/// kendi işlerini görür (yarım kalan sipariş), değilse sakin satır.
+/// Ana sayfa kahramanının görevleri (tasarım v4 §3.3): görev kutusu olduğu gibi — talep eden de
+/// (v4 tur 2). Kutu talep edene yalnızca kendi işlerini koyar (bayinin ondan istediği bilgi ya da
+/// belge, yarım kalan sipariş); teklif ve teslimat kararı onaylayanındır. Böylece kahraman = Onaylar
+/// rozeti = Bende, her rolde (P2).
 List<TaskItem> customerHeroTasks(TaskInbox inbox, CustomerUserRole role) =>
-    role == CustomerUserRole.requester
-    ? [
-        for (final t in inbox.items)
-          if (t.kind == TaskKind.draft) t,
-      ]
-    : inbox.items;
+    inbox.items;
 
 /// Ana sayfanın kahramanı (tasarım v4 §3.3–3.4): "Sıra sizde" kartı, görev kutusundan
 /// ([customerTasksProvider]). Kart, Onaylar rozeti ve Onaylar › Bende aynı sayıyı gösterir.
@@ -71,19 +69,21 @@ class CustomerTaskHero extends ConsumerWidget {
     final policy = ref.watch(accessPolicyProvider);
     final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final approvals = policy.can(Pg.customerApprovals);
-    final requester = policy.customerRole == CustomerUserRole.requester;
     final items = customerHeroTasks(inbox, policy.customerRole);
     return AknTaskCard(
       tasks: [for (final t in items) _taskOf(context, ref, t)],
-      total: requester ? items.where((t) => t.counts).length : inbox.count,
+      total: inbox.count,
       calm: canCreate ? HomeCopy.calmCreate : HomeCopy.calmView,
-      onSeeAll: () =>
-          context.go(approvals ? AppRoutes.approvals : AppRoutes.orders),
+      // Onaylar ve Siparişler alt menü sekmesidir (Onaylar yalnızca onaylayanda): sekmeye `go`,
+      // değilse `push` (QA SC-01, v4 §3.5).
+      onSeeAll: () => context.openAppLocation(
+        approvals ? AppRoutes.approvals : AppRoutes.orders,
+      ),
     );
   }
 
   AknTask _taskOf(BuildContext context, WidgetRef ref, TaskItem t) {
-    void open() => unawaited(context.push(t.location));
+    void open() => context.openAppLocation(t.location);
     switch (t.actionKind) {
       case TaskActionKind.uploadDocument:
         final doc = _documentOf(t);
@@ -452,7 +452,8 @@ class MonthPlate extends StatelessWidget {
 // ─────────────────────────────── Bölümler ───────────────────────────────
 
 /// Ana sayfa bölüm başlığı: çekirdeğin [SectionHeader]'ı (17/22 700, sayı soluk metin, sağda
-/// "Tümü ›"), kahramanın altındaki ritimle.
+/// "Tümü ›"), çekirdeğin boşluğuyla: başlık sayfa kenarından 20 dp içeride, bayi ana sayfasındaki
+/// "Bugün" ve ayrıntı sayfalarının başlıklarıyla aynı hizada (v4 A24).
 Widget _header(
   String title, {
   int? count,
@@ -463,7 +464,6 @@ Widget _header(
   count: count,
   actionLabel: onAction == null ? null : actionLabel,
   onAction: onAction,
-  padding: const EdgeInsets.fromLTRB(24, 22, 12, 6),
 );
 
 /// "Yolda" (tasarım v4 §3.3): yalnızca bir araç yoldayken ya da bugün için planlıyken; tek satır,
@@ -527,8 +527,10 @@ class OnTheWaySection extends StatelessWidget {
           moving ? HomeCopy.onTheWay : HomeCopy.arrivingToday,
           count: count > 1 ? count : null,
           actionLabel: HomeCopy.all,
+          // Teslimatlar talep eden ve görüntüleyende alt menü sekmesidir ("Teslimat"): `push`
+          // kabuğu ikinci kez kurar (QA SC-01, v4 B14).
           onAction: dashboard.openShipmentTotal > 1
-              ? () => context.push(AppRoutes.shipments)
+              ? () => context.openAppLocation(AppRoutes.shipments)
               : null,
         ),
         AknLedger(
@@ -622,7 +624,7 @@ class QuickOrderSection extends StatelessWidget {
           HomeCopy.quickOrder,
           actionLabel: HomeCopy.all,
           onAction: templates.length > 1
-              ? () => context.push(templatesRoute)
+              ? () => context.openAppLocation(templatesRoute)
               : null,
         ),
         AknLedger(children: rows),
@@ -672,7 +674,7 @@ class _LimitRow extends StatelessWidget {
     final title = HomeCopy.limitTitle(l.stationTitle);
     void open() {
       AknHaptics.selection();
-      context.push(limitsRoute);
+      context.openAppLocation(limitsRoute);
     }
 
     if (!l.hasLimit) {
@@ -760,7 +762,7 @@ class MyRequestsSection extends ConsumerWidget {
           HomeCopy.myRequests,
           count: total,
           actionLabel: HomeCopy.all,
-          onAction: () => context.push(AppRoutes.companyRequests),
+          onAction: () => context.openAppLocation(AppRoutes.companyRequests),
         ),
         AknLedger(
           children: [

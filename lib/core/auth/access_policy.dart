@@ -77,6 +77,22 @@ class AccessPolicy {
   CustomerUserRole get customerRole =>
       access?.customerUserRole ?? CustomerUserRole.unknown;
 
+  /// Müşteride kararı veren (v4 tur 2, P2 tek kural): Teklifler düzenleme yetkisi ve şirket rolü
+  /// Onaylayan ya da Yönetici. Talep edenin teklif ve teslimat kararı "sıra sizde" sayılmaz; ana sayfa
+  /// kahramanı, Onaylar rozeti, Siparişler, Teslimatlar ve sipariş ayrıntısı bu kuralı okur.
+  bool get customerDecides =>
+      isCustomer &&
+      customerRole.canApprove &&
+      can(Pg.customerQuotes, Perm.edit);
+
+  /// Bayide teklif verir mi (v4 tur 2): Teklifler'de ya da sipariş ayrıntısında teklif ekleme
+  /// yetkisi (`StationQuoteDesk:Ekler` ya da `StationQuotes:Ekler`). Masayı yalnızca görmek teklif işi
+  /// değildir: finans ve izleyici için "Yeni sipariş" bilgidir, "Sıradaki işiniz" teklif açmaz.
+  bool get quotesOrders =>
+      isBayi &&
+      (can(Pg.stationQuoteDesk, Perm.create) ||
+          can(Pg.stationQuotes, Perm.create));
+
   /// Sayfa yetkisi: `can(Pg.stationOrders)` = Görür, `can(Pg.stationOrders, Perm.edit)` = Düzenler.
   bool can(String page, [String perm = Perm.view]) =>
       access?.pages.contains('$page:$perm') ?? false;

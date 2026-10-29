@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/offline/connectivity.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
@@ -887,8 +889,9 @@ class _ApprovalPlate extends StatelessWidget {
   }
 }
 
-/// Karttaki risk / barem bandı: delta çipi dilinde (açık turuncu zemin, Pas yazı); uzun etiket
-/// satır kaydırır, taşmaz.
+/// Karttaki risk / barem bandı: delta çipi dilinde — v4'te nötr (ink yazı, `plateLine` çerçeve,
+/// zemin yok): turuncu yalnızca eylem ve "buradasınız" içindir, bir risk sınıfı ya da barem değil
+/// (P5, A11). Uzun etiket satır kaydırır, taşmaz.
 class _BandChip extends StatelessWidget {
   const _BandChip({required this.label});
 
@@ -902,9 +905,8 @@ class _BandChip extends StatelessWidget {
       alignment: AlignmentDirectional.centerStart,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        // Sahip kararı G: karttaki bant çipi delta çipi gibi (#FFF1E8 zemin, Pas yazı).
-        decoration: BoxDecoration(
-          color: c.deltaFill,
+        foregroundDecoration: BoxDecoration(
+          border: Border.all(color: c.plateLine),
           borderRadius: AknRadius.tag,
         ),
         child: Text(
@@ -912,7 +914,7 @@ class _BandChip extends StatelessWidget {
           style: t.bodySmall.copyWith(
             height: 20 / 14,
             fontWeight: FontWeight.w700,
-            color: c.brandInk,
+            color: c.ink,
           ),
         ),
       ),
@@ -930,15 +932,20 @@ String whenStamp(DateTime? at) {
   return '${Fmt.dayMonth(at)} $time';
 }
 
-/// Sonuçlanmış talebin kararı (cari görünümünde yalnızca ret gerekçesi).
-class _DecisionOutcomeBanner extends StatelessWidget {
+/// Sonuçlanmış talebin kararı (cari görünümünde yalnızca ret gerekçesi). Talep sonuçlandıysa —
+/// çoğu kez başkası karar verdiği için (aynı bildirim iki onaylayana gider) — sayfa çıkmaz sokak
+/// olmaz: bantta görev kutusundaki sıradaki işe "Sıradaki işiniz" bağlantısı (v4 §3.5.3, B12).
+class _DecisionOutcomeBanner extends ConsumerWidget {
   const _DecisionOutcomeBanner({required this.detail});
 
   final ApprovalDetail detail;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final d = detail;
+    final next = d.status.isOpen
+        ? null
+        : ref.watch(taskInboxProvider).next(except: AppRoutes.approval(d.id));
     final when = d.decidedAt == null ? null : Fmt.dateTime(d.decidedAt);
     final who = d.customerView ? null : d.decidedByName;
     final meta = [?who, ?when].join(', ');
@@ -964,6 +971,10 @@ class _DecisionOutcomeBanner extends StatelessWidget {
         tone: tone,
         title: title,
         message: message.isEmpty ? title : message,
+        actionLabel: next == null ? null : nextTaskLabel,
+        onAction: next == null
+            ? null
+            : () => context.openAppLocation(next.location),
       ),
     );
   }

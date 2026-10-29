@@ -230,7 +230,7 @@ List<JsonMap> _suggestions(FakePersona p) {
   }
   if (p.persona == Persona.platform) {
     return [
-      g('Onaylar', ['Onaylarım\'da neler bekliyor?', 'Koşullu onay ne demek?']),
+      g('Onaylar', ['Onaylar\'da neler bekliyor?', 'Koşullu onay ne demek?']),
     ];
   }
   final driverOnly =
@@ -277,16 +277,16 @@ String _answer(FakeWorld w, FakePersona p, String message) {
       final last = orders.last;
       final status = OrderStatus.fromCode(JsonReader.toInt(last['status']));
       return 'Son siparişiniz ${last['orderNumber']} şu an '
-          '"${status.isUnknown ? 'işlemde' : status.label}" durumunda. Ayrıntılar ve teslimat takibi için Siparişlerim '
-          'ekranında siparişe dokunun; araç yola çıkınca size bildirim gelir.';
+          '"${status.isUnknown ? 'işlemde' : status.label}" durumunda. Ayrıntılar ve teslimat takibi için Siparişler '
+          'sekmesinde siparişe dokunun; araç yola çıkınca size bildirim gelir.';
     }
-    return 'Siparişlerinizin durumunu Siparişlerim ekranında görebilirsiniz. Teklif hazır olduğunda, '
+    return 'Siparişlerinizin durumunu Siparişler sekmesinde görebilirsiniz. Teklif hazır olduğunda, '
         'sipariş onaylandığında ve araç yola çıktığında bildirim alırsınız.';
   }
   if (has('cek') || has('senet')) {
     return 'Çek ya da senet ödemesinde siparişi verdikten sonra uygulama sizden belgenin fotoğrafını ister: '
         '"Fotoğraf çek" ile belgeyi çerçeveye hizalayın, net olduğundan emin olup gönderin. Belge yüklenene '
-        'kadar ana sayfada hatırlatma görürsünüz.';
+        'kadar ana sayfada, Sıra sizde kartında görünür.';
   }
   if (has('kosullu')) {
     return 'Koşullu onay, finans biriminin talebi belirli şartlarla (ör. farklı ödeme yöntemi ya da vade) '
@@ -300,7 +300,7 @@ String _answer(FakeWorld w, FakePersona p, String message) {
     final n = p.stationId == null
         ? 0
         : w.ordersOfStation(p.stationId!).where((o) => o['status'] == 1).length;
-    return 'Şu an teklif bekleyen $n sipariş var. Teklif masasında süresi en yakın olanlar en üsttedir; '
+    return 'Şu an teklif bekleyen $n sipariş var. Teklifler\'de süresi en yakın olanlar en üsttedir; '
         'önerilen fiyatı tek dokunuşla uygulayabilirsiniz.';
   }
   if (has('itiraz')) {
@@ -313,7 +313,7 @@ String _answer(FakeWorld w, FakePersona p, String message) {
   }
   if (has('teklif') && has('onay')) {
     return 'Teklif hazır olunca siparişin ayrıntısında teklif kartı açılır: birim fiyatı, toplam tutarı ve '
-        'teslim tarihini kontrol edip "Onayla"ya dokunun. Fiyat uygun değilse "Revize iste" ya da "Reddet" '
+        'teslim tarihini kontrol edip "Teklifi onayla"ya dokunun. Fiyat uygun değilse "Revize iste" ya da "Reddet" '
         'seçebilirsiniz.';
   }
   return 'Bu konuda size yardımcı olabilirim. Sorunuzu biraz daha ayrıntılı yazar mısınız? Örneğin hangi '

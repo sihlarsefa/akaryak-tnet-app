@@ -12,6 +12,7 @@ import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
 import '../../approvals/api.dart';
 import '../application/finance_providers.dart';
+import '../application/my_approvals.dart';
 import '../copy.dart';
 import '../data/finance_models.dart';
 import '../data/finance_repository.dart';
@@ -37,6 +38,9 @@ enum FinanceSort {
 /// * Satırlar defterde ([FinanceRowCard]): ad + limit, 6 dp kullanım çubuğu + "%47", yalnızca
 ///   istisnada üçüncü satır. "Onaylı" hapı, VKN satırı, risk çipleri ve arama kuyusu yok.
 /// * Diğer'den itilince de aynı görünür; `?filter=pending|review` süzgeçle açar.
+/// * v4 tur 2 (B1): "Finans onayınızı bekliyor" yalnızca talep izleyenin Onaylar › Bende'sindeyse
+///   yazılır ve satır talebi doğrudan açar (karar orada); bant sayısı Bende'deki yeni cari talepleri.
+///   Sıra başkasındaysa satır sakin "Finans onayında" der ve kartı açar.
 class FinanceCustomersPage extends ConsumerStatefulWidget {
   const FinanceCustomersPage({super.key, this.initialFilter});
 
@@ -80,6 +84,13 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
       (_query.reviewOverdue ? 1 : 0) +
       (_sort == FinanceSort.name ? 0 : 1);
 
+  /// Satırın kararı izleyenin sırası mı: talep Bende'de. Bende yüklenirken iyimser (bekleyen kart
+  /// finans ekibinin sırasıdır); Bende'nin devamı okunmadıysa da öyle sayılır.
+  static bool _yourMove(MyApprovals? mine, FinanceListItem item) =>
+      mine == null ||
+      mine[item.stationCustomerId] != null ||
+      (!mine.complete && financeAwaitsDecision(item.status));
+
   List<FinanceListItem> _sorted(List<FinanceListItem> items) {
     if (_sort == FinanceSort.name) return items;
     final out = [...items];
@@ -102,6 +113,8 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
     final ctrl = ref.read(financeListProvider(_query).notifier);
     final pendingState = ref.watch(financeListProvider(_pendingQuery));
     final pending = pendingState.hasData ? pendingState.totalCount : null;
+    // Bende'deki yeni cari talepleri: satırın sırası ve bandın sayısı buradan (v4 P2, B1).
+    final mine = ref.watch(myApprovalsBySubjectProvider(onboardingApprovals));
     final q = _query;
     final today = TrTime.todayStart();
 
@@ -110,10 +123,14 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
     final narrow =
         leading != null ||
         (ModalRoute.of(context)?.impliesAppBarDismissal ?? false);
-    final Object status = (pending ?? 0) > 0
+    // Yüklenirken iyimser: bekleyenlerin sayısı. Sonra Bende'nin sayısı (= Pas satırlar).
+    final yours = mine == null ? pending : mine.total;
+    final Object status = (yours ?? 0) > 0
         ? AknStatusClause.yourMove(
-            FinanceCopy.pendingStatus(pending!, short: narrow),
+            FinanceCopy.pendingStatus(yours!, short: narrow),
           )
+        : (pending ?? 0) > 0
+        ? FinanceCopy.pendingElsewhereStatus(pending!)
         : (pending == null ? '' : FinanceCopy.calmStatus);
 
     final switcher = isLargeText(context)
@@ -209,11 +226,21 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
                 final sorted = _sorted(items);
                 final attention = [
                   for (final i in sorted)
-                    if (financeNeedsAttention(i, today)) i,
+                    if (financeNeedsAttention(
+                      i,
+                      today,
+                      yourMove: _yourMove(mine, i),
+                    ))
+                      i,
                 ];
                 final rest = [
                   for (final i in sorted)
-                    if (!financeNeedsAttention(i, today)) i,
+                    if (!financeNeedsAttention(
+                      i,
+                      today,
+                      yourMove: _yourMove(mine, i),
+                    ))
+                      i,
                 ];
                 final total = state.totalCount;
                 return [
@@ -235,12 +262,19 @@ class _FinanceCustomersPageState extends ConsumerState<FinanceCustomersPage> {
                   ),
                 ];
               },
-              itemBuilder: (context, item, i) => FinanceRowCard(
-                item: item,
-                onTap: () => context.push(
-                  AppRoutes.financeCustomer(item.stationCustomerId),
-                ),
-              ),
+              itemBuilder: (context, item, i) {
+                final request = mine?[item.stationCustomerId];
+                return FinanceRowCard(
+                  item: item,
+                  yourMove: _yourMove(mine, item),
+                  // Sıra izleyendeyse karar sayfası doğrudan açılır (P3); kart oradan da açılır.
+                  onTap: () => context.push(
+                    request != null
+                        ? AppRoutes.approval(request.id)
+                        : AppRoutes.financeCustomer(item.stationCustomerId),
+                  ),
+                );
+              },
               empty: q.isFiltered
                   ? EmptyState.compact(
                       title: q.search.isEmpty
@@ -373,12 +407,32 @@ class _FinanceFiltersState extends State<_FinanceFilters> {
   }
 }
 
-/// Kart durumunun lambası. Finans onayı bekleyen kart finans ekibinin sırasıdır (Pas).
-StatusStyle financeProfileLamp(FinanceProfileStatus s) {
+/// Kart durumunun lambası. Finans onayı bekleyen kart, karar izleyenin sırasıysa Pas ([yourMove]);
+/// sıra başkasındaysa sakin.
+StatusStyle financeProfileLamp(FinanceProfileStatus s, {bool yourMove = true}) {
   final base = AknStatus.financeProfile(s);
-  return s == FinanceProfileStatus.pending
+  return s == FinanceProfileStatus.pending && yourMove
       ? base.copyWith(tone: AknTone.brand)
       : base;
+}
+
+/// Kart finans kararı bekliyor (onay ya da istenen bilgi): talep Onaylar'da açıktır.
+bool financeAwaitsDecision(FinanceProfileStatus? s) =>
+    s == FinanceProfileStatus.pending ||
+    s == FinanceProfileStatus.infoRequested;
+
+/// "Marmara İnşaat Taahhüt Ltd. Şti." → ünvanın sonundaki kısaltmalar ("Ltd. Şti.", "San. A.Ş.")
+/// önceki sözcükle bölünmez boşlukla bağlanır: satır sonunda "Şti." tek başına kalmaz (v4 A19).
+String bindLegalSuffix(String title) {
+  final words = title.split(' ');
+  var i = words.length;
+  while (i > 1 && words[i - 1].endsWith('.')) {
+    i--;
+  }
+  if (i == words.length || i == 0) return title;
+  final head = words.sublist(0, i - 1).join(' ');
+  final tail = words.sublist(i - 1).join(' ');
+  return head.isEmpty ? tail : '$head $tail';
 }
 
 /// "Risk A" (etiketin harfi).
@@ -390,11 +444,20 @@ StatusStyle riskLamp(RiskClass r) => AknStatus.risk(r).withLabel(riskShort(r));
 /// Gözden geçirmeye bu kadar gün kala satırda uyarı (v4 §5 09: 30 gün).
 const _reviewSoonDays = 30;
 
-/// Satırın istisnaları (v4 §5 09 L3): finans onayı bekliyor (Pas), gecikme / karşılıksız çek /
-/// protestolu senet (tehlike), gözden geçirme geçti ya da 30 gün içinde (uyarı), Risk D, ek bilgi,
-/// askı ve ret.
+/// Kullanım bu orandan sonra tehlike rengindedir (v4 A19); altında çubuk sakin (mürekkep yok, yeşil
+/// yok): uyarı turuncusu marka turuncusuyla karışmasın.
+const financeUsageDangerAt = 0.9;
+
+/// Satırın istisnaları (v4 §5 09 L3): finans onayınızı bekliyor (Pas; yalnızca karar izleyenin
+/// sırasıysa, [yourMove]), gecikme / karşılıksız çek / protestolu senet (tehlike), gözden geçirme
+/// tarihi geldi ya da geçti (uyarı), 30 gün içinde yaklaşan gözden geçirme (sakin), Risk D, sıra
+/// başkasındaysa "Finans onayında", bilgi bekleniyor, askı ve ret.
 ({String? yourMove, List<String> danger, String? warn, List<String> notes})
-financeExceptions(FinanceListItem item, DateTime today) {
+financeExceptions(
+  FinanceListItem item,
+  DateTime today, {
+  bool yourMove = true,
+}) {
   final status = item.status;
   final danger = [
     if ((item.overdueAmount ?? 0) > 0)
@@ -402,27 +465,33 @@ financeExceptions(FinanceListItem item, DateTime today) {
     if (item.hasBouncedCheque) 'karşılıksız çek',
     if (item.hasProtestedNote) 'protestolu senet',
   ];
+  // Gözden geçirme günü geldiyse ya da geçtiyse uyarı; yaklaşıyorsa sakin not (v4 A19: uyarı
+  // turuncusu marka turuncusuyla karışmasın, yalnızca gereken yerde).
   String? warn;
+  String? soon;
   final review = item.nextReviewDate;
   if (review != null) {
     final days = TrTime.dayDiff(today, review);
     if (days < 0) {
-      warn = 'Gözden geçirme geçti';
+      warn = FinanceCopy.reviewOverdueLine;
     } else if (days == 0) {
       warn = 'Gözden geçirme bugün';
     } else if (days <= _reviewSoonDays) {
-      warn = 'Gözden geçirme $days gün sonra';
+      soon = 'Gözden geçirme $days gün sonra';
     }
   }
+  final mine = yourMove && financeAwaitsDecision(status);
   return (
-    yourMove: status == FinanceProfileStatus.pending
-        ? FinanceCopy.pendingYourMove
-        : null,
+    yourMove: mine ? FinanceCopy.pendingYourMove : null,
     danger: danger,
     warn: warn,
     notes: [
+      // Tehlike varken yaklaşan gözden geçirme yazılmaz: satır tek satırda kalır (v4 tur 2).
+      if (danger.isEmpty) ?soon,
       if (item.riskClass == RiskClass.d) riskShort(RiskClass.d),
-      if (status == FinanceProfileStatus.infoRequested) status!.label,
+      if (!mine && status == FinanceProfileStatus.pending)
+        FinanceCopy.pendingElsewhere,
+      if (status == FinanceProfileStatus.infoRequested) FinanceCopy.infoWaiting,
       if (status == FinanceProfileStatus.suspended ||
           status == FinanceProfileStatus.rejected)
         status!.label,
@@ -432,8 +501,12 @@ financeExceptions(FinanceListItem item, DateTime today) {
 }
 
 /// Satır "Dikkat" grubunda mı (en az bir istisna).
-bool financeNeedsAttention(FinanceListItem item, DateTime today) {
-  final x = financeExceptions(item, today);
+bool financeNeedsAttention(
+  FinanceListItem item,
+  DateTime today, {
+  bool yourMove = true,
+}) {
+  final x = financeExceptions(item, today, yourMove: yourMove);
   return x.yourMove != null ||
       x.danger.isNotEmpty ||
       x.warn != null ||
@@ -445,18 +518,28 @@ bool financeNeedsAttention(FinanceListItem item, DateTime today) {
 /// ```
 /// Anadolu Lojistik A.Ş.                                    2.500.000 ₺
 /// ▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░                                              %47
-/// ! Gecikme 185.000 ₺ · karşılıksız çek          (yalnızca istisnada)
+/// ! Gecikme 185.000 ₺ · karşılıksız çek · gözden geçirme tarihi geçti   (yalnızca istisnada)
 /// ```
 ///
-/// L1 cari ve limit (limit yoksa "limitsiz"); L2 6 dp kullanım çubuğu (ilk görünüşte dolarak gelir)
-/// ve oranı; L3 yalnızca istisnada: "Finans onayınızı bekliyor" (Pas), gecikme (tehlike), gözden
-/// geçirme (uyarı), "Risk D". Normal durum yazılmaz ("Onaylı" yok, v4 P4); VKN satırda yok (arama
-/// bulur).
+/// L1 cari ve limit (ünvanın sonundaki "Ltd. Şti." bölünmez); L2 6 dp kullanım çubuğu (ilk görünüşte
+/// dolarak gelir) ve oranı — %90'a kadar sakin gri, sonra tehlike (uyarı turuncusu marka turuncusuyla
+/// karışmaz); limit yoksa L2 "Limit tanımlanmadı". L3 yalnızca istisnada ve tek satır: istisnalar
+/// " · " ile, her biri kendi renginde: "Finans onayınızı bekliyor" (Pas, yalnızca [yourMove]),
+/// gecikme (tehlike), gözden geçirme (uyarı), "Risk D". Normal durum yazılmaz ("Onaylı" yok, v4 P4);
+/// VKN satırda yok (arama bulur).
 class FinanceRowCard extends StatelessWidget {
-  const FinanceRowCard({super.key, required this.item, required this.onTap});
+  const FinanceRowCard({
+    super.key,
+    required this.item,
+    required this.onTap,
+    this.yourMove = true,
+  });
 
   final FinanceListItem item;
   final VoidCallback onTap;
+
+  /// Bekleyen kartın kararı izleyenin sırası (talep Onaylar › Bende'de).
+  final bool yourMove;
 
   @override
   Widget build(BuildContext context) {
@@ -466,53 +549,82 @@ class FinanceRowCard extends StatelessWidget {
     final usage = item.usage;
     final liters = const {'L', 'l'}.contains(item.limitUnit?.trim());
     String amount(double? v) => liters ? Fmt.liters(v) : Fmt.moneyWhole(v);
-    final x = financeExceptions(item, today);
+    final x = financeExceptions(item, today, yourMove: yourMove);
     final percent = usage == null
         ? null
         : Fmt.percent(usage * 100, maxFraction: 0);
-    final tone = usage == null
-        ? null
-        : usage >= 1
-        ? AknTone.danger
-        : usage >= 0.8
-        ? AknTone.warn
-        : null;
+    final danger = usage != null && usage >= financeUsageDangerAt;
 
-    final lines = <Widget>[
-      if (x.yourMove != null)
-        Text(
-          x.yourMove!,
-          style: t.bodySmall.copyWith(
-            fontWeight: FontWeight.w600,
-            color: c.brandInk,
-          ),
-        ),
-      if (x.danger.isNotEmpty)
-        _ExceptionLine(
-          icon: PhosphorIconsFill.warningCircle,
-          text: _sentence(x.danger),
-          color: c.danger.fg,
-        ),
-      if (x.warn != null)
-        _ExceptionLine(
-          icon: PhosphorIconsRegular.calendarX,
-          text: x.warn!,
-          color: c.warn.fg,
-        ),
-      if (x.notes.isNotEmpty)
-        Text(
-          x.notes.join(' · '),
-          style: t.bodySmall.copyWith(
-            fontWeight: FontWeight.w600,
-            color: item.riskClass == RiskClass.d ? c.danger.fg : c.dim,
-          ),
-        ),
+    // L3: istisnalar tek satırda, " · " ile; ilk söz büyük harfle.
+    final base = t.bodySmall.copyWith(fontWeight: FontWeight.w600);
+    final firstDanger = x.yourMove == null ? 0 : 1;
+    // Uyarı (gözden geçirme) mürekkeple ve önünde 6 dp uyarı noktasıyla yazılır: turuncuya yakın
+    // uyarı rengi "sıra sizde" turuncusuyla karışmasın (v4 tur 2; Onaylar notları gibi).
+    final parts = <(String, Color)>[
+      if (x.yourMove != null) (x.yourMove!, c.brandInk),
+      for (final d in x.danger) (d, c.danger.fg),
+      if (x.warn != null) (x.warn!, c.ink),
+      for (final n in x.notes)
+        (n, n == riskShort(RiskClass.d) ? c.danger.fg : c.dim),
     ];
+    final warnAt = x.warn == null
+        ? -1
+        : (x.yourMove == null ? 0 : 1) + x.danger.length;
+    final Widget? exceptions = parts.isEmpty
+        ? null
+        : Text.rich(
+            TextSpan(
+              children: [
+                for (var i = 0; i < parts.length; i++) ...[
+                  if (i > 0)
+                    TextSpan(
+                      text: ' · ',
+                      style: base.copyWith(color: c.dim),
+                    ),
+                  // Renk tek başına söylemez: tehlikenin önünde "!" simgesi.
+                  if (x.danger.isNotEmpty && i == firstDanger)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 4),
+                        child: Icon(
+                          PhosphorIconsFill.warningCircle,
+                          size: MediaQuery.textScalerOf(
+                            context,
+                          ).scale(14).clamp(14.0, 26.0),
+                          color: c.danger.fg,
+                        ),
+                      ),
+                    ),
+                  if (i == warnAt)
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 6),
+                        child: SizedBox.square(
+                          dimension: 6,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: c.warn.solid,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  TextSpan(
+                    text: i == 0 ? _capital(parts[i].$1) : _lower(parts[i].$1),
+                    style: base.copyWith(color: parts[i].$2),
+                  ),
+                ],
+              ],
+            ),
+          );
 
     final semantic = [
       item.customerTitle,
       if (item.limitAmount == null)
-        FinanceCopy.unlimited
+        FinanceCopy.noLimit
       else
         'limit ${amount(item.limitAmount)}',
       if (usage != null)
@@ -524,89 +636,49 @@ class FinanceRowCard extends StatelessWidget {
     ].join(', ');
 
     return AknListTile(
-      title: item.customerTitle,
+      title: bindLegalSuffix(item.customerTitle),
       amount: item.limitAmount == null ? null : amount(item.limitAmount),
-      meta: item.limitAmount == null ? FinanceCopy.unlimited : null,
+      subtitle: item.limitAmount == null ? FinanceCopy.noLimit : null,
       flow: usage == null
           ? null
           : ExcludeSemantics(
               child: Row(
                 children: [
                   Expanded(
-                    // Ölçer sıfırdan dolarak gelir (çekirdek [UsageBar]); rengi son değerden.
-                    child: UsageBar(value: usage, height: 6, tone: tone),
+                    // Ölçer sıfırdan dolarak gelir (çekirdek [UsageBar]); %90'a kadar sakin.
+                    child: UsageBar(
+                      value: usage,
+                      height: 6,
+                      tone: danger ? AknTone.danger : AknTone.neutral,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     percent!,
                     style: t.label.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: tone == null ? c.dim : c.tone(tone).fg,
+                      color: danger ? c.danger.fg : c.dim,
                       fontFeatures: AknNumerals.tabular,
                     ),
                   ),
                 ],
               ),
             ),
-      status: lines.isEmpty
-          ? null
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < lines.length; i++) ...[
-                  if (i > 0) const SizedBox(height: 2),
-                  lines[i],
-                ],
-              ],
-            ),
+      status: exceptions,
       semanticLabel: semantic,
       onTap: onTap,
     );
   }
 
-  /// "Gecikme 185.000 ₺ · karşılıksız çek" (ilk söz büyük harfle).
-  static String _sentence(List<String> parts) {
-    final text = parts.join(' · ');
-    if (text.isEmpty) return text;
-    return '${TurkishText.upper(text.substring(0, 1))}${text.substring(1)}';
-  }
-}
+  /// "gecikme 185.000 ₺" → "Gecikme 185.000 ₺".
+  static String _capital(String s) => s.isEmpty
+      ? s
+      : '${TurkishText.upper(s.substring(0, 1))}${s.substring(1)}';
 
-/// İstisna satırı: küçük simge + renkli söz (renk tek başına değil, söz de söyler).
-class _ExceptionLine extends StatelessWidget {
-  const _ExceptionLine({
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.aknText;
-    final size = MediaQuery.textScalerOf(context).scale(15).clamp(15.0, 28.0);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(icon, size: size, color: color),
-        ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text,
-            style: t.bodySmall.copyWith(
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ),
-      ],
-    );
+  /// Satırın ortasındaki söz küçük harfle başlar ("gözden geçirme tarihi geçti"); "Risk D" gibi
+  /// kısaltma kalır.
+  static String _lower(String s) {
+    if (s.isEmpty || s.startsWith('Risk ')) return s;
+    return '${TurkishText.lower(s.substring(0, 1))}${s.substring(1)}';
   }
 }

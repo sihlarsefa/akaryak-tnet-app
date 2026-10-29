@@ -13,6 +13,8 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
+import '../../../finance/api.dart'
+    show MyApprovals, myApprovalsBySubjectProvider, orderFinanceApprovals;
 import '../../application/bayi_actions.dart';
 import '../../application/bayi_grants.dart';
 import '../../application/desk_controller.dart';
@@ -23,6 +25,7 @@ import '../dispatch/plan_sheet.dart';
 import '../dispatch/shipment_sheet.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
+import 'orders_page.dart' show bayiFinanceLamp;
 import 'quote_sheet.dart';
 
 /// Sipariş ayrıntısı (bayi; tasarım v4 "Sade" §5 07).
@@ -36,9 +39,12 @@ import 'quote_sheet.dart';
 ///   Teslim) ve `StageNow`: "Teklif verin" + geri sayım, altında kimin ne zamana kadar yapacağı.
 /// * Gövde: teklif yokken "Teklif" defteri (liste fiyatıyla tahmin, ödeme, son alım); teklif varsa
 ///   "Teklifiniz" plakası; Teslimat, Sevkiyatlar ve Teklif geçmişi defterleri (simge karosu yok).
-/// * Alt çubuk `ActionBar.decision`: yetkiye göre tek birincil (Teklif ver / Teklifi güncelle,
-///   Sevkiyat planla ya da Tamamla); diğerleri hayalet düğme. Birincil hiç kapalı değildir:
-///   çevrimdışıyken dokununca ne gerektiğini söyler.
+/// * Alt çubuk `ActionBar.decision`: yetkiye göre tek birincil (Finans kararını ver, Teklif ver /
+///   Teklifi güncelle, Sevkiyat planla ya da Tamamla); diğerleri hayalet düğme. Birincil hiç kapalı
+///   değildir: çevrimdışıyken dokununca ne gerektiğini söyler.
+/// * v4 tur 2 (B7): finans onayındaki siparişin talebi izleyenin Onaylar › Bende'sindeyse StageNow Pas
+///   "Finans onayınızı bekliyor" der ve birincil "Finans kararını ver" talebi açar (karar orada);
+///   sıra başkasındaysa StageNow sakin, talep yalnızca satır içi "Onay talebini aç" ile açılır.
 class BayiOrderDetailPage extends ConsumerStatefulWidget {
   const BayiOrderDetailPage({super.key, required this.orderId});
 
@@ -80,9 +86,14 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
     }
   }
 
-  /// Alt çubuk (v4 `ActionBar.decision`): ilk eylem birincil, diğerleri hayalet.
-  ActionBar? _dock(BayiOrderBundle b, Set<_OrderAction> actions) {
-    if (actions.isEmpty) return null;
+  /// Alt çubuk (v4 `ActionBar.decision`): ilk eylem birincil, diğerleri hayalet. Finans kararı
+  /// izleyenin sırasıysa ([financeRequestId]) birincil odur.
+  ActionBar? _dock(
+    BayiOrderBundle b,
+    Set<_OrderAction> actions, {
+    int? financeRequestId,
+  }) {
+    if (actions.isEmpty && financeRequestId == null) return null;
     final o = b.order;
     final g = ref.read(bayiGrantsProvider);
     final online = ref.watch(isOnlineProvider);
@@ -94,11 +105,19 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
     if (g.viewDesk) {
       final rows = ref.watch(quoteDeskProvider.select((s) => s.rows));
       for (final r in rows) {
-        if (r.orderId == o.id) suggestion = r.suggestedUnitPrice;
+        if (r.orderId == o.id) suggestion = r.offeredUnitPrice;
       }
     }
     final revision = o.status == OrderStatus.revisionRequested;
     final buttons = <AknButton>[
+      // Karar Onaylar'daki talepte verilir (çevrimdışıyken de sayfa açılır; karar orada denetlenir).
+      if (financeRequestId != null)
+        AknButton(
+          key: const ValueKey('order-finance-decide'),
+          label: BayiCopy.financeDecide,
+          onPressed: () =>
+              GoRouter.of(context).push(AppRoutes.approval(financeRequestId)),
+        ),
       if (actions.contains(_OrderAction.quote))
         AknButton(
           label: revision ? 'Teklifi güncelle' : 'Teklif ver',
@@ -162,6 +181,22 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
         ? const <_OrderAction>{}
         : _availableActions(g, bundle, quotingBlocked: blocked);
     final o = bundle?.order;
+    // Finans kararı izleyenin sırası mı (v4 B7): talep Bende'de; Bende'nin devamı okunmadıysa da
+    // birincil talebi açar (karar sayfası yetkiyi yine denetler).
+    final financeWait =
+        o != null && o.financeStatus.isAwaitingDecision && o.status.isOpen;
+    final mine = financeWait && g.viewApprovals
+        ? ref.watch(myApprovalsBySubjectProvider(orderFinanceApprovals))
+        : MyApprovals.none;
+    final request = o == null ? null : mine?[o.id];
+    final int? financeRequestId =
+        o == null ||
+            !financeWait ||
+            mine == null ||
+            (request == null &&
+                (mine.complete || o.financeApprovalRequestId == null))
+        ? null
+        : request?.id ?? o.financeApprovalRequestId;
     return AppScaffold(
       title: 'Sipariş',
       collapsedTitle: o == null
@@ -176,13 +211,20 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
             onPressed: () => _showMore(context, bundle, g),
           ),
       ],
-      actionBar: bundle == null ? null : _dock(bundle, actions),
+      actionBar: bundle == null
+          ? null
+          : _dock(bundle, actions, financeRequestId: financeRequestId),
       body: LoadableBody<BayiOrderBundle>(
         state: state,
         onRetry: c.refresh,
         builder: (context, b) => PullToRefresh(
           onRefresh: c.refresh,
-          child: _Body(bundle: b),
+          child: _Body(
+            bundle: b,
+            financeYours: financeRequestId != null,
+            // Bende okundu ve talep izleyenin sırası değil: satır içi bağlantı (sakin).
+            financeElsewhere: mine != null && financeRequestId == null,
+          ),
         ),
       ),
     );
@@ -327,7 +369,7 @@ extension on OrderFinanceStatus {
       this == OrderFinanceStatus.conditionallyApproved;
 }
 
-/// "bugün 10:05", "dün 14:20", "21 Eki 09:10".
+/// "bugün 10:05", "dün 14:20", "21 Ekim 09:10" (sayfada tek tarih biçimi: gün + tam ay, v4 A18).
 String whenShort(DateTime? at) {
   if (at == null) return Fmt.dash;
   final diff = TrTime.dayDiff(TrTime.now(), at);
@@ -335,25 +377,35 @@ String whenShort(DateTime? at) {
   if (diff == 0) return 'bugün $time';
   if (diff == -1) return 'dün $time';
   if (diff == 1) return 'yarın $time';
-  return '${Fmt.dayMonth(at)} $time';
+  return '${dayMonthLong(at)} $time';
 }
 
-/// "bugün 21:00'e kadar", "yarın 09:17'ye kadar".
+/// "bugün 21:00'e kadar", "yarın 09:17'ye kadar"; "kadar" saatten ayrılmaz (bölünmez boşluk).
 String _until(DateTime at) {
   final diff = TrTime.dayDiff(TrTime.now(), at);
   final day = switch (diff) {
     0 => 'bugün',
     1 => 'yarın',
     -1 => 'dün',
-    _ => Fmt.dayMonth(at),
+    _ => dayMonthLong(at),
   };
-  return '$day ${timeDative(Fmt.time(at))} kadar';
+  return '$day ${timeDative(Fmt.time(at))}\u00A0kadar';
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({required this.bundle});
+  const _Body({
+    required this.bundle,
+    this.financeYours = false,
+    this.financeElsewhere = false,
+  });
 
   final BayiOrderBundle bundle;
+
+  /// Finans kararı izleyenin sırası (talep Bende'de): StageNow Pas, birincil alt çubukta.
+  final bool financeYours;
+
+  /// Bende okundu, finans kararı başkasında: talep satır içi bağlantıyla açılır.
+  final bool financeElsewhere;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -372,12 +424,7 @@ class _Body extends ConsumerWidget {
     final financeWait = finance.isAwaitingDecision && openStatus;
     final completionHint = bundle.fulfillment?.completionHint;
     final lamp = financeWait
-        ? StatusLamp(
-            tone: finance.statusStyle.tone,
-            label: finance.label,
-            icon: finance.statusStyle.icon,
-            stage: AknStage.teklif,
-          )
+        ? bayiFinanceLamp(finance, mine: financeYours)
         : AknStatus.lampFor(
             o.status,
             g.viewer,
@@ -401,7 +448,7 @@ class _Body extends ConsumerWidget {
         final p = r.recentPrices.first;
         lastPurchase = [
           Fmt.unitPrice(p.unitPriceTry),
-          if (p.orderDate != null) Fmt.dayMonth(p.orderDate),
+          if (p.orderDate != null) dayMonthLong(p.orderDate!),
         ].join(' · ');
       }
     }
@@ -416,7 +463,11 @@ class _Body extends ConsumerWidget {
           remaining: bundle.remainingLiters,
         );
 
-    final payment = _paymentLine(o);
+    final payment = _paymentLine(
+      o,
+      due:
+          o.status == OrderStatus.approved || o.status == OrderStatus.completed,
+    );
     final paymentFact = FactRow(label: 'Ödeme', value: payment);
     final Widget paymentRow =
         g.viewPayments && o.paymentStatus != PaymentStatus.none
@@ -453,6 +504,10 @@ class _Body extends ConsumerWidget {
                 if (requested != null) dayMonthLong(requested),
               ].join(' · '),
               caption: o.orderNumber,
+              // Ne zaman verildiği kodun yanında: teslimat bilgisi değildir (v4 tur 2).
+              captionNote: o.createdAt == null
+                  ? null
+                  : 'verildi ${whenShort(o.createdAt)}',
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
             ),
           ),
@@ -477,7 +532,10 @@ class _Body extends ConsumerWidget {
               detail: detail,
             ),
           ),
+          // Karar başkasındaysa talep yalnızca satır içi bağlantıyla açılır (Pas yok; sıra izleyenin
+          // değil). İzleyenin sırasıysa birincil alt çubuktadır.
           if (financeWait &&
+              financeElsewhere &&
               o.financeApprovalRequestId != null &&
               g.viewApprovals)
             Padding(
@@ -560,19 +618,16 @@ class _Body extends ConsumerWidget {
             _Section(
               title: 'Teslimat',
               children: [
+                // İstenen teslim günü başlıkta (v4 A18: bir olgu bir kez); yalnızca teklifin günü
+                // farklıysa o yazılır.
                 if (o.deliveryAddress.isNotEmpty)
                   FactRow(label: 'Adres', value: o.deliveryAddress),
-                FactRow(
-                  label: 'İstenen teslim',
-                  value: Fmt.longDate(o.requestedDeliveryDate),
-                ),
                 if (q?.deliveryDate != null &&
                     !_sameDay(q!.deliveryDate, o.requestedDeliveryDate))
                   FactRow(
                     label: 'Teklif teslim günü',
-                    value: Fmt.longDate(q.deliveryDate),
+                    value: dayMonthLong(q.deliveryDate!),
                   ),
-                FactRow(label: 'Oluşturuldu', value: whenShort(o.createdAt)),
               ],
             ),
           ),
@@ -629,10 +684,9 @@ class _Body extends ConsumerWidget {
         if (s.vehiclePlate.isNotEmpty) Fmt.plate(s.vehiclePlate),
         if (at != null) 'çıkış $at',
       ].join(' · '),
-      ShipmentStatus.reported =>
-        '${b.order.customerTitle} teslimatı onaylayacak',
-      ShipmentStatus.disputed =>
-        '${b.order.customerTitle} teslimata itiraz etti',
+      // Müşteri başlığın üst satırında: burada yinelenmez (v4 A18).
+      ShipmentStatus.reported => 'Müşterinin onayı bekleniyor',
+      ShipmentStatus.disputed => 'Müşteri teslimata itiraz etti',
       _ => null,
     };
   }
@@ -640,7 +694,8 @@ class _Body extends ConsumerWidget {
   static bool _sameDay(DateTime? a, DateTime? b) =>
       a != null && b != null && TrTime.dayDiff(a, b) == 0;
 
-  /// StageNow'ın ikinci satırı: kim, ne zamana kadar.
+  /// StageNow'ın ikinci satırı: ne bekleniyor, ne zamana kadar. Müşteri başlığın üst satırında
+  /// adıyla durur: burada yinelenmez (v4 A18: "Teklifinizi bekliyor · yarın 03:26'ya kadar").
   static String? _detail(
     OrderDetail o,
     StatusLamp lamp, {
@@ -652,32 +707,34 @@ class _Body extends ConsumerWidget {
     if (financeWait) {
       return o.financeReasons ?? 'Finans kararı gelene kadar teklif verilemez.';
     }
-    final who = o.customerTitle;
+    // Aşama cümlesi ("Teklif bekleniyor", "Revize istendi") ikinci satırda yinelenmez (P4, v4 tur 2):
+    // ikinci satır yalnızca ne zamana kadar olduğunu söyler.
+    final term = by == null ? null : 'Teklif süresi $by';
     return switch (o.status) {
-      OrderStatus.awaitingQuote => [
-        lamp.yourMove ? '$who teklifinizi bekliyor' : 'Teklif bekleniyor',
-        ?by,
-      ].join(' · '),
-      OrderStatus.revisionRequested => ['$who revize istedi', ?by].join(' · '),
+      OrderStatus.awaitingQuote =>
+        lamp.yourMove ? ['Teklifinizi bekliyor', ?by].join(' · ') : term,
+      OrderStatus.revisionRequested => term,
       OrderStatus.awaitingApproval => [
-        '$who teklifinizi değerlendiriyor',
+        'Teklifiniz değerlendiriliyor',
         ?by,
       ].join(' · '),
       OrderStatus.approved when remaining > 0 =>
         'Planlanacak ${Fmt.liters(remaining)}',
-      OrderStatus.rejected => '$who teklifi reddetti',
+      OrderStatus.rejected => 'Müşteri teklifi reddetti',
       OrderStatus.expired => 'Karar süresi doldu',
       OrderStatus.completed => 'Sipariş kapandı',
       _ => null,
     };
   }
 
-  /// "Havale / EFT (peşin), bekliyor", "Çek, 30 gün vade · tahsil edildi".
-  static String _paymentLine(OrderDetail o) {
+  /// "Havale / EFT (peşin)", "Çek, 30 gün vade · tahsil edildi". Sipariş onaylanmadan ödemenin
+  /// yapılmamış olması olağandır: yazılmaz (v4 P4), satır yöntemle tek satırda kalır (A18). Onaydan
+  /// sonra ([due]) "ödeme henüz yapılmadı" (neyin beklendiği, B16).
+  static String _paymentLine(OrderDetail o, {required bool due}) {
     final term = o.paymentTermDays ?? 0;
     final method = paymentMethodName(o.paymentMethodCode);
     final status = switch (o.paymentStatus) {
-      PaymentStatus.pending => 'bekliyor',
+      PaymentStatus.pending => due ? 'ödeme henüz yapılmadı' : null,
       PaymentStatus.documentUploaded => 'belge yüklendi',
       PaymentStatus.collected => 'tahsil edildi',
       PaymentStatus.bounced => 'karşılıksız',
@@ -685,13 +742,13 @@ class _Body extends ConsumerWidget {
       PaymentStatus.cancelled => 'iptal edildi',
       _ => null,
     };
-    final due = o.paymentDueDate == null
+    final dueDate = o.paymentDueDate == null
         ? null
         : 'son ödeme ${dayMonthLong(o.paymentDueDate!)}';
     return [
       [method, if (term > 0) '$term gün vade'].join(', '),
       ?status,
-      ?due,
+      ?dueDate,
     ].join(' · ');
   }
 }

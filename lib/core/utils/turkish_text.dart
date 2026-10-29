@@ -65,6 +65,78 @@ abstract final class TurkishText {
     if (parts.isEmpty) return '?';
     return parts.take(max).map((p) => upper(p.substring(0, 1))).join();
   }
+
+  /// Bir firmanın kısa adı: yasal ve sektör eklerinden önceki sözcükler ("Demir Petrol Akaryakıt
+  /// Ltd. Şti." → "Demir Petrol", "Körfez Nakliyat ve Ticaret" → "Körfez Nakliyat"). Görev satırları
+  /// ve bildirim metinleri aynı sözü yazar (v4 P2, A9).
+  static String shortCompany(String? title) {
+    final full = (title ?? '').trim();
+    if (full.isEmpty) return '';
+    const stops = {
+      'akaryakıt',
+      'akaryakit',
+      'ltd.',
+      'ltd',
+      'şti.',
+      'şti',
+      'a.ş.',
+      'a.ş',
+      'aş',
+      'tic.',
+      'san.',
+      'limited',
+      'anonim',
+      've',
+    };
+    final kept = <String>[];
+    for (final w in full.split(RegExp(r'\s+'))) {
+      if (stops.contains(lower(w))) break;
+      kept.add(w);
+    }
+    final out = kept.join(' ').trim();
+    return out.isEmpty ? full : out;
+  }
+
+  /// Saatin yönelme eki, okunuşuna göre: "21:00'e", "08:26'ya", "10:30'a", "16:50'ye" (dakika
+  /// sıfırsa saat okunur: "10:00'a"). "… kadar karar verin" cümleleri için.
+  static String timeDative(String time) {
+    final m = RegExp(r'(\d{1,2})[:.](\d{2})$').firstMatch(time.trim());
+    if (m == null) return "$time'e";
+    final hour = int.parse(m[1]!);
+    final minute = int.parse(m[2]!);
+    final word = _numberWord(minute == 0 ? hour : minute);
+    const vowels = 'aeıioöuü';
+    var last = 'e';
+    for (var i = word.length - 1; i >= 0; i--) {
+      if (vowels.contains(word[i])) {
+        last = word[i];
+        break;
+      }
+    }
+    final back = 'aıou'.contains(last);
+    final y = vowels.contains(word[word.length - 1]) ? 'y' : '';
+    return "$time'$y${back ? 'a' : 'e'}";
+  }
+
+  /// Sayının (0–59 ve saatler) okunuşunun son sözcüğü: ek uyumu için.
+  static String _numberWord(int n) {
+    const ones = [
+      'sıfır',
+      'bir',
+      'iki',
+      'üç',
+      'dört',
+      'beş',
+      'altı',
+      'yedi',
+      'sekiz',
+      'dokuz',
+    ];
+    const tens = ['', 'on', 'yirmi', 'otuz', 'kırk', 'elli'];
+    if (n < 10) return ones[n];
+    final o = n % 10;
+    return o == 0 ? tens[(n ~/ 10).clamp(0, 5)] : ones[o];
+  }
 }
 
 /// Yalnızca A–Z harflerine dokunan büyük/küçük harf dönüşümü: kodlar, HTTP başlıkları, dosya

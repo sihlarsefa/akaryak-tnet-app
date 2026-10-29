@@ -61,7 +61,7 @@ void main() {
     });
 
     testWidgets(
-      'one primary, the lead + at most 2 rows, "Tümünü gör (n)" past them',
+      'one primary, the lead + at most 2 rows, "Tüm işler" past them',
       (tester) async {
         var opened = 0;
         var acted = 0;
@@ -93,11 +93,13 @@ void main() {
         expect(_primaries(), findsOneWidget);
         expect(find.text('Çek görselini yükle'), findsOneWidget);
         expect(find.text('Bilgi gönder'), findsNothing);
-        // The lead + two rows; the fourth task waits behind "Tümünü gör".
+        // The lead + two rows; the fourth task waits behind "Tüm işler" (the
+        // count is the pill's; v4 round 2: one footer word on every home).
         expect(find.byType(AknTaskRow), findsNWidgets(2));
         expect(find.text('Bilgi gönderin'), findsNothing);
-        expect(find.text('Tümünü gör (4)'), findsOneWidget);
-        await tester.tap(find.text('Tümünü gör (4)'));
+        expect(find.text('Tüm işler'), findsOneWidget);
+        expect(find.bySemanticsLabel('Tüm işler, 4 iş'), findsOneWidget);
+        await tester.tap(find.text('Tüm işler'));
         await tester.tap(find.text('Çek görselini yükle'));
         expect(opened, 1);
         expect(acted, 1);

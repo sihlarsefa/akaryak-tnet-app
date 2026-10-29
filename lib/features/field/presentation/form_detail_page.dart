@@ -170,12 +170,13 @@ class FieldFormDetailPage extends ConsumerWidget {
           tone: AknTone.warn,
           icon: PhosphorIconsRegular.chatCircleDots,
           title: 'Finans ek bilgi istedi',
+          // Yer adı alt menünün kelimesi (v4 §3.2, B8); "Yanıtla" talebin yanıt alanını açar.
           message:
-              'Onaylarım’daki talebe not ve istenen belgeyle yanıt verin; yanıt gelince finans incelemesi sürer.',
+              'Onaylar’daki talebe not ve istenen belgeyle yanıt verin; yanıt gelince finans incelemesi sürer.',
           actionLabel: access.canOpenApprovals ? 'Yanıtla' : null,
           onAction: access.canOpenApprovals
               ? () => context.push(
-                  AppRoutes.approval(f.financeApprovalRequestId!),
+                  '${AppRoutes.approval(f.financeApprovalRequestId!)}?reply=1',
                 )
               : null,
         ),

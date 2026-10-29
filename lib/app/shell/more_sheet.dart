@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/session_controller.dart';
+import '../../core/routing/app_location.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/ui/ui.dart';
 import '../destinations.dart';
@@ -130,7 +131,9 @@ class MoreSheetBody extends ConsumerWidget {
   void _go(BuildContext sheetContext, String path) {
     AknHaptics.selection();
     Navigator.of(sheetContext).pop();
-    GoRouter.of(rootContext).push(path);
+    // Diğer'deki yerler bu rolün sekmesi değildir; yine de bir yol sekmeyse `go` ile açılır
+    // (QA SC-01).
+    openAppLocation(GoRouter.of(rootContext), path);
   }
 }
 

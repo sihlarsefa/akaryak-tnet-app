@@ -16,9 +16,10 @@ enum AknDeltaDirection { up, down, flat }
 /// "4 puan", "0,44 ₺", 13 w700, tabular) in a 24 px chip with 8 px corners.
 /// When it first appears its arrow slides in along its direction.
 ///
-/// * On the plate card (owner decision G): `deltaFill` with the text and
-///   arrow in `brandInk`. The chip is neutral there — no good / bad colour;
-///   the sentence after it names the comparison.
+/// * On the plate card: neutral — an ink ▲ / ▼ and value in a `plateLine`
+///   outline, no fill (v4 P5: orange is for action and "you are here",
+///   never for a healthy statistic; A11). No good / bad colour there; the
+///   period line or the sentence after it names the comparison.
 /// * On white: a soft tone well. When [goodForViewer] is known (a falling
 ///   unit price is good for a customer) the chip takes the ok / danger well
 ///   and ink (`ToneColors.bg` + `fg`); otherwise it is a `surfaceAlt` chip
@@ -134,8 +135,10 @@ class _AknDeltaChipState extends State<AknDeltaChip>
         : good
         ? c.ok
         : c.danger;
-    final fill = plate ? c.deltaFill : tone?.bg ?? c.surfaceAlt;
-    final ink = plate ? c.brandInk : tone?.fg ?? c.ink;
+    // On the plate: no fill, an ink arrow and value, a `plateLine` outline
+    // (painted over the chip, so its size stays 24).
+    final fill = plate ? null : tone?.bg ?? c.surfaceAlt;
+    final ink = plate ? c.ink : tone?.fg ?? c.ink;
     final style = t.bodySmall.copyWith(
       fontSize: 13,
       height: 24 / 13,
@@ -160,6 +163,12 @@ class _AknDeltaChipState extends State<AknDeltaChip>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(color: fill, borderRadius: AknRadius.tag),
+        foregroundDecoration: plate
+            ? BoxDecoration(
+                border: Border.all(color: c.plateLine),
+                borderRadius: AknRadius.tag,
+              )
+            : null,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

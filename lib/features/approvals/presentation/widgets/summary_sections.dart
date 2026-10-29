@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/access_policy.dart';
 import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/env/app_config_controller.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/routing/route_access.dart';
 import '../../../../core/ui/ui.dart';
@@ -290,7 +290,8 @@ class RelatedLinksCard extends ConsumerWidget {
               title: l.label,
               showChevron: true,
               dense: true,
-              onTap: () => context.push(l.route),
+              // Bağlantı bir rolün sekmesi olabilir (ör. Finans): QA SC-01.
+              onTap: () => context.openAppLocation(l.route),
             ),
         ],
       ),

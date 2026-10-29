@@ -34,12 +34,26 @@ abstract final class BayiCopy {
   static const deskEmptyMessage =
       'Yeni sipariş geldiğinde burada görünür ve bildirim alırsınız.';
   static const deskSubmitHint = 'Fiyat yazdığınız satırlar seçilir.';
+
+  /// Alt çubuğun notu, hiçbir satıra fiyat yazılmamışken (v4 B10).
+  static const deskStartHint =
+      'Fiyat yazın ya da Öneri\'ye dokunun; Gönder düğmesi açılır.';
   static const deskOffline = 'Çevrimdışıyken teklif gönderilemez.';
 
   // Siparişler
   static const ordersEmptyTitle = 'Henüz sipariş yok';
   static const ordersEmptyMessage =
       'Carilerinizin siparişleri burada listelenir.';
+
+  /// Finans kararı izleyenin sırası (talep Onaylar › Bende'de; v4 B7): satır ve ayrıntı aynı söz.
+  static const financeYourMove = 'Finans onayınızı bekliyor';
+
+  /// Ayrıntının alt çubuğu: finans talebini açar (karar orada). Düğme sözü yalın emirdir ("Teklif
+  /// ver", "Sevkiyat planla" gibi; finans kartının ve müşterinin "Karar ver"iyle aynı biçim).
+  static const financeDecide = 'Finans kararını ver';
+
+  /// Finans ek bilgi istedi: kimin yapacağı (v4 B16).
+  static const financeInfoFromCustomer = 'Müşteriden bilgi bekleniyor';
 
   // Cariler
   static const customersEmptyTitle = 'Cari bulunamadı';

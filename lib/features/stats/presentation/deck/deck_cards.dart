@@ -97,6 +97,7 @@ class DeckCardScope extends InheritedWidget {
     this.onRollStart,
     this.chipFill,
     this.chipInk,
+    this.chipLine,
   });
 
   /// 1,6× ve üstü yazı: başlık, rakam, çip ve cümle; çubuk ve okuma yok.
@@ -108,9 +109,12 @@ class DeckCardScope extends InheritedWidget {
   /// Dönüş başlarken (ya da hareket azaltmada son kare çizilirken).
   final VoidCallback? onRollStart;
 
-  /// Fark çipinin zemini ve yazısı (plakada açık turuncu zemin + pas yazı, kâğıtta sakin kuyu).
+  /// Fark çipinin zemini, yazısı ve çerçevesi. v4 tur 2 (A11): çip sakindir — zemin yok, mürekkep
+  /// ▲/▼ ve değer, ince çerçeve (plakada `plateLine`, kâğıtta `line`). Turuncu yalnızca eylem ve "sıra
+  /// sizde" içindir (P5); sağlıklı bir istatistik turuncu olmaz.
   final Color? chipFill;
   final Color? chipInk;
+  final Color? chipLine;
 
   static DeckCardScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DeckCardScope>();
@@ -121,7 +125,8 @@ class DeckCardScope extends InheritedWidget {
       roll != old.roll ||
       onRollStart != old.onRollStart ||
       chipFill != old.chipFill ||
-      chipInk != old.chipInk;
+      chipInk != old.chipInk ||
+      chipLine != old.chipLine;
 }
 
 /// Bayi destesi: Satış, Satılan yakıt, Sipariş hunisi, Tahsilat, Sevkiyat, En çok alan cariler, Saha
@@ -136,6 +141,9 @@ List<DeckCardSpec> bayiDeckCards(
 }) {
   final period = _periodText(s.period);
   final compare = s.period.key.compareShort;
+  // Fark çipli kartların başlığı karşılaştırmayı da söyler ("1–29 Ekim · geçen aya göre", /stats ile
+  // aynı söz); rakamın altında ayrı cümle satırı yok, içerik küçülmeden sığar (v4 tur 2).
+  final compared = _comparedPeriod(period, s.period.key);
   final sales = s.sales;
   final out = <DeckCardSpec>[];
 
@@ -146,12 +154,11 @@ List<DeckCardSpec> bayiDeckCards(
         tone: AknTone.brand,
         icon: PhosphorIconsRegular.chartBar,
         title: own ? StatsCopy.cardSalesOwn : StatsCopy.cardSales,
-        subtitle: period,
+        subtitle: compared,
         howTo: own
             ? '${StatsCopy.howSales}\n\n${StatsCopy.howSalesOwn}'
             : StatsCopy.howSales,
         summary: _moneySummary(sales.amount, sales.prevAmount),
-        compactLine: _pctLine(sales.amount, sales.prevAmount, compare),
         body: _AmountBody(
           amount: sales.amount,
           previous: sales.prevAmount,
@@ -171,10 +178,9 @@ List<DeckCardSpec> bayiDeckCards(
         tone: AknTone.info,
         icon: PhosphorIconsRegular.gasPump,
         title: StatsCopy.cardFuel,
-        subtitle: period,
+        subtitle: compared,
         howTo: StatsCopy.howFuel,
         summary: _litersSummary(sales.liters, sales.prevLiters),
-        compactLine: _pctLine(sales.liters, sales.prevLiters, compare),
         body: _LitersBody(
           liters: sales.liters,
           previous: sales.prevLiters,
@@ -352,6 +358,7 @@ List<DeckCardSpec> bayiDeckCards(
 List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
   final period = _periodText(s.period);
   final compare = s.period.key.compareShort;
+  final compared = _comparedPeriod(period, s.period.key);
   final spend = s.spending;
   final out = <DeckCardSpec>[];
   if (spend != null) {
@@ -363,10 +370,9 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
         title: s.period.key == StatsPeriod.month
             ? StatsCopy.cardSpend
             : StatsCopy.kpiSpending,
-        subtitle: period,
+        subtitle: compared,
         howTo: StatsCopy.howSpend,
         summary: _moneySummary(spend.amount, spend.prevAmount),
-        compactLine: _pctLine(spend.amount, spend.prevAmount, compare),
         body: _AmountBody(
           amount: spend.amount,
           previous: spend.prevAmount,
@@ -386,10 +392,9 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
         tone: AknTone.info,
         icon: PhosphorIconsRegular.gasPump,
         title: StatsCopy.cardPurchase,
-        subtitle: period,
+        subtitle: compared,
         howTo: StatsCopy.howPurchase,
         summary: _litersSummary(spend.liters, spend.prevLiters),
-        compactLine: _pctLine(spend.liters, spend.prevLiters, compare),
         body: _LitersBody(
           liters: spend.liters,
           previous: spend.prevLiters,
@@ -477,12 +482,10 @@ List<DeckCardSpec> customerDeckCards(BuildContext context, CustomerStats s) {
 String _periodText(StatsPeriodInfo p) =>
     p.from == null ? p.title : StatsFmt.rangeShort(p.from, p.to);
 
-DeckLineSpec? _pctLine(double current, double previous, String compare) {
-  final pct = StatsFmt.change(current, previous);
-  return pct == null
-      ? null
-      : DeckLineSpec(compare, chip: StatsFmt.deltaPercent(pct));
-}
+/// Fark çipli kartın başlık satırı: dönem ve karşılaştırmanın kısa adı ("1–29 Ekim · geçen aya
+/// göre"; v4 tur 2, /stats plakasıyla aynı söz). Ekran okuyucu çipte uzun cümleyi duyar.
+String _comparedPeriod(String period, StatsPeriod key) =>
+    period.isEmpty ? key.compareBrief : '$period · ${key.compareBrief}';
 
 DeckLineSpec? _priceLine(double price, double? previous) {
   if (previous == null) return null;
@@ -584,6 +587,25 @@ double _rankedExtent(BuildContext context) =>
 Duration _rowDelay(int i, {int base = 220}) =>
     Duration(milliseconds: base + 90 * i);
 
+/// Çubuklarla kural ve kuralla okumalar arası (destede).
+const double _deckBarsGap = 8;
+const double _deckRuleGap = 6;
+
+/// Çubukların altındaki ay adlarının yeri ([PlateBars]: 4 + 12/16 etiket).
+double _barsLabelExtent(BuildContext context) =>
+    4 + MediaQuery.textScalerOf(context).scale(12) * 16 / 12;
+
+/// Destede çubuk alanının yüksekliği (24–44): [maxHeight]'tan ay adları, kural ve okumalar (12/16
+/// etiket + 24/30 değer) düşülür; kalan çubuklarındır. Yazı küçülmez, çubuklar kısalır (v4 tur 2).
+double _deckBarsHeight(BuildContext context, double maxHeight) {
+  if (!maxHeight.isFinite) return 44;
+  final scaler = MediaQuery.textScalerOf(context);
+  final readouts = scaler.scale(12) * 16 / 12 + 2 + scaler.scale(24) * 30 / 24;
+  final rest =
+      _barsLabelExtent(context) + _deckBarsGap + 1 + _deckRuleGap + readouts;
+  return (maxHeight - rest).clamp(24.0, 44.0).toDouble();
+}
+
 // ============================================================== içerik düzeni
 
 /// Kart içeriği (tasarım v3 §4 hero kartı): üstte rakam ve fark satırı, ardından üste yaslı ayrıntı
@@ -628,16 +650,19 @@ class DeckBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final compact = DeckCardScope.maybeOf(context)?.compact ?? false;
     final l = compact ? (compactLine ?? line) : line;
+    // Karşılaştırması başlıkta olan fark satırı yer kaplamaz (yalnızca çipi başlığa bırakır).
+    final inHead =
+        l is _DeckDelta && l.inHead && DeckHeadChip.of(context) != null;
     final top = <Widget>[
       figure,
-      if (l != null) ...[const SizedBox(height: 8), l],
+      if (l != null) ...[if (!inHead) const SizedBox(height: 8), l],
     ];
     final build = detailBuilder;
     final hasDetail =
         !compact && (detail != null || build != null || detailTop != null);
     if (!hasDetail) {
       return _ScaleDown(
-        alignment: Alignment.topLeft,
+        alignment: AlignmentDirectional.topStart,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
@@ -646,7 +671,11 @@ class DeckBody extends StatelessWidget {
       );
     }
     final dt = detailTop;
-    final align = topAligned ? Alignment.topCenter : Alignment.bottomCenter;
+    // Küçülmesi gerekirse baştan (sol kenar) hizalı küçülür: ayrıntının sol kenarı başlıkla ve
+    // rakamla aynı çizgide kalır (v4 tur 2; ortalı küçülme yapıştırılmış küçük resim gibi duruyordu).
+    final align = topAligned
+        ? AlignmentDirectional.topStart
+        : AlignmentDirectional.bottomStart;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -677,7 +706,7 @@ class _ScaleDown extends StatelessWidget {
   const _ScaleDown({required this.child, required this.alignment});
 
   final Widget child;
-  final Alignment alignment;
+  final AlignmentGeometry alignment;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -751,10 +780,10 @@ class DeckHeadChip extends InheritedWidget {
 }
 
 /// Fark çipi ve karşılaştırma cümlesi ("▲ %9,4 geçen ayın aynı günlerine göre"); cümle sığmazsa çipin
-/// yanından sözcük sözcük alta akar. Çip (tasarım v3 §4): r8, 24 px, 13 w700 tabular; plakada açık
-/// turuncu zemin (`deltaFill`) + pas yazı (`brandInk`), kâğıtta sakin kuyu + mürekkep. Renkler
-/// desteden ([DeckCardScope]) gelir ki kart plakayı devralırken çip de yumuşakça geçsin. Plakada
-/// iyi / kötü rengi yoktur; cümle 13/18 500 soluk. Kart öne gelince çip "pop" ile oturur, oku
+/// yanından sözcük sözcük alta akar. Çip (tasarım v3 §4; v4 tur 2 A11): r8, 24 px, 13 w700 tabular;
+/// sakin — zemin yok, mürekkep ▲/▼ ve değer, ince çerçeve (plakada `plateLine`, kâğıtta `line`).
+/// Renkler desteden ([DeckCardScope]) gelir ki kart plakayı devralırken çip de yumuşakça geçsin.
+/// İyi / kötü rengi yoktur; cümle 13/18 500 soluk. Kart öne gelince çip "pop" ile oturur, oku
 /// yönünde kayarak girer ve cümle hafifçe yükselerek belirir.
 class _DeckDelta extends StatefulWidget {
   const _DeckDelta({
@@ -762,9 +791,14 @@ class _DeckDelta extends StatefulWidget {
     required this.direction,
     required this.sentence,
     required this.spoken,
+    this.inHead = false,
   });
 
-  factory _DeckDelta.percent(double pct, {required String sentence}) {
+  factory _DeckDelta.percent(
+    double pct, {
+    required String sentence,
+    bool inHead = false,
+  }) {
     final flat = pct.abs() < StatsFmt.flatThreshold;
     return _DeckDelta(
       label: StatsFmt.deltaPercent(pct),
@@ -775,6 +809,7 @@ class _DeckDelta extends StatefulWidget {
           : AknDeltaDirection.down,
       sentence: sentence,
       spoken: '${StatsFmt.deltaSpoken(pct)}, $sentence',
+      inHead: inHead,
     );
   }
 
@@ -782,6 +817,10 @@ class _DeckDelta extends StatefulWidget {
   final AknDeltaDirection direction;
   final String sentence;
   final String spoken;
+
+  /// Destede karşılaştırma başlığın dönem satırındadır ("1–29 Ekim · geçen aya göre", v4 tur 2):
+  /// çip başlığa gider, rakamın altında cümle satırı çizilmez (ekran okuyucu yine tam cümleyi duyar).
+  final bool inHead;
 
   @override
   State<_DeckDelta> createState() => _DeckDeltaState();
@@ -796,8 +835,9 @@ class _DeckDeltaState extends State<_DeckDelta> {
   Widget _chip(BuildContext context) {
     final c = context.akn;
     final scope = DeckCardScope.maybeOf(context);
-    final fill = scope?.chipFill ?? c.deltaFill;
-    final ink = scope?.chipInk ?? c.brandInk;
+    final fill = scope?.chipFill;
+    final ink = scope?.chipInk ?? c.ink;
+    final line = scope?.chipLine ?? c.plateLine;
     final direction = widget.direction;
     final arrow =
         direction == AknDeltaDirection.up ||
@@ -806,7 +846,11 @@ class _DeckDeltaState extends State<_DeckDelta> {
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(color: fill, borderRadius: AknRadius.tag),
+      decoration: BoxDecoration(
+        color: fill,
+        border: Border.all(color: line),
+        borderRadius: AknRadius.tag,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -853,6 +897,14 @@ class _DeckDeltaState extends State<_DeckDelta> {
   Widget build(BuildContext context) {
     _sink = DeckHeadChip.of(context);
     final chip = _chip(context);
+    if (_sink != null && widget.inHead) {
+      _publish(chip);
+      return Semantics(
+        label: widget.spoken,
+        excludeSemantics: true,
+        child: const SizedBox(width: double.infinity),
+      );
+    }
     if (_sink != null) {
       _publish(chip);
       return Semantics(
@@ -1197,13 +1249,18 @@ class _AmountBody extends StatelessWidget {
         unit: '₺',
         semantics: StatsFmt.moneyWholeSpoken(amount),
       ),
-      line: pct == null ? null : _DeckDelta.percent(pct, sentence: compare),
-      detail: Column(
+      line: pct == null
+          ? null
+          : _DeckDelta.percent(pct, sentence: compare, inHead: true),
+      // Çubuklar kalan yüksekliğe göre boylanır; okumalar ve ay adları tam boyda kalır (v4 tur 2:
+      // ayrıntı küçülüp okumalar 9 dp'ye inmesin).
+      detailBuilder: (context, maxHeight) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           if (months.isNotEmpty) ...[
             PlateBars(
+              height: _deckBarsHeight(context, maxHeight),
               values: [for (final m in months) m.amount],
               labels: [for (final m in months) m.shortLabel],
               projection: proj,
@@ -1222,10 +1279,10 @@ class _AmountBody extends StatelessWidget {
               animate: scope?.roll ?? false,
               delay: _barsDelay,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: _deckBarsGap),
           ],
           const PlateRule(),
-          const SizedBox(height: 8),
+          const SizedBox(height: _deckRuleGap),
           PlateReadouts(
             items: [
               PlateReadout(
@@ -1281,11 +1338,17 @@ class _LitersBody extends StatelessWidget {
         unit: 'L',
         semantics: StatsFmt.litersSpoken(liters),
       ),
-      line: pct == null ? null : _DeckDelta.percent(pct, sentence: compare),
+      line: pct == null
+          ? null
+          : _DeckDelta.percent(pct, sentence: compare, inHead: true),
       detailBuilder: (context, maxHeight) {
         if (sorted.isEmpty) {
           if (months.isEmpty) return const SizedBox.shrink();
           return PlateBars(
+            height: math.min(
+              44,
+              math.max(24, maxHeight - _barsLabelExtent(context)),
+            ),
             values: [for (final m in months) m.liters],
             labels: [for (final m in months) m.shortLabel],
             valueLabels: [

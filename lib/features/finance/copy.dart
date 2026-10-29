@@ -25,14 +25,39 @@ abstract final class FinanceCopy {
 
   // ---------------------------------------------------------------- v4 (§3.2, §5 09)
 
-  /// Bant durumu: "1 cari finans onayınızı bekliyor"; dar bantta "1 cari onay bekliyor".
+  /// Bant durumu: "1 cari finans onayınızı bekliyor"; dar bantta "1 cari onayınızda" (kimin onayı
+  /// olduğu kısa sözde de kalır; satırın "Finans onayınızı bekliyor"u ile aynı kişi, v4 tur 2).
   static String pendingStatus(int n, {bool short = false}) =>
-      short ? '$n cari onay bekliyor' : '$n cari finans onayınızı bekliyor';
+      short ? '$n cari onayınızda' : '$n cari finans onayınızı bekliyor';
   static const calmStatus = 'Onay bekleyen cari yok';
 
-  /// Satırın üçüncü satırı (sıra izleyicide, Pas).
+  /// Bant durumu, karar başkasındayken (sakin): "1 cari finans onayında".
+  static String pendingElsewhereStatus(int n) => '$n cari finans onayında';
+
+  /// Satırın üçüncü satırı (karar izleyenin sırası: talep Onaylar › Bende'de; Pas).
   static const pendingYourMove = 'Finans onayınızı bekliyor';
-  static const unlimited = 'limitsiz';
+
+  /// Bekleyen kartın kararı başkasında (sakin not).
+  static const pendingElsewhere = 'Finans onayında';
+
+  /// Finans ek bilgi istedi; yanıt bekleniyor (sakin not).
+  static const infoWaiting = 'Bilgi bekleniyor';
+
+  /// Gözden geçirme günü geçti (uyarı).
+  static const reviewOverdueLine = 'Gözden geçirme tarihi geçti';
+
+  /// Limiti olmayan cari: "limitsiz" sınırsız kredi gibi okunur (v4 B16).
+  static const noLimit = 'Limit tanımlanmadı';
+
+  /// Kartın "Bağlantı limiti" değeri.
+  static const noLimitValue = 'Tanımlanmadı';
+
+  /// Kart alt çubuğunun birincili: talebi açar, karar orada (v4 B1). Düğme sözü yalın emirdir;
+  /// müşterinin talep ayrıntısındaki "Karar ver"le aynı.
+  static const decide = 'Karar ver';
+
+  /// Gözden geçirme uyarısının eylemi: kart web portalında açılır.
+  static const openInPortal = 'Portalda aç';
 
   static const groupAttention = 'Dikkat';
   static const groupAll = 'Tüm cariler';

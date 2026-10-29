@@ -62,6 +62,9 @@ abstract final class AppRoutes {
   /// Ekip (bayi personeli).
   static const bayiStaff = '/bayi/staff';
 
+  /// Tüm işler (bayi ana sayfası kartının alt satırı; hiçbir zaman sekme değil, v4 tur 2 B18).
+  static const bayiTasks = '/bayi/tasks';
+
   // Şoför
   static const driver = '/driver';
   static String driverShipment(int id) => '/driver/shipments/$id';

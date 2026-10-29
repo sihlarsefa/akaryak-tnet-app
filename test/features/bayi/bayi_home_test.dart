@@ -13,6 +13,7 @@ import 'package:akaryakitnet/features/bayi/copy.dart';
 import 'package:akaryakitnet/features/bayi/fake/home_fake.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/home_sections.dart';
 import 'package:akaryakitnet/features/bayi/presentation/home/order_pipeline.dart';
+import 'package:akaryakitnet/features/bayi/presentation/home/tasks_page.dart';
 import 'package:akaryakitnet/features/stats/api.dart'
     show ManagerStatsDeck, registerStatsFakes;
 import 'package:flutter/material.dart';
@@ -94,7 +95,7 @@ void main() {
   });
 
   testWidgets(
-    '"Tüm işler": bütün işler tek sayfada; kartta ikinci bir sayı yok',
+    '"Tüm işler": itilen sayfada bütün işler (alt sayfa değil); kartta ikinci bir sayı yok',
     (tester) async {
       final app = await BayiTestApp.start(
         tester,
@@ -113,12 +114,23 @@ void main() {
       expect(find.bySemanticsLabel(RegExp(r'^Sıra sizde, \d')), findsNothing);
       expect(find.textContaining('Tümünü gör'), findsNothing);
       await scrollTap(tester, find.text('Tüm işler'));
+      // v4 tur 2 (B18): diğer ana sayfalar gibi bir sayfa açılır (alt sayfa değil); başlığı bağlantının
+      // sözü, satırları kartın satırları, kartın sırasıyla.
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(BayiTasksPage), findsOneWidget);
+      final rows = find.descendant(
+        of: find.byType(BayiTasksPage),
+        matching: find.byType(AknTaskRow),
+      );
+      expect(rows, findsNWidgets(card.tasks.length));
       expect(
-        find.descendant(
-          of: find.byType(BottomSheet).last,
-          matching: find.byType(AknTaskRow),
-        ),
-        findsNWidgets(card.tasks.length),
+        [for (final r in tester.widgetList<AknTaskRow>(rows)) r.task.id],
+        [for (final t in card.tasks) t.id],
+      );
+      // Teklif işi burada fiille okunur (düğme yok): "Teklif verin".
+      expect(
+        tester.widgetList<AknTaskRow>(rows).first.task.title,
+        anyOf('Teklif verin', 'Teklifi yenileyin'),
       );
       await app.finish(tester);
     },
@@ -150,13 +162,16 @@ void main() {
     await reveal(tester, find.text('Bugün'));
     final today = tester.widget<BayiTodayLedger>(find.byType(BayiTodayLedger));
     final card = tester.widget<AknTaskCard>(find.byType(AknTaskCard));
-    // Karttaki ilk üç iş (öndeki + iki satır) Bugün'de yok; kalanlar en üstte — hattın
-    // söylediği sayılar (Plan, şoför ataması) hariç.
+    // Karttaki ilk üç iş (öndeki + iki satır) Bugün'de yok; kalanlar en üstte. Hattın saydığı
+    // Plan sayısız yazılır (v4 tur 2 B18: "Sevkiyatı planlayın", sayı hatta).
     expect(today.overflow.map((t) => t.id), [
-      for (final t in card.tasks.skip(3))
-        if (t.id != 'plan' && t.id != 'drivers') t.id,
+      for (final t in card.tasks.skip(3)) t.id,
     ]);
-    expect(today.overflow.map((t) => t.id), isNot(contains('plan')));
+    final plan = today.overflow.where((t) => t.id == 'plan');
+    if (plan.isNotEmpty) {
+      expect(plan.single.title, 'Sevkiyatı planlayın');
+      expect(plan.single.title, isNot(matches(RegExp(r'\d'))));
+    }
     // Kurulum uyarılarında bugünün Tüpraş fiyatı yok (o iş kartta).
     expect(find.textContaining('Tüpraş fiyatı girilmedi'), findsNothing);
     await app.finish(tester);

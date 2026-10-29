@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
@@ -16,6 +17,7 @@ import '../../../core/ui/ui.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
 import '../application/inbox_controller.dart';
+import '../application/notification_display.dart';
 import '../copy.dart';
 import '../data/notification_models.dart';
 import '../notifications_paths.dart';
@@ -177,6 +179,18 @@ class _Body extends ConsumerWidget {
 
     final days = notificationDays(s.items);
     final footer = s.hasMore || s.moreError != null;
+    // İşi hâlâ görüntüleyeni bekleyen kayıtlar (görev kutusu): okunmuş bildirimleri de eylem
+    // satırını korur (v4 A9, B17).
+    final waiting = ref.watch(taskWaitingPathsProvider);
+    // "Teklif ver" yalnızca teklif verebilene: teklif ekleme yetkisi (izleyicide ve finansta "Yeni
+    // sipariş" bilgidir; masayı görmek teklif işi değildir, v4 tur 2).
+    final policy = ref.watch(accessPolicyProvider);
+    final canQuote = !policy.isBayi || policy.quotesOrders;
+    bool waits(UserNotification n) {
+      final r = n.route;
+      return r != null && r.isNotEmpty && waiting.contains(taskPath(r));
+    }
+
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
         if (n.depth == 0 &&
@@ -224,7 +238,15 @@ class _Body extends ConsumerWidget {
                       NotificationTile(
                         key: ValueKey('notification-row-${n.id}'),
                         notification: n,
-                        onTap: () => _open(context, ref, n),
+                        waiting: waits(n),
+                        canQuote: canQuote,
+                        onTap: () => _open(
+                          context,
+                          ref,
+                          n,
+                          waiting: waits(n),
+                          canQuote: canQuote,
+                        ),
                         onMarkRead: () => unawaited(_markRead(ref, n)),
                       ),
                   ],
@@ -242,7 +264,18 @@ class _Body extends ConsumerWidget {
     if (f != null) AppToast.error(f.message);
   }
 
-  void _open(BuildContext context, WidgetRef ref, UserNotification n) {
+  void _open(
+    BuildContext context,
+    WidgetRef ref,
+    UserNotification n, {
+    bool waiting = false,
+    bool canQuote = true,
+  }) {
+    // Eylem satırı görünürken (sıra görüntüleyende) dokunuş o eylemin bloğunu açar: "Teklif ver"
+    // teklif bloğuna kayar ve parlar (`?focus=quote`, v4 §3.5, B17).
+    final live =
+        NotificationTile.actionFor(n, waiting: waiting, canQuote: canQuote) !=
+        null;
     unawaited(_markRead(ref, n));
     final target = RouteAccess.resolvePushRoute(
       n.route,
@@ -257,7 +290,9 @@ class _Body extends ConsumerWidget {
       return;
     }
     // Sekme rotaları `go` ile açılır (QA SC-01).
-    context.openAppLocation(target);
+    context.openAppLocation(
+      live ? NotificationDisplay.withFocus(n, target) : target,
+    );
   }
 }
 

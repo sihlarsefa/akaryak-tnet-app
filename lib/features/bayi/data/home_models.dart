@@ -26,13 +26,14 @@ abstract final class BayiHomeSections {
     sales,
   ];
 
-  /// Yüklenemeyen bölüm başlığı ("Bu bölüm yüklenemedi" kartı).
+  /// Yüklenemeyen bölüm başlığı ("Bu bölüm yüklenemedi" kartı): yerin adı alt menünün kelimesidir
+  /// (v4 §3.2: bir yerin tek adı).
   static String title(String key) => switch (key) {
     desk => 'Teklifler',
-    shipments => 'Sevkiyatlar',
-    approvals => 'Onaylarım',
+    shipments => 'Sevkiyat',
+    approvals => 'Onaylar',
     collections => 'Tahsilat',
-    finance => 'Finans kartları',
+    finance => 'Finans',
     leads => 'Ön kayıtlar',
     field => 'Saha formları',
     setup => 'Kurulum uyarıları',

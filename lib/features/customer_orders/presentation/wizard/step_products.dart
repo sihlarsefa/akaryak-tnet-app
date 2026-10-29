@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -284,7 +284,8 @@ class _OrderingBlocked extends ConsumerWidget {
             message: reason,
             actionLabel: infoRequested ? 'Yanıtla' : null,
             onAction: infoRequested
-                ? () => context.push(
+                // Finans bilgisi bazı düzenlerde alt menü sekmesidir (QA SC-01).
+                ? () => context.openAppLocation(
                     approvalId == null
                         ? AppRoutes.financeInfo
                         : AppRoutes.approval(approvalId!),

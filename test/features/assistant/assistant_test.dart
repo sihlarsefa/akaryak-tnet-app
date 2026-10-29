@@ -263,7 +263,9 @@ void main() {
         await tester.pump();
         await pumpFor(tester, const Duration(milliseconds: 800));
         expect(find.byType(MessageBubble), findsNWidgets(2));
-        expect(find.textContaining('Siparişlerim'), findsWidgets);
+        // Yer adı alt menüdeki sözcüktür (v4 §3.2): "Siparişlerim" değil.
+        expect(find.textContaining('Siparişler sekmesinde'), findsWidgets);
+        expect(find.textContaining('Siparişlerim'), findsNothing);
         expect(h.assistant.chatCalls, 1);
         await finish(tester);
       },

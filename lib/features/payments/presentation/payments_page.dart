@@ -50,7 +50,7 @@ class PaymentsPage extends ConsumerStatefulWidget {
   /// Derin bağlantı: `/payments?tab=instruments`.
   final PaymentsTab initialTab;
 
-  /// Derin bağlantı: `/payments?filter=overdue|documents`.
+  /// Derin bağlantı: `/payments?filter=overdue|documents|bounced`.
   final String? initialFilter;
 
   /// `filter` sorgu değerinden ödemeler süzgeci.
@@ -60,6 +60,9 @@ class PaymentsPage extends ConsumerStatefulWidget {
         'documents' || 'belgeler' => const PaymentsQuery(
           statuses: {PaymentStatus.documentUploaded},
         ),
+        // Ana sayfanın "Karşılıksız çıkan n ödeme" satırı (v4 tur 2).
+        'bounced' ||
+        'karsiliksiz' => const PaymentsQuery(statuses: {PaymentStatus.bounced}),
         _ => const PaymentsQuery(),
       };
 

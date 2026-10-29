@@ -41,6 +41,7 @@ class AknTask {
     this.onTap,
     this.counts = true,
     this.semanticLabel,
+    this.external = false,
   });
 
   /// Stable id (folds and pops follow it).
@@ -86,6 +87,11 @@ class AknTask {
   final bool counts;
   final String? semanticLabel;
 
+  /// The task opens outside the app (the web portal): the lead's primary
+  /// ends in ↗ and a row's caret becomes ↗, so nobody leaves the app by
+  /// surprise (v4 B15).
+  final bool external;
+
   bool get hasAction =>
       actionLabel != null && (onAction != null || onActionAsync != null);
 }
@@ -104,8 +110,9 @@ class AknTask {
 ///   time) on the right; the subline 14/20 dim; the [AknTask.figure] in
 ///   amountLarge 28/34 (rolls once per session); THE one primary (medium
 ///   48, full width) and an optional caption.
-/// * At most [maxRows] more rows ([AknTaskRow], hairlines inset 52), then
-///   "Tümünü gör (n) ›" when [total] exceeds the tasks shown ([onSeeAll]).
+/// * At most [maxRows] more rows ([AknTaskRow]; the hairline under the lead
+///   runs full width, the ones between rows are inset 52), then "Tüm işler
+///   ›" when [total] exceeds the tasks shown ([onSeeAll]).
 /// * Calm (no tasks): one 64 dp row — ok tile, "Bekleyen işiniz yok", the
 ///   role sentence ([calm]).
 /// * Motion (§6): rows stagger in 55 ms apart, the pill pops, the figure
@@ -249,7 +256,10 @@ class _AknTaskCardState extends State<AknTaskCard> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _Hairline(indent: 52),
+                // The lead block ends in a full-width button: the line under
+                // it runs edge to edge (an inset one floats under the button,
+                // v4 A22); between rows it is inset to the text (52).
+                _Hairline(indent: row == 1 ? 0 : 52),
                 AknTaskRow(task: task, done: done, onCard: true),
               ],
             ),
@@ -535,11 +545,11 @@ class _LeadTask extends StatelessWidget {
         ],
         if (sub != null && sub.isNotEmpty) ...[
           const SizedBox(height: 2),
-          // Facts stay whole: the line breaks only after a "·" ("Demir
-          // Petrol · Motorin 8.000 L ·" / "Tuzla Şantiye").
-          Text(
+          // Facts stay whole and a line breaks only between them, never
+          // ending in "·" ("Motorin 8.000 L · Tuzla Şantiye" / "Demir
+          // Petrol"; v4 round 2).
+          AknFactLine(
             _unbroken(sub),
-            semanticsLabel: sub,
             style: t.bodySmall.copyWith(color: c.dim),
           ),
         ],
@@ -603,7 +613,10 @@ class _LeadTask extends StatelessWidget {
             onPressedAsync: task.onAction == null ? task.onActionAsync : null,
             size: AknButtonSize.medium,
             expand: true,
-            celebrate: true,
+            celebrate: !task.external,
+            trailingIcon: task.external
+                ? PhosphorIconsRegular.arrowSquareOut
+                : null,
           ),
           if (task.caption != null && task.caption!.isNotEmpty) ...[
             const SizedBox(height: 6),
@@ -623,9 +636,9 @@ class _LeadTask extends StatelessWidget {
   }
 }
 
-/// A " · " line whose short facts do not break inside: their spaces and the
-/// space before each "·" become no-break spaces. A plain sentence (one
-/// fact) and long facts wrap as usual.
+/// A " · " line whose short facts do not break inside: their spaces become
+/// no-break spaces ([AknFactLine] then breaks only between facts). A plain
+/// sentence (one fact) and long facts wrap as usual.
 String _unbroken(String line) {
   final facts = line.split(' · ');
   if (facts.length < 2) return line;
@@ -634,7 +647,7 @@ String _unbroken(String line) {
         final t = f.trim();
         return t.length <= 24 ? t.replaceAll(' ', ' ') : t;
       })
-      .join(' · ');
+      .join(' · ');
 }
 
 /// "Teklifi onaylayın, Demir Petrol · Motorin 8.000 L, 338.800,00 ₺".
@@ -645,6 +658,7 @@ String _spoken(AknTask t) => [
   if (t.amount != null) t.amount!,
   if (t.time != null) t.time!,
   if (t.note != null) t.note!,
+  if (t.external) 'web portalında açılır',
 ].join(', ');
 
 /// The countdown (on the viewer's move) or the time of a task.
@@ -814,7 +828,13 @@ class _AknTaskRowState extends State<AknTaskRow> {
         Expanded(child: content),
         if (task.onTap != null) ...[
           const SizedBox(width: 6),
-          Icon(PhosphorIconsRegular.caretRight, size: 16, color: c.dim),
+          Icon(
+            task.external
+                ? PhosphorIconsRegular.arrowSquareOut
+                : PhosphorIconsRegular.caretRight,
+            size: 16,
+            color: c.dim,
+          ),
         ],
       ],
     );
@@ -889,7 +909,9 @@ class _AknTaskRowState extends State<AknTaskRow> {
 /// Merkezi") that keeps every fact it shows whole: when the line does not fit
 /// in [maxLines], its trailing facts are dropped ("Motorin 12.000 L")
 /// instead of cutting one mid-word; only a first fact that is too long on
-/// its own ends in "…". [maxLines] null: the line wraps freely.
+/// its own ends in "…". [maxLines] null: the line wraps freely. A line
+/// breaks only between facts and never starts or ends with "·" ("Burak
+/// Yılmaz · 30.000 L" / "2 ürün"; [wrapFacts], v4 round 2).
 class AknFactLine extends StatelessWidget {
   const AknFactLine(this.text, {super.key, required this.style, this.maxLines});
 
@@ -899,17 +921,58 @@ class AknFactLine extends StatelessWidget {
 
   static const String _sep = ' · ';
 
+  /// The separator as drawn: a no-break space before the "·" (v4 round 2).
+  static const String _shownSep = '\u00A0· ';
+
+  /// [facts] laid out line by line in [maxWidth] (v4 round 2): within a
+  /// line they join with " · "; a fact that does not fit after the one
+  /// before it starts the next line, with no separator — so a line never
+  /// starts or ends with "·" ("Kalorifer Yakıtı · 6.000 L" / "Nilüfer
+  /// Tesis"). A fact longer than a line wraps on its own.
+  static String wrapFacts(
+    List<String> facts, {
+    required TextStyle style,
+    required double maxWidth,
+    required TextScaler scaler,
+    TextDirection direction = TextDirection.ltr,
+  }) {
+    if (facts.length < 2 || !maxWidth.isFinite) return facts.join(_shownSep);
+    int linesOf(String s) {
+      final p = TextPainter(
+        text: TextSpan(text: s, style: style),
+        textDirection: direction,
+        textScaler: scaler,
+      )..layout(maxWidth: maxWidth);
+      final n = p.computeLineMetrics().length;
+      p.dispose();
+      return n;
+    }
+
+    final out = StringBuffer(facts.first);
+    var block = facts.first;
+    for (final f in facts.skip(1)) {
+      final joined = '$block$_shownSep$f';
+      if (linesOf(joined) <= linesOf(block)) {
+        out.write('$_shownSep$f');
+        block = joined;
+      } else {
+        out.write('\n$f');
+        block = f;
+      }
+    }
+    return out.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     final lines = maxLines;
     final facts = text.split(_sep);
-    if (lines == null) return Text(text, style: style);
     if (facts.length == 1) {
       return Text(
         text,
         style: style,
         maxLines: lines,
-        overflow: TextOverflow.ellipsis,
+        overflow: lines == null ? null : TextOverflow.ellipsis,
       );
     }
     return LayoutBuilder(
@@ -917,9 +980,19 @@ class AknFactLine extends StatelessWidget {
         final scaler = MediaQuery.textScalerOf(context);
         final direction = Directionality.of(context);
         final full = DefaultTextStyle.of(context).style.merge(style);
+        String wrap(Iterable<String> f) => wrapFacts(
+          f.toList(),
+          style: full,
+          maxWidth: constraints.maxWidth,
+          scaler: scaler,
+          direction: direction,
+        );
+        if (lines == null) {
+          return Text(wrap(facts), style: style, semanticsLabel: text);
+        }
         var shown = facts.first;
         for (var n = facts.length; n >= 1; n--) {
-          final candidate = facts.take(n).join(_sep);
+          final candidate = wrap(facts.take(n));
           final painter = TextPainter(
             text: TextSpan(text: candidate, style: full),
             textDirection: direction,
@@ -1090,23 +1163,26 @@ class _CalmRow extends StatelessWidget {
   }
 }
 
-/// "Tümünü gör (n) ›" (14/20 600 ink), a 48 dp target; "Tüm işler ›" on a
-/// queue card (no [count]: its rows carry the numbers).
+/// "Tüm işler ›" (14/20 600 ink), a 48 dp target, on every home (v4 round
+/// 2): the customer's count already sits in the header's pill, so the
+/// footer does not say it again (P4) and both homes word the same card the
+/// same way. Screen readers still hear the count ("Tüm işler, 4 iş").
 class _SeeAll extends StatelessWidget {
   const _SeeAll({required this.count, required this.onTap});
 
   final int? count;
   final VoidCallback onTap;
 
+  static const String label = 'Tüm işler';
+
   @override
   Widget build(BuildContext context) {
     final c = context.akn;
     final t = context.aknText;
     final n = count;
-    final label = n == null ? 'Tüm işler' : 'Tümünü gör ($n)';
     return Semantics(
       button: true,
-      label: label,
+      label: n == null ? label : '$label, $n iş',
       excludeSemantics: true,
       onTap: onTap,
       child: GestureDetector(

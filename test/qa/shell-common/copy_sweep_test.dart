@@ -3,7 +3,9 @@
 // - " · " v4'ün olgu ayırıcısıdır ("Tuzla Şantiye · yarın"); başta, sonda ya da art arda olmaz,
 // - "Lütfen" yok, genel hata metni yok ("Bir hata oluştu", "Beklenmeyen bir hata"),
 // - programcı izi yok ("null", "Instance of", "Exception"),
-// - ok işareti "→" yok.
+// - ok işareti "→" yok,
+// - eski yer adları yok ("Onaylarım", "Siparişlerim", "Teklif masası"): bir yerin tek adı alt menü
+//   sözcüğüdür (v4 §3.2, B8).
 //
 // Sayfa ilk ekranı ve kaydırılmış hâliyle taranır (tembel listelerde aşağıdaki satırlar da).
 import 'package:akaryakitnet/app/router.dart';
@@ -76,6 +78,8 @@ final _rules = <String, RegExp>{
   ),
   'programcı izi': RegExp(r'\bnull\b|Instance of|Exception|undefined'),
   'ok "→"': RegExp('→'),
+  // v4 §3.2 (B8): bir yerin tek adı alt menüdeki sözcüktür — Onaylar, Siparişler, Teklifler.
+  'eski yer adı': RegExp('Onaylarım|Siparişlerim|Teklif masas|Onay merkezi'),
 };
 
 /// Ekrandaki (sahne dışı dahil) tüm metinler.

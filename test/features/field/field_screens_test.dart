@@ -232,23 +232,27 @@ void main() {
   });
 
   group('Form ayrıntısı', () {
-    testWidgets('finans ek bilgi istedi → Yanıtla, Onaylarım talebini açar', (
-      tester,
-    ) async {
-      final app = await pumpField(
-        tester,
-        persona: 'saha',
-        location: '/field/forms/7005',
-      );
-      await scrollToFind(tester, find.text('Finans ek bilgi istedi'));
-      expect(find.text('Finans ek bilgi istedi'), findsOneWidget);
-      await tapText(tester, 'Yanıtla');
-      final id = app.harness.state.forms.firstWhere(
-        (f) => f['id'] == 7005,
-      )['financeApprovalRequestId'];
-      expect(find.text('stub:/approvals/$id'), findsOneWidget);
-      await finish(tester);
-    });
+    testWidgets(
+      'finans ek bilgi istedi → Yanıtla, Onaylar\'daki talebin yanıt alanını açar',
+      (tester) async {
+        final app = await pumpField(
+          tester,
+          persona: 'saha',
+          location: '/field/forms/7005',
+        );
+        await scrollToFind(tester, find.text('Finans ek bilgi istedi'));
+        expect(find.text('Finans ek bilgi istedi'), findsOneWidget);
+        // Yer adı alt menünün kelimesi (v4 tur 2 B8): "Onaylarım" yok.
+        expect(find.textContaining('Onaylarım'), findsNothing);
+        expect(find.textContaining('Onaylar’daki'), findsOneWidget);
+        await tapText(tester, 'Yanıtla');
+        final id = app.harness.state.forms.firstWhere(
+          (f) => f['id'] == 7005,
+        )['financeApprovalRequestId'];
+        expect(find.text('stub:/approvals/$id?reply=1'), findsOneWidget);
+        await finish(tester);
+      },
+    );
 
     testWidgets(
       'taslaktan onaya gönder: onay sayfası, Idempotency-Key, sonuç',

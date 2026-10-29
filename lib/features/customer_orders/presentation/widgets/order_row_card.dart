@@ -46,7 +46,8 @@ class OrderRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(orderingConfigValueProvider);
-    final viewer = customerViewer(ref.watch(accessPolicyProvider));
+    final policy = ref.watch(accessPolicyProvider);
+    final viewer = customerViewer(policy);
     final station = shortCompany(row.stationTitle);
     final lamp = orderLampFor(
       viewer,
@@ -56,6 +57,7 @@ class OrderRow extends ConsumerWidget {
       finance: row.financeStatus,
       financeLabel: row.financeLabel,
       actor: station.isEmpty ? null : station,
+      answersInfo: customerAnswersInfo(policy),
       missingDocument: viewer.canDecide
           ? missingDocumentPhrase(
               missing: row.paymentDocumentMissing,

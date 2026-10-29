@@ -108,12 +108,30 @@ void main() {
       await StatsTestApp.settle(tester);
       expect(probe.bayi, ['month', 'lastMonth']);
       // v4 §5 12: dönem yalnızca plakanın başlığında (üstte ayrı dönem satırı yok); "güncellendi"
-      // sayfanın sonundaki notta.
+      // sayfanın sonundaki notta. v4 tur 2 (A11): fark çipi varken karşılaştırmanın adı dönem
+      // satırında ("1–30 Eylül · önceki aya göre").
       expect(
-        _kpi(caption(StatsPeriod.lastMonth)),
+        find.descendant(
+          of: find.byType(AknPlate),
+          matching: find.textContaining(caption(StatsPeriod.lastMonth)),
+        ),
         findsOneWidget,
         reason: 'plaka başlığındaki dönem',
       );
+      final chip = find.descendant(
+        of: find.byType(AknPlate),
+        matching: find.byType(AknDeltaChip),
+      );
+      if (chip.evaluate().isNotEmpty) {
+        expect(
+          _kpi(
+            '${caption(StatsPeriod.lastMonth)} · '
+            '${StatsPeriod.lastMonth.compareBrief}',
+          ),
+          findsOneWidget,
+          reason: 'çipin neye göre olduğu yanında',
+        );
+      }
       expect(
         find.textContaining(caption(StatsPeriod.lastMonth)),
         findsOneWidget,
@@ -124,7 +142,13 @@ void main() {
       await tester.tap(find.text(StatsPeriod.month.label));
       await StatsTestApp.settle(tester);
       expect(probe.bayi, ['month', 'lastMonth']);
-      expect(_kpi(caption(StatsPeriod.month)), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AknPlate),
+          matching: find.textContaining(caption(StatsPeriod.month)),
+        ),
+        findsOneWidget,
+      );
       await revealIn(tester, find.textContaining(RegExp(r'^Güncellendi \d')));
       await app.finish(tester);
     });
@@ -360,6 +384,28 @@ void main() {
       final d = app.container
           .read(customerStatsProvider(StatsPeriod.month))
           .data!;
+      // v4 tur 2 (A11): çip varken dönem satırı kısa karşılaştırmayla biter ("1–29 Ekim · geçen
+      // aya göre"); uzun cümle plakada yazmaz (çipin yanında "göre" alt satırda yalnız kalırdı).
+      final chip = find.descendant(
+        of: find.byType(AknPlate),
+        matching: find.byType(AknDeltaChip),
+      );
+      if (chip.evaluate().isNotEmpty) {
+        final range = d.period.from == null
+            ? d.period.title
+            : StatsFmt.rangeShort(d.period.from, d.period.to);
+        expect(
+          _kpi('$range · ${StatsPeriod.month.compareBrief}'),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AknPlate),
+            matching: find.textContaining(StatsPeriod.month.compareShort),
+          ),
+          findsNothing,
+        );
+      }
       for (final title in [
         StatsCopy.monthlyTitle,
         if (d.products.isNotEmpty) StatsCopy.mixTitle,

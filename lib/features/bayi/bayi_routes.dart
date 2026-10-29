@@ -8,6 +8,8 @@ import 'presentation/customers/customer_page.dart';
 import 'presentation/customers/customers_page.dart';
 import 'presentation/desk/quote_desk_page.dart';
 import 'presentation/dispatch/dispatch_page.dart';
+import 'presentation/home/home_tasks.dart' show bayiTasksPath;
+import 'presentation/home/tasks_page.dart';
 import 'presentation/orders/order_detail_page.dart';
 import 'presentation/orders/orders_page.dart';
 import 'presentation/staff/staff_page.dart';
@@ -17,7 +19,8 @@ import 'presentation/staff/staff_page.dart';
 /// kök rota alt menüdeyse kabuk onu sekmeye yerleştirir.
 ///
 /// - `/quote-desk` (`?customerId=` ile cari süzgeci), `/bayi/orders`, `/bayi/orders/:id`,
-///   `/customers`, `/customers/:id`, `/dispatch`, `/bayi/staff` (Ekip; StationStaff:Görür).
+///   `/customers`, `/customers/:id`, `/dispatch`, `/bayi/staff` (Ekip; StationStaff:Görür),
+///   `/bayi/tasks` (Tüm işler; ana sayfa kartının alt satırı itilir, hiçbir zaman sekme değil).
 List<RouteBase> bayiRoutes() => [
   GoRoute(path: '/quote-desk', builder: buildQuoteDeskPage),
   GoRoute(
@@ -54,6 +57,10 @@ List<RouteBase> bayiRoutes() => [
   ),
   GoRoute(path: '/dispatch', builder: (context, state) => const DispatchPage()),
   GoRoute(path: '/bayi/staff', builder: (context, state) => const StaffPage()),
+  GoRoute(
+    path: bayiTasksPath,
+    builder: (context, state) => const BayiTasksPage(),
+  ),
 ];
 
 class _Missing extends StatelessWidget {

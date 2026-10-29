@@ -6,9 +6,13 @@ import 'package:akaryakitnet/app/tasks/task_inbox.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/models/models.dart';
+import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/push/unread_count_provider.dart';
 import 'package:akaryakitnet/features/approvals/api.dart';
 import 'package:akaryakitnet/features/bayi/api.dart';
+import 'package:akaryakitnet/features/bayi/application/bayi_grants.dart';
+import 'package:akaryakitnet/features/bayi/application/role_tip.dart';
 import 'package:akaryakitnet/features/customer_orders/api.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,80 +42,78 @@ Future<void> _until(bool Function() ready) async {
 /// No order, shipment or request codes in what the customer reads (P4).
 final _code = RegExp(r'\b(SIP|SVK|SSF|TLP)-');
 
+/// A task line as read (the words inside each fact are bound with no-break
+/// spaces, v4 A17).
+String _plain(String? s) => (s ?? '').replaceAll('\u00A0', ' ');
+
 void main() {
   for (final key in ['musteri', 'onay']) {
-    test(
-      '$key: ana sayfa sayısı = Onaylar rozeti = Bende (tek sayı)',
-      () async {
-        final c = await _signedIn(key);
-        c.listen(customerTasksProvider, (_, _) {});
-        c.listen(destinationBadgesProvider, (_, _) {});
-        c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
-        await _until(
-          () =>
-              c.read(customerHomeProvider).data != null &&
-              c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
-        );
-        final inbox = c.read(customerTasksProvider);
-        final count = c.read(taskCountProvider);
-        final badge = c.read(
-          destinationBadgesProvider,
-        )[DestinationId.approvals];
-        // Bende renders the same inbox: its counting rows ARE the count.
-        expect(count, greaterThan(0));
-        expect(badge, count);
-        expect(inbox.items.where((t) => t.counts), hasLength(count));
-        // The quote decision leads, merged with its missing document.
-        final quote = inbox.of(TaskKind.quoteDecision);
-        expect(quote, isNotNull);
-        expect(quote!.title, 'Teklifi onaylayın');
-        // Ids are unique (each order appears once).
-        expect(
-          inbox.items.map((t) => t.id).toSet(),
-          hasLength(inbox.items.length),
-        );
-        for (final t in inbox.items) {
-          expect(_code.hasMatch(t.title), isFalse, reason: t.title);
-          expect(_code.hasMatch(t.subtitle ?? ''), isFalse, reason: t.subtitle);
-        }
-        // Every order is ONE task: the A5 order that the bayi's finance asked
-        // a cheque for (finance question + missing document) counts once.
-        final orders = [
-          for (final t in inbox.items)
-            if (t.orderId != null) t.orderId!,
-        ];
-        expect(orders.toSet(), hasLength(orders.length), reason: '$orders');
-        final asked = c
-            .read(approvalsListProvider(const ApprovalsQuery()))
-            .items
-            .where(
-              (a) =>
-                  a.subjectType == 'Order' &&
-                  a.status == ApprovalStatus.infoRequested,
-            )
-            .map((a) => a.subjectId)
-            .toSet();
-        expect(asked, isNotEmpty);
-        for (final id in asked) {
-          final about = inbox.items.where((t) => t.orderId == id).toList();
-          expect(about, hasLength(1), reason: 'sipariş $id');
-        }
-        final merged = inbox.items
-            .where(
-              (t) => t.note == 'Bayiniz bu siparişin çek görselini istiyor',
-            )
-            .toList();
-        expect(merged, hasLength(1));
-        expect(merged.single.title, 'Çek görselini yükleyin');
-        expect(asked, contains(merged.single.orderId));
-        // The fakes: quote 12002 (+ its cheque), the 12012 cheque the bayi
-        // asks for, the reported delivery and Burak Yılmaz's request.
-        expect(count, 4);
-        // That question is counted on Onaylar: the Diğer dot (Finans bilgisi)
-        // does not signal it a second time.
-        expect(c.read(destinationBadgesProvider)[DestinationId.financeInfo], 0);
-      },
-    );
+    test('$key: ana sayfa sayısı = Onaylar rozeti = Bende (tek sayı)', () async {
+      final c = await _signedIn(key);
+      c.listen(customerTasksProvider, (_, _) {});
+      c.listen(destinationBadgesProvider, (_, _) {});
+      c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
+      await _until(
+        () =>
+            c.read(customerHomeProvider).data != null &&
+            c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+      );
+      final inbox = c.read(customerTasksProvider);
+      final count = c.read(taskCountProvider);
+      final badge = c.read(destinationBadgesProvider)[DestinationId.approvals];
+      // Bende renders the same inbox: its counting rows ARE the count.
+      expect(count, greaterThan(0));
+      expect(badge, count);
+      expect(inbox.items.where((t) => t.counts), hasLength(count));
+      // The quote decision leads, merged with its missing document.
+      final quote = inbox.of(TaskKind.quoteDecision);
+      expect(quote, isNotNull);
+      expect(quote!.title, 'Teklifi onaylayın');
+      // Ids are unique (each order appears once).
+      expect(
+        inbox.items.map((t) => t.id).toSet(),
+        hasLength(inbox.items.length),
+      );
+      for (final t in inbox.items) {
+        expect(_code.hasMatch(t.title), isFalse, reason: t.title);
+        expect(_code.hasMatch(t.subtitle ?? ''), isFalse, reason: t.subtitle);
+      }
+      // Every order is ONE task: the A5 order that the bayi's finance asked
+      // a cheque for (finance question + missing document) counts once.
+      final orders = [
+        for (final t in inbox.items)
+          if (t.orderId != null) t.orderId!,
+      ];
+      expect(orders.toSet(), hasLength(orders.length), reason: '$orders');
+      final asked = c
+          .read(approvalsListProvider(const ApprovalsQuery()))
+          .items
+          .where(
+            (a) =>
+                a.subjectType == 'Order' &&
+                a.status == ApprovalStatus.infoRequested,
+          )
+          .map((a) => a.subjectId)
+          .toSet();
+      expect(asked, isNotEmpty);
+      for (final id in asked) {
+        final about = inbox.items.where((t) => t.orderId == id).toList();
+        expect(about, hasLength(1), reason: 'sipariş $id');
+      }
+      // Not kimin istediğini söyler (başlık neyin istendiğini söyler; v4 tur 2).
+      final merged = inbox.items
+          .where((t) => t.note == 'Demir Petrol istiyor')
+          .toList();
+      expect(merged, hasLength(1));
+      expect(merged.single.title, 'Çek görselini yükleyin');
+      expect(asked, contains(merged.single.orderId));
+      // The fakes: quote 12002 (+ its cheque), the 12012 cheque the bayi
+      // asks for, the reported delivery and Burak Yılmaz's request.
+      expect(count, 4);
+      // That question is counted on Onaylar: the Diğer dot (Finans bilgisi)
+      // does not signal it a second time.
+      expect(c.read(destinationBadgesProvider)[DestinationId.financeInfo], 0);
+    });
   }
 
   group('bir sipariş, bir iş (v4 §3.4)', () {
@@ -173,8 +175,10 @@ void main() {
       final t = tasks.single;
       expect(t.orderId, 12012);
       expect(t.title, 'Çek görselini yükleyin');
-      expect(t.subtitle, 'Motorin 12.000 L · Pendik Lojistik Merkezi');
-      expect(t.note, 'Bayiniz bu siparişin çek görselini istiyor');
+      expect(_plain(t.subtitle), 'Motorin 12.000 L · Pendik Lojistik Merkezi');
+      expect(t.note, 'Demir Petrol istiyor');
+      // Satır talebin açıldığı anı değil, hiç zaman yazmaz (bayinin ne zaman istediği bilinmez).
+      expect(t.time, isNull);
       expect(t.actionLabel, 'Çek görselini yükle');
       expect(t.location, '/approvals/9005?focus=request');
       expect(TaskInbox(items: tasks).count, 1);
@@ -187,7 +191,7 @@ void main() {
       );
       final t = tasks.single;
       expect(t.kind, TaskKind.paymentDocument);
-      expect(t.subtitle, 'Motorin 12.000 L · Pendik Lojistik Merkezi');
+      expect(_plain(t.subtitle), 'Motorin 12.000 L · Pendik Lojistik Merkezi');
       expect(t.subtitle, isNot(contains('Çek')));
     });
 
@@ -223,11 +227,14 @@ void main() {
       );
       final r = tasks.firstWhere((t) => t.kind == TaskKind.companyRequest);
       expect(r.title, 'Talebi onaylayın');
-      expect(r.subtitle, 'Burak Yılmaz · Motorin 30.000 L');
+      expect(_plain(r.subtitle), 'Burak Yılmaz · Motorin 30.000 L');
       expect(r.amount, '1.263.000 ₺');
       // Two bayis: the line says the order first, then the bayi (short).
       final d = tasks.firstWhere((t) => t.kind == TaskKind.deliveryAcceptance);
-      expect(d.subtitle, 'Motorin · Pendik Lojistik Merkezi · Demir Petrol');
+      expect(
+        _plain(d.subtitle),
+        'Motorin · Pendik Lojistik Merkezi · Demir Petrol',
+      );
       expect(d.amount, '11.950 L');
       // One bayi: its name is not repeated on every line (P4).
       final single = buildCustomerTasks(
@@ -248,7 +255,7 @@ void main() {
         ),
         canDecide: true,
       ).single;
-      expect(single.subtitle, 'Motorin · Pendik Lojistik Merkezi');
+      expect(_plain(single.subtitle), 'Motorin · Pendik Lojistik Merkezi');
       // The server's summary ("ürün · litre · tahmini …") reads the same way.
       final server = buildCustomerTasks(
         home: home(),
@@ -267,7 +274,10 @@ void main() {
           ),
         ],
       ).single;
-      expect(server.subtitle, 'Selin Aydın · Motorin (Euro 5) 14.000 L');
+      expect(
+        _plain(server.subtitle),
+        'Selin Aydın · Motorin (Euro 5) 14.000 L',
+      );
       expect(server.amount, '599.900 ₺');
     });
 
@@ -285,9 +295,121 @@ void main() {
     final inbox = c.read(customerTasksProvider);
     expect(inbox.of(TaskKind.quoteDecision), isNull);
     expect(inbox.of(TaskKind.deliveryAcceptance), isNull);
+    // Şirketin sahipsiz ödeme belgeleri kararı verenindir (v4 tur 2).
+    expect(inbox.of(TaskKind.paymentDocument), isNull);
     for (final t in inbox.items.where((t) => t.kind == TaskKind.draft)) {
       expect(t.counts, isFalse);
     }
+  });
+
+  // v4 tur 2: talep eden de tek sayı görür — ana sayfa = Diğer › Onaylar rozeti = Bende; Siparişler'de
+  // ve sipariş ayrıntısında teklif kararı onun sırası değildir (tek kural: customerDecides).
+  test('talep: ana sayfa = Onaylar rozeti = Bende; teklif kararı yok', () async {
+    final c = await _signedIn('talep');
+    c.listen(customerTasksProvider, (_, _) {});
+    c.listen(destinationBadgesProvider, (_, _) {});
+    c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
+    await _until(
+      () =>
+          c.read(customerHomeProvider).data != null &&
+          c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+    );
+    final policy = c.read(accessPolicyProvider);
+    expect(policy.customerDecides, isFalse);
+    final inbox = c.read(customerTasksProvider);
+    final badge = c.read(destinationBadgesProvider)[DestinationId.approvals];
+    expect(badge, inbox.count);
+    expect(c.read(taskCountProvider), inbox.count);
+    // Bende'nin satırları kahramanın sayılan işleridir; bayinin istediği belge onun işidir.
+    expect(inbox.items.where((t) => t.counts), hasLength(inbox.count));
+    expect(inbox.of(TaskKind.financeQuestion), isNotNull);
+    // Siparişler'in "sıra sizde" sayısı: talep edende yok (onay bekleyen teklif nötr).
+    final waiting = c.read(customerHomeProvider).data!.dashboard;
+    expect(waiting.pendingDecisionTotal, greaterThan(0));
+    expect(inbox.items.where((t) => t.kind == TaskKind.quoteDecision), isEmpty);
+  });
+
+  // v4 tur 2 (H4, M2): teklif işi teklif ekleme yetkisidir, masayı görmek değil; itiraz işi sevkiyata
+  // dokunabilenindir. Finans "Sıradaki işiniz"de teklif veremeyeceği siparişi açmaz; izleyiciye
+  // yapamayacağı iş söylenmez.
+  for (final key in ['finans', 'izleyici']) {
+    test(
+      '$key: teklif ve itiraz işi yok, "Sıradaki işiniz" teklif açmaz',
+      () async {
+        final c = await _signedIn(key);
+        c.listen(bayiTaskQueuesProvider, (_, _) {});
+        c.listen(taskWaitingPathsProvider, (_, _) {});
+        await _until(() => c.read(bayiHomeProvider).data != null);
+        final policy = c.read(accessPolicyProvider);
+        expect(policy.quotesOrders, isFalse);
+        final inbox = c.read(bayiTaskQueuesProvider);
+        expect(inbox.of(TaskKind.quotes), isNull);
+        if (key == 'izleyici') expect(inbox.of(TaskKind.disputes), isNull);
+        expect(inbox.next()?.kind, isNot(TaskKind.quotes));
+        for (final p in c.read(taskWaitingPathsProvider)) {
+          expect(p, isNot(startsWith('/bayi/orders/')), reason: p);
+        }
+      },
+    );
+  }
+
+  test('sahip: teklif ve itiraz işi var (yetkisi var)', () async {
+    final c = await _signedIn('sahip');
+    c.listen(bayiTaskQueuesProvider, (_, _) {});
+    await _until(() => c.read(bayiHomeProvider).data != null);
+    expect(c.read(accessPolicyProvider).quotesOrders, isTrue);
+    expect(c.read(bayiTaskQueuesProvider).of(TaskKind.quotes), isNotNull);
+  });
+
+  // v4 tur 2 (L1): ilk oturum ipucu rolün yapabildiğini söyler; sekmeyi yalnızca alt menüdeyse adıyla
+  // anar. Depo planlamaz, şoför atamaz; özel rol teklif vermiyorsa Teklifler'i duymaz.
+  test('ipucu adımları yetkiden: depo planlamaz; sahipte üç adım', () async {
+    final depo = await _signedIn('depo');
+    final steps = BayiHintSteps.forGrants(
+      depo.read(accessPolicyProvider).rolePreset,
+      depo.read(bayiGrantsProvider),
+      inBar: (path) => path == '/dispatch',
+    );
+    expect(steps.join(' '), isNot(contains('planlayın')));
+    expect(steps.join(' '), isNot(contains('Şoför atayın')));
+    final sahip = await _signedIn('sahip');
+    final owner = BayiHintSteps.forGrants(
+      sahip.read(accessPolicyProvider).rolePreset,
+      sahip.read(bayiGrantsProvider),
+      inBar: (path) => path == '/quote-desk' || path == '/approvals',
+    );
+    expect(owner, [
+      'Yeni siparişlere Teklifler sekmesinden fiyat verin.',
+      'Müşteri onaylayınca sevkiyatı planlayın.',
+      'Kararınızı bekleyen talepler Onaylar sekmesinde.',
+    ]);
+    final elsewhere = BayiHintSteps.forGrants(
+      sahip.read(accessPolicyProvider).rolePreset,
+      sahip.read(bayiGrantsProvider),
+      inBar: (_) => false,
+    );
+    expect(elsewhere.last, "Kararınızı bekleyen talepler Diğer › Onaylar'da.");
+  });
+
+  test('"Sıradaki işiniz" web portalında yapılan işi açmaz', () {
+    const inbox = TaskInbox(
+      items: [
+        TaskItem(
+          id: 'tupras-today',
+          kind: TaskKind.tuprasToday,
+          title: 'Bugünün Tüpraş fiyatını girin',
+          route: '/home',
+          external: true,
+        ),
+        TaskItem(
+          id: 'approvals',
+          kind: TaskKind.approvals,
+          title: 'Kararınızı bekleyen 2 talep',
+          route: '/approvals',
+        ),
+      ],
+    );
+    expect(inbox.next()?.id, 'approvals');
   });
 
   test('sahip: rozet = kahramanın onay satırı = Bende', () async {
@@ -329,6 +451,265 @@ void main() {
       );
     },
   );
+
+  // v4 B5 (sunucu gerçeği, ApprovalInboxService.ActionableAsync): Bende ve rozet yalnızca
+  // görüntüleyenin hareket edebileceği talepleri sayar. Ek bilgi bekleyen talep yanıtı verecek
+  // tarafındadır (saha temsilcisi, cari); onaylayanın Bende'sine yalnızca 48 saat yanıt gelmezse
+  // döner. "Bende 8"in ikisi başkasını bekliyordu.
+  group('Bende yalnızca sıranız olanlar (v4 B5)', () {
+    Iterable<Object?> ids(List<Map<String, dynamic>> rows) =>
+        rows.map((a) => a['id']);
+
+    test(
+      'başkasının yanıtını bekleyen talep Bende\'de yok, yanıtlayanınkinde var',
+      () {
+        final world = FakeWorld.seeded();
+        final store = A5FakeStore.of(world);
+        for (final key in ['sahip', 'finans', 'mudur']) {
+          final p = findFakePersona(key)!;
+          final bende = store.inbox(p, 0);
+          expect(bende, isNotEmpty, reason: key);
+          for (final a in bende) {
+            final waitsOnOthers =
+                a['status'] == ApprovalStatus.infoRequested.code &&
+                a['requestedByUserId'] != p.userId;
+            expect(waitsOnOthers, isFalse, reason: '$key: ${a['id']}');
+          }
+          expect(ids(bende), isNot(contains(9004)), reason: key);
+          expect(ids(bende), isNot(contains(9005)), reason: key);
+        }
+        // Yanıtı verecek olanlar: vergi levhası saha temsilcisinden, çek cariden.
+        expect(ids(store.inbox(findFakePersona('saha')!, 0)), contains(9004));
+        expect(
+          ids(store.inbox(findFakePersona('musteri')!, 0)),
+          contains(9005),
+        );
+        // Ek bilgiyi isteyen (finans) talebi Kararlarım'da bulur (sunucu DecidedByMe).
+        expect(ids(store.inbox(findFakePersona('finans')!, 2)), contains(9004));
+      },
+    );
+
+    test('48 saattir yanıt gelmeyen talep onaylayanın Bende\'sine döner', () {
+      final world = FakeWorld.seeded();
+      final store = A5FakeStore.of(world);
+      final sahip = findFakePersona('sahip')!;
+      expect(ids(store.inbox(sahip, 0)), isNot(contains(9004)));
+      store.extraOf(world.approval(9004)!).infoRequest!['at'] = FakeWorld.utc(
+        DateTime.now().toUtc().subtract(
+          const Duration(hours: A5FakeStore.infoReminderHours + 1),
+        ),
+      );
+      expect(ids(store.inbox(sahip, 0)), contains(9004));
+    });
+
+    for (final key in ['sahip', 'finans']) {
+      test('$key: rozet = Bende = ana sayfanın onay satırı', () async {
+        final c = await _signedIn(key);
+        c.listen(bayiTaskQueuesProvider, (_, _) {});
+        c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
+        await _until(
+          () =>
+              c.read(bayiHomeProvider).data != null &&
+              c.read(unreadCountProvider).approvals > 0 &&
+              c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+        );
+        final badge = c.read(unreadCountProvider).approvals;
+        final list = c.read(approvalsListProvider(const ApprovalsQuery()));
+        expect(list.totalCount, badge);
+        expect(list.items, hasLength(badge));
+        expect(
+          c.read(bayiTaskQueuesProvider).of(TaskKind.approvals)?.count,
+          badge,
+        );
+        final me = c.read(currentUserIdProvider);
+        for (final r in list.items) {
+          expect(
+            r.status == ApprovalStatus.infoRequested &&
+                r.requestedByUserId != me,
+            isFalse,
+            reason: 'Bende ${r.id}',
+          );
+        }
+      });
+    }
+  });
+
+  group('v4 tur 2', () {
+    test('çok ürünlü talep tek ürün söylemez: "30.000 L · 2 ürün"', () async {
+      final c = await _signedIn('onay');
+      c.listen(customerTasksProvider, (_, _) {});
+      await _until(
+        () =>
+            c.read(customerHomeProvider).data != null &&
+            c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+      );
+      final r = c.read(customerTasksProvider).of(TaskKind.companyRequest);
+      expect(r, isNotNull);
+      expect(_plain(r!.subtitle), 'Burak Yılmaz · 30.000 L · 2 ürün');
+      expect(r.subtitle, isNot(contains('Pendik')));
+    });
+
+    test('olgu içindeki sözcükler bölünmez boşlukla bağlı (A17)', () {
+      const station = 'Demir Petrol Akaryakıt Ltd. Şti.';
+      final tasks = buildCustomerTasks(
+        home: const CustomerHomeData(
+          customerId: 101,
+          customerTitle: 'Anadolu Lojistik A.Ş.',
+          stationTitle: station,
+          stations: [StationOption(id: 1, title: station)],
+          dashboard: CustomerDashboard(
+            awaitingStation: [
+              DashboardOrderRow(
+                orderId: 12012,
+                orderNumber: 'SIP-20261029-12012',
+                status: OrderStatus.awaitingQuote,
+                quantityLiters: 12000,
+                productName: 'Motorin',
+                stationTitle: station,
+                deliveryPointName: 'Pendik Lojistik Merkezi',
+              ),
+            ],
+          ),
+          pendingPaymentDocuments: [
+            PendingPaymentDocument(
+              orderId: 12012,
+              orderNumber: 'SIP-20261029-12012',
+              stationTitle: station,
+              methodName: 'Çek',
+              kind: AttachmentKind.chequeImage,
+              target: PaymentUploadTarget(),
+            ),
+          ],
+        ),
+        canDecide: true,
+      );
+      // Satır yalnızca " · "da kırılır: "Pendik Lojistik / Merkezi" olmaz.
+      expect(
+        tasks.single.subtitle,
+        'Motorin\u00A012.000\u00A0L · Pendik\u00A0Lojistik\u00A0Merkezi',
+      );
+    });
+
+    test(
+      'sahip: Tüpraş fiyatı portalda girilir, kart bunu söyler (B15)',
+      () async {
+        final c = await _signedIn('sahip');
+        c.listen(bayiTaskQueuesProvider, (_, _) {});
+        await _until(() => c.read(bayiHomeProvider).data != null);
+        final t = c.read(bayiTaskQueuesProvider).of(TaskKind.tuprasToday);
+        expect(t, isNotNull, reason: 'sahte veride bugünün fiyatı eksik');
+        expect(t!.actionLabel, 'Portalda girin');
+        expect(t.external, isTrue);
+        expect(t.toAknTask().external, isTrue);
+      },
+    );
+
+    test('merkez: "Onayınızı bekleyen n talep"', () async {
+      final c = await _signedIn('merkez');
+      c.listen(platformTasksProvider, (_, _) {});
+      await _until(() => c.read(unreadCountProvider).approvals > 0);
+      final n = c.read(unreadCountProvider).approvals;
+      final t = c.read(platformTasksProvider).of(TaskKind.platformApprovals);
+      expect(t?.title, 'Onayınızı bekleyen $n talep');
+      expect(t?.title, isNot(startsWith('Onaylayın')));
+    });
+
+    test('sıradaki iş: kapanan sayfanın kendisi değil, ilk sayılan iş', () {
+      const inbox = TaskInbox(
+        items: [
+          TaskItem(
+            id: 'request-9003',
+            kind: TaskKind.companyRequest,
+            title: 'Talebi onaylayın',
+            route: '/approvals/9003',
+            focus: 'request',
+          ),
+          TaskItem(
+            id: 'quote-12002',
+            kind: TaskKind.quoteDecision,
+            title: 'Teklifi onaylayın',
+            route: '/orders/12002',
+            focus: 'quote',
+          ),
+          TaskItem(
+            id: 'draft',
+            kind: TaskKind.draft,
+            title: 'Yarım kalan siparişiniz',
+            route: '/orders/new',
+            counts: false,
+          ),
+        ],
+      );
+      expect(inbox.next()?.id, 'request-9003');
+      expect(
+        inbox.next(except: '/approvals/9003?focus=request')?.id,
+        'quote-12002',
+      );
+      expect(
+        const TaskInbox(
+          items: [
+            TaskItem(
+              id: 'draft',
+              kind: TaskKind.draft,
+              title: 'Yarım kalan siparişiniz',
+              route: '/orders/new',
+              counts: false,
+            ),
+          ],
+        ).next(),
+        isNull,
+      );
+      expect(nextTaskLabel, 'Sıradaki işiniz');
+    });
+
+    for (final key in ['musteri', 'onay']) {
+      test(
+        '$key: bekleyen işlerin sayfaları (okunmuş bildirim eylemi korur)',
+        () async {
+          final c = await _signedIn(key);
+          c.listen(taskWaitingPathsProvider, (_, _) {});
+          await _until(
+            () =>
+                c.read(customerHomeProvider).data != null &&
+                c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+          );
+          final paths = c.read(taskWaitingPathsProvider);
+          final inbox = c.read(customerTasksProvider);
+          for (final t in inbox.items.where((t) => t.counts)) {
+            expect(paths, contains(taskPath(t.route)), reason: t.id);
+          }
+          // Teklif 12002, Burak Yılmaz'ın talebi (9003) ve bildirilen teslimat.
+          final quote = inbox.of(TaskKind.quoteDecision)!;
+          expect(paths, contains('/orders/${quote.orderId}'));
+          expect(paths, contains('/approvals/9003'));
+          expect(paths.any((p) => p.startsWith('/shipments/')), isTrue);
+          expect(paths, isNot(contains('/orders/new')));
+        },
+      );
+    }
+
+    test(
+      'sahip: teklif bekleyen siparişler ve Bende talepleri bekleyen sayfalardır',
+      () async {
+        final c = await _signedIn('sahip');
+        c.listen(taskWaitingPathsProvider, (_, _) {});
+        await _until(
+          () =>
+              c.read(bayiHomeProvider).data != null &&
+              c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+        );
+        final paths = c.read(taskWaitingPathsProvider);
+        final quotes = c.read(bayiTaskQueuesProvider).of(TaskKind.quotes)!;
+        expect(paths, contains('/bayi/orders/${quotes.orderId}'));
+        for (final r
+            in c.read(approvalsListProvider(const ApprovalsQuery())).items) {
+          expect(paths, contains('/approvals/${r.id}'));
+        }
+        // Başkasının yanıtını bekleyen ek bilgi talebi beklemez (B5).
+        expect(paths, isNot(contains('/approvals/9004')));
+      },
+    );
+  });
 
   group('sıralama ve dil', () {
     test(

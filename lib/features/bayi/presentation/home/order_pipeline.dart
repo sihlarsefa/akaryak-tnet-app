@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/access_policy.dart';
+import '../../../../core/models/enums.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
+import '../../../finance/api.dart' show approvalsOfType;
 import '../../application/bayi_grants.dart';
 import '../../data/home_models.dart';
 import '../../data/order_models.dart';
@@ -67,12 +69,17 @@ Set<String> pipelineYourMoves(RolePreset preset) => switch (preset) {
 /// bayi/orders/counts`): her durak dokununca o segmentin listesini açar ve sayı listeyle aynıdır.
 /// Sayılar yoksa (yetki ya da yükleme) ana sayfa yükünün masa ve sevkiyat bölümlerinden; masa
 /// bölümü yoksa ilk üç, sevkiyat bölümü yoksa son üç durak düşer.
+///
+/// [financeMine]: izleyenin Bende'sindeki sipariş finansı talepleri (null = henüz bilinmiyor; rol ön
+/// ayarı geçerli). Finans durağı yalnızca bu sayı 0 değilken "sıra sizde"dir: ek bilgi bekleyen
+/// sipariş müşterinin sırasıdır, sunucu onu Bende'ye koymaz (v4 tur 2 B5).
 List<PipelineStop> pipelineStops(
   BuildContext context,
   BayiHomeData data, {
   required RolePreset preset,
   required BayiGrants grants,
   BayiOrderCounts? counts,
+  int? financeMine,
 }) {
   final yours = pipelineYourMoves(preset);
   PipelineStopKind kindFor(String label) => yours.contains(label)
@@ -95,17 +102,32 @@ List<PipelineStop> pipelineStops(
   final n = counts;
   final hasDesk = d != null || (n != null && grants.viewOrders);
   final hasShipments = s != null || (n != null && grants.viewOrders);
+  // v4 tur 2 (B7): finans durağı izleyenin sırasıysa kararın verildiği yeri açar — Onaylar, Sipariş
+  // finansı türüne süzülü (Bende); sıra başkasındaysa finans onayındaki siparişlerin listesini. Durak
+  // sayısıyla aynı listeyi açar: tutulan siparişlerden bazıları başkasını bekliyorsa (müşterinin
+  // yanıtı) Bende daha az satır gösterirdi; o zaman da liste açılır, izleyeninkiler orada Pas
+  // "Finans onayınızı bekliyor" der.
+  final financeCount =
+      n?.of(BayiOrderSegment.financeHeld) ?? d?.financeHeld ?? 0;
+  final financeKind = financeMine == 0
+      ? PipelineStopKind.waiting
+      : kindFor('Finans');
+  final financeYours = financeKind == PipelineStopKind.yourMove;
+  final allMine = financeMine == null || financeMine >= financeCount;
+  final financeRoute = financeYours && grants.viewApprovals && allMine
+      ? approvalsOfType(ApprovalType.orderFinance)
+      : segment(BayiOrderSegment.financeHeld) ??
+            (grants.viewApprovals
+                ? approvalsOfType(ApprovalType.orderFinance)
+                : null);
   return [
     if (hasDesk) ...[
       PipelineStop(
         label: 'Finans',
-        count: n?.of(BayiOrderSegment.financeHeld) ?? d?.financeHeld ?? 0,
-        kind: kindFor('Finans'),
+        count: financeCount,
+        kind: financeKind,
         unit: 'sipariş',
-        onTap: open(
-          segment(BayiOrderSegment.financeHeld) ??
-              (grants.viewApprovals ? AppRoutes.approvals : null),
-        ),
+        onTap: open(financeRoute),
       ),
       PipelineStop(
         label: 'Teklif',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../../core/media/image_capture.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/network/app_failure.dart';
 import '../../../../core/offline/connectivity.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -20,6 +23,8 @@ import '../cm_widgets.dart';
 
 /// Talep ayrıntısı: satır başına sonuç (oluşan sipariş ya da neden), ödeme ve — siparişler oluştuktan
 /// sonra — ödeme belgesinin durumu (çek / senet görseli). Bekleyen kendi talebi geri çekilebilir.
+/// Karar verebilen (şirket yöneticisi, onaylayan) için karar çubuğu "Karar ver": talebin kendi onay
+/// kaydını açar (v4 B2; karar düğmeleri orada).
 class RequestDetailPage extends ConsumerStatefulWidget {
   const RequestDetailPage({super.key, required this.requestId});
 
@@ -32,7 +37,43 @@ class RequestDetailPage extends ConsumerStatefulWidget {
 class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
   bool _cancelling = false;
 
+  /// "Karar ver"e dokunuldu, onay kaydı aranıyor.
+  bool _opening = false;
+
   int get _id => widget.requestId;
+
+  /// Talebin karar sayfası (v4 B2): talebin onay kaydı (`/approvals/{id}?focus=request`), yoksa
+  /// süzülmüş Onaylar. Onaylar bu kullanıcılarda alt menü sekmesidir: tam ekran bu sayfadan sekme
+  /// yolu `push` edilirse kabuk ikinci kez kurulur (QA SC-01); sekmeye `go` ile geçilir, ayrıntı
+  /// `push` ile açılır ([openAppLocation] kuralı) ve dönüşte talep yeniden okunur (karar verildiyse
+  /// çubuk kalkar). Onaylar listesi henüz yükleniyorsa kısa bir süre beklenir.
+  Future<void> _openDecision() async {
+    if (_opening) return;
+    var found = ref.read(requestApprovalProvider(_id));
+    if (found.loading) {
+      setState(() => _opening = true);
+      final loaded = Completer<void>();
+      final sub = ref.listenManual(requestApprovalProvider(_id), (_, next) {
+        if (!next.loading && !loaded.isCompleted) loaded.complete();
+      });
+      await loaded.future.timeout(const Duration(seconds: 6), onTimeout: () {});
+      sub.close();
+      if (!mounted) return;
+      setState(() => _opening = false);
+      found = ref.read(requestApprovalProvider(_id));
+    }
+    if (!mounted) return;
+    final location = requestDecisionLocation(found.id);
+    final router = GoRouter.of(context);
+    if (isShellLocation(router, location)) {
+      router.go(location);
+      return;
+    }
+    await router.push<Object?>(location);
+    if (!mounted) return;
+    ref.invalidate(requestsControllerProvider);
+    await _refresh();
+  }
 
   Future<void> _refresh() async {
     ref.invalidate(orderRequestProvider(_id));
@@ -75,6 +116,12 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
     final policy = ref.watch(accessPolicyProvider);
     final r = async.valueOrNull;
     final canCancel = r != null && r.canCancel && policy.cmRequestCancel;
+    final canDecide =
+        r != null &&
+        r.status == CustomerOrderRequestStatus.pending &&
+        r.canDecide;
+    // Onay kaydı sayfa açılırken aranmaya başlar (Onaylar › Bende listesi, aynı önbellek).
+    if (canDecide) ref.watch(requestApprovalProvider(_id));
     return AppScaffold(
       // v4 §3.2: çubukta nesnenin türü; talep numarası sayfada.
       title: 'Talep',
@@ -82,7 +129,17 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
           ? null
           : '${r.productsSummary}, ${Fmt.liters(r.totalLiters)}',
       refreshing: async.isLoading && r != null,
-      actionBar: canCancel
+      actionBar: canDecide
+          // v4 P3: kararın adımı çubukta; onay ve ret talebin onay kaydında verilir.
+          ? ActionBar.decision(
+              primary: AknButton(
+                label: 'Karar ver',
+                loading: _opening,
+                onPressed: () => unawaited(_openDecision()),
+              ),
+              caption: 'Onay talebi açılır; onaylayın ya da reddedin',
+            )
+          : canCancel
           ? cmBar(
               AknButton.secondary(
                 label: 'Talebi geri çek',
@@ -101,21 +158,10 @@ class _RequestDetailPageState extends ConsumerState<RequestDetailPage> {
             CmFailureView(failure: AppFailure.from(e), onRetry: _refresh),
         data: (r) {
           // Bloklar açılışta sırayla yükselerek gelir.
+          // Karar bekleyen talepte kararın yolu çubuktadır ("Karar ver"); sayfada ayrıca bant yok
+          // (v4 §4 AknBanner: çubuğu tekrarlamaz).
           final blocks = <(String, Widget)>[
             ('hero', _Hero(request: r)),
-            if (r.status == CustomerOrderRequestStatus.pending && r.canDecide)
-              (
-                'decide',
-                AknBanner(
-                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  tone: AknTone.brand,
-                  title: 'Bu talep kararınızı bekliyor',
-                  message:
-                      'Onay ya da ret kararını Onaylarım ekranından verebilirsiniz.',
-                  actionLabel: "Onaylarım'da aç",
-                  onAction: () => context.push(AppRoutes.approvals),
-                ),
-              ),
             if (r.status != CustomerOrderRequestStatus.pending)
               ('decision', _DecisionCard(request: r)),
             ('lines', _LinesCard(request: r)),

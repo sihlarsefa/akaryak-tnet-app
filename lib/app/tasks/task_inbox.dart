@@ -120,6 +120,7 @@ class TaskItem {
     this.note,
     this.documentKind,
     this.createdAt,
+    this.external = false,
   });
 
   /// Stable id ("quote-12002", "approvals").
@@ -181,6 +182,10 @@ class TaskItem {
   /// When it arrived (overdue sort: oldest first).
   final DateTime? createdAt;
 
+  /// The action opens outside the app (today's Tüpraş price is entered on
+  /// the web portal): the card marks it with ↗ ([AknTask.external], v4 B15).
+  final bool external;
+
   /// [route] with `?focus=` when set.
   String get location {
     final f = focus;
@@ -222,6 +227,7 @@ class TaskItem {
     note: note,
     onTap: onTap,
     counts: counts,
+    external: external,
   );
 
   /// This task's glyph: a finance question answered with a document shows
@@ -281,7 +287,32 @@ class TaskInbox {
     }
     return null;
   }
+
+  /// The viewer's next task, other than the one at [except] (the page whose
+  /// task is done or was handled by someone else): the first counting task,
+  /// else null. "Sıradaki işiniz ›" opens it (v4 §3.5.3). A task done on the
+  /// web portal ([TaskItem.external], today's Tüpraş price) is never "next":
+  /// its route only shows the home.
+  TaskItem? next({String? except}) {
+    final skip = except == null ? null : taskPath(except);
+    for (final t in items) {
+      if (!t.counts || t.external) continue;
+      if (skip != null && taskPath(t.route) == skip) continue;
+      return t;
+    }
+    return null;
+  }
 }
+
+/// The path of an app location ("/orders/12002?focus=quote" →
+/// "/orders/12002").
+String taskPath(String location) {
+  final uri = Uri.tryParse(location.trim());
+  return uri == null || uri.path.isEmpty ? location.trim() : uri.path;
+}
+
+/// The label of the link to the viewer's next task (v4 §3.5.3).
+const nextTaskLabel = 'Sıradaki işiniz';
 
 /// The inbox sort (v4 §3.4): blocking → a deadline within 60 min → overdue
 /// (oldest first) → the nearest deadline → the bigger count; ties keep the
@@ -332,7 +363,9 @@ List<TaskItem> sortTasks(List<TaskItem> items, {DateTime? now}) {
 /// everywhere). The bayi reads "Körfez Nakliyat · Motorin 10.000 L" (who
 /// ordered comes first); the customer reads "Motorin 8.000 L · Tuzla Şantiye
 /// · Demir Petrol" ([partyLast]: the order itself first, so a row that has
-/// room for one fact still says which order it is).
+/// room for one fact still says which order it is). The words inside each
+/// fact are bound with no-break spaces ([Fmt.whole]), so a wrapped line
+/// breaks only at " · " ("Tuzla Şantiye" never splits; v4 A17).
 String _orderLine({
   String? station,
   String? product,
@@ -341,48 +374,28 @@ String _orderLine({
   bool partyLast = false,
 }) {
   final party = taskCompanyName(station);
-  return [
+  return _facts([
     if (!partyLast) party,
     [
       if (product != null && product.isNotEmpty) product,
       if (liters != null && liters > 0) Fmt.liters(liters),
     ].join(' '),
-    if (place != null && place.isNotEmpty) place,
+    ?place,
     if (partyLast) party,
-  ].where((s) => s.trim().isNotEmpty).join(' · ');
+  ]);
 }
+
+/// A task line of facts joined by " · ", each fact kept whole ([Fmt.whole]).
+String _facts(List<String> facts) => [
+  for (final f in facts)
+    if (f.trim().isNotEmpty) Fmt.whole(f),
+].join(' · ');
 
 /// A company's short name in task lines: the words before the legal and
 /// sector suffixes ("Demir Petrol Akaryakıt Ltd. Şti." → "Demir Petrol").
 /// The hero and Onaylar › Bende read the same words because the inbox
 /// writes them (P2).
-String taskCompanyName(String? title) {
-  final full = (title ?? '').trim();
-  if (full.isEmpty) return '';
-  const stops = {
-    'akaryakıt',
-    'akaryakit',
-    'ltd.',
-    'ltd',
-    'şti.',
-    'şti',
-    'a.ş.',
-    'a.ş',
-    'aş',
-    'tic.',
-    'san.',
-    'limited',
-    'anonim',
-    've',
-  };
-  final kept = <String>[];
-  for (final w in full.split(RegExp(r'\s+'))) {
-    if (stops.contains(TurkishText.lower(w))) break;
-    kept.add(w);
-  }
-  final out = kept.join(' ').trim();
-  return out.isEmpty ? full : out;
-}
+String taskCompanyName(String? title) => TurkishText.shortCompany(title);
 
 /// A task's money: "1.263.000 ₺" when there are no kuruş ("1.263.000,50 ₺"
 /// otherwise), so the row's right column fits a 360 dp phone and the hero
@@ -391,8 +404,11 @@ String _money(double v) => Fmt.money(v).replaceFirst(RegExp(r',00(?= ₺$)'), ''
 
 /// What a company request asks for, product before litres ("Motorin 30.000
 /// L"), from the row's summary — "30.000 L Motorin · Pendik …" or the
-/// server's "Motorin (Euro 5) · 14.000 L · tahmini …" — else its litres.
-String? _requestWhat(ApprovalRow a) {
+/// server's "Motorin (Euro 5) · 14.000 L · tahmini …" — else its litres. A
+/// request for several products (the server's "Motorin, Kalorifer Yakıtı ·
+/// 30.000 L · …") reads "30.000 L · 2 ürün": the line never names one
+/// product for a mixed request (v4 B11).
+List<String> _requestFacts(ApprovalRow a) {
   final parts = [
     for (final p in (a.summary ?? '').split(' · '))
       if (p.trim().isNotEmpty) p.trim(),
@@ -401,12 +417,19 @@ String? _requestWhat(ApprovalRow a) {
   final litresFirst = RegExp(r'^(\d[\d.]*(?:,\d+)? L) (.+)$');
   if (parts.isNotEmpty) {
     final m = litresFirst.firstMatch(parts.first);
-    if (m != null) return '${m.group(2)} ${m.group(1)}';
+    if (m != null) return ['${m.group(2)} ${m.group(1)}'];
     if (parts.length > 1 && litres.hasMatch(parts[1])) {
-      return '${parts.first} ${parts[1]}';
+      final products = [
+        for (final p in parts.first.split(','))
+          if (p.trim().isNotEmpty) p.trim(),
+      ];
+      if (products.length > 1) {
+        return [parts[1], '${products.length} ürün'];
+      }
+      return ['${parts.first} ${parts[1]}'];
     }
   }
-  return a.liters == null ? null : Fmt.liters(a.liters);
+  return [if (a.liters != null) Fmt.liters(a.liters)];
 }
 
 /// The dashboard row of [orderId] (decisions, then orders at the bayi).
@@ -443,8 +466,9 @@ final customerTasksProvider = Provider.autoDispose<TaskInbox>((ref) {
   if (!policy.isCustomer) return TaskInbox.empty;
   final state = ref.watch(customerHomeProvider);
   final home = state.data;
-  final role = policy.customerRole;
-  final canDecide = role.canApprove;
+  // One rule for "the customer decides" (v4 round 2): the hero, the badge,
+  // Bende, Siparişler and the order page read the same predicate.
+  final canDecide = policy.customerDecides;
   final approvalsOn = policy.can(Pg.customerApprovals);
   final approvals = approvalsOn
       ? ref.watch(approvalsListProvider(const ApprovalsQuery()))
@@ -565,8 +589,11 @@ List<TaskItem> buildCustomerTasks({
 
   // 3. Orphan documents (no decision or finance question carries them),
   // named by their order ("Motorin 12.000 L · Pendik Lojistik Merkezi") so
-  // they never read like the lead's own upload.
+  // they never read like the lead's own upload. They belong to whoever
+  // decides the quote: for a requester the company-wide list is not their
+  // move (v4 round 2).
   for (final d in docs) {
+    if (!canDecide) break;
     if (decided.contains(d.orderId) || asked.contains(d.orderId)) continue;
     final order = _orderOf(dash, d.orderId);
     items.add(
@@ -631,13 +658,12 @@ List<TaskItem> buildCustomerTasks({
       // "Talebi onaylayın" · "Burak Yılmaz · Motorin 30.000 L": the verb
       // first, the requester and what they ask for under it.
       final who = a.requestedByName?.trim() ?? '';
-      final what = _requestWhat(a);
       items.add(
         TaskItem(
           id: 'request-${a.id}',
           kind: TaskKind.companyRequest,
           title: 'Talebi onaylayın',
-          subtitle: [if (who.isNotEmpty) who, ?what].join(' · '),
+          subtitle: _facts([who, ..._requestFacts(a)]),
           amount: a.amount == null ? null : _money(a.amount!),
           time: a.createdAt == null ? null : Fmt.relative(a.createdAt),
           deadline: a.dueAt,
@@ -666,6 +692,8 @@ List<TaskItem> buildCustomerTasks({
           kind: TaskKind.financeQuestion,
           orderId: orderId,
           title: AknStatus.uploadPhrase(doc.kind),
+          // The order by its product, litres and place; the note says who
+          // asks (the title already says what): one fact once (v4 round 2).
           subtitle: order == null
               ? _orderLine(
                   station: a.stationTitle,
@@ -677,8 +705,11 @@ List<TaskItem> buildCustomerTasks({
                   liters: order.quantityLiters,
                   place: order.deliveryPointName ?? order.deliveryCity,
                 ),
-          note: 'Bayiniz bu siparişin ${_askedFor(doc.kind)} istiyor',
-          time: a.createdAt == null ? null : Fmt.relative(a.createdAt),
+          note: asker.isEmpty
+              ? 'Bayiniz bu siparişin ${_askedFor(doc.kind)} istiyor'
+              : '$asker istiyor',
+          // The row carries when the request was opened, not when the bayi
+          // asked for the document: no time rather than a wrong one.
           route: AppRoutes.approval(a.id),
           focus: 'request',
           actionKind: TaskActionKind.provideInfo,
@@ -732,10 +763,10 @@ List<TaskItem> buildCustomerTasks({
         id: 'draft',
         kind: TaskKind.draft,
         title: 'Yarım kalan siparişiniz',
-        subtitle: [
+        subtitle: _facts([
           if (draft.lineCount > 0) '${draft.lineCount} ürün',
           if (draft.totalLiters > 0) Fmt.liters(draft.totalLiters),
-        ].join(' · '),
+        ]),
         tone: TaskTone.neutral,
         route: AppRoutes.orderNew,
         actionKind: TaskActionKind.resumeDraft,
@@ -781,13 +812,23 @@ final bayiTaskQueuesProvider = Provider.autoDispose<TaskInbox>((ref) {
   final badge = ref.watch(unreadCountProvider.select((u) => u.approvals));
   final counts = ref.watch(bayiOrderCountsProvider).valueOrNull;
   if (data == null) return TaskInbox(loading: state.loading);
+  final canPlan = policy.can(Pg.stationShipmentBoard, Perm.edit);
   return TaskInbox(
     items: buildBayiTasks(
       data: data,
       approvalsBadge: policy.isApprover ? badge : 0,
       toPlan: counts?.of(BayiOrderSegment.toPlan) ?? 0,
-      canQuote: policy.can(Pg.stationQuoteDesk),
-      canPlan: policy.can(Pg.stationShipmentBoard, Perm.edit),
+      // Quoting is the create grant, not seeing the desk (v4 round 2): a
+      // viewer or finance never gets a quote task, nor "Sıradaki işiniz" on
+      // an order they cannot quote.
+      canQuote: policy.quotesOrders,
+      canPlan: canPlan,
+      // Disputes are a task only for who can act on a shipment (plan or
+      // edit it); a read-only viewer is told nothing is theirs to do.
+      canResolve:
+          canPlan ||
+          (policy.can(Pg.stationShipments, Perm.edit) &&
+              !policy.hasCap(Caps.shipmentOwnOnly)),
     ),
   );
 });
@@ -799,6 +840,7 @@ List<TaskItem> buildBayiTasks({
   int toPlan = 0,
   bool canQuote = true,
   bool canPlan = true,
+  bool canResolve = true,
   DateTime? now,
 }) {
   final at = now ?? TrTime.now();
@@ -909,7 +951,7 @@ List<TaskItem> buildBayiTasks({
       ),
     );
   }
-  if (ship != null && ship.disputes > 0) {
+  if (ship != null && canResolve && ship.disputes > 0) {
     items.add(
       TaskItem(
         id: 'disputes',
@@ -982,7 +1024,10 @@ List<TaskItem> buildBayiTasks({
         route: AppRoutes.home,
         focus: 'tupras',
         actionKind: TaskActionKind.enterPrices,
-        actionLabel: 'Fiyatı gir',
+        // The price is entered on the web portal: the label and the ↗ say
+        // so before the browser opens (v4 B15).
+        actionLabel: 'Portalda girin',
+        external: true,
       ),
     );
   }
@@ -1054,7 +1099,9 @@ final platformTasksProvider = Provider.autoDispose<TaskInbox>((ref) {
         TaskItem(
           id: 'approvals',
           kind: TaskKind.platformApprovals,
-          title: 'Onaylayın · $badge talep',
+          // A plain sentence that names the count (v4 B16), like the bayi's
+          // "Kararınızı bekleyen 9 talep".
+          title: 'Onayınızı bekleyen $badge talep',
           subtitle: 'Bayilerden üst onaya gelen talepler',
           route: AppRoutes.approvals,
           actionKind: TaskActionKind.openQueue,
@@ -1083,3 +1130,42 @@ final taskInboxProvider = Provider.autoDispose<TaskInbox>((ref) {
 final taskCountProvider = Provider.autoDispose<int>(
   (ref) => ref.watch(taskInboxProvider).count,
 );
+
+/// The pages whose entity waits on the viewer (v4 §3.5, §5 10), as paths:
+/// the inbox's counting tasks, the bayi's orders that wait for a quote (the
+/// desk's lists) and, for approvers, the requests in Bende (page 1). A
+/// notification about one of them keeps its action line after it is read —
+/// the action line says the move is still the viewer's, not that the
+/// notification is new.
+final taskWaitingPathsProvider = Provider.autoDispose<Set<String>>((ref) {
+  final policy = ref.watch(accessPolicyProvider);
+  final inbox = ref.watch(taskInboxProvider);
+  final paths = <String>{
+    for (final t in inbox.items)
+      if (t.counts) taskPath(t.route),
+  };
+  if (policy.isBayi && !policy.isDriverOnly) {
+    if (policy.quotesOrders) {
+      final desk = ref.watch(bayiHomeProvider.select((s) => s.data?.desk));
+      for (final o in [...?desk?.expiring, ...?desk?.awaitingQuoteList]) {
+        if (o.status == OrderStatus.awaitingQuote ||
+            o.status == OrderStatus.revisionRequested) {
+          paths.add(AppRoutes.bayiOrder(o.orderId));
+        }
+      }
+    }
+    if (policy.isApprover && policy.can(Pg.stationApprovals)) {
+      final bende = ref.watch(approvalsListProvider(const ApprovalsQuery()));
+      for (final a in bende.items) {
+        paths.add(AppRoutes.approval(a.id));
+      }
+    }
+  }
+  if (policy.isPlatform) {
+    final bende = ref.watch(approvalsListProvider(const ApprovalsQuery()));
+    for (final a in bende.items) {
+      paths.add(AppRoutes.approval(a.id));
+    }
+  }
+  return paths;
+});

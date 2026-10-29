@@ -7,7 +7,10 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/media/image_capture.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/turkish_text.dart';
+import '../../approvals/api.dart'
+    show ApprovalRow, ApprovalsQuery, approvalsListProvider;
 import '../data/customer_more_repository.dart';
 import '../data/order_requests.dart';
 import 'cm_common.dart';
@@ -152,6 +155,43 @@ final orderRequestProvider = FutureProvider.autoDispose
     .family<OrderRequest, int>((ref, id) {
       ref.watch(currentUserIdProvider);
       return ref.read(customerMoreRepositoryProvider).orderRequest(id);
+    });
+
+/// Şirket içi talebin onay kaydındaki konu türü (sunucu `CompanyOrderRequestApprovalSource`).
+const companyRequestSubjectType = 'CustomerOrderRequest';
+
+/// [rows] içinde konusu [requestId] numaralı şirket içi talep olan onay kaydı (v4 B2), yoksa null.
+int? requestApprovalIdIn(Iterable<ApprovalRow> rows, int requestId) {
+  for (final a in rows) {
+    if (a.type != ApprovalType.companyOrderRequest) continue;
+    if (a.subjectId != requestId) continue;
+    if (a.subjectType.isNotEmpty &&
+        a.subjectType != companyRequestSubjectType) {
+      continue;
+    }
+    return a.id;
+  }
+  return null;
+}
+
+/// Talebin karar sayfası (v4 B2): onay kaydı biliniyorsa onun ayrıntısı, talebin bloğuna
+/// odaklanmış (`/approvals/{id}?focus=request`); bilinmiyorsa Onaylar, sipariş talepleriyle
+/// süzülmüş. Onaylar bazı rollerde alt menü sekmesidir: yol `openAppLocation` ile açılır.
+String requestDecisionLocation(int? approvalId) => approvalId == null
+    ? '${AppRoutes.approvals}?type=${ApprovalType.companyOrderRequest.code}'
+    : '${AppRoutes.approval(approvalId)}?focus=request';
+
+/// Talebin onay kaydı (v4 B2): karar verebilen kullanıcının Onaylar › Bende listesinde
+/// (`approvals?scope=toMe`, ilk sayfa; görev kutusu ve rozetle aynı sorgu, aynı önbellek) konusu
+/// bu talep olan satır. Liste ilk kez yüklenirken `loading`; okunamazsa ya da satır yoksa `id`
+/// null kalır (sayfa Onaylar'ı süzgeçle açar).
+final requestApprovalProvider = Provider.autoDispose
+    .family<({bool loading, int? id}), int>((ref, requestId) {
+      final s = ref.watch(approvalsListProvider(const ApprovalsQuery()));
+      return (
+        loading: s.isFirstLoad,
+        id: requestApprovalIdIn(s.items, requestId),
+      );
     });
 
 /// Siparişler oluştuktan sonra ödeme belgesinin durumu (çek / senet görseli, dekont).

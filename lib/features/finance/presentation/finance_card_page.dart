@@ -3,29 +3,39 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
+import '../../../core/env/app_env.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/routing/route_access.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/external_activity.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
 import '../../approvals/api.dart';
 import '../application/finance_providers.dart';
+import '../application/my_approvals.dart';
 import '../copy.dart';
 import '../data/finance_models.dart';
 import 'finance_customers_page.dart'
-    show financeProfileLamp, riskLamp, riskShort;
+    show financeAwaitsDecision, financeProfileLamp, riskLamp, riskShort;
 
 /// Cari finans kartı (spec A.4 A5; tasarım v3 "Akış"): itilen başlık "Finans kartı"; gövde cari adı
 /// (`display`), VKN ve son karar, durum ve risk çipleri; **kahraman kart** "Kullanılabilir limit" (kalan
 /// limit, kullanım ölçeri, Limit / Kullanılan / Kullanım; yükselerek gelir); sonra beyaz kartlarda
 /// finans koşulları, tahsilat riski, teminatlar, notlar, karar geçmişi ve risk raporları — kartlar art
-/// arda yükselerek gelir. Salt okunur (kart düzenleme web portalında).
+/// arda yükselerek gelir. Kart düzenleme web portalında.
+///
+/// v4 tur 2 (P3): finans onayı bekleyen kart izleyenin sırasıysa (talep Onaylar › Bende'de) alt
+/// çubukta tek birincil "Karar ver" talebi açar; sıra başkasındaysa çubuk yok, durum lambası
+/// sakin.
 class FinanceCardPage extends ConsumerWidget {
   const FinanceCardPage({super.key, required this.stationCustomerId});
 
@@ -34,6 +44,8 @@ class FinanceCardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(financeCardProvider(stationCustomerId));
+    // Kartla birlikte (paralel) okunur: karar izleyenin sırasıysa alt çubuk hazır gelir.
+    final mine = ref.watch(myApprovalsBySubjectProvider(onboardingApprovals));
     Future<void> refresh() async {
       ref.invalidate(financeCardProvider(stationCustomerId));
       try {
@@ -42,11 +54,13 @@ class FinanceCardPage extends ConsumerWidget {
     }
 
     final card = async.valueOrNull;
+    final awaiting = card != null && financeAwaitsDecision(card.profile.status);
     return AppScaffold(
       title: 'Finans kartı',
       // v4 §3.2: kaydırınca carinin adı çubukta.
       collapsedTitle: card?.profile.customerTitle,
       refreshing: async.isLoading && card != null,
+      actionBar: awaiting ? _decisionDock(context, mine) : null,
       body: card == null
           ? (async.hasError
                 ? Center(
@@ -66,12 +80,41 @@ class FinanceCardPage extends ConsumerWidget {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.only(bottom: 32),
                   children: [
-                    FadeUp(offset: 10, child: _Header(profile: card.profile)),
+                    FadeUp(
+                      offset: 10,
+                      child: _Header(
+                        profile: card.profile,
+                        // Yüklenirken iyimser: finans ekibinin kartı çoğunlukla kendi sırasıdır.
+                        yourMove:
+                            mine == null ||
+                            mine[stationCustomerId] != null ||
+                            !mine.complete,
+                      ),
+                    ),
                     ..._sections(context, ref, card),
                   ],
                 ),
               ),
             ),
+    );
+  }
+
+  /// Karar alt çubuğu (v4 `ActionBar.decision`): talep Bende'deyse "Karar ver" onu açar; Bende'nin
+  /// devamı okunmadıysa Onaylar yeni cari türüne süzülü açılır; sıra izleyende değilse çubuk yok.
+  ActionBar? _decisionDock(BuildContext context, MyApprovals? mine) {
+    if (mine == null) return null;
+    final request = mine[stationCustomerId];
+    if (request == null && mine.complete) return null;
+    return ActionBar.decision(
+      primary: AknButton(
+        key: const ValueKey('finance-decide'),
+        label: FinanceCopy.decide,
+        onPressed: request != null
+            ? () => context.push(AppRoutes.approval(request.id))
+            : () => context.openAppLocation(
+                approvalsOfType(ApprovalType.customerOnboarding),
+              ),
+      ),
     );
   }
 
@@ -112,24 +155,18 @@ class FinanceCardPage extends ConsumerWidget {
             title: 'Limit',
             child: FactList(
               facts: [
+                // "limitsiz" sınırsız kredi gibi okunur (v4 B16): limit henüz tanımlanmadı.
                 FactRow(
                   label: 'Bağlantı limiti',
-                  value: 'Tanımlı değil (limitsiz)',
+                  value: FinanceCopy.noLimitValue,
                 ),
               ],
             ),
           ),
         ),
-      if (p.status == FinanceProfileStatus.pending ||
-          p.status == FinanceProfileStatus.infoRequested)
-        const Padding(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
-          child: AknBanner(
-            tone: AknTone.warn,
-            message:
-                'Kart finans onayı bekliyor. Kararı Onaylarım\'daki "Yeni cari finans onayı" talebinden verin.',
-          ),
-        ),
+      // v4 tur 2 (B1): "Onaylarım'daki talepten verin" uyarısı yerine alt çubukta "Karar ver".
+      // Gözden geçirme işi ("Gözden geçirilecek n cari") burada biter: kartı düzenleyebilen için
+      // uyarının eylemi web portalındaki kartı açar (çıkmaz sokak yok; dışarı ok simgesiyle).
       if (reviewOverdue)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -138,6 +175,12 @@ class FinanceCardPage extends ConsumerWidget {
             icon: PhosphorIconsRegular.calendarX,
             message:
                 'Gözden geçirme günü ${Fmt.longDate(p.nextReviewDate)} idi. Kartı web portalında güncelleyin.',
+            actionLabel: policy.hasCap(Caps.financeProfileEdit)
+                ? FinanceCopy.openInPortal
+                : null,
+            onAction: policy.hasCap(Caps.financeProfileEdit)
+                ? () => _openPortal(context, ref, p.stationCustomerId)
+                : null,
           ),
         ),
       stagger(
@@ -307,6 +350,29 @@ class FinanceCardPage extends ConsumerWidget {
   }
 }
 
+/// Kartı web portalında açar (`/Finance/Profile?stationCustomerId=`): düzenleme orada.
+Future<void> _openPortal(
+  BuildContext context,
+  WidgetRef ref,
+  int stationCustomerId,
+) async {
+  final base = ref.read(appEnvProvider).portalBaseUrl;
+  final uri = Uri.tryParse(
+    '${base}Finance/Profile?stationCustomerId=$stationCustomerId',
+  );
+  var ok = false;
+  if (uri != null) {
+    try {
+      ok = await launchExternal(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      ok = false;
+    }
+  }
+  if (!ok && context.mounted) {
+    AppToast.error('Portal açılamadı.', context: context);
+  }
+}
+
 /// Bölüm (tasarım v3): sayfa zemininde süzülen beyaz kart (20 köşe, kart gölgesi); içinde başlık ve
 /// içerik. [padded] içerik 18 px kenarla girer; defter satırları kendi kenarlarını verir.
 class _Section extends StatelessWidget {
@@ -428,10 +494,12 @@ class FactList extends StatelessWidget {
 }
 
 /// Gövdenin başı (tasarım v3): cari adı (`display`), VKN ve son karar, kart durumu ve risk çipleri.
+/// Bekleyen kartın lambası yalnızca karar izleyenin sırasıysa Pas ([yourMove]).
 class _Header extends StatelessWidget {
-  const _Header({required this.profile});
+  const _Header({required this.profile, this.yourMove = true});
 
   final FinanceProfile profile;
+  final bool yourMove;
 
   @override
   Widget build(BuildContext context) {
@@ -465,7 +533,7 @@ class _Header extends StatelessWidget {
             spacing: 20,
             runSpacing: 6,
             children: [
-              AknLamp.style(financeProfileLamp(p.status)),
+              AknLamp.style(financeProfileLamp(p.status, yourMove: yourMove)),
               if (hasRisk) AknLamp.style(riskLamp(p.riskClass)),
               if (p.isGrandfathered)
                 const AknLamp(label: 'Eski cari', tone: AknTone.neutral),

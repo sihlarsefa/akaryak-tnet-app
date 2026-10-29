@@ -91,9 +91,17 @@ String shortCompany(String? title) {
   return s.isEmpty ? original : s;
 }
 
-/// Müşteri izleyicisi: kararı veren (yönetici / onaylayan) "sıra sizde" lambasını görür.
+/// Müşteri izleyicisi: kararı veren (yönetici / onaylayan) "sıra sizde" lambasını görür. Kural tek
+/// yerde ([AccessPolicy.customerDecides], v4 tur 2): talep edenin teklif kararı ana sayfada, Onaylar'da
+/// ve burada aynı şekilde "onay bekleniyor"dur.
 StatusViewer customerViewer(AccessPolicy policy) =>
-    StatusViewer.customer(canDecide: policy.can(Pg.customerQuotes, Perm.edit));
+    StatusViewer.customer(canDecide: policy.customerDecides);
+
+/// Bayinin finans sorusunu yanıtlayan müşteri (sunucu: carinin her kullanıcısı yanıtlar; soru
+/// Onaylar › Bende'de onun işidir). Talep eden de yanıtlar: "Bayiniz bilgi istiyor" onda da sıra
+/// sizdedir.
+bool customerAnswersInfo(AccessPolicy policy) =>
+    policy.customerDecides || policy.can(Pg.customerApprovals);
 
 /// Siparişin müşteriye görünen lambası (§10.3; v4 §3.2 müşteri sözcükleri): bayinin finansı
 /// incelerken "Bayinizde inceleniyor", bilgi isterken "Bayiniz bilgi istiyor" (karar verebilen için
@@ -109,12 +117,15 @@ StatusLamp orderLampFor(
   String? financeLabel,
   String? actor,
   String? missingDocument,
+  bool? answersInfo,
 }) {
   if (finance.isAwaitingDecision) {
     final s = AknStatus.finance(finance).withLabel(financeLabel);
     final asked = finance == OrderFinanceStatus.infoRequested;
     return StatusLamp(
-      tone: asked && viewer.canDecide ? AknTone.brand : AknTone.info,
+      tone: asked && (answersInfo ?? viewer.canDecide)
+          ? AknTone.brand
+          : AknTone.info,
       label: asked ? 'Bayiniz bilgi istiyor' : 'Bayinizde inceleniyor',
       icon: s.icon,
       stage: AknStage.talep,
@@ -134,7 +145,9 @@ StatusLamp orderLampFor(
     viewer,
     serverLabel: serverLabel,
     shipment: shipment,
-    actor: actor,
+    // Teklif kararında bekleyen bayi değil şirketin onaylayanıdır: bayinin adı orada yazılmaz
+    // ("Onay bekleniyor · Demir Petrol" yanlış kişiyi söylerdi; v4 tur 2).
+    actor: status == OrderStatus.awaitingApproval ? null : actor,
     missingDocument: missingDocument,
   );
 }

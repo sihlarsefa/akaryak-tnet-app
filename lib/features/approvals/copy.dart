@@ -34,6 +34,12 @@ abstract final class ApprovalsCopy {
   static const groupEarlier = 'Daha önce';
   static const groupWaiting = 'Yanıt bekleniyor';
 
+  /// Bende'nin gün grupları talebin GELDİĞİ güne göredir; "Bugün" yalnız başına "bugün bitmeli"
+  /// diye okunuyordu (satırda "1 g 19 sa" yazarken; v4 B16).
+  static const groupArrivedToday = 'Bugün gelenler';
+  static const groupArrivedYesterday = 'Dün gelenler';
+  static const groupArrivedEarlier = 'Daha önce gelenler';
+
   // ---------------------------------------------------------------- v4 süzgeç (Filtre sayfası)
   static const filterType = 'Tür';
   static const filterScope = 'Kapsam';

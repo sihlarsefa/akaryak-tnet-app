@@ -70,7 +70,14 @@ class AknHomeHeader extends StatelessWidget {
     this.name,
     this.now,
     this.band = true,
+    this.leading,
   });
+
+  /// A back (or "Ana sayfa" house) button before the avatar, in the band's
+  /// glass circle: a home page pushed outside the bar (Diğer › Teslimatlar)
+  /// is a pushed page, and every pushed page has a way back (v4 §3.5, round
+  /// 2). Tab homes leave it null.
+  final Widget? leading;
 
   /// "Demir Petrol Akaryakıt Ltd. Şti." — the second line on the band.
   final String company;
@@ -406,11 +413,21 @@ class _HomeBandState extends State<_HomeBand>
       for (final a in header.actions) AknBandSquare(child: a),
       if (bell) const AknBandSquare(child: NotificationBell()),
     ];
+    final lead = header.leading;
     return Row(
       crossAxisAlignment: large
           ? CrossAxisAlignment.start
           : CrossAxisAlignment.center,
       children: [
+        if (lead != null) ...[
+          _Enter(
+            animation: _enter,
+            interval: const Interval(0, 0.6, curve: AknMotion.pop),
+            scale: 0.6,
+            child: AknBandSquare(child: lead),
+          ),
+          const SizedBox(width: 8),
+        ],
         Expanded(child: identity),
         for (var i = 0; i < buttons.length; i++) ...[
           const SizedBox(width: 4),

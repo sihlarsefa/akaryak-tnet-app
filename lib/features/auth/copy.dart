@@ -154,7 +154,7 @@ abstract final class AuthCopy {
   static const phoneVerified = 'Doğrulandı';
   static const phoneNotVerified = 'Doğrulanmadı';
   static const phoneVerifiedBody =
-      'Bu numarayla giriş ekranında "Telefonla" seçeneğini kullanabilirsiniz.';
+      'Bu numarayla giriş ekranında "$modePhone" seçeneğini kullanabilirsiniz.';
   static const phoneChangeNote =
       'Numaranız değişirse telefonla giriş kapanır; yeni numarayı yeniden doğrulamanız gerekir.';
   static const sendVerification = 'Doğrulama kodu gönder';
@@ -168,7 +168,7 @@ abstract final class AuthCopy {
       'Merkez hesapları telefonla giriş yapamaz; girişte şifre ve SMS kodu kullanılır.';
   static const phoneDoneTitle = 'Telefonunuz doğrulandı';
   static const phoneDoneBody =
-      'Artık giriş ekranında "Telefonla" seçeneğiyle giriş yapabilirsiniz.';
+      'Artık giriş ekranında "$modePhone" seçeneğiyle giriş yapabilirsiniz.';
   static const done = 'Tamam';
   static const statusLoadFailed = 'Telefon bilgileriniz yüklenemedi.';
 

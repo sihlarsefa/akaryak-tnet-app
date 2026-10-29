@@ -296,6 +296,37 @@ class FakeWorld {
     return TrTime.fromWall(w.year, w.month, w.day + dayOffset, hour, minute);
   }
 
+  /// Bugünün bir saati, gösterim anına göre (v4 tur 2): [ahead] sonrası çeyrek saate yuvarlanır,
+  /// noktanın teslim aralığına ([open]–[close]) sıkıştırılır, ama hiçbir zaman [notBefore]'dan (ya da
+  /// şimdiden 15 dk sonrasından) önce değil; gün değişmez (en geç 23:45). Sabit saat ("09:00") gün
+  /// içi bir gösterimde geçmişte kalıyor, yoldaki araç "geç kalmış" görünüyordu.
+  DateTime _slotToday(
+    Duration ahead, {
+    required int open,
+    required int close,
+    DateTime? notBefore,
+  }) {
+    DateTime quarter(DateTime t) {
+      final w = TrTime.wall(t);
+      var m = w.hour * 60 + w.minute + (w.second > 0 ? 1 : 0);
+      m = ((m + 14) ~/ 15) * 15;
+      return TrTime.fromWall(w.year, w.month, w.day, m ~/ 60, m % 60);
+    }
+
+    var at = quarter(seededAt.add(ahead));
+    final from = _todayAt(open);
+    final until = _todayAt(close);
+    if (at.isBefore(from)) at = from;
+    if (at.isAfter(until)) at = until;
+    final soonest = quarter(
+      notBefore ?? seededAt.add(const Duration(minutes: 15)),
+    );
+    if (at.isBefore(soonest)) at = soonest;
+    final last = _todayAt(23, 45);
+    if (at.isAfter(last)) at = last;
+    return at;
+  }
+
   void _seedMasterData() {
     stations.addAll([
       {
@@ -394,7 +425,9 @@ class FakeWorld {
         'limitAmount': 750000.0,
         'limitType': 'Tutar',
         'limitPeriod': 'Aylık',
-        'used': 210000.0,
+        // Kullanılan = Finans kartının açık bakiyesi (vadesi geçen 247.200 ₺; v4 tur 2): ana sayfa,
+        // Tahsilat ve Finans aynı tutarı söyler.
+        'used': 247200.0,
         'financeStatus': 1,
         'riskClass': 2,
         'salesRepUserId': 'u-saha',
@@ -910,21 +943,35 @@ class FakeWorld {
     );
 
     int sid() => nextId('shipment');
+    // Yoldaki araç 40 dk önce çıktı, ~70 dk sonra Pendik'te (08:00–18:00); planlı sevkiyat ~4 saat
+    // sonra İzmit'te (08:00–17:00), yoldakinden en az 45 dk sonra. Saatler gösterim anına göredir:
+    // ana sayfa, bildirim ve şoför ekranı aynı, geçmişte kalmamış saati söyler (v4 tur 2).
+    final arrival = _slotToday(const Duration(minutes: 70), open: 8, close: 18);
+    var left = seededAt.subtract(const Duration(minutes: 40));
+    final latestStart = arrival.subtract(const Duration(minutes: 30));
+    if (left.isAfter(latestStart)) left = latestStart;
+    final planned = _slotToday(
+      const Duration(hours: 4),
+      open: 8,
+      close: 17,
+      notBefore: arrival.add(const Duration(minutes: 45)),
+    );
     shipments.addAll([
       newShipment(
         id: sid(),
         orderId: o3,
         plannedLiters: 10000,
         status: 1,
-        scheduledAt: _todayAt(9),
-        dispatchedAt: _todayAt(9, 20),
+        scheduledAt: arrival,
+        // Varıştan önce yola çıktı: bildirim "Varış …" der, saati çelişmez.
+        dispatchedAt: left,
       ),
       newShipment(
         id: sid(),
         orderId: o7,
         plannedLiters: 8000,
         status: 0,
-        scheduledAt: _todayAt(14),
+        scheduledAt: planned,
         vehiclePlate: '41 DMR 102',
       ),
       newShipment(
@@ -1056,7 +1103,12 @@ class FakeWorld {
         subjectId: 3001,
         subjectNumber: 'TLP-00031',
         title: 'Şirket içi sipariş talebi',
-        summary: '30.000 L Motorin · Pendik Lojistik Merkezi',
+        // Sunucunun biçimi (CompanyOrderRequestApprovalSource.OpenCommand): ürünler · toplam litre ·
+        // tahmini tutar · not. Talep iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı) ve iki
+        // noktadır (A5 deposu, 3001); satır tek ürün ve tek nokta söylemez (v4 B11).
+        summary:
+            'Motorin, Kalorifer Yakıtı · 30.000 L · tahmini 1.263.000,00 ₺ · '
+            'Not: Ay sonu stok için; iki noktaya ayrı teslim.',
         amount: 1263000,
         liters: 30000,
         customerId: 101,
@@ -1087,6 +1139,7 @@ class FakeWorld {
   void _seedNotifications() {
     final o2 = orders.firstWhere((o) => o['status'] == 2);
     final o3 = orders.firstWhere((o) => o['status'] == 3);
+    final moving = shipments.firstWhere((s) => s['status'] == 1);
     final reported = shipments.firstWhere((s) => s['status'] == 2);
     final planned = shipments.firstWhere((s) => s['status'] == 0);
     final newest = orders.lastWhere((o) => o['status'] == 1);
@@ -1095,9 +1148,29 @@ class FakeWorld {
     final company = approvals.firstWhere((a) => a['type'] == 3);
 
     // v4 (§4): bildirim metinlerinde kod (SIP-, SVK-) ve tutar (₺) yok; kim, ne, nerede ve ne
-    // zamana kadar — doğal cümleyle.
+    // zamana kadar — doğal cümleyle. Bayi kısa adıyla ("Demir Petrol"), uygulamanın her yerindeki
+    // gibi; sayılar ve saatler ana sayfa, sipariş ve şoför ekranlarıyla aynıdır (A9, B11): yoldaki
+    // litre sevkiyatın planlanan litresi, teslim bildiriminin saati teslim saati. Karar isteyen
+    // bildirimde son saat önce gelir: satır iki satırda kesilse de görünür (B17).
     String litres(Object? v) => Fmt.liters((v as num?) ?? 0);
     String product(Object? v) => TurkishText.lower('${v ?? 'yakıt'}');
+    String short(Object? v) => TurkishText.shortCompany(v as String?);
+    DateTime? localAt(Object? v) => TrTime.parseLocal(v as String?);
+    // Sipariş alanları (`expiresAt`, `createdAt`) ofsetsiz Türkiye saatidir.
+    // Bildirim dünden kalmışsa bugünkü son saat "bugün" der ("Dün 12:15 · 12:15'e kadar" hangi gün
+    // olduğunu söylemiyordu; v4 tur 2).
+    String until(Object? v, {Object? stamped}) {
+      final at = localAt(v);
+      if (at == null) return 'Süresi dolmadan';
+      final from = localAt(stamped);
+      final prefix = TrTime.dayDiff(seededAt, at) > 0
+          ? 'yarın '
+          : from != null && TrTime.dayDiff(from, at) != 0
+          ? 'bugün '
+          : '';
+      return '$prefix${TurkishText.timeDative(Fmt.time(at))} kadar';
+    }
+
     void n(
       List<String> keys,
       String category,
@@ -1109,8 +1182,11 @@ class FakeWorld {
       String? entityType,
       int? entityId,
       num hoursAgo = 1,
+      DateTime? at,
       bool read = false,
     }) {
+      // Olayın kendi anı geçmişteyse o (teslim, yola çıkış); değilse "şimdi − hoursAgo".
+      final when = at != null && at.isBefore(seededAt) ? at : _h(-hoursAgo);
       for (final k in keys) {
         addNotification(
           userId: 'u-$k',
@@ -1122,23 +1198,26 @@ class FakeWorld {
           route: route,
           entityType: entityType,
           entityId: entityId,
-          at: _h(-hoursAgo),
+          at: when,
           read: read,
         );
       }
     }
 
+    final arrival = localAt(moving['scheduledAt']);
     n(
       ['musteri', 'talep', 'onay'],
       'shipments',
       'shipment.dispatched',
       'Aracınız yola çıktı',
-      '${litres(o3['quantityLiters'])} ${product(o3['productName'])}, '
-          '${o3['deliveryPointName']} için yolda.',
+      '${litres(moving['plannedLiters'])} ${product(moving['productName'])}, '
+          '${moving['deliveryPointName']} için yolda.'
+          '${arrival == null ? '' : ' Varış ${Fmt.time(arrival)}.'}',
       '/orders/${o3['id']}',
       entityType: 'Order',
       entityId: o3['id'] as int,
       hoursAgo: 3,
+      at: localAt(moving['dispatchedAt']),
       read: true,
     );
     n(
@@ -1146,13 +1225,15 @@ class FakeWorld {
       'shipments',
       'shipment.reported',
       'Teslimatı onaylayın',
-      '${reported['stationName']} ${litres(reported['deliveredLiters'] ?? reported['plannedLiters'])} '
+      '${short(reported['stationName'])} '
+          '${litres(reported['deliveredLiters'] ?? reported['plannedLiters'])} '
           '${product(reported['productName'])} teslim etti. Kontrol edip onaylayın.',
       '/shipments/${reported['id']}',
       severity: 2,
       entityType: 'Shipment',
       entityId: reported['id'] as int,
       hoursAgo: 18,
+      at: localAt(reported['deliveredAt']),
     );
     n(
       ['musteri', 'onay'],
@@ -1160,9 +1241,9 @@ class FakeWorld {
       'order.quote_ready',
       'Teklif hazır',
       // Bildirim metninde tutar yok (spec A.5: kilit ekranında görünür).
-      '${o2['stationTitle']}, ${o2['deliveryPointName']} için '
-          '${litres(o2['quantityLiters'])} ${product(o2['productName'])} teklifini gönderdi. '
-          'Süresi dolmadan karar verin.',
+      '${until(o2['expiresAt'])} karar verin: ${short(o2['stationTitle'])}, '
+          '${o2['deliveryPointName']} için ${litres(o2['quantityLiters'])} '
+          '${product(o2['productName'])} teklifi.',
       '/orders/${o2['id']}',
       severity: 1,
       entityType: 'Order',
@@ -1173,9 +1254,10 @@ class FakeWorld {
       ['onay', 'musteri'],
       'approvals',
       // Sunucu şirket içi talep için ayrı olay göndermez; onaylayanlara approval.pending gider (spec A.5).
+      // Talep iki noktaya iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı; A5 deposu 3001).
       'approval.pending',
       'Onayınızı bekleyen talep',
-      'Burak Yılmaz 30.000 L motorin talep etti.',
+      'Burak Yılmaz 2 noktaya 30.000 L yakıt talep etti.',
       '/approvals/${company['id']}',
       entityType: 'ApprovalRequest',
       entityId: company['id'] as int,
@@ -1186,12 +1268,15 @@ class FakeWorld {
       'orders',
       'order.created',
       'Yeni sipariş',
-      '${newest['customerTitle']} ${litres(newest['quantityLiters'])} '
-          '${product(newest['productName'])} sipariş etti.',
+      '${until(newest['expiresAt'], stamped: newest['createdAt'])} teklif verin: '
+          '${short(newest['customerTitle'])} '
+          '${litres(newest['quantityLiters'])} ${product(newest['productName'])} istiyor.',
       '/bayi/orders/${newest['id']}',
       entityType: 'Order',
       entityId: newest['id'] as int,
       hoursAgo: 0.4,
+      // Sipariş geldiği an (sipariş listesindeki saatle aynı).
+      at: localAt(newest['createdAt']),
     );
     n(
       ['finans', 'mudur', 'sahip'],
@@ -1251,13 +1336,16 @@ class FakeWorld {
       severity: 3,
       hoursAgo: 6,
     );
+    // Sunucunun sözü ve rotası (NotificationTemplates `lead.updated`, temsilciye: ön kaydın kendisi):
+    // demo, gerçek uygulamanın açtığı sayfayı açar (v4 tur 2).
     n(
       ['saha'],
       'field',
       'lead.updated',
-      'Ön kayıt için ek bilgi istendi',
-      'Başkent Yapı Market: vergi levhası yükleyin.',
-      '/field',
+      'Ön kayıt ek bilgi istendi',
+      'Başkent Yapı Market ön kaydı için finans ek bilgi istedi. '
+          'Düzenleyip yeniden gönderin.',
+      '/field/leads/8001',
       severity: 2,
       entityType: 'CustomerLead',
       entityId: 8001,

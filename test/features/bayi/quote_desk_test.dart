@@ -48,13 +48,10 @@ void main() {
       await scrollTap(tester, find.text('Önerilen fiyatları yaz'));
       final s = app.container.read(quoteDeskProvider);
       final withSuggestion = rows
-          .where((r) => r.suggestedUnitPrice != null)
+          .where((r) => r.offeredUnitPrice != null)
           .length;
       expect(s.selected.length, withSuggestion);
-      expect(
-        s.draftOf(rows.first.orderId).price,
-        rows.first.suggestedUnitPrice,
-      );
+      expect(s.draftOf(rows.first.orderId).price, rows.first.offeredUnitPrice);
       expect(
         find.textContaining('Teklifleri gönder ($withSuggestion) · '),
         findsOneWidget,

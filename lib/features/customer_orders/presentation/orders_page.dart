@@ -120,7 +120,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   Widget build(BuildContext context) {
     final home = ref.watch(customerHomeProvider).data;
     final policy = ref.watch(accessPolicyProvider);
-    final canDecide = policy.can(Pg.customerQuotes, Perm.edit);
+    // Tek kural (v4 tur 2): talep edenin teklif kararı yok; band ona "onay bekliyor" der.
+    final canDecide = policy.customerDecides;
     final decisions = home?.dashboard.pendingDecisionTotal ?? 0;
     final s = ref.watch(ordersListProvider(_segment));
     return AppScaffold(

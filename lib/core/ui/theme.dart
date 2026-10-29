@@ -234,7 +234,8 @@ abstract final class AknTheme {
 
   /// The secondary / outline button (§4 Buttons): white `surface` with a
   /// 1.5 px `lineStrong` 60 % border and an ink label (dark: a `surfaceAlt`
-  /// fill, no border); pressed `surfaceAlt`. [danger] paints the label in the
+  /// fill and a full `lineStrong` border); pressed `surfaceAlt`. [danger]
+  /// paints the label in the
   /// danger tone (Reddet).
   static ButtonStyle secondaryButtonStyle(
     AknColors c,
@@ -275,7 +276,7 @@ abstract final class AknTheme {
     side: WidgetStateProperty.resolveWith(
       (s) => _focused(s)
           ? focusRing(c)
-          : _disabled(s) || c.isDark
+          : _disabled(s)
           ? const BorderSide(color: Color(0x00000000), width: 0)
           : BorderSide(color: secondaryBorder(c), width: 1.5),
     ),
@@ -284,9 +285,11 @@ abstract final class AknTheme {
     animationDuration: AknMotion.press,
   );
 
-  /// The border of a secondary / outline button: `lineStrong` at 60 %.
+  /// The border of a secondary / outline button: `lineStrong` at 60 % on
+  /// light; the full `lineStrong` at night (≥ 3:1 on the dark dock and card,
+  /// so "Yol tarifi" keeps its edge next to a filled primary; v4 A14).
   static Color secondaryBorder(AknColors c) =>
-      c.lineStrong.withValues(alpha: 0.6);
+      c.isDark ? c.lineStrong : c.lineStrong.withValues(alpha: 0.6);
 
   /// A pressed fill on [base]: ink at 8 % over it (dark surfaces).
   static Color _pressedOn(AknColors c, Color base) =>

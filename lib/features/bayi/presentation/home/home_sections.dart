@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/enums.dart' show ApprovalType;
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
+import '../../../finance/api.dart'
+    show MyApprovals, myApprovalsBySubjectProvider, onboardingApprovals;
 import '../../application/bayi_grants.dart';
 import '../../data/home_models.dart';
 import '../widgets/bayi_widgets.dart' show openDestination, openPortal;
@@ -36,7 +39,8 @@ class BayiTodayLedger extends ConsumerWidget {
   /// Satış özeti (istatistik destesi olmayanlar için).
   final bool showSales;
 
-  /// Defterin satırları (testler ve boşluk kontrolü için ayrı).
+  /// Defterin satırları (testler ve boşluk kontrolü için ayrı). [onboarding]: izleyenin Bende'deki
+  /// yeni cari finans talepleri (finans satırının sırası ve tekrarı buna göre).
   static List<Widget> rowsOf(
     BuildContext context,
     BayiHomeData data,
@@ -44,6 +48,7 @@ class BayiTodayLedger extends ConsumerWidget {
     List<AknTask> overflow = const [],
     Set<String> heroKinds = const {},
     bool showSales = true,
+    MyApprovals? onboarding,
   }) {
     void open(String route) => openDestination(context, route);
     final rows = <Widget>[
@@ -119,19 +124,27 @@ class BayiTodayLedger extends ConsumerWidget {
             title: 'Karşılıksız çıkan ${Fmt.integer(m.bounced30d)} ödeme',
             subtitle: 'Son 30 gün',
             showChevron: g.viewPayments,
-            onTap: g.viewPayments ? () => open(AppRoutes.payments) : null,
+            // Satırın saydığı liste açılır (v4 tur 2): Tahsilat, karşılıksız süzgeciyle.
+            onTap: g.viewPayments
+                ? () => open('${AppRoutes.payments}?filter=bounced')
+                : null,
           ),
         );
       }
     }
 
-    // Finans kartları.
+    // Finans kartları. Onay bekleyen kart bir onay talebidir: izleyenin sırasıysa kahramanın onay
+    // satırı onu zaten sayar ("bir iş, bir sayı", v4 P2) — burada yinelenmez. Sıra başkasındaysa
+    // sakin bir bilgi satırı.
     final fin = data.finance;
     if (fin != null) {
-      if (fin.pending > 0) {
+      final decider = onboarding == null || onboarding.total > 0;
+      if (fin.pending > 0 && !(decider && heroKinds.contains('approvals'))) {
         rows.add(
           AknListTile(
-            title: 'İncelemenizi bekleyen ${Fmt.integer(fin.pending)} cari',
+            title: decider
+                ? 'Finans onayınızı bekleyen ${Fmt.integer(fin.pending)} cari'
+                : 'Finans onayında ${Fmt.integer(fin.pending)} cari',
             subtitle: 'Finans kartı',
             showChevron: true,
             onTap: () => open('${AppRoutes.finance}?filter=pending'),
@@ -171,8 +184,16 @@ class BayiTodayLedger extends ConsumerWidget {
             subtitle: field.converted > 0
                 ? 'Son 30 günde ${Fmt.integer(field.converted)} form siparişe dönüştü'
                 : null,
-            showChevron: g.viewFieldForms,
-            onTap: g.viewFieldForms ? () => open(AppRoutes.field) : null,
+            showChevron: g.viewFieldForms || g.viewApprovals,
+            // Onaylayanın kararı Onaylar'dadır (saha formu türüne süzülü); diğerleri onay bekleyen
+            // formların listesini açar (v4 tur 2: satırın sayısı açılan listede görünür).
+            onTap: g.viewApprovals && g.policy.isApprover
+                ? () => open(
+                    '${AppRoutes.approvals}?type=${ApprovalType.fieldOrderProfit.code}',
+                  )
+                : g.viewFieldForms
+                ? () => open('${AppRoutes.field}?segment=pending')
+                : null,
           ),
         );
       } else if (field.converted > 0) {
@@ -257,6 +278,7 @@ class BayiTodayLedger extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final g = ref.watch(bayiGrantsProvider);
+    final pending = (data.finance?.pending ?? 0) > 0;
     final rows = rowsOf(
       context,
       data,
@@ -264,6 +286,9 @@ class BayiTodayLedger extends ConsumerWidget {
       overflow: overflow,
       heroKinds: heroKinds,
       showSales: showSales,
+      onboarding: pending
+          ? ref.watch(myApprovalsBySubjectProvider(onboardingApprovals))
+          : null,
     );
     if (rows.isEmpty) return const SizedBox.shrink();
     return Column(
@@ -278,7 +303,8 @@ class BayiTodayLedger extends ConsumerWidget {
 }
 
 /// Kurulum uyarıları (v4 §5 03): her açık kontrol bir defter satırı (başlık, özet ve ipucu, durum
-/// hapı), dokununca web portalında düzeltme sayfası açılır. Bugünün Tüpraş fiyatı (`tupras-today`)
+/// hapı), dokununca web portalında düzeltme sayfası açılır — satırın sağındaki dışarı ok simgesi bunu
+/// önceden söyler (v4 B15: uygulamadan çıkış sürpriz olmaz). Bugünün Tüpraş fiyatı (`tupras-today`)
 /// burada yok: o iş "Sıra sizde" kartındadır.
 class SetupSectionView extends ConsumerWidget {
   const SetupSectionView({super.key, required this.section});
@@ -322,11 +348,20 @@ class SetupSectionView extends ConsumerWidget {
                       ? AknTone.danger
                       : AknTone.warn,
                 ),
-                showChevron: c.portalPath != null,
+                showChevron: false,
+                trailing: c.portalPath == null
+                    ? null
+                    : ExcludeSemantics(
+                        child: Icon(
+                          PhosphorIconsRegular.arrowSquareOut,
+                          size: 18,
+                          color: context.akn.dim,
+                        ),
+                      ),
                 semanticLabel: [
                   c.title,
                   if (c.summary.isNotEmpty) c.summary,
-                  if (c.portalPath != null) 'web portalında düzeltin',
+                  if (c.portalPath != null) 'web portalında açılır',
                 ].join(', '),
                 onTap: c.portalPath == null
                     ? null

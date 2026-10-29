@@ -241,4 +241,15 @@ abstract final class Fmt {
   /// Boş/null için tire.
   static String orDash(String? value) =>
       value == null || value.trim().isEmpty ? dash : value.trim();
+
+  /// Bölünmez boşluk (U+00A0).
+  static const nbsp = '\u00A0';
+
+  /// Kısa bir olgunun sözcüklerini bölünmez boşlukla bağlar ("Tuzla Şantiye", "Motorin 8.000 L"):
+  /// satır yalnızca olgular arasındaki " · " ayırıcısında kırılır, bir olgunun ortasında değil
+  /// (v4 A17). [max] karakterden uzun olgular olağan biçimde sarılır (satırı taşırmasın).
+  static String whole(String fact, {int max = 24}) {
+    final t = fact.trim();
+    return t.length <= max ? t.replaceAll(' ', nbsp) : t;
+  }
 }

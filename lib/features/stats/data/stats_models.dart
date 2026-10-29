@@ -5,12 +5,12 @@ import '../../../core/utils/format.dart';
 
 /// İstatistik dönemi (`?period=`; sunucu Türkiye yerel ay sınırlarıyla hesaplar, spec R1 §4).
 enum StatsPeriod {
-  month('month', 'Bu ay', 'geçen ayın aynı günlerine göre'),
-  lastMonth('lastMonth', 'Geçen ay', 'önceki aya göre'),
-  quarter('quarter', 'Son 3 ay', 'önceki 3 aya göre'),
-  year('year', 'Bu yıl', 'geçen yılın aynı dönemine göre');
+  month('month', 'Bu ay', 'geçen ayın aynı günlerine göre', 'geçen aya göre'),
+  lastMonth('lastMonth', 'Geçen ay', 'önceki aya göre', 'önceki aya göre'),
+  quarter('quarter', 'Son 3 ay', 'önceki 3 aya göre', 'önceki 3 aya göre'),
+  year('year', 'Bu yıl', 'geçen yılın aynı dönemine göre', 'geçen yıla göre');
 
-  const StatsPeriod(this.key, this.label, this.compareShort);
+  const StatsPeriod(this.key, this.label, this.compareShort, this.compareBrief);
 
   /// Sorgu değeri.
   final String key;
@@ -21,6 +21,11 @@ enum StatsPeriod {
   /// Fark çipinin yanındaki cümle: karşılaştırmanın adı ("geçen ayın aynı günlerine göre",
   /// tasarım v2 §10.4).
   final String compareShort;
+
+  /// İstatistikler plakasının dönem satırındaki kısa adı ("1–29 Ekim · geçen aya göre"; v4 tur 2
+  /// A11): uzun cümle fark çipinin yanında tek satıra sığmaz, "göre" alt satırda yalnız kalırdı.
+  /// Ekran okuyucu [compareShort]'u duyar.
+  final String compareBrief;
 
   /// Bilinmeyen / boş değer [month] olur.
   static StatsPeriod fromKey(String? key) {

@@ -3,13 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/network/failure_copy.dart';
 import '../../../core/pdf/akn_pdf.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/routing/route_access.dart';
 import '../../../core/ui/ui.dart';
@@ -554,7 +554,7 @@ class _CustomerSections {
             title: StatsCopy.spendingReport,
             subtitle: StatsCopy.spendingReportHint,
             showChevron: true,
-            onTap: () => unawaited(context.push(AppRoutes.spending)),
+            onTap: () => context.openAppLocation(AppRoutes.spending),
           ),
         ),
       if (spend != null && spend.isEmpty && d.products.isEmpty)
@@ -566,7 +566,9 @@ class _CustomerSections {
 
 // ============================================================== bölümler
 
-/// Rotaya izin varsa gezinme (izin yoksa satır dokunulmaz).
+/// Rotaya izin varsa gezinme (izin yoksa satır dokunulmaz). Hedef bir sekmeyse (müşterinin
+/// Siparişler'i, Onaylar'ı, Teslimat'ı) sekmeye geçilir, ayrıntıysa itilir: itilen İstatistikler'in
+/// üstüne bir sekme rotası `push` edilirse kabuk ikinci kez kurulurdu (QA SC-01).
 class _Nav {
   _Nav(this.ref);
 
@@ -582,7 +584,7 @@ class _Nav {
   VoidCallback? maybe(String route) {
     if (!can(route)) return null;
     final context = ref.context;
-    return () => unawaited(context.push(route));
+    return () => context.openAppLocation(route);
   }
 }
 
@@ -643,7 +645,10 @@ class _Picker<T> extends StatelessWidget {
 
 /// Sayfanın tek plakası (tasarım v4 §5 12): başlık ve dönem tek satırda ("Harcama  1–28 Ekim"),
 /// fark çipi sağda (`PlateHead.trailing`), rakam döner, altında üç okuma; simge kutusu yok. Sayfa
-/// açılınca yükselerek ve hafifçe büyüyerek gelir; okumalar sayaç gibi yerine oturur.
+/// açılınca yükselerek ve hafifçe büyüyerek gelir; okumalar sayaç gibi yerine oturur. Çip varken
+/// karşılaştırmanın kısa adı dönem satırındadır ("1–28 Ekim · geçen aya göre"; v4 tur 2 A11: çip
+/// neye göre olduğunu yanında söyler ve satır çipin yanında tek satırda kalır); ekran okuyucu uzun
+/// cümleyi duyar.
 class _HeadlinePlate extends StatelessWidget {
   const _HeadlinePlate({
     required this.title,
@@ -669,9 +674,12 @@ class _HeadlinePlate extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
         head: PlateHead(
           title: title,
-          period: period.from == null
-              ? period.title
-              : StatsFmt.rangeShort(period.from, period.to),
+          period: [
+            period.from == null
+                ? period.title
+                : StatsFmt.rangeShort(period.from, period.to),
+            if (pct != null) period.key.compareBrief,
+          ].join(' · '),
           trailing: pct == null
               ? null
               : Semantics(
@@ -1042,7 +1050,8 @@ class _MonthTable extends StatelessWidget {
   }
 }
 
-/// Ürün dağılımı: litreye göre sıralı çubuklar (tek seri, ürüne renk yok).
+/// Ürün dağılımı: litreye göre sıralı çubuklar (tek seri, ürüne renk yok; düz veri olduğundan
+/// turuncu vurgu da yok: ilk satır mürekkep, v4 tur 2 A20).
 class _ProductsSection extends StatelessWidget {
   const _ProductsSection({required this.products, required this.caption});
 
@@ -1061,6 +1070,7 @@ class _ProductsSection extends StatelessWidget {
       caption: caption,
       children: [
         StatsRankedList(
+          accent: false,
           items: [
             for (final p in rows)
               RankedItem(

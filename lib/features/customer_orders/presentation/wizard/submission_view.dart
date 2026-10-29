@@ -42,7 +42,7 @@ class SubmissionView extends ConsumerStatefulWidget {
   final Future<void> Function() onBackToEditing;
   final VoidCallback onClose;
 
-  /// Sonuç ekranından çıkıp sayfa açar ("Siparişi görüntüle", "Siparişlerime git"): gönderim
+  /// Sonuç ekranından çıkıp sayfa açar ("Siparişi görüntüle", "Siparişlere git"): gönderim
   /// onaylanır, sihirbaz kapanır; çıkış sayfası gösterilmez.
   final void Function(String route) onOpen;
 
@@ -109,7 +109,7 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
           message: s.phase == SubmitPhase.checking
               ? OrdersCopy.checkingMessage
               : (s.phase == SubmitPhase.reconciling
-                    ? 'Siparişlerim listesiyle karşılaştırıyoruz; biraz sürebilir.'
+                    ? OrdersCopy.reconcilingMessage
                     : null),
           attempt: s.phase == SubmitPhase.checking ? s.attempts : null,
         );
@@ -385,8 +385,7 @@ class _Success extends ConsumerWidget {
                 const AknBanner(
                   tone: AknTone.info,
                   icon: PhosphorIconsRegular.listMagnifyingGlass,
-                  message:
-                      'Sonuç Siparişlerim listesinden doğrulandı; sipariş tekrar gönderilmedi.',
+                  message: OrdersCopy.reconciledNote,
                   margin: EdgeInsets.fromLTRB(20, 0, 20, 12),
                 ),
               if (expiryOn && expires != null && !r.isCompanyRequest)

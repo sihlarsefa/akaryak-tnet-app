@@ -184,10 +184,11 @@ class _OrderFiltersState extends ConsumerState<_OrderFilters> {
         Wrap(
           spacing: 8,
           children: [
+            // Seçili çip uygulanan sıralamadır (seçim yoksa segmentin doğal sıralaması).
             for (final s in BayiOrderSort.values)
               ChoiceChip(
                 label: Text(s.label),
-                selected: _f.sort == s,
+                selected: _f.effectiveSort == s,
                 onSelected: (_) => setState(() => _f = _f.copyWith(sort: s)),
               ),
           ],

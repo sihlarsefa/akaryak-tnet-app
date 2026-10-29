@@ -529,6 +529,23 @@ void main() {
       );
     });
 
+    test('Tüm işler (/bayi/tasks) yalnızca bayi', () {
+      for (final key in ['sahip', 'finans', 'depo']) {
+        expect(
+          RouteAccess.isAllowed('/bayi/tasks', _policy(key), noAssistant),
+          isTrue,
+          reason: key,
+        );
+      }
+      for (final key in ['musteri', 'talep']) {
+        expect(
+          RouteAccess.isAllowed('/bayi/tasks', _policy(key), noAssistant),
+          isFalse,
+          reason: key,
+        );
+      }
+    });
+
     test('Şirket kullanıcıları yalnızca Yönetici', () {
       expect(
         RouteAccess.isAllowed(

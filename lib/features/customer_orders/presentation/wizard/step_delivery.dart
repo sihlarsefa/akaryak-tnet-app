@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/storage/prefs_store.dart';
 import '../../../../core/ui/ui.dart';
@@ -65,7 +65,8 @@ class StepDelivery extends ConsumerWidget {
               illustration: AknIllustration.delivery,
               compact: true,
               actionLabel: 'Teslimat noktası ekle',
-              onAction: () => context.push(AppRoutes.deliveryPoints),
+              // Teslimat noktaları bazı düzenlerde alt menü sekmesidir (QA SC-01).
+              onAction: () => context.openAppLocation(AppRoutes.deliveryPoints),
             ),
           )
         else

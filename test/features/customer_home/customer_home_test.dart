@@ -222,30 +222,33 @@ void main() {
     },
   );
 
-  testWidgets(
-    'talep eden: deste ve plaka yok; kahraman yalnızca kendi işleri',
-    (tester) async {
-      registerStatsFakes(env.server);
-      await open(
-        tester,
-        persona: 'talep',
-        waitFor: find.textContaining('Burak'),
-      );
-      expect(find.textContaining(', Burak'), findsOneWidget);
-      expect(
-        tester.widget<AknHomeHeader>(find.byType(AknHomeHeader)).person,
-        'Burak Yılmaz, talep eden',
-      );
-      expect(find.byType(ManagerStatsDeck), findsNothing);
-      expect(find.byType(AknPlate), findsNothing);
-      expect(find.byType(AknTaskCard), findsOneWidget);
-      // Belge yükleme, teslimat ve finans soruları onaylayanın işidir.
-      expect(inHero(find.text('Çek görselini yükle')), findsNothing);
-      expect(inHero(find.text('Bekleyen işiniz yok')), findsOneWidget);
-      expect(inHero(find.text(HomeCopy.calmCreate)), findsOneWidget);
-      await tearDownUi(tester);
-    },
-  );
+  testWidgets('talep eden: deste ve plaka yok; kahraman yalnızca kendi işleri', (
+    tester,
+  ) async {
+    registerStatsFakes(env.server);
+    await open(tester, persona: 'talep', waitFor: find.textContaining('Burak'));
+    expect(find.textContaining(', Burak'), findsOneWidget);
+    expect(
+      tester.widget<AknHomeHeader>(find.byType(AknHomeHeader)).person,
+      'Burak Yılmaz, talep eden',
+    );
+    expect(find.byType(ManagerStatsDeck), findsNothing);
+    expect(find.byType(AknPlate), findsNothing);
+    expect(find.byType(AknTaskCard), findsOneWidget);
+    // v4 tur 2: kahraman görev kutusunu olduğu gibi gösterir (= Diğer › Onaylar rozeti = Bende).
+    // Teklif kararı ve teslimat onayı onaylayanındır; bayinin talep edenden istediği belge (finans
+    // sorusu) onun işidir.
+    expect(inHero(find.text('Teklifi onaylayın')), findsNothing);
+    expect(inHero(find.text('Teslimatı onaylayın')), findsNothing);
+    final card = tester.widget<AknTaskCard>(find.byType(AknTaskCard));
+    // Kartın sayısı kutunun sayısıdır: talep edene özel süzgeç yok (rozet ve Bende ile aynı; tam
+    // sahte sunucuyla sayı testi task_inbox_test'te).
+    expect(card.total, card.tasks.where((t) => t.counts).length);
+    for (final t in card.tasks) {
+      expect('${t.id}', isNot(matches(RegExp('^(quote|delivery|document)-'))));
+    }
+    await tearDownUi(tester);
+  });
 
   testWidgets('teklif bayinin finansındayken "Sıra sizde"de karar yok', (
     tester,
@@ -441,7 +444,8 @@ void main() {
       final card = tester.widget<AknTaskCard>(find.byType(AknTaskCard));
       final draft = card.tasks.last;
       expect(draft.counts, isFalse, reason: 'taslak sayılmaz');
-      expect(draft.subtitle, contains('5.000 L'));
+      // Olgunun sözcükleri bölünmez boşlukla bağlı olabilir (v4 A17: "5.000 L").
+      expect(draft.subtitle?.replaceAll(' ', ' '), contains('5.000 L'));
       expect(card.total, card.tasks.where((t) => t.counts).length);
       // Satır sihirbazı taslakla açar.
       draft.onTap!();

@@ -30,6 +30,7 @@ class AknObjectHeader extends StatelessWidget {
     this.line,
     this.caption,
     this.copyCaption = true,
+    this.captionNote,
     this.padding = const EdgeInsets.fromLTRB(20, 4, 20, 16),
   });
 
@@ -49,6 +50,10 @@ class AknObjectHeader extends StatelessWidget {
 
   /// Long-pressing the [caption] copies it with a short toast.
   final bool copyCaption;
+
+  /// A fact after the code on its line, not copied with it ("verildi bugün
+  /// 07:49"; v4 round 2: when the order was placed is not a delivery fact).
+  final String? captionNote;
   final EdgeInsetsGeometry padding;
 
   Future<void> _copy(BuildContext context, String text) async {
@@ -110,8 +115,15 @@ class AknObjectHeader extends StatelessWidget {
     }
     Widget? code;
     if (cap != null && cap.isNotEmpty) {
-      final text = Text(
-        cap,
+      final note = captionNote;
+      final hasNote = note != null && note.isNotEmpty;
+      // One line, one text: the code (copied on long press) and the note
+      // after it ("SIP-… · verildi bugün 07:49").
+      final text = Text.rich(
+        TextSpan(
+          text: cap,
+          children: [if (hasNote) TextSpan(text: ' · $note')],
+        ),
         style: t.label.copyWith(
           fontWeight: FontWeight.w500,
           color: c.dim,
@@ -121,7 +133,7 @@ class AknObjectHeader extends StatelessWidget {
       code = !copyCaption
           ? text
           : Semantics(
-              label: cap,
+              label: hasNote ? '$cap, $note' : cap,
               hint: 'Kopyalamak için basılı tutun',
               excludeSemantics: true,
               onLongPress: () => _copy(context, cap),

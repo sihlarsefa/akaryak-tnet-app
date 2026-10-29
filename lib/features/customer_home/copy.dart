@@ -18,7 +18,7 @@ abstract final class HomeCopy {
   static const plannedArrival = 'planlanan varış';
   static const plannedDelivery = 'planlanan teslim';
   static const limits = 'Limitler';
-  static const templates = 'Şablonlarım';
+  static const templates = 'Şablonlar';
   static const spending = 'Harcamalar';
   static const monthPlate = 'Bu ay harcama';
   static const all = 'Tümü';
@@ -70,7 +70,7 @@ abstract final class HomeCopy {
   static const viewerSteps = [
     'Siparişlerinizi Siparişler sekmesinden izleyin.',
     'Yoldaki araç ana sayfada, Yolda bölümünde görünür.',
-    'Teslim edilen yakıtı Teslimatlar sekmesinde bulun.',
+    'Teslim edilen yakıtı Teslimat sekmesinde bulun.',
   ];
 
   /// "Limit · Demir Petrol".

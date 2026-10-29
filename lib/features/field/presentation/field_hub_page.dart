@@ -119,12 +119,20 @@ class _FieldHubPageState extends ConsumerState<FieldHubPage> {
     final current = sections.contains(_section) ? _section! : sections.first;
     final add = _addAction(context, current, access);
     // v4 §3.2: başlık alt menünün kelimesi ("Saha"), altında canlı durum satırı.
-    final waiting = ref
+    // Kuyruktaki formlar ve ön kayıtlar ayrı sayılır: sayı söylediği şeyle aynı (ana sayfanın
+    // "Gönderilmeyi bekleyen 1 form ve 1 ön kayıt" satırıyla bir).
+    final queued = ref
         .watch(fieldQueuedItemsProvider)
         .where((q) => q.isForm || q.isLead)
-        .length;
-    final Object? status = waiting > 0
-        ? AknStatusClause.yourMove('$waiting form gönderilmeyi bekliyor')
+        .toList();
+    final queuedForms = queued.where((q) => q.isForm).length;
+    final queuedLeads = queued.length - queuedForms;
+    final waiting = [
+      if (queuedForms > 0) '$queuedForms form',
+      if (queuedLeads > 0) '$queuedLeads ön kayıt',
+    ].join(' ve ');
+    final Object? status = waiting.isNotEmpty
+        ? AknStatusClause.yourMove('$waiting gönderilmeyi bekliyor')
         : access.mode == FieldMode.team
         ? 'Ekibin formları ve ön kayıtları'
         : null;

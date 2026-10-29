@@ -2,12 +2,57 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/session_controller.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/storage/prefs_store.dart';
+import 'bayi_grants.dart';
 
 /// "Nasıl çalışır" (tasarım v4 "Sade" §4 `AknFirstRunHint`): bayi ana sayfasının ilk oturum ipucu;
 /// eski rol ipucu ve asistan kartının yerine. Üç adım rol ön ayarına göre, sekme adları alt menünün
 /// kelimeleriyle.
 abstract final class BayiHintSteps {
+  /// v4 tur 2: adımlar yetkilerden seçilir ve bir sekmeyi yalnızca alt menüdeyse adıyla anar (değilse
+  /// "Diğer › Onaylar'da"). Depo planlamaz ve şoför atamaz; özel rol teklif vermiyorsa Teklifler'i
+  /// duymaz. [inBar]: yol alt menüde mi.
+  static List<String> forGrants(
+    RolePreset preset,
+    BayiGrants g, {
+    required bool Function(String path) inBar,
+  }) {
+    String at(String path, String bar, String more) =>
+        inBar(path) ? '$bar sekmesinde' : 'Diğer › $more';
+    String from(String path, String bar, String more) =>
+        inBar(path) ? '$bar sekmesinden' : 'Diğer › $more';
+    switch (preset) {
+      case RolePreset.dispatch when !g.planShipment:
+        return [
+          'Bugünkü yüklemeler ${at(AppRoutes.dispatch, 'Sevkiyat', "Sevkiyat'ta")}.',
+          if (g.dispatchOrReport)
+            'Yola çıkışı ve teslimi sevkiyatın ayrıntısından bildirin.',
+          'Planlama ve şoför ataması sevkiyat ekibindedir.',
+        ];
+      case RolePreset.owner || RolePreset.generic:
+        final quotes = g.quoteOnDesk || g.quoteOnOrder;
+        final steps = [
+          if (quotes && g.viewDesk)
+            'Yeni siparişlere ${from(AppRoutes.quoteDesk, 'Teklifler', "Teklifler'den")} fiyat verin.'
+          else if (quotes && g.viewOrders)
+            'Yeni siparişlere ${from(AppRoutes.bayiOrders, 'Siparişler', "Siparişler'den")} fiyat verin.',
+          if (g.planShipment) 'Müşteri onaylayınca sevkiyatı planlayın.',
+          if (g.policy.isApprover && g.viewApprovals)
+            'Kararınızı bekleyen talepler ${at(AppRoutes.approvals, 'Onaylar', "Onaylar'da")}.',
+        ];
+        if (steps.length >= 2) return steps;
+        return [
+          ...steps,
+          if (g.viewOrders)
+            'Siparişleri ${from(AppRoutes.bayiOrders, 'Siparişler', "Siparişler'den")} izleyin.',
+          'Bir değişiklik gerekirse bayi yöneticinize başvurun.',
+        ].take(3).toList();
+      default:
+        return forPreset(preset);
+    }
+  }
+
   static List<String> forPreset(RolePreset preset) => switch (preset) {
     RolePreset.orderDesk => const [
       'Yeni siparişlere Teklifler sekmesinden fiyat verin.',

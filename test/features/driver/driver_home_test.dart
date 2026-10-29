@@ -60,60 +60,82 @@ void main() {
     h.dispose();
   }
 
-  testWidgets(
-    'Bugün: itirazlı teslimat en üstte, not ve "Teslimatı düzelt" ile',
-    (tester) async {
-      await start(tester);
-      expect(find.text(DriverCopy.title), findsOneWidget);
-      expect(find.byType(DriverHome), findsOneWidget);
-      final cards = find.byType(ShipmentCard);
-      expect(cards, findsWidgets);
-      final first = tester.widget<ShipmentCard>(cards.first);
-      expect(first.row.status, ShipmentStatus.disputed);
-      // v4 §5 11: itiraz, kahraman kartın en üstünde tek tehlike satırı (kaydırmadan görünür); not
-      // ve "Teslimatı düzelt" aşağıdaki satırda.
-      expect(find.text(DriverCopy.disputedCount(1)), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(DriverStopPlate),
-          matching: find.text(DriverCopy.disputedCount(1)),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        tester.getTopLeft(find.text(DriverCopy.disputedCount(1))).dy,
-        lessThan(tester.getTopLeft(find.text(DriverCopy.nextOf(1, 2))).dy),
-      );
-      expect(find.textContaining('5.650 L'), findsOneWidget);
-      expect(find.text(DriverCopy.disputedTitle), findsOneWidget);
-      expect(find.text(DriverCopy.actionFix), findsOneWidget);
-      // Sıradaki durak: yoldaki teslimat; ekranın tek plakası onun litresi.
-      expect(find.text(DriverCopy.nextOf(1, 2)), findsOneWidget);
-      expect(find.byType(DriverStopPlate), findsOneWidget);
-      expect(find.byType(AknPlate), findsOneWidget);
-      expect(
-        find.bySemanticsLabel(RegExp('^Motorin, bu durakta, 10.000 litre')),
-        findsOneWidget,
-      );
-      expect(find.text('Anadolu Lojistik A.Ş.'), findsOneWidget);
-      expect(find.textContaining('Kapı notu'), findsOneWidget);
-      expect(find.text('Murat Kaya'), findsOneWidget);
-      // Raf: "Teslim et" (konum noktada, birincil) ve "Yol tarifi".
-      expect(find.byType(DriverStopDock), findsOneWidget);
-      expect(find.text(DriverCopy.actionDeliver), findsOneWidget);
-      expect(find.text(DriverCopy.actionNavigate), findsOneWidget);
-      expect(
-        tester
-            .widget<DriverStopDock>(find.byType(DriverStopDock))
-            .actionIsPrimary,
-        isTrue,
-      );
-      // Sekme sayıları.
-      expect(find.bySemanticsLabel(RegExp('^Bugün, \\d+\$')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await finish(tester);
-    },
-  );
+  testWidgets('Bugün: itirazlı teslimat en üstte, not ve "Teslimatı düzelt" ile', (
+    tester,
+  ) async {
+    await start(tester);
+    expect(find.text(DriverCopy.title), findsOneWidget);
+    expect(find.byType(DriverHome), findsOneWidget);
+    final cards = find.byType(ShipmentCard);
+    expect(cards, findsWidgets);
+    final first = tester.widget<ShipmentCard>(cards.first);
+    expect(first.row.status, ShipmentStatus.disputed);
+    // v4 §5 11, A13: itiraz, durak plakasının ÜSTÜNDE kendi şeridinde (kaydırmadan görünür; plakanın
+    // içinde değil: plaka kısalmaz, rıhtıma yapışmaz); not ve "Teslimatı düzelt" aşağıdaki satırda.
+    // Şeridin cümlesi olgu satırıdır (iki satıra inerse "·" satır sonunda kalmaz, v4 tur 2).
+    final title = find.byWidgetPredicate(
+      (w) => w is AknFactLine && w.text == DriverCopy.disputedCount(1),
+    );
+    expect(title, findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(DriverStopPlate), matching: title),
+      findsNothing,
+    );
+    final strip = tester.getRect(title);
+    final plateTop = tester.getTopLeft(find.byType(DriverStopPlate)).dy;
+    expect(strip.bottom, lessThan(plateTop));
+    // Şerit dokunma hedefi kadar yer kaplar, fazlasını değil (kart + altındaki boşluk = sürücü
+    // kipinde 64): plaka 390×844'te rıhtımın ≥ 12 dp üstünde biter (A13; gerçek yazı tipiyle
+    // yakalamada 16 dp).
+    final stripBox = tester.getRect(
+      find.ancestor(of: title, matching: find.byType(GestureDetector)).last,
+    );
+    final minTap = AknDriverMode.minTapOf(
+      tester.element(find.byType(DriverStopPlate)),
+    );
+    expect(stripBox.height, moreOrLessEquals(minTap, epsilon: 0.5));
+    expect(plateTop - stripBox.top, moreOrLessEquals(minTap, epsilon: 0.5));
+    // Sıra şoförde: "Müşteri itiraz etti · 1 teslimatı düzeltin" (edilgen "düzeltme bekliyor"
+    // değil; v4 B16) ve müşteri adı ekran okuyucu metninde.
+    expect(
+      DriverCopy.disputedCount(1).replaceAll('\u00A0', ' '),
+      'Müşteri itiraz etti · 1 teslimatı düzeltin',
+    );
+    expect(
+      find.bySemanticsLabel(
+        RegExp('^Müşteri.itiraz.etti · 1.teslimatı.düzeltin: .+'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('5.650 L'), findsOneWidget);
+    expect(find.text(DriverCopy.disputedTitle), findsOneWidget);
+    expect(find.text(DriverCopy.actionFix), findsOneWidget);
+    // Sıradaki durak: yoldaki teslimat; ekranın tek plakası onun litresi.
+    expect(find.text(DriverCopy.nextOf(1, 2)), findsOneWidget);
+    expect(find.byType(DriverStopPlate), findsOneWidget);
+    expect(find.byType(AknPlate), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(RegExp('^Motorin, bu durakta, 10.000 litre')),
+      findsOneWidget,
+    );
+    expect(find.text('Anadolu Lojistik A.Ş.'), findsOneWidget);
+    expect(find.textContaining('Kapı notu'), findsOneWidget);
+    expect(find.text('Murat Kaya'), findsOneWidget);
+    // Raf: "Teslim et" (konum noktada, birincil) ve "Yol tarifi".
+    expect(find.byType(DriverStopDock), findsOneWidget);
+    expect(find.text(DriverCopy.actionDeliver), findsOneWidget);
+    expect(find.text(DriverCopy.actionNavigate), findsOneWidget);
+    expect(
+      tester
+          .widget<DriverStopDock>(find.byType(DriverStopDock))
+          .actionIsPrimary,
+      isTrue,
+    );
+    // Sekme sayıları.
+    expect(find.bySemanticsLabel(RegExp('^Bugün, \\d+\$')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await finish(tester);
+  });
 
   testWidgets(
     'birincil iş tırı izler: noktaya ~17 km iken "Yol tarifi", uzaklık plakada',

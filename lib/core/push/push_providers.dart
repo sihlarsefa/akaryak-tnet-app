@@ -10,6 +10,7 @@ import '../routing/route_access.dart';
 import '../storage/prefs_store.dart';
 import '../utils/app_messenger.dart';
 import '../utils/log.dart';
+import 'push_focus.dart';
 import 'push_payload.dart';
 import 'push_service.dart';
 
@@ -103,31 +104,51 @@ class PushCoordinator {
       case PushOrigin.foreground:
         final text = p.body ?? p.title;
         if (text != null) {
+          final policy = ref.read(accessPolicyProvider);
           final route = RouteAccess.resolvePushRoute(
             p.route,
-            ref.read(accessPolicyProvider),
+            policy,
             ref.read(appConfigProvider).features,
           );
+          // "Aç" de Bildirimler'deki satırla aynı bloğu açar (v4 tur 2).
           ref
               .read(appMessengerProvider)
-              .show(AppMessage(text, title: p.title, route: route));
+              .show(
+                AppMessage(
+                  text,
+                  title: p.title,
+                  route: withPushFocus(
+                    route,
+                    p.type,
+                    canQuote: !policy.isBayi || policy.quotesOrders,
+                  ),
+                ),
+              );
         }
       case PushOrigin.tap:
         final pending = ref.read(pendingDeepLinkProvider.notifier);
         final session = ref.read(sessionControllerProvider);
         if (session is SessionAuthenticated || session is SessionLocked) {
+          final policy = ref.read(accessPolicyProvider);
           pending.set(
-            RouteAccess.resolvePushRoute(
-              p.route,
-              ref.read(accessPolicyProvider),
-              ref.read(appConfigProvider).features,
+            withPushFocus(
+              RouteAccess.resolvePushRoute(
+                p.route,
+                policy,
+                ref.read(appConfigProvider).features,
+              ),
+              p.type,
+              canQuote: !policy.isBayi || policy.quotesOrders,
             ),
           );
         } else {
           // Soğuk açılış: dokunuş oturum geri yüklenmeden gelebilir (kişi henüz bilinmiyor). Rota
           // olduğu gibi saklanır; yönlendirici oturum açılınca kullanıcının yetkisiyle denetler,
           // izin yoksa `/notifications` açar. Şimdi denetlemek her rotayı reddederdi.
-          pending.set(RouteAccess.sanitizePushRoute(p.route), fromPush: true);
+          pending.set(
+            withPushFocus(RouteAccess.sanitizePushRoute(p.route), p.type),
+            fromPush: true,
+          );
         }
     }
   }

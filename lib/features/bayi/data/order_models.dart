@@ -198,8 +198,19 @@ class BayiOrdersFilter {
     this.createdTo,
     this.requestedFrom,
     this.requestedTo,
-    this.sort = BayiOrderSort.created,
+    this.sort,
   });
+
+  /// Segmentin doğal sıralaması (v4 B6): teklif bekleyen ve revize istenen siparişlerin hepsi süre
+  /// sonuna koşar — en acil olan üstte ("⏱ 41 dk"); diğerleri en yeni önce. Tümü'de sunucu süre
+  /// sonuna göre sıralamaz (onaylı ve kapanmış siparişlerin eski süre sonu öne geçerdi): acil
+  /// olanlar ekranda öne alınır (`pinUrgent`).
+  static BayiOrderSort naturalSort(BayiOrderSegment? segment) =>
+      switch (segment) {
+        BayiOrderSegment.awaitingQuote ||
+        BayiOrderSegment.revisionRequested => BayiOrderSort.expiry,
+        _ => BayiOrderSort.created,
+      };
 
   final BayiOrderSegment? segment;
   final String q;
@@ -214,7 +225,15 @@ class BayiOrdersFilter {
   final DateTime? createdTo;
   final DateTime? requestedFrom;
   final DateTime? requestedTo;
-  final BayiOrderSort sort;
+
+  /// Kullanıcının seçtiği sıralama; null = segmentin doğal sıralaması ([naturalSort]).
+  final BayiOrderSort? sort;
+
+  /// Uygulanan sıralama.
+  BayiOrderSort get effectiveSort => sort ?? naturalSort(segment);
+
+  /// Seçilen sıralama segmentin doğal sıralamasından farklı (Filtre rozeti ve özet satırı sayar).
+  bool get customSort => sort != null && sort != naturalSort(segment);
 
   /// Filtre sayfasındaki (segment ve arama dışındaki) etkin süzgeç sayısı.
   int get advancedCount =>
@@ -224,7 +243,7 @@ class BayiOrdersFilter {
       (customerId == null ? 0 : 1) +
       (createdFrom == null && createdTo == null ? 0 : 1) +
       (requestedFrom == null && requestedTo == null ? 0 : 1) +
-      (sort == BayiOrderSort.created ? 0 : 1);
+      (customSort ? 1 : 0);
 
   bool get isFiltered =>
       segment != null || q.trim().isNotEmpty || advancedCount > 0;
@@ -241,7 +260,7 @@ class BayiOrdersFilter {
     Object? createdTo = _keep,
     Object? requestedFrom = _keep,
     Object? requestedTo = _keep,
-    BayiOrderSort? sort,
+    Object? sort = _keep,
   }) => BayiOrdersFilter(
     segment: segment == _keep ? this.segment : segment as BayiOrderSegment?,
     q: q ?? this.q,
@@ -266,7 +285,7 @@ class BayiOrdersFilter {
     requestedTo: requestedTo == _keep
         ? this.requestedTo
         : requestedTo as DateTime?,
-    sort: sort ?? this.sort,
+    sort: sort == _keep ? this.sort : sort as BayiOrderSort?,
   );
 
   /// Segment ve arama korunur, gelişmiş süzgeçler temizlenir.
@@ -287,7 +306,7 @@ class BayiOrdersFilter {
         ? null
         : BayiJson.isoDate(requestedFrom!),
     'requestedTo': requestedTo == null ? null : BayiJson.isoDate(requestedTo!),
-    'sort': sort == BayiOrderSort.created ? null : sort.key,
+    'sort': effectiveSort == BayiOrderSort.created ? null : effectiveSort.key,
   };
 
   @override

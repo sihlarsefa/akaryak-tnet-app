@@ -481,8 +481,9 @@ class PlateFigure extends StatelessWidget {
   }
 }
 
-/// The line under the figure (§4): a delta chip ("▲ %12,8"; on the plate
-/// `deltaFill` with `brandInk` 13 w700, radius 8) and, 8 px after it on the
+/// The line under the figure (§4): a delta chip ("▲ %12,8"; on the plate a
+/// neutral ink chip in a `plateLine` outline, 13 w700, radius 8; v4 A11)
+/// and, 8 px after it on the
 /// same line, the sentence naming the comparison ("geçen ayın aynı
 /// günlerine göre"), 13/18 500 dim — one line on a phone at 1.0×. A
 /// sentence too long for its line wraps in its own column beside the chip
@@ -705,15 +706,19 @@ class PlateReadout {
 }
 
 /// Readouts under the rule (§4): one row of 2 or 3 columns, left-aligned,
-/// gap 10 — the label in `caption` (12/16 w600 dim) over the value in
-/// `number` (24/30 800, tabular) with its unit (`readoutUnit`). The values
-/// roll up into place one column after another ([RollingText]) and have all
-/// landed ~1 s after the first frame. A value never wraps mid-number (it
-/// scales down in its column). Only at large text (≥ 1.6×), in a plate too
-/// narrow for columns (< [minColumnWidth] each) or at enlarged text whose
-/// values cannot share the row, the readouts become label / value lines.
+/// gap at least 16 — the label in `caption` (12/16 w600 dim) over the value
+/// in `number` (24/30 800, tabular) with its unit (`readoutUnit`). Equal
+/// columns whenever every readout fits its share; otherwise each column is
+/// as wide as its content and the room left goes between the columns, so a
+/// short figure never sits against a long one ("190.000 L  18", v4 A20).
+/// The values roll up into place one column after another ([RollingText])
+/// and have all landed ~1 s after the first frame. A value never wraps
+/// mid-number (it scales down in its column). Only at large text (≥ 1.6×),
+/// in a plate too narrow for columns (< [minColumnWidth] each) or at
+/// enlarged text whose values cannot share the row, the readouts become
+/// label / value lines.
 class PlateReadouts extends StatelessWidget {
-  const PlateReadouts({super.key, required this.items, this.gap = 10});
+  const PlateReadouts({super.key, required this.items, this.gap = 16});
 
   final List<PlateReadout> items;
   final double gap;
@@ -809,10 +814,12 @@ class PlateReadouts extends StatelessWidget {
           ],
         );
         if (large || col < minColumnWidth) return stacked();
-        // Columns like a CSS grid (`repeat(n, 1fr)` with unbreakable
-        // labels): equal shares, but a column never gets less than its
-        // content ("⬚ Ay sonu tahmini" takes what it needs and the others
-        // share the rest). When the contents do not fit side by side, the
+        // Equal columns (the board's `repeat(n, 1fr)`) whenever every label
+        // and value fits its share — the values may shrink together by up to
+        // 5 % for it. Otherwise each column is as wide as its content
+        // ("⬚ Ay sonu tahmini" takes what it needs) and the room left goes
+        // between the columns, so a short figure never sits right after a
+        // long one (v4 A20). When the contents do not fit side by side, the
         // values first shrink together (to 75 %) with every label on one
         // line — the row stays one tidy line, and a deck never has to scale
         // its detail down — then labels may take two lines; only then do the
@@ -850,16 +857,28 @@ class PlateReadouts extends StatelessWidget {
                 extra(r),
         ];
         final avail = constraints.maxWidth - gap * (n - 1);
+        final share = avail / n;
+        List<double>? equal(double k) {
+          for (var i = 0; i < n; i++) {
+            if (math.max(values[i] * k, lines[i]) > share) return null;
+          }
+          return List.filled(n, share);
+        }
+
         List<double>? fit(List<double> labels, double k) {
           final mins = [
             for (var i = 0; i < n; i++) math.max(values[i] * k, labels[i]),
           ];
           if (mins.fold<double>(0, (a, b) => a + b) > avail) return null;
-          return _gridColumns(mins, avail);
+          return mins;
         }
 
         var k = 1.0;
         List<double>? widths;
+        for (var step = 0; widths == null && step <= 2; step++) {
+          k = 1 - 0.025 * step;
+          widths = equal(k);
+        }
         for (var step = 0; widths == null && step <= 10; step++) {
           k = 1 - 0.025 * step;
           widths = fit(lines, k);
@@ -871,7 +890,15 @@ class PlateReadouts extends StatelessWidget {
         // Enlarged text whose values cannot share the row: label / value
         // lines read better than squeezed figures. At 1.0× the row stays.
         if (widths == null && scaler.scale(10) > 11.5) return stacked();
-        widths ??= List.filled(n, avail / n);
+        widths ??= List.filled(n, share);
+        // Content-wide columns: the room left goes between them (one column
+        // takes the row).
+        final used = widths.fold<double>(0, (a, b) => a + b);
+        final room = math.max(0.0, avail - used);
+        if (n == 1) {
+          widths = [widths.first + room];
+        }
+        final spacing = n > 1 ? gap + room / (n - 1) : gap;
         // Every label area is as tall as the tallest label, its label at
         // the bottom: the values share one baseline.
         var labelBox = 0.0;
@@ -888,7 +915,7 @@ class PlateReadouts extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (var i = 0; i < n; i++) ...[
-              if (i > 0) SizedBox(width: gap),
+              if (i > 0) SizedBox(width: spacing),
               SizedBox(
                 width: widths[i],
                 child: Semantics(
@@ -925,35 +952,6 @@ class PlateReadouts extends StatelessWidget {
       },
     );
   }
-}
-
-/// CSS-grid `1fr` columns with a content minimum: equal shares of [avail],
-/// except that a column whose content ([mins]) is wider keeps its content
-/// width and the others share what is left. If the contents cannot all fit,
-/// the shares are equal.
-List<double> _gridColumns(List<double> mins, double avail) {
-  final n = mins.length;
-  if (n == 0) return const [];
-  final total = mins.fold<double>(0, (a, b) => a + b);
-  if (total > avail) return List.filled(n, avail / n);
-  final frozen = List<bool>.filled(n, false);
-  var room = avail;
-  var free = n;
-  var changed = true;
-  while (changed && free > 0) {
-    changed = false;
-    final share = room / free;
-    for (var i = 0; i < n; i++) {
-      if (!frozen[i] && mins[i] > share) {
-        frozen[i] = true;
-        room -= mins[i];
-        free--;
-        changed = true;
-      }
-    }
-  }
-  final share = free == 0 ? 0.0 : room / free;
-  return [for (var i = 0; i < n; i++) frozen[i] ? mins[i] : share];
 }
 
 /// The 10 px dashed square of the projection readout.

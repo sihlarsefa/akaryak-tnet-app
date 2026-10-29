@@ -78,6 +78,8 @@ abstract final class RouteAccess {
       (p, f) => p.isBayi && !p.isFieldSales && p.can(Pg.stationStaff),
     ),
     _Rule(AppRoutes.bayiOrders, (p, f) => p.isBayi && p.can(Pg.stationOrders)),
+    // Tüm işler: bayi ana sayfasının işleri (içerik izleyenin yetkisine göre süzülür).
+    _Rule(AppRoutes.bayiTasks, (p, f) => p.isBayi),
     _Rule(
       AppRoutes.quoteDesk,
       (p, f) => p.isBayi && p.can(Pg.stationQuoteDesk),

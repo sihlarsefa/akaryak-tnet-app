@@ -1,11 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
+import '../../../core/routing/app_location.dart';
 import '../../../core/ui/ui.dart';
 import '../application/driver_lists.dart';
 import '../copy.dart';
@@ -30,7 +28,8 @@ class AssignedDeliveriesCard extends ConsumerWidget {
     }
     final count = ref.watch(driverAssignedCountProvider).valueOrNull ?? 0;
     if (count <= 0) return const SizedBox.shrink();
-    void open() => unawaited(context.push(DriverPaths.home));
+    // Teslimatlar bir rolün (şoför) alt menü sekmesidir: `go` ile (QA SC-01).
+    void open() => context.openAppLocation(DriverPaths.home);
     final c = context.akn;
     final t = context.aknText;
     final title = 'Size atanmış $count teslimat';

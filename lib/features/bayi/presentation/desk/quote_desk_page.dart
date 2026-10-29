@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/offline/connectivity.dart';
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../application/bayi_grants.dart';
@@ -27,7 +28,9 @@ import 'desk_sheets.dart';
 ///   sayar) ve "Son: 41,55 ₺/L · 27 Eki" (dokununca son alımlar).
 /// * Finans onayında bekleyenler notu listenin sonunda.
 /// * Alt çubuk: çerçeveli "Önerilen fiyatları yaz"; bir satıra fiyat yazılınca birincil "Teklifleri
-///   gönder (3) · 1.245.000 ₺" 16 dp yükselerek üstüne gelir.
+///   gönder (3) · 1.245.000 ₺" 16 dp yükselerek üstüne gelir. Fiyat yazılmamışken altındaki not
+///   gönder düğmesinin nasıl açıldığını söyler (v4 B10).
+/// * Boş liste: "Teklif verilecek sipariş yok" + [Siparişlere git] (v4 §3.6, B18).
 class QuoteDeskPage extends ConsumerStatefulWidget {
   const QuoteDeskPage({super.key, this.initialCustomerId});
 
@@ -172,11 +175,15 @@ class _QuoteDeskPageState extends ConsumerState<QuoteDeskPage> {
           c.clearFilters();
           c.setView(DeskView.all);
         },
-        empty: const EmptyState(
+        empty: EmptyState(
           compact: true,
           title: 'Teklif verilecek sipariş yok',
           message: 'Yeni sipariş gelince bildirim alırsınız.',
           illustration: AknIllustration.orders,
+          actionLabel: grants.viewOrders ? 'Siparişlere git' : null,
+          onAction: grants.viewOrders
+              ? () => openDestination(context, AppRoutes.bayiOrders)
+              : null,
         ),
         footer: (header?.financeHeld ?? 0) > 0
             ? ListFooterNote(
@@ -450,11 +457,12 @@ class _DeskDock extends ConsumerWidget {
                 ),
         ),
         tools,
-        if (selected == 0 && !large)
+        // Fiyat yazılmamışken: gönder düğmesinin nasıl açıldığı (v4 B10).
+        if (ready == 0 && !s.submitting && !large)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
-              BayiCopy.deskSubmitHint,
+              BayiCopy.deskStartHint,
               textAlign: TextAlign.center,
               style: t.label.copyWith(
                 fontWeight: FontWeight.w500,

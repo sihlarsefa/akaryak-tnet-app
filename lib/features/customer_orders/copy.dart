@@ -126,14 +126,19 @@ abstract final class OrdersCopy {
   static const checkingMessage =
       'Bağlantı yavaş ya da koptu. Siparişiniz iki kez oluşmasın diye aynı işlemi güvenle yeniden deniyoruz.';
   static const uncertainTitle = 'Sonuç henüz doğrulanamadı';
+  // v4 §3.2: yerin adı alt menüdeki sözcüktür ("Siparişler"; "Siparişlerim" değil).
   static const uncertainMessage =
-      'Siparişiniz oluşmuş olabilir. Aynı işlemi güvenle yeniden deneyebilir ya da Siparişlerim ile karşılaştırabilirsiniz.';
+      'Siparişiniz oluşmuş olabilir. Aynı işlemi güvenle yeniden deneyebilir ya da Siparişler listesiyle karşılaştırabilirsiniz.';
   static const reconciling = 'Siparişleriniz kontrol ediliyor';
+  static const reconcilingMessage =
+      'Siparişler listesiyle karşılaştırıyoruz; biraz sürebilir.';
+  static const reconciledNote =
+      'Sonuç Siparişler listesinden doğrulandı; sipariş tekrar gönderilmedi.';
   static const askNewKeyTitle = 'Siparişiniz oluşmamış görünüyor';
   static const askNewKeyMessage =
-      'Siparişlerim listesinde bu gönderime uyan bir kayıt bulamadık. Yeniden gönderilsin mi?';
+      'Siparişler listesinde bu gönderime uyan bir kayıt bulamadık. Yeniden gönderilsin mi?';
   static const resend = 'Yeniden gönder';
-  static const checkOrders = 'Siparişlerimi kontrol et';
+  static const checkOrders = 'Siparişleri kontrol et';
   static const edit = 'Düzenle';
   static const successTitle = 'Siparişiniz bayiye gönderildi';
   static const companyRequestTitle = 'Şirket içi onaya gönderildi';
@@ -141,7 +146,7 @@ abstract final class OrdersCopy {
   static const sendRemaining = 'Kalan satırları gönder';
   static const editRemaining = 'Kalan satırları düzenle';
   static const viewOrder = 'Siparişi aç';
-  static const viewOrders = 'Siparişlerime git';
+  static const viewOrders = 'Siparişlere git';
   static const backHome = 'Ana sayfaya dön';
   static const instrumentHint = 'Bilgiler hatalıysa bayinize bildirin';
   static const pushPrimerTitle = 'Teklifiniz hazır olunca haber verelim mi?';

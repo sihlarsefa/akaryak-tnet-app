@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/env/app_env.dart';
 import '../../../../core/network/app_failure.dart';
+import '../../../../core/routing/app_location.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/external_activity.dart';
 import '../../../../core/utils/format.dart';
@@ -387,19 +387,10 @@ class LoadMoreFooter extends StatelessWidget {
 }
 
 /// Kök hedefi açar: alt menüdeyse sekmeye geçer (`go`), değilse tam ekran açar (`push`). Ayrıntı rotaları
-/// her zaman `push` ile açılır.
-void openDestination(BuildContext context, String location) {
-  final router = GoRouter.of(context);
-  final path = Uri.parse(location).path;
-  final topLevel = router.configuration.routes.whereType<GoRoute>().any(
-    (r) => r.path == path,
-  );
-  if (topLevel) {
-    router.push(location);
-  } else {
-    router.go(location);
-  }
-}
+/// her zaman `push` ile açılır. Kararı çekirdeğin `openAppLocation`'ı verir (QA SC-01: bir sekme
+/// rotasını `push` etmek kabuğu ikinci kez kurar; bildirimler ve derin bağlantılar da aynı kuralı izler).
+void openDestination(BuildContext context, String location) =>
+    context.openAppLocation(location);
 
 /// Telefonla arama (`tel:`); başarısızsa numarayı panoya kopyalar.
 Future<void> callPhone(BuildContext context, String phone) async {

@@ -507,7 +507,7 @@ class _TypeTab extends StatelessWidget {
           'Archivo (web paneliyle aynı), tek aile (400–800); hiyerarşi boyut ve '
               'kalınlıktan gelir, renkten değil.',
         ),
-        spec('display', '28/34 800', Text('Siparişlerim', style: t.display)),
+        spec('display', '28/34 800', Text('Siparişler', style: t.display)),
         spec('title', '20/26 700', Text('Kararınızı bekliyor', style: t.title)),
         spec(
           'headline',
@@ -1975,7 +1975,7 @@ class _NavTabState extends State<_NavTab> {
         const _H('Kök sayfa başlığı'),
         Row(
           children: [
-            Expanded(child: Text('Siparişlerim', style: t.display)),
+            Expanded(child: Text('Siparişler', style: t.display)),
             AknIconButton(
               icon: PhosphorIconsRegular.slidersHorizontal,
               semanticLabel: 'Filtrele',
@@ -2010,13 +2010,13 @@ class _NavTabState extends State<_NavTab> {
                 AknNavItem(
                   icon: PhosphorIconsRegular.checkCircle,
                   selectedIcon: PhosphorIconsFill.checkCircle,
-                  label: 'Onaylarım',
+                  label: 'Onaylar',
                   badgeCount: 2,
                 ),
                 AknNavItem(
                   icon: PhosphorIconsRegular.invoice,
                   selectedIcon: PhosphorIconsFill.invoice,
-                  label: 'Teklif masası',
+                  label: 'Teklifler',
                   badgeCount: 6,
                 ),
                 AknNavItem(
@@ -2049,12 +2049,12 @@ class _NavTabState extends State<_NavTab> {
                 AknNavItem(
                   icon: PhosphorIconsRegular.receipt,
                   selectedIcon: PhosphorIconsFill.receipt,
-                  label: 'Siparişlerim',
+                  label: 'Siparişler',
                 ),
                 AknNavItem(
                   icon: PhosphorIconsRegular.checkCircle,
                   selectedIcon: PhosphorIconsFill.checkCircle,
-                  label: 'Onaylarım',
+                  label: 'Onaylar',
                   badgeCount: 1,
                 ),
                 AknNavItem(icon: PhosphorIconsRegular.list, label: 'Diğer'),
@@ -2073,7 +2073,7 @@ class _NavTabState extends State<_NavTab> {
                   AknNavItem(
                     icon: PhosphorIconsRegular.truck,
                     selectedIcon: PhosphorIconsFill.truck,
-                    label: 'Teslimatlarım',
+                    label: 'Teslimat',
                   ),
                   AknNavItem(
                     icon: PhosphorIconsRegular.bell,

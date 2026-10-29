@@ -515,7 +515,11 @@ class _EntranceState extends State<_Entrance>
 /// spring curve and stretches a little in flight. Labels 14/18: selected Pas
 /// w700 (the panel's `.seg-btn`), others dim w600 — weight and colour
 /// animate; v4: the count follows the label as text (it pops when it
-/// changes). One switcher per screen: AknSegmented for 2–4 views, or one
+/// changes). Segments share the track equally while every label fits its
+/// share; a longer label ("Onay bekleyen 1") makes the segments as wide as
+/// their labels plus an equal share of the rest, and the thumb takes the
+/// width of the segment it slides to ([segmentWidths]).
+/// One switcher per screen: AknSegmented for 2–4 views, or one
 /// FilterChips row for 5+ server segments — never both. Each segment is a screen-reader button with a tap action, a
 /// 48 dp touch target (64 in driver mode) and a press scale.
 class AknSegmented<T> extends StatelessWidget {
@@ -567,86 +571,174 @@ class AknSegmented<T> extends StatelessWidget {
       fontSize: labelSize,
       height: labelLine / labelSize,
     );
+    final scaler = MediaQuery.textScalerOf(context);
     return Padding(
       padding: margin,
       child: SizedBox(
         height: box,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: Center(
-                child: Container(
-                  height: height,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: c.surfaceAlt,
-                    borderRadius: AknRadius.pillAll,
-                  ),
-                  child: index < 0
-                      ? null
-                      : TweenAnimationBuilder<double>(
-                          tween: Tween<double>(end: index.toDouble()),
-                          duration: duration,
-                          curve: AknMotion.spring,
-                          child: FractionallySizedBox(
-                            widthFactor: 1 / n,
-                            heightFactor: 1,
-                            child: thumb,
-                          ),
-                          builder: (context, pos, child) {
-                            // The spring may overshoot between segments but
-                            // never through the track's ends.
-                            final p = pos.clamp(0.0, (n - 1).toDouble());
-                            final x = n <= 1 ? 0.0 : -1 + 2 * p / (n - 1);
-                            // A little stretch while the thumb travels.
-                            final d = (p - p.round()).abs();
-                            return Align(
-                              alignment: Alignment(x, 0),
-                              child: Transform.scale(
-                                scaleX: 1 + 0.14 * d,
-                                scaleY: 1 - 0.04 * d,
-                                child: child,
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ),
-            ),
-            // Labels and 48 dp touch targets over the whole box.
-            Positioned.fill(
-              left: 3,
-              right: 3,
-              child: Row(
-                children: [
-                  for (var i = 0; i < n; i++)
-                    Expanded(
-                      child: _Segment(
-                        option: segments[i],
-                        selected: i == index,
-                        duration: duration,
-                        minTap: minTap,
-                        style: label.copyWith(
-                          fontWeight: i == index
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          // The panel's `.seg-btn` "you are here": Pas.
-                          color: i == index ? c.brandInk : c.dim,
-                        ),
-                        onTap: () {
-                          if (i == index) return;
-                          AknHaptics.selection();
-                          onChanged(segments[i].value);
-                        },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final widths = segmentWidths([
+              for (final s in segments)
+                _naturalWidth(s, label, scaler, minTap > 48 ? 16 : 12),
+            ], math.max(0, constraints.maxWidth - 6));
+            final lefts = <double>[];
+            var at = 0.0;
+            for (final w in widths) {
+              lefts.add(at);
+              at += w;
+            }
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      height: height,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        color: c.surfaceAlt,
+                        borderRadius: AknRadius.pillAll,
                       ),
+                      child: index < 0 || n == 0
+                          ? null
+                          : TweenAnimationBuilder<double>(
+                              tween: Tween<double>(end: index.toDouble()),
+                              duration: duration,
+                              curve: AknMotion.spring,
+                              child: thumb,
+                              builder: (context, pos, child) {
+                                // The spring may overshoot between segments
+                                // but never through the track's ends.
+                                final p = pos.clamp(0.0, (n - 1).toDouble());
+                                // The thumb travels from segment to segment
+                                // and takes the width of the one it reaches
+                                // (segments are as wide as their labels).
+                                final i0 = p.floor().clamp(0, n - 1);
+                                final i1 = math.min(i0 + 1, n - 1);
+                                final f = p - i0;
+                                final left =
+                                    lefts[i0] + (lefts[i1] - lefts[i0]) * f;
+                                final w =
+                                    widths[i0] + (widths[i1] - widths[i0]) * f;
+                                // A little stretch while the thumb travels.
+                                final d = (p - p.round()).abs();
+                                return Stack(
+                                  children: [
+                                    Positioned(
+                                      left: left,
+                                      width: w,
+                                      top: 0,
+                                      bottom: 0,
+                                      child: Transform.scale(
+                                        scaleX: 1 + 0.14 * d,
+                                        scaleY: 1 - 0.04 * d,
+                                        child: child,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
                     ),
-                ],
-              ),
-            ),
-          ],
+                  ),
+                ),
+                // Labels and 48 dp touch targets over the whole box.
+                Positioned.fill(
+                  left: 3,
+                  right: 3,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < n; i++)
+                        SizedBox(
+                          width: widths[i],
+                          child: _Segment(
+                            option: segments[i],
+                            selected: i == index,
+                            duration: duration,
+                            minTap: minTap,
+                            style: label.copyWith(
+                              fontWeight: i == index
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              // The panel's `.seg-btn` "you are here": Pas.
+                              color: i == index ? c.brandInk : c.dim,
+                            ),
+                            onTap: () {
+                              if (i == index) return;
+                              AknHaptics.selection();
+                              onChanged(segments[i].value);
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  /// A segment's natural width: its label (measured bold, so the width
+  /// stays when the selection changes), the count after it and the side
+  /// padding ([pad] each side).
+  static double _naturalWidth(
+    FilterOption<Object?> s,
+    TextStyle style,
+    TextScaler scaler,
+    double pad,
+  ) {
+    double measure(String text, TextStyle st) {
+      final tp = TextPainter(
+        text: TextSpan(text: text, style: st),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: 1,
+      )..layout();
+      final w = tp.width;
+      tp.dispose();
+      return w;
+    }
+
+    final bold = style.copyWith(fontWeight: FontWeight.w700);
+    var w = measure(s.label, bold);
+    final count = s.count;
+    if ((count ?? 0) > 0) {
+      w +=
+          5 +
+          measure(
+            '$count',
+            bold.copyWith(
+              fontWeight: FontWeight.w600,
+              fontFeatures: AknNumerals.tabular,
+            ),
+          );
+    }
+    return w + 2 * pad;
+  }
+
+  /// The segments' widths in a track of [avail] (v4 A21). Equal shares when
+  /// every label, with its breathing room, sits in its share (the classic
+  /// control); otherwise each segment gets its label's width plus an equal
+  /// share of what is left, so a long "Onay bekleyen 1" is not crammed into
+  /// a third while "Aktif" floats in a wide one. When even the labels do not
+  /// fit, the widths follow the labels and each label shrinks to fit.
+  @visibleForTesting
+  static List<double> segmentWidths(List<double> natural, double avail) {
+    final n = natural.length;
+    if (n == 0) return const [];
+    final share = avail / n;
+    if (natural.every((w) => w <= share)) {
+      return List<double>.filled(n, share);
+    }
+    final total = natural.fold<double>(0, (a, b) => a + b);
+    if (total <= avail) {
+      final extra = (avail - total) / n;
+      return [for (final w in natural) w + extra];
+    }
+    return [for (final w in natural) avail * w / total];
   }
 }
 
