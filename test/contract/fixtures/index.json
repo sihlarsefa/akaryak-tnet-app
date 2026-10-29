@@ -680,7 +680,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "",
+   "note": "panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -1417,7 +1417,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "",
+   "note": "panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -1428,7 +1428,7 @@
    "user": "talep.demo",
    "persona": "customer requester",
    "status": 200,
-   "note": "",
+   "note": "panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -2088,7 +2088,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "approved, shipments reported + planned",
+   "note": "approved, shipments reported + planned; panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -2165,7 +2165,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "quoted (awaitingApproval) after finance approval",
+   "note": "quoted (awaitingApproval) after finance approval; panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -3100,7 +3100,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "",
+   "note": "panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:41Z"
   },
   {
@@ -3111,7 +3111,7 @@
    "user": "musteri.demo",
    "persona": "customer",
    "status": 200,
-   "note": "",
+   "note": "panel-parity fields (canDecideQuote, canApproveQuote, approveBlockedReason, canAcceptDelivery) added by hand on 2026-10-29 with the API agent's rules (CustomerOrderActionEvaluator); a recapture replaces them with the live values",
    "capturedAt": "2026-10-28T19:39:42Z"
   },
   {

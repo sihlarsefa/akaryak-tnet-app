@@ -85,6 +85,7 @@
    "deliveryCity": "İstanbul",
    "deliveryDistrict": "Pendik",
    "driverUserId": null,
+   "canAcceptDelivery": false,
    "code": "SVK-00000012",
    "differenceLiters": -40
   },
@@ -124,6 +125,7 @@
    "deliveryCity": "İstanbul",
    "deliveryDistrict": "Pendik",
    "driverUserId": null,
+   "canAcceptDelivery": false,
    "code": "SVK-00000011",
    "differenceLiters": null
   },
@@ -163,6 +165,7 @@
    "deliveryCity": "İstanbul",
    "deliveryDistrict": "Üsküdar",
    "driverUserId": null,
+   "canAcceptDelivery": false,
    "code": "SVK-00000003",
    "differenceLiters": -165
   }

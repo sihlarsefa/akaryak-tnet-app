@@ -9,6 +9,8 @@ export 'application/home_controller.dart'
     show customerHomeProvider, orderFormProvider, CustomerHomeController;
 export 'application/loadable.dart'
     show Loadable, A2Keys, a2DataRevisionProvider;
+export 'application/order_actions.dart'
+    show QuoteRights, CustomerDecider, customerDeciderProvider;
 export 'application/order_submitter.dart'
     show orderSubmitProvider, SubmitPhase, SubmitState, OrderSubmitController;
 export 'application/ordering_config.dart'

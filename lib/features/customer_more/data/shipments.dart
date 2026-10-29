@@ -19,7 +19,11 @@ class ShipmentListPage {
 
   factory ShipmentListPage.fromJson(Object? json) {
     final r = JsonReader.of(json);
-    final items = r.list('items', ShipmentListItem.fromJson);
+    // Müşterinin listesi: satırlar panelin teslim kabulü değerini de taşır (`canAcceptDelivery`).
+    final items = r.list(
+      'items',
+      (x) => ShipmentListItem.fromJson(x, customer: true),
+    );
     final pageSize = r.integer('pageSize', 25);
     final total = r.integer('totalFiltered', items.length);
     return ShipmentListPage(

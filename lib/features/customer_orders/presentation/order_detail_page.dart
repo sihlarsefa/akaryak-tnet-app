@@ -19,6 +19,7 @@ import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
 import '../application/home_controller.dart';
 import '../application/loadable.dart';
+import '../application/order_actions.dart';
 import '../application/order_view_controller.dart';
 import '../application/ordering_config.dart';
 import '../application/quote_decision.dart';
@@ -75,6 +76,11 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
   bool _checking = false;
   String? _conflict;
   bool _uncertain = false;
+
+  /// Sunucu bu teklifin onayını şirket içi kuralla reddetti ([OrdersCopy.requesterApproveBlocked];
+  /// eski API'de bayrak yokken kural bilinmiyorduysa): teklif ve sunucunun metni. Karar çubuğu panel
+  /// gibi onaysız kurulur, revize ve red açık kalır.
+  ({int quoteId, String message})? _approveRefused;
 
   /// Teklif onaylanınca plaka "mühürlenir" (§8.2).
   int _stamp = 0;
@@ -189,6 +195,15 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         setState(() => _conflict = message);
         await _refresh();
       case DecisionFailed(:final failure):
+        // Talep edenin eşik üstü teklifi (sunucu: `OrderService.ApproveAsync`, web ve API aynı metin):
+        // metin gösterilir ve çubuk panel gibi kilitli onaya döner (revize ve red açık).
+        if (action == QuoteAction.approve &&
+            failure is BusinessFailure &&
+            failure.message.trim() == OrdersCopy.requesterApproveBlocked) {
+          setState(
+            () => _approveRefused = (quoteId: q.id, message: failure.message),
+          );
+        }
         if (failure is! ForbiddenFailure) {
           AppToast.error(OrdersCopy.failureMessage(failure), context: context);
         }
@@ -323,9 +338,12 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final v = s.data;
     final policy = ref.watch(accessPolicyProvider);
     final online = ref.watch(isOnlineProvider);
-    // Tek kural (v4 tur 2): teklif kararı onaylayanındır; talep edene karar çubuğu çıkmaz,
-    // aşama cümlesi "Onay bekleniyor" der (ana sayfa ve Onaylar ile aynı).
-    final canDecide = policy.customerDecides;
+    // Panel eşitliği (tek kural, `CustomerDecider`): karar çubuğu, aşama cümlesi ve teslim kabulü
+    // sunucunun bu sipariş için verdiği değerlerden (yoksa panelin kuralından); ana sayfa, Onaylar
+    // rozeti, Bende ve Siparişler aynı değerleri okur.
+    final decider = ref.watch(customerDeciderProvider);
+    final rights = v == null ? QuoteRights.none : _rightsOf(decider, v);
+    final canAccept = v != null && decider.acceptsOrder(v.detail, v.tracking);
     final answersInfo = customerAnswersInfo(policy);
     final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final canDocs =
@@ -355,7 +373,15 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           ),
           children: [
             ContentWidth(
-              child: _content(context, v, s, canDocs: canDocs, focus: focus),
+              child: _content(
+                context,
+                v,
+                s,
+                canDocs: canDocs,
+                focus: focus,
+                rights: rights,
+                canAccept: canAccept,
+              ),
             ),
           ],
         ),
@@ -383,7 +409,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           : _dock(
               v,
               online: online,
-              canDecide: canDecide,
+              rights: rights,
+              canAccept: canAccept,
               answersInfo: answersInfo,
               canCreate: canCreate,
             ),
@@ -391,14 +418,33 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     );
   }
 
+  /// Bu siparişte teklif kararı (panel eşitliği, `CustomerDecider`): sunucunun değerleri, yoksa
+  /// panelin kuralı; sunucu bu teklifin onayını şirket içi kuralla reddettiyse kilitli onay.
+  QuoteRights _rightsOf(CustomerDecider decider, OrderView v) {
+    final rights = decider.quoteOfDetail(v.detail);
+    final refused = _approveRefused;
+    if (refused != null &&
+        refused.quoteId == v.latestQuote?.id &&
+        rights.canApprove) {
+      return rights.refused(refused.message);
+    }
+    return rights;
+  }
+
   /// Alt çubuk (v4 P3): her zaman şimdi yapılabilecek adım. Karar müşterideyken
   /// [ActionBar.decision]: eksik belge önce birincil düğmedir ("Çek görselini yükle"); yüklenince
   /// düğme "Teklifi onayla"ya dönüşür (onay işareti çıkar). Bakiye yetmiyorsa bayi aranır.
   /// Çevrimdışıyken düğme yok, neden yazılır.
+  ///
+  /// Panel eşitliği ([rights]): karar paneli (revize, red) `canDecideQuote` ile, "Teklifi onayla"
+  /// `canApproveQuote` ile açılır. Onay şirket içi kuralla kapalıysa (talep edenin eşik üstü teklifi)
+  /// panel gibi onay yoktur: birincil "Revize iste", yanında "Reddet", altında panelin notu
+  /// ([QuoteRights.blockedReason]). Teslimatı onaylama [canAccept] ile (`canAcceptDelivery`).
   Widget? _dock(
     OrderView v, {
     required bool online,
-    required bool canDecide,
+    required QuoteRights rights,
+    required bool canAccept,
     required bool answersInfo,
     required bool canCreate,
   }) {
@@ -407,7 +453,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         d.status == OrderStatus.awaitingApproval &&
         v.latestQuote != null &&
         !d.financeStatus.isAwaitingDecision;
-    if (decisionOpen && canDecide) {
+    if (decisionOpen && rights.canDecide) {
       if (!online && _pending == null) {
         return const ActionBar(
           child: _DockNote(
@@ -434,7 +480,18 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       AknButton primary;
       String? caption;
       var secondaries = <AknButton>[revise, reject];
-      if (v.paymentDocumentMissing && target != null && target.isUploadable) {
+      if (!rights.canApprove) {
+        // Kilitli onay (panel: "Onaylayan onayı gerekli"): yapılabilecek adım revize istemek.
+        primary = AknButton(
+          label: OrdersCopy.revise,
+          loading: _pending == QuoteAction.revise,
+          onPressed: () => _decide(v, QuoteAction.revise),
+        );
+        secondaries = [reject];
+        caption = rights.blockedReason ?? OrdersCopy.requesterApproveBlocked;
+      } else if (v.paymentDocumentMissing &&
+          target != null &&
+          target.isUploadable) {
         primary = AknButton(
           label: AknStatus.uploadAction(target.kind),
           icon: PhosphorIconsRegular.camera,
@@ -497,7 +554,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     final reported = v.tracking?.shipments
         .where((x) => x.status == ShipmentStatus.reported)
         .firstOrNull;
-    if (reported != null && (v.tracking?.canAcceptDeliveries ?? false)) {
+    if (reported != null && canAccept) {
       return AknButton(
         label: OrdersCopy.confirmDelivery,
         icon: PhosphorIconsFill.checkCircle,
@@ -544,13 +601,21 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     Loadable<OrderView> s, {
     required bool canDocs,
     required String? focus,
+    required QuoteRights rights,
+    required bool canAccept,
   }) {
     final d = v.detail;
     final home = ref.watch(customerHomeProvider).data;
     final form = ref.watch(orderFormProvider).data;
     final policy = ref.watch(accessPolicyProvider);
     final config = ref.watch(orderingConfigValueProvider);
-    final viewer = customerViewer(policy);
+    // Panel eşitliği: karar bekleyen teklifte sıra, onay açıksa görüntüleyenindir (karar çubuğuyla
+    // aynı); onaylı siparişte teslimatı kabul edebilenin.
+    final viewer = StatusViewer.customer(
+      canDecide: d.status == OrderStatus.awaitingApproval
+          ? rights.canApprove
+          : canAccept,
+    );
     final station = home?.station?.id == d.stationId ? home?.station : null;
     final point = form?.point(d.deliveryPointId);
     final tracking = v.tracking;
@@ -569,6 +634,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       finance: d.financeStatus,
       actor: short.isEmpty ? null : short,
       answersInfo: customerAnswersInfo(policy),
+      approverDecides: rights.approveBlocked,
     );
 
     // Plakadaki teklif: karar ekranında en son sürüm; sonrasında seçili teklif kendi adıyla.
@@ -668,6 +734,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
           detail: _stageDetail(
             v,
             lamp: lamp,
+            rights: rights,
             station: short,
             deadline: deadline,
             active: active,
@@ -702,11 +769,15 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         ),
     ];
 
+    // Karar çubuğunun birincil düğmesi belgeyi yüklüyorsa ödeme bölümü düğmeyi tekrarlamaz: çubuk
+    // yalnızca onay açıkken ve finans kilidi yokken yükler (kilitli onayda belge burada yüklenir).
     final dockUpload =
         decision &&
+        v.latestQuote != null &&
+        !d.financeStatus.isAwaitingDecision &&
+        rights.canApprove &&
         v.paymentDocumentMissing &&
-        (v.documentTarget?.isUploadable ?? false) &&
-        policy.customerDecides;
+        (v.documentTarget?.isUploadable ?? false);
 
     final handled = _handledBanner(v, focus);
 
@@ -790,7 +861,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
               shipment: active,
               point: point,
               station: awaitingQuote ? null : station,
-              canAccept: tracking?.canAcceptDeliveries ?? false,
+              canAccept: canAccept,
             ),
           ),
         ),
@@ -1022,9 +1093,14 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
 
   /// StageNow'un ikinci satırı (v4 §3b): kim, ne zamana kadar ("Demir Petrol teklif verdi ·
   /// karar için son: bugün 21:00"). Son saat teklifin saatiyle karışmasın diye adıyla yazılır.
+  ///
+  /// Karar bekleyen teklifte (panel eşitliği): onay açıksa ya da kilitliyse (talep edenin eşik üstü
+  /// teklifi; panelin notu karar çubuğunda) kimin teklif verdiği ve son saat; karar yetkisi yoksa
+  /// panelin uyarısı ([OrdersCopy.noDecisionRight]).
   String? _stageDetail(
     OrderView v, {
     required StatusLamp lamp,
+    required QuoteRights rights,
     required String station,
     required DateTime? deadline,
     required TrackingShipment? active,
@@ -1074,9 +1150,9 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
     }
     return switch (d.status) {
       OrderStatus.awaitingApproval =>
-        lamp.yourMove
+        lamp.yourMove || rights.canDecide
             ? ['$who teklif verdi', ?until()].join(' · ')
-            : 'Şirket yöneticiniz teklifi onaylayacak.',
+            : OrdersCopy.noDecisionRight,
       OrderStatus.awaitingQuote ||
       OrderStatus.created => 'Teklif gelince size haber veririz.',
       OrderStatus.revisionRequested => '$who yeni teklif hazırlıyor.',

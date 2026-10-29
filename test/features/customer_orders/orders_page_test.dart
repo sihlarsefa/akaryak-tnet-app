@@ -131,7 +131,9 @@ void main() {
       expect(find.text('Onay bekleyen'), findsOneWidget);
       // Bant: sekmenin kelimesi ve canlı durum; arama kuyusu yok (⌕ bantta).
       expect(find.text(OrdersCopy.myOrders), findsOneWidget);
-      expect(find.text('1 teklif onayınızı bekliyor'), findsOneWidget);
+      // Yöneticinin iki teklifi: 12002 ve şirketin onay eşiğini aşan 24.000 L teklif (eşik yalnızca
+      // talep edeni bağlar; panel eşitliği tohumu).
+      expect(find.text('2 teklif onayınızı bekliyor'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
 
       await tapTab(tester, 'Aktif');

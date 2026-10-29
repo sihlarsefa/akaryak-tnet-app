@@ -9,7 +9,7 @@ import '../../../../core/routing/app_routes.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/turkish_text.dart';
-import '../../../customer_orders/api.dart' show LedgerSliver;
+import '../../../customer_orders/api.dart' show CustomerDecider, LedgerSliver;
 import '../../application/shipments_controller.dart';
 import '../../copy.dart';
 import '../cm_widgets.dart';
@@ -49,15 +49,22 @@ class _ShipmentsPageState extends ConsumerState<ShipmentsPage> {
   Widget build(BuildContext context) {
     final s = ref.watch(shipmentsControllerProvider);
     final ctrl = ref.read(shipmentsControllerProvider.notifier);
-    final policy = ref.watch(accessPolicyProvider);
-    // Tek kural (v4 tur 2): teslimatı onaylamak onaylayanın işidir; talep edenin bandı ve satırı
-    // "onay bekliyor" der (ana sayfası ve Onaylar'ı gibi).
-    final canDecide = policy.customerDecides;
+    // Panel eşitliği (tek kural, `CustomerDecider`): teslimatı kabul eden şirket rolü değil
+    // Sevkiyatlar "Düzenler" yetkisidir. Satır sunucunun `canAcceptDelivery` değerini (yoksa bu kuralı)
+    // okur; bant yüklü kabul bekleyen satırlardan, yoksa yetkiden söyler (ana sayfa ve Bende gibi).
+    // Teslim kabulü şirket içi onay eşiğine bağlı değildir: ana sayfanın kuralı gerekmez.
+    final decider = CustomerDecider.of(ref.watch(accessPolicyProvider));
+    final reported = s.page.items.where(
+      (x) => x.status == ShipmentStatus.reported,
+    );
+    final mine = reported.isEmpty
+        ? decider.shipmentsEdit
+        : reported.any(decider.acceptsListItem);
     final c = s.counts;
     final awaiting = c.reported;
     final moving = c.of(ShipmentStatus.inTransit);
     final Object? status = awaiting > 0
-        ? (canDecide
+        ? (mine
               ? AknStatusClause.yourMove('$awaiting ${CmCopy.awaitingBanner}')
               : '$awaiting teslimat onay bekliyor')
         : s.page.loading && c.all == 0
@@ -133,7 +140,7 @@ class _ShipmentsPageState extends ConsumerState<ShipmentsPage> {
             ),
           ),
           Expanded(
-            child: _ShipmentList(state: s, canDecide: canDecide),
+            child: _ShipmentList(state: s, decider: decider),
           ),
         ],
       ),
@@ -142,10 +149,12 @@ class _ShipmentsPageState extends ConsumerState<ShipmentsPage> {
 }
 
 class _ShipmentList extends ConsumerWidget {
-  const _ShipmentList({required this.state, required this.canDecide});
+  const _ShipmentList({required this.state, required this.decider});
 
   final ShipmentsState state;
-  final bool canDecide;
+
+  /// Satır başına teslim kabulü (panel eşitliği).
+  final CustomerDecider decider;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -210,7 +219,7 @@ class _ShipmentList extends ConsumerWidget {
                     child: ShipmentCard(
                       key: ValueKey(item.id),
                       item: item,
-                      canDecide: canDecide,
+                      canDecide: decider.acceptsListItem(item),
                       onTap: () => context.push(AppRoutes.shipment(item.id)),
                     ),
                   ),
@@ -249,7 +258,8 @@ class ShipmentCard extends StatelessWidget {
   final ShipmentListItem item;
   final VoidCallback? onTap;
 
-  /// Teslimatı onaylayabilir (yönetici / onaylayan): "Teslimatı onaylayın" sıra sizde.
+  /// Teslimatı kabul edebilir (panel eşitliği: sunucunun `canAcceptDelivery` değeri, yoksa
+  /// Sevkiyatlar "Düzenler"; şirket rolü aranmaz): "Teslimatı onaylayın" sıra sizde.
   final bool canDecide;
 
   @override

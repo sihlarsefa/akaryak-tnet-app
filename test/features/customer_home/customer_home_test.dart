@@ -157,13 +157,17 @@ void main() {
         findsOneWidget,
       );
       expect(inHero(find.text('Sıra sizde')), findsOneWidget);
-      expect(inHero(find.text('Teklifi onaylayın')), findsOneWidget);
+      // Yöneticinin iki teklifi (12002 ve şirketin onay eşiğini aşan 24.000 L teklif; eşik yalnızca
+      // talep edeni bağlar, panel eşitliği tohumu): her sipariş tek satır.
+      expect(inHero(find.text('Teklifi onaylayın')), findsNWidgets(2));
       // Satır önce siparişi söyler (ürün litre · nokta · bayinin kısa adı); sipariş tek kez (eski
       // "Karar bekleyen" ve "Yüklenecek ödeme belgeleri" bölümleri yok).
       expect(
         inHero(textWith('Motorin 8.000 L · Tuzla Şantiye')),
         findsOneWidget,
       );
+      // Alt satır sığmayan olguları bütün olarak atar (AknFactLine): ürün ve litre kalır.
+      expect(inHero(textWith('Motorin 24.000 L')), findsOneWidget);
       expect(find.textContaining('Akaryakıt Ltd'), findsNothing);
       expect(find.textContaining('Karar bekleyen'), findsNothing);
       expect(find.textContaining('Yüklenecek ödeme'), findsNothing);
@@ -236,16 +240,22 @@ void main() {
     expect(find.byType(AknPlate), findsNothing);
     expect(find.byType(AknTaskCard), findsOneWidget);
     // v4 tur 2: kahraman görev kutusunu olduğu gibi gösterir (= Diğer › Onaylar rozeti = Bende).
-    // Teklif kararı ve teslimat onayı onaylayanındır; bayinin talep edenden istediği belge (finans
-    // sorusu) onun işidir.
-    expect(inHero(find.text('Teklifi onaylayın')), findsNothing);
-    expect(inHero(find.text('Teslimatı onaylayın')), findsNothing);
+    // Panel eşitliği: talep edenin Teklifler ve Sevkiyatlar "Düzenler" yetkisi var; web panel gibi
+    // eşik altı teklifi (12002, 8.000 L) onaylar ve teslimatı kabul eder. Şirketin onay eşiğini aşan
+    // 24.000 L teklif onaylayanındır: kahramanda yok (sipariş sayfasında revize ve red açık).
+    expect(inHero(find.text('Teklifi onaylayın')), findsOneWidget);
+    expect(inHero(textWith('Motorin 8.000 L · Tuzla Şantiye')), findsOneWidget);
+    expect(inHero(textWith('24.000 L')), findsNothing);
+    expect(inHero(find.text('Teslimatı onaylayın')), findsOneWidget);
     final card = tester.widget<AknTaskCard>(find.byType(AknTaskCard));
     // Kartın sayısı kutunun sayısıdır: talep edene özel süzgeç yok (rozet ve Bende ile aynı; tam
     // sahte sunucuyla sayı testi task_inbox_test'te).
     expect(card.total, card.tasks.where((t) => t.counts).length);
+    final big = env.world.orders.firstWhere(
+      (o) => o['customerId'] == 101 && o['quantityLiters'] == 24000,
+    )['id'];
     for (final t in card.tasks) {
-      expect('${t.id}', isNot(matches(RegExp('^(quote|delivery|document)-'))));
+      expect('${t.id}', isNot('quote-$big'));
     }
     await tearDownUi(tester);
   });
@@ -266,7 +276,8 @@ void main() {
 
   testWidgets('kahramanın satırı siparişi açar', (tester) async {
     await open(tester);
-    await tester.tap(inHero(find.text('Teklifi onaylayın')));
+    // Öndeki iş (12002); yöneticide eşik üstü 24.000 L teklif de satırdır.
+    await tester.tap(inHero(find.text('Teklifi onaylayın')).first);
     await pumpReal(tester);
     await pumpReal(tester);
     expect(find.byType(CustomerHome).hitTestable(), findsNothing);
@@ -383,26 +394,26 @@ void main() {
     await tearDownUi(tester);
   });
 
-  testWidgets(
-    'çevrimdışı: önbellekteki ana sayfa "Son güncelleme" ile açılır',
-    (tester) async {
-      final first = await open(tester);
-      await tearDownUi(tester);
-      first.dispose();
-      env.server.failureMode = FakeFailureMode.offline;
-      final c = env.container();
-      addTearDown(c.dispose);
-      // Oturum çekirdeğin önbelleğinden açılır (çevrimdışı açılış).
-      await tester.runAsync(
-        () => c.read(sessionControllerProvider.notifier).restore(),
-      );
-      await pumpA2(tester, c, initialLocation: '/home');
-      await pumpUntil(tester, find.textContaining('Son güncelleme'));
-      expect(find.textContaining('Son güncelleme'), findsOneWidget);
-      expect(inHero(find.text('Teklifi onaylayın')), findsOneWidget);
-      await tearDownUi(tester);
-    },
-  );
+  testWidgets('çevrimdışı: önbellekteki ana sayfa "Son güncelleme" ile açılır', (
+    tester,
+  ) async {
+    final first = await open(tester);
+    await tearDownUi(tester);
+    first.dispose();
+    env.server.failureMode = FakeFailureMode.offline;
+    final c = env.container();
+    addTearDown(c.dispose);
+    // Oturum çekirdeğin önbelleğinden açılır (çevrimdışı açılış).
+    await tester.runAsync(
+      () => c.read(sessionControllerProvider.notifier).restore(),
+    );
+    await pumpA2(tester, c, initialLocation: '/home');
+    await pumpUntil(tester, find.textContaining('Son güncelleme'));
+    expect(find.textContaining('Son güncelleme'), findsOneWidget);
+    // Önbellekteki kutu: yöneticinin iki teklifi (12002 ve eşik üstü 24.000 L teklif).
+    expect(inHero(find.text('Teklifi onaylayın')), findsNWidgets(2));
+    await tearDownUi(tester);
+  });
 
   testWidgets('asistan ana sayfada değil (Diğer sayfasında)', (tester) async {
     await open(

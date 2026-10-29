@@ -165,6 +165,23 @@ abstract final class OrdersCopy {
   static const deliveryDiffers = 'Talepten farklı';
   static const decisionChecking = 'Kararınız kontrol ediliyor';
   static const decisionOffline = 'Çevrimdışıyken karar verilemez';
+
+  /// Talep edenin eşik üstü teklifinde onay kapalı (panel eşitliği): panelin kilitli onay notu ve
+  /// sunucunun onay denemesine verdiği metin (`OrderService.RequesterQuoteApprovalMessage`; web, API
+  /// ve mobil aynı metin). Değiştirmeyin: uygulama sunucunun reddini bu metinle tanır.
+  static const requesterApproveBlocked =
+      'Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir.';
+
+  /// Talep edenin eşik üstü teklifinde aşama cümlesi: sıra onaylayanın (revize ve red ondadır).
+  static const approverDecides = 'Onaylayanın kararı bekleniyor';
+
+  /// Teklifler "Düzenler" yetkisi olmayan (panelin uyarısıyla aynı söz).
+  static const noDecisionRight =
+      'Karar yetkiniz yok; yetkili kullanıcıya iletin.';
+
+  /// Sevkiyatlar "Düzenler" yetkisi olmayan, kabul bekleyen teslimatta (panelin uyarısıyla aynı söz).
+  static const noAcceptRight =
+      'Teslim kabulü sevkiyat yetkisi olan cari kullanıcısı tarafından yapılır.';
   static const awaitingQuoteHint =
       'Teklif gelince reddedebilir ya da bayinizi arayabilirsiniz';
   static const reviseHint = 'Bayinize ne değişmesini istediğinizi yazın.';

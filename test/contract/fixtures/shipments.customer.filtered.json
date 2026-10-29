@@ -88,6 +88,7 @@
    "deliveryCity": "İstanbul",
    "deliveryDistrict": "Üsküdar",
    "driverUserId": null,
+   "canAcceptDelivery": true,
    "code": "SVK-00000001",
    "differenceLiters": -33
   },
@@ -127,6 +128,7 @@
    "deliveryCity": "İstanbul",
    "deliveryDistrict": "Üsküdar",
    "driverUserId": null,
+   "canAcceptDelivery": false,
    "code": "SVK-00000003",
    "differenceLiters": -165
   }

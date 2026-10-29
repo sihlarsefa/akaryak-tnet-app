@@ -24,7 +24,11 @@
    "activeShipmentStatusLabel": null,
    "createdAt": "2026-05-21T23:42:57.27261+03:00",
    "paymentDueDate": null,
-   "paymentDocumentMissing": false
+   "paymentDocumentMissing": false,
+   "canDecideQuote": true,
+   "canApproveQuote": true,
+   "approveBlockedReason": null,
+   "canAcceptDelivery": false
   },
   {
    "id": 372,
@@ -50,7 +54,11 @@
    "activeShipmentStatusLabel": null,
    "createdAt": "2026-06-05T13:56:57.27261+03:00",
    "paymentDueDate": null,
-   "paymentDocumentMissing": false
+   "paymentDocumentMissing": false,
+   "canDecideQuote": true,
+   "canApproveQuote": true,
+   "approveBlockedReason": null,
+   "canAcceptDelivery": false
   },
   {
    "id": 371,
@@ -76,7 +84,11 @@
    "activeShipmentStatusLabel": null,
    "createdAt": "2026-06-06T14:57:57.27261+03:00",
    "paymentDueDate": null,
-   "paymentDocumentMissing": false
+   "paymentDocumentMissing": false,
+   "canDecideQuote": true,
+   "canApproveQuote": true,
+   "approveBlockedReason": null,
+   "canAcceptDelivery": false
   }
  ],
  "totalCount": 33,

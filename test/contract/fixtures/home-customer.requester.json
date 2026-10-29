@@ -46,7 +46,10 @@
     "latestDeliveryDate": "2026-05-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13809404199
+    "msLeft": -13809404199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 372,
@@ -70,7 +73,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12548564199
+    "msLeft": -12548564199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 371,
@@ -94,7 +100,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12458504199
+    "msLeft": -12458504199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 357,
@@ -118,7 +127,10 @@
     "latestDeliveryDate": "2026-06-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -11272364199
+    "msLeft": -11272364199,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 356,
@@ -142,7 +154,10 @@
     "latestDeliveryDate": "2026-06-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -11182304199
+    "msLeft": -11182304199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 342,
@@ -166,7 +181,10 @@
     "latestDeliveryDate": "2026-07-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -9993464199
+    "msLeft": -9993464199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 341,
@@ -190,7 +208,10 @@
     "latestDeliveryDate": "2026-07-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -9903404199
+    "msLeft": -9903404199,
+    "canDecideQuote": true,
+    "canApproveQuote": false,
+    "approveBlockedReason": "Bu tutardaki teklifi yalnızca Onaylayan veya Yönetici onaylayabilir."
    },
    {
     "orderId": 327,
@@ -214,7 +235,10 @@
     "latestDeliveryDate": "2026-07-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -8642564199
+    "msLeft": -8642564199,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    }
   ],
   "pendingDecisionTotal": 33,
@@ -242,7 +266,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13719344199
+    "msLeft": -13719344199,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 384,
@@ -266,7 +293,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13629284199
+    "msLeft": -13629284199,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 373,
@@ -290,7 +320,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": "Litre/fiyat revizesi",
     "financeStatus": 0,
-    "msLeft": -12638624199
+    "msLeft": -12638624199,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 370,
@@ -314,7 +347,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12368444199
+    "msLeft": -12368444199,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 369,
@@ -338,7 +374,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12278384199
+    "msLeft": -12278384199,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    }
   ],
   "awaitingQuoteTotal": 33,
@@ -366,7 +405,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": true
    },
    {
     "shipmentId": 10,
@@ -389,7 +429,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Anadolu Lojistik Üssü #02",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 3,
@@ -412,7 +453,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 9,
@@ -435,7 +477,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 4,
@@ -458,7 +501,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 2,
@@ -481,7 +525,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 11,
@@ -504,7 +549,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Anadolu Lojistik Üssü #02",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    }
   ],
   "plannedShipmentTotal": 4,

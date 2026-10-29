@@ -7,6 +7,7 @@ import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
 import '../../../../core/utils/turkish_text.dart';
+import '../../copy.dart';
 import '../../data/payment_models.dart';
 
 /// Ortak sipariş parçaları (tasarım v3 "Akış"): kısa adlar, gün metinleri, aşama simgesi, bölüm
@@ -91,23 +92,24 @@ String shortCompany(String? title) {
   return s.isEmpty ? original : s;
 }
 
-/// Müşteri izleyicisi: kararı veren (yönetici / onaylayan) "sıra sizde" lambasını görür. Kural tek
-/// yerde ([AccessPolicy.customerDecides], v4 tur 2): talep edenin teklif kararı ana sayfada, Onaylar'da
-/// ve burada aynı şekilde "onay bekleniyor"dur.
-StatusViewer customerViewer(AccessPolicy policy) =>
-    StatusViewer.customer(canDecide: policy.customerDecides);
-
 /// Bayinin finans sorusunu yanıtlayan müşteri (sunucu: carinin her kullanıcısı yanıtlar; soru
-/// Onaylar › Bende'de onun işidir). Talep eden de yanıtlar: "Bayiniz bilgi istiyor" onda da sıra
+/// Onaylar › Bende'de onun işidir): teklif kararı veren (Teklifler "Düzenler"; panel gibi rol
+/// aranmaz) ya da Onaylar'ı gören. Talep eden de yanıtlar: "Bayiniz bilgi istiyor" onda da sıra
 /// sizdedir.
 bool customerAnswersInfo(AccessPolicy policy) =>
-    policy.customerDecides || policy.can(Pg.customerApprovals);
+    policy.can(Pg.customerQuotes, Perm.edit) ||
+    policy.can(Pg.customerApprovals);
 
 /// Siparişin müşteriye görünen lambası (§10.3; v4 §3.2 müşteri sözcükleri): bayinin finansı
 /// incelerken "Bayinizde inceleniyor", bilgi isterken "Bayiniz bilgi istiyor" (karar verebilen için
 /// sıra sizde); değilse sipariş / sevkiyat lambası. Karar verebilen müşterinin teklifinde ödeme
 /// belgesi eksikse tek lamba belgeyi söyler ([missingDocument]: "Çek görselini yükleyin"); teklifi
 /// hazırlayan bayi [actor] ile adlandırılır ("Demir Petrol teklif hazırlıyor").
+///
+/// [viewer] siparişin kendisi içindir (panel eşitliği, `CustomerDecider`): `canDecide` karar
+/// bekleyen teklifte onay açıksa, onaylı siparişte teslimatı kabul edebiliyorsa true.
+/// [approverDecides]: talep edenin şirket içi onay eşiğini aşan teklifi; sıra onaylayanındır
+/// ("Onaylayanın kararı bekleniyor"), revize ve red sipariş sayfasında açık kalır.
 StatusLamp orderLampFor(
   StatusViewer viewer, {
   required OrderStatus status,
@@ -118,6 +120,7 @@ StatusLamp orderLampFor(
   String? actor,
   String? missingDocument,
   bool? answersInfo,
+  bool approverDecides = false,
 }) {
   if (finance.isAwaitingDecision) {
     final s = AknStatus.finance(finance).withLabel(financeLabel);
@@ -138,6 +141,16 @@ StatusLamp orderLampFor(
       icon: AknStatus.finance(finance).icon,
       stage: AknStage.talep,
       problem: true,
+    );
+  }
+  // Finans kilidinden sonra (panelde de önce finans kilidi yazar): onay şirketin Onaylayan / Yönetici
+  // kullanıcısında.
+  if (approverDecides && status == OrderStatus.awaitingApproval) {
+    return StatusLamp(
+      tone: AknTone.info,
+      label: OrdersCopy.approverDecides,
+      icon: AknStatus.order(status).icon,
+      stage: AknStage.karar,
     );
   }
   return AknStatus.lampFor(

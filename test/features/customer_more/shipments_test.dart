@@ -1,4 +1,7 @@
+import 'package:akaryakitnet/core/auth/permissions.dart';
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/network/fake/fake_parity.dart';
+import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/offline/connectivity.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -185,4 +188,49 @@ void main() {
     expect(dispute.onPressed, isNull);
     await finish(tester);
   });
+
+  // Panel eşitliği (web müşteri sipariş ayrıntısı): teslimatı kabul eden şirket rolü değil Sevkiyatlar
+  // "Düzenler" yetkisidir. Talep eden de kabul eder (bant ve satır sıra sizde); yetkisi olmayanın bandı
+  // "onay bekliyor" der. Sunucunun `canAcceptDelivery` değeri olsa da olmasa da (eski API) aynı.
+  for (final fields in [true, false]) {
+    final api = fields ? 'yeni API' : 'eski API, alanlar yok';
+
+    testWidgets(
+      'talep ($api): bant ve satır "Teslimatı onaylayın" sıra sizde',
+      (tester) async {
+        final env = (await tester.runAsync(
+          () => CmEnv.create(persona: 'talep'),
+        ))!;
+        addTearDown(env.dispose);
+        FakeParity.set(env.world, value: fields);
+        await pumpCmApp(tester, env, location: '/shipments');
+        await pumpFor(tester, const Duration(seconds: 1));
+        expect(find.text('1 ${CmCopy.awaitingBanner}'), findsOneWidget);
+        expect(find.text('Teslimatı onaylayın'), findsOneWidget);
+        await finish(tester);
+      },
+    );
+
+    testWidgets(
+      'talep, Sevkiyatlar "Düzenler" yok ($api): bant "onay bekliyor"; satırda sıra sizde yok',
+      (tester) async {
+        final p = findFakePersona('talep')!;
+        const grant = '${Pg.customerShipments}:${Perm.edit}';
+        final had = p.pages.remove(grant);
+        addTearDown(() {
+          if (had) p.pages.add(grant);
+        });
+        final env = (await tester.runAsync(
+          () => CmEnv.create(persona: 'talep'),
+        ))!;
+        addTearDown(env.dispose);
+        FakeParity.set(env.world, value: fields);
+        await pumpCmApp(tester, env, location: '/shipments');
+        await pumpFor(tester, const Duration(seconds: 1));
+        expect(find.text('1 teslimat onay bekliyor'), findsOneWidget);
+        expect(find.text('Teslimatı onaylayın'), findsNothing);
+        await finish(tester);
+      },
+    );
+  }
 }

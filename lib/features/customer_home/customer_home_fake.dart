@@ -1,5 +1,6 @@
 import '../../core/auth/permissions.dart';
 import '../../core/models/json.dart';
+import '../../core/network/fake/fake_parity.dart';
 import '../../core/network/fake/fake_personas.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/network/fake/fake_world.dart';
@@ -66,8 +67,9 @@ JsonMap customerHomeJson(FakeWorld w, FakePersona p) {
       'generatedAt': TrTime.isoLocal(TrTime.now()),
       'expiryEnabled': A2Fake.expiryOn(w),
       'expiringWindowMinutes': 60,
+      // Satırlar panelin karar değerlerini taşır (görüntüleyen için; eski API'de yok).
       'pendingDecisions': canSee
-          ? [for (final o in decisions.take(8)) _dashboardOrder(w, o)]
+          ? [for (final o in decisions.take(8)) _dashboardOrder(w, o, p)]
           : const <Object>[],
       'pendingDecisionTotal': canSee ? decisions.length : 0,
       'pendingDecisionExpiringTotal': canSee
@@ -78,7 +80,7 @@ JsonMap customerHomeJson(FakeWorld w, FakePersona p) {
             }).length
           : 0,
       'awaitingStation': canSee
-          ? [for (final o in awaiting.take(5)) _dashboardOrder(w, o)]
+          ? [for (final o in awaiting.take(5)) _dashboardOrder(w, o, p)]
           : const <Object>[],
       'awaitingQuoteTotal': canSee
           ? awaiting.where((o) => o['status'] == 1).length
@@ -147,7 +149,8 @@ JsonMap customerHomeJson(FakeWorld w, FakePersona p) {
   };
 }
 
-JsonMap _dashboardOrder(FakeWorld w, JsonMap o) {
+/// Karar / bayi satırı; [viewer] için panel eşitliği teklif alanlarıyla ([A2Fake.quoteActions]).
+JsonMap _dashboardOrder(FakeWorld w, JsonMap o, FakePersona viewer) {
   final q = A2Fake.latestQuote(o);
   final dp = w.deliveryPoint(o['deliveryPointId'] as int?);
   final expires = A2Fake.instantOf(o['expiresAt']);
@@ -176,6 +179,7 @@ JsonMap _dashboardOrder(FakeWorld w, JsonMap o) {
     'msLeft': expires == null
         ? 0
         : expires.difference(TrTime.now()).inMilliseconds,
+    ...A2Fake.quoteActions(w, viewer, o),
   };
 }
 
@@ -231,6 +235,9 @@ Map<String, Object?> _shipmentSection(
           'deliveryPointName': s['deliveryPointName'],
           'deliveryCity': s['deliveryCity'],
           'isOverdue': false,
+          // Panel eşitliği: tek dokunuşla teslim kabulü (rol aranmaz; eski API'de yok).
+          if (FakeParity.on(w))
+            'canAcceptDelivery': FakeParity.acceptsShipment(w, p, s),
         },
     ],
     'plannedShipmentTotal': count(0),

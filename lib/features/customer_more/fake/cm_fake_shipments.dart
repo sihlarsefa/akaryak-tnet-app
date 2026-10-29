@@ -4,6 +4,7 @@ import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
 import '../../../core/network/fake/core_fakes.dart';
 import '../../../core/network/fake/fake_completion.dart';
+import '../../../core/network/fake/fake_parity.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
@@ -237,6 +238,7 @@ Object? _list(FakeRequest req) {
       ? const <JsonMap>[]
       : rows.sublist(start, (start + size).clamp(0, rows.length));
   final customer = CmFake.isCustomer(p);
+  final parity = FakeParity.on(w);
   return {
     'filter': {'page': page, 'pageSize': size, 'search': q.isEmpty ? null : q},
     'statusFilter': single,
@@ -247,9 +249,15 @@ Object? _list(FakeRequest req) {
           'driverUserId': customer ? null : r['driverUserId'],
           'stationCode': w.station(r['stationId'] as int?)?['code'],
           'orderCreatedAt': w.order(r['orderId'] as int?)?['createdAt'],
+          // Sunucu siparişin güncel durumunu okur (sevkiyatın kaydındaki an değil).
+          'orderStatus':
+              w.order(r['orderId'] as int?)?['status'] ?? r['orderStatus'],
           'differenceLiters': r['deliveredLiters'] == null
               ? null
               : (r['deliveredLiters'] as num) - (r['plannedLiters'] as num),
+          // Panel eşitliği: tek dokunuşla kabul (cari için; yönetimde false, bayide boş; eski API'de
+          // alan yok).
+          if (parity) 'canAcceptDelivery': FakeParity.acceptsShipment(w, p, r),
         },
     ],
     'totalFiltered': rows.length,

@@ -6,6 +6,7 @@ import '../../../../core/models/models.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_time.dart';
+import '../../application/order_actions.dart';
 import '../../application/ordering_config.dart';
 import '../../data/order_models.dart';
 import 'common.dart';
@@ -22,6 +23,8 @@ import 'order_parts.dart';
 ///
 /// * Onay bekleyen: sıra müşterideyse üçüncü satır yapılacak işi söyler ("Teklifi onaylayın",
 ///   belge eksikse "Çek görselini yükleyin") ve sağında kısa geri sayım (3 saatten uzaksa soluk).
+///   Talep edenin şirket içi onay eşiğini aşan teklifinde (panel eşitliği) üçüncü satır sakin Akış
+///   cümlesidir: "Onaylayanın kararı bekleniyor".
 /// * Aktif: üçüncü satır siparişin Akış'ı — beş bölüt ve » ile bir cümle ("Demir Petrol teklif
 ///   hazırlıyor", "Yolda", "Teslimatı onaylayın").
 /// * Geçmiş: olağan sonuç yazılmaz; yalnızca reddedilen ya da süresi dolan siparişte durum hapı.
@@ -47,7 +50,16 @@ class OrderRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final config = ref.watch(orderingConfigValueProvider);
     final policy = ref.watch(accessPolicyProvider);
-    final viewer = customerViewer(policy);
+    // Panel eşitliği (tek kural, `CustomerDecider`): satırın sunucu değerleri, yoksa panelin kuralı.
+    // Onay bekleyen teklifte sıra, onay açıksa görüntüleyenindir; talep edenin eşik üstü teklifi
+    // onaylayanı bekler. Onaylı siparişte teslimatı kabul edebilen için sıra sizde.
+    final decider = ref.watch(customerDeciderProvider);
+    final rights = decider.quoteOfOrder(row);
+    final viewer = StatusViewer.customer(
+      canDecide: row.status == OrderStatus.awaitingApproval
+          ? rights.yourMove
+          : decider.acceptsOrderRow(row),
+    );
     final station = shortCompany(row.stationTitle);
     final lamp = orderLampFor(
       viewer,
@@ -58,6 +70,7 @@ class OrderRow extends ConsumerWidget {
       financeLabel: row.financeLabel,
       actor: station.isEmpty ? null : station,
       answersInfo: customerAnswersInfo(policy),
+      approverDecides: rights.approveBlocked,
       missingDocument: viewer.canDecide
           ? missingDocumentPhrase(
               missing: row.paymentDocumentMissing,
@@ -100,7 +113,16 @@ class OrderRow extends ConsumerWidget {
     Widget? status;
     switch (segment) {
       case OrderSegment.decision:
-        if (lamp.yourMove) next = lamp.label;
+        if (lamp.yourMove) {
+          next = lamp.label;
+        } else if (rights.approveBlocked) {
+          // Talep edenin eşik üstü teklifi: satır sıranın onaylayanda olduğunu sakin söyler
+          // ("Onaylayanın kararı bekleniyor"; revize ve red sipariş sayfasında).
+          flow = AknFlowPips(
+            flow: AknFlow.customer(lamp),
+            sentence: lamp.label,
+          );
+        }
         if (countdown && deadline != null) {
           metaWidget = CountdownBadge(
             deadline: deadline,

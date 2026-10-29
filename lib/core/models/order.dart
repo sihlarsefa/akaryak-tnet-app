@@ -132,6 +132,10 @@ class OrderDetail extends OrderListItem {
     this.financeStatus = OrderFinanceStatus.notRequired,
     this.financeReasons,
     this.financeApprovalRequestId,
+    this.canDecideQuote,
+    this.canApproveQuote,
+    this.approveBlockedReason,
+    this.canAcceptDelivery,
   });
 
   factory OrderDetail.fromJson(Object? json) {
@@ -170,6 +174,10 @@ class OrderDetail extends OrderListItem {
       financeStatus: r.enumOf('financeStatus', OrderFinanceStatus.fromCode),
       financeReasons: r.nonEmpty('financeReasons'),
       financeApprovalRequestId: r.intOrNull('financeApprovalRequestId'),
+      canDecideQuote: r.boolOrNull('canDecideQuote'),
+      canApproveQuote: r.boolOrNull('canApproveQuote'),
+      approveBlockedReason: r.nonEmpty('approveBlockedReason'),
+      canAcceptDelivery: r.boolOrNull('canAcceptDelivery'),
     );
   }
 
@@ -190,6 +198,24 @@ class OrderDetail extends OrderListItem {
   final OrderFinanceStatus financeStatus;
   final String? financeReasons;
   final int? financeApprovalRequestId;
+
+  // Panel eşitliği (web müşteri sipariş ayrıntısı, `CustomerController.OrderDetail`): sunucu
+  // görüntüleyen için hesaplar. null = değerlendirilmedi (yayındaki eski API alanı göndermez, bayi
+  // kullanıcısında boştur); uygulama o zaman yedek kurala döner (`CustomerDecider`).
+
+  /// Teklif kararı (onay paneli, revize, red): "Onay bekliyor" ve Teklifler "Düzenler".
+  final bool? canDecideQuote;
+
+  /// "Teklifi onayla" açık: karar verilebilir ve şirket içi onay kilidi yok (talep edenin eşik üstü
+  /// teklifinde false). Finans kilidi ve eksik ödeme belgesi buna katılmaz; ayrıca uygulanır.
+  final bool? canApproveQuote;
+
+  /// Onay şirket içi kuralla kapalıysa panelin notu (sunucunun onay denemesine verdiği metin).
+  final String? approveBlockedReason;
+
+  /// Tek dokunuşla teslim kabulü: carinin "Onaylandı" siparişi, kabul bekleyen sevkiyat ve
+  /// Sevkiyatlar "Düzenler" (şirket rolü aranmaz).
+  final bool? canAcceptDelivery;
 
   /// Geçerli (seçili ya da en son) teklif.
   Quote? get currentQuote {

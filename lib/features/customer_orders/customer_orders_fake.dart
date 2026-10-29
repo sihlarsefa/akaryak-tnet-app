@@ -5,11 +5,13 @@ import '../../core/auth/permissions.dart';
 import '../../core/models/enums.dart';
 import '../../core/models/json.dart';
 import '../../core/models/me_access.dart';
+import '../../core/network/fake/fake_parity.dart';
 import '../../core/network/fake/fake_personas.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/network/fake/fake_world.dart';
 import '../../core/utils/tr_time.dart';
 import '../../core/utils/turkish_text.dart';
+import 'copy.dart';
 
 /// Testlerin sahte `orders/place` davranışını yönlendirdiği denetimler (dünya torbasında).
 class CustomerOrdersFakeControls {
@@ -572,7 +574,81 @@ abstract final class A2Fake {
     return null;
   }
 
-  static JsonMap orderRow(FakeWorld w, JsonMap o) {
+  // ------------------------------------------------------------------ Panel eşitliği
+
+  /// Talep edenin şirket içi onay kuralı teklif onayında (sunucu `OrderService.ApproveAsync` →
+  /// `RequiresCompanyApproverAsync` → `CustomerApprovalRules.RequiresApproval`): yalnızca siparişin
+  /// carisinin Talep eden kullanıcısı (Onaylayan, Yönetici ve rolü boş eski kullanıcı değil); eşik
+  /// [companyApproval] (litre ya da son sürüm teklifin tutarı; tutar bilinmiyorsa ve litre eşiği
+  /// yoksa güvenli taraf: onay gerekir).
+  static bool requiresCompanyApprover(FakePersona p, JsonMap o) {
+    if (p.persona != Persona.customer || p.customerId != o['customerId']) {
+      return false;
+    }
+    if (p.customerUserRole != 1) return false;
+    final rule = companyApproval(o['customerId'] as int);
+    if (rule['required'] != true) return false;
+    final liters = (o['quantityLiters'] as num).toDouble();
+    final total = (latestQuote(o)?['totalAmountTry'] as num?)?.toDouble();
+    final litres = (rule['aboveLitres'] as num?)?.toDouble();
+    if (litres != null && liters > litres) return true;
+    final amount = (rule['aboveAmount'] as num?)?.toDouble();
+    if (amount != null) return total == null ? litres == null : total > amount;
+    return false;
+  }
+
+  /// Panel eşitliği alanları (sunucu `CustomerOrderActionEvaluator`, web müşteri sipariş
+  /// ayrıntısının değerleri): `canDecideQuote` (Onay bekliyor + yönetim ya da Teklifler "Düzenler"),
+  /// `canApproveQuote` (karar ve şirket içi kilit yok), `approveBlockedReason` (kilitliyken sunucunun
+  /// ret metni), `canAcceptDelivery` (carinin "Onaylandı" siparişinde kabul bekleyen sevkiyat ve
+  /// Sevkiyatlar "Düzenler"; rol aranmaz). Bayi görüntüleyende değerlendirilmez (boş); alanlar
+  /// kapalıysa ([FakeParity.on], yayındaki eski API) hiç yazılmaz.
+  static JsonMap orderActions(FakeWorld w, FakePersona p, JsonMap o) {
+    if (!FakeParity.on(w)) return const {};
+    if (!FakeParity.evaluates(p, o['customerId'] as int?)) {
+      return const {
+        'canDecideQuote': null,
+        'canApproveQuote': null,
+        'approveBlockedReason': null,
+        'canAcceptDelivery': null,
+      };
+    }
+    final platform = p.persona == Persona.platform;
+    final status = o['status'] as int?;
+    final decide =
+        status == 2 && (platform || p.can(Pg.customerQuotes, Perm.edit));
+    final blocked = decide && !platform && requiresCompanyApprover(p, o);
+    final reported = w
+        .shipmentsOfOrder(o['id'] as int)
+        .any((s) => s['status'] == 2);
+    return {
+      'canDecideQuote': decide,
+      'canApproveQuote': decide && !blocked,
+      'approveBlockedReason': blocked
+          ? OrdersCopy.requesterApproveBlocked
+          : null,
+      'canAcceptDelivery':
+          p.persona == Persona.customer &&
+          status == 3 &&
+          reported &&
+          p.can(Pg.customerShipments, Perm.edit),
+    };
+  }
+
+  /// Ana sayfanın karar satırları (`DashboardOrderRowDto`): yalnızca teklif alanları.
+  static JsonMap quoteActions(FakeWorld w, FakePersona p, JsonMap o) {
+    final a = orderActions(w, p, o);
+    return {
+      for (final k in const [
+        'canDecideQuote',
+        'canApproveQuote',
+        'approveBlockedReason',
+      ])
+        if (a.containsKey(k)) k: a[k],
+    };
+  }
+
+  static JsonMap orderRow(FakeWorld w, JsonMap o, {FakePersona? viewer}) {
     final q = latestQuote(o);
     final status = o['status'] as int;
     final finance = (o['financeStatus'] as int?) ?? 0;
@@ -613,6 +689,7 @@ abstract final class A2Fake {
       'createdAt': trOffset(o['createdAt']),
       'paymentDueDate': trOffset(o['paymentDueDate']),
       'paymentDocumentMissing': documentMissing(w, o),
+      if (viewer != null) ...orderActions(w, viewer, o),
     };
   }
 
@@ -635,7 +712,7 @@ abstract final class A2Fake {
     return o;
   }
 
-  static JsonMap orderDetail(FakeWorld w, JsonMap o) {
+  static JsonMap orderDetail(FakeWorld w, JsonMap o, {FakePersona? viewer}) {
     final q = latestQuote(o);
     return {
       ...o,
@@ -643,6 +720,7 @@ abstract final class A2Fake {
       'latestUnitPriceTry': q?['unitPriceTry'],
       'latestTotalAmountTry': q?['totalAmountTry'],
       'latestRevisionNote': q?['revisionNote'],
+      if (viewer != null) ...orderActions(w, viewer, o),
     };
   }
 
@@ -1121,7 +1199,7 @@ void _registerLists(FakeServer server) {
     } else {
       rows.sort((a, b) => (b['id'] as int).compareTo(a['id'] as int));
     }
-    return req.paged([for (final o in rows) A2Fake.orderRow(w, o)]);
+    return req.paged([for (final o in rows) A2Fake.orderRow(w, o, viewer: p)]);
   });
 
   server.get('catalog/order-form', (req) {
@@ -1717,7 +1795,7 @@ JsonMap _companyRequest(
 void _registerDetail(FakeServer server) {
   server.get('orders/{id:int}', (req) {
     final o = A2Fake.orderOr404(req);
-    return A2Fake.orderDetail(req.world, o);
+    return A2Fake.orderDetail(req.world, o, viewer: req.requireUser());
   });
 
   server.get('orders/{id:int}/tracking', (req) {
@@ -1793,6 +1871,12 @@ JsonMap _decide(FakeRequest req, String action) {
     throw FakeResponse.business('Onaylanacak teklif bulunamadı.');
   }
   if (action == 'approve') {
+    // Şirket içi onay kuralı, ilk denetim (sunucu `OrderService.ApproveAsync`): talep edenin eşik
+    // üstü teklifini yalnızca Onaylayan ya da Yönetici onaylar (web, API ve mobil aynı metin);
+    // revize ve red bu kurala tabi değildir.
+    if (A2Fake.requiresCompanyApprover(p, o)) {
+      throw FakeResponse.business(OrdersCopy.requesterApproveBlocked);
+    }
     if (A2Fake.documentMissing(w, o)) {
       final label = o['paymentMethodCode'] == 'SENET'
           ? 'Senet görseli'

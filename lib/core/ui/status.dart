@@ -1045,8 +1045,12 @@ enum StatusSide { customer, bayi }
 /// "your move" (orange) only to the person who can act.
 @immutable
 class StatusViewer {
-  /// A customer user. [canDecide]: company admin / approver (decides quotes,
-  /// accepts deliveries, approves company requests); false for requesters.
+  /// A customer user. [canDecide]: the viewer has a usable decision on this
+  /// entity, as on the web panel — a quote whose "Teklifi onayla" is open for
+  /// them, a delivery they can accept (the Sevkiyatlar edit grant, no company
+  /// role) or a company request they may approve. Quote and delivery callers
+  /// read it per entity from `CustomerDecider`; a requester decides quotes
+  /// below the company threshold, never above it.
   const StatusViewer.customer({this.canDecide = true})
     : side = StatusSide.customer,
       canQuote = false,

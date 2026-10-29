@@ -333,18 +333,28 @@ class CustomerDashboard {
     customerIsActive: r.boolean('customerIsActive', true),
     canPurchaseFuel: r.boolean('canPurchaseFuel', true),
     expiryEnabled: r.boolean('expiryEnabled', true),
+    // Satırlar panelin karar ve teslim kabulü değerlerini de taşır (panel eşitliği; eski API'de yok).
     pendingDecisions: List.unmodifiable(
-      r.list('pendingDecisions', DashboardOrderRow.fromJson),
+      r.list(
+        'pendingDecisions',
+        (x) => DashboardOrderRow.fromJson(x, customer: true),
+      ),
     ),
     pendingDecisionTotal: r.integer('pendingDecisionTotal'),
     pendingDecisionExpiringTotal: r.integer('pendingDecisionExpiringTotal'),
     awaitingStation: List.unmodifiable(
-      r.list('awaitingStation', DashboardOrderRow.fromJson),
+      r.list(
+        'awaitingStation',
+        (x) => DashboardOrderRow.fromJson(x, customer: true),
+      ),
     ),
     awaitingQuoteTotal: r.integer('awaitingQuoteTotal'),
     revisionRequestedTotal: r.integer('revisionRequestedTotal'),
     shipments: List.unmodifiable(
-      r.list('shipments', DashboardShipmentRow.fromJson),
+      r.list(
+        'shipments',
+        (x) => DashboardShipmentRow.fromJson(x, customer: true),
+      ),
     ),
     plannedShipmentTotal: r.integer('plannedShipmentTotal'),
     inTransitShipmentTotal: r.integer('inTransitShipmentTotal'),

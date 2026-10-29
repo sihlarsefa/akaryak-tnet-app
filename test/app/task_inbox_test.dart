@@ -6,6 +6,7 @@ import 'package:akaryakitnet/app/tasks/task_inbox.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/models/models.dart';
+import 'package:akaryakitnet/core/network/fake/fake_parity.dart';
 import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
 import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/push/unread_count_provider.dart';
@@ -19,8 +20,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support/test_app.dart';
 
-Future<ProviderContainer> _signedIn(String key) async {
-  final h = await TestHarness.create();
+Future<ProviderContainer> _signedIn(String key, {FakeWorld? world}) async {
+  final h = await TestHarness.create(world: world);
   final c = h.container();
   addTearDown(c.dispose);
   final s = c.read(sessionControllerProvider.notifier);
@@ -107,9 +108,15 @@ void main() {
       expect(merged, hasLength(1));
       expect(merged.single.title, 'Çek görselini yükleyin');
       expect(asked, contains(merged.single.orderId));
-      // The fakes: quote 12002 (+ its cheque), the 12012 cheque the bayi
-      // asks for, the reported delivery and Burak Yılmaz's request.
-      expect(count, 4);
+      // The fakes: quote 12002 (+ its cheque), the 24.000 L quote over the
+      // company threshold (a manager's and an approver's to approve, panel
+      // parity), the 12012 cheque the bayi asks for, the reported delivery
+      // and Burak Yılmaz's request.
+      expect(count, 5);
+      expect(
+        inbox.items.where((t) => t.kind == TaskKind.quoteDecision),
+        hasLength(2),
+      );
       // That question is counted on Onaylar: the Diğer dot (Finans bilgisi)
       // does not signal it a second time.
       expect(c.read(destinationBadgesProvider)[DestinationId.financeInfo], 0);
@@ -168,7 +175,7 @@ void main() {
     test('finans sorusu + aynı siparişin eksik çeki = tek iş, tek sayı', () {
       final tasks = buildCustomerTasks(
         home: home(docs: const [cheque]),
-        canDecide: true,
+        decider: CustomerDecider.full,
         approvals: const [question],
       );
       expect(tasks, hasLength(1));
@@ -187,7 +194,7 @@ void main() {
     test('sahipsiz belge siparişiyle anılır ("bayi · Çek" değil)', () {
       final tasks = buildCustomerTasks(
         home: home(docs: const [cheque]),
-        canDecide: true,
+        decider: CustomerDecider.full,
       );
       final t = tasks.single;
       expect(t.kind, TaskKind.paymentDocument);
@@ -222,7 +229,7 @@ void main() {
             ),
           ],
         ),
-        canDecide: true,
+        decider: CustomerDecider.full,
         approvals: const [request],
       );
       final r = tasks.firstWhere((t) => t.kind == TaskKind.companyRequest);
@@ -253,13 +260,13 @@ void main() {
             ),
           ],
         ),
-        canDecide: true,
+        decider: CustomerDecider.full,
       ).single;
       expect(_plain(single.subtitle), 'Motorin · Pendik Lojistik Merkezi');
       // The server's summary ("ürün · litre · tahmini …") reads the same way.
       final server = buildCustomerTasks(
         home: home(),
-        canDecide: true,
+        decider: CustomerDecider.full,
         approvals: const [
           ApprovalRow(
             id: 34,
@@ -288,46 +295,109 @@ void main() {
     });
   });
 
-  test('talep: yalnızca kendi işleri (karar yok); taslak sayılmaz', () async {
-    final c = await _signedIn('talep');
-    c.listen(customerTasksProvider, (_, _) {});
-    await _until(() => c.read(customerHomeProvider).data != null);
-    final inbox = c.read(customerTasksProvider);
-    expect(inbox.of(TaskKind.quoteDecision), isNull);
-    expect(inbox.of(TaskKind.deliveryAcceptance), isNull);
-    // Şirketin sahipsiz ödeme belgeleri kararı verenindir (v4 tur 2).
-    expect(inbox.of(TaskKind.paymentDocument), isNull);
-    for (final t in inbox.items.where((t) => t.kind == TaskKind.draft)) {
-      expect(t.counts, isFalse);
-    }
-  });
+  // Panel eşitliği (web müşteri sipariş ayrıntısı): talep edenin Teklifler ve Sevkiyatlar "Düzenler"
+  // yetkisi var (Müşteri Operasyon grubu). Panel gibi eşik altı teklifi (12002, 8.000 L) onaylar ve
+  // teslimatı kabul eder; şirketin onay eşiğini (20.000 L / 750.000 ₺) aşan teklif onaylayanındır:
+  // sayılmaz, eksik belgesi de onun işi olmaz (revize / red sipariş sayfasında açık).
+  test(
+    'talep: eşik altı teklif ve teslimat onun işi, eşik üstü teklif onaylayanın; taslak sayılmaz',
+    () async {
+      final c = await _signedIn('talep');
+      c.listen(customerTasksProvider, (_, _) {});
+      await _until(() => c.read(customerHomeProvider).data != null);
+      final inbox = c.read(customerTasksProvider);
+      final dash = c.read(customerHomeProvider).data!.dashboard;
+      final below = dash.pendingDecisions.firstWhere(
+        (r) => r.quantityLiters == 8000,
+      );
+      final above = dash.pendingDecisions.firstWhere(
+        (r) => r.quantityLiters == 24000,
+      );
+      // Sunucunun değerleri (yeni API): eşik altında onay açık, üstünde panelin notu.
+      expect(below.canApproveQuote, isTrue);
+      expect(above.canDecideQuote, isTrue);
+      expect(above.canApproveQuote, isFalse);
+      expect(above.approveBlockedReason, OrdersCopy.requesterApproveBlocked);
+      final quotes = [
+        for (final t in inbox.items)
+          if (t.kind == TaskKind.quoteDecision) t,
+      ];
+      expect(quotes.map((t) => t.orderId), [below.orderId]);
+      expect(inbox.items.where((t) => t.orderId == above.orderId), isEmpty);
+      expect(inbox.of(TaskKind.deliveryAcceptance), isNotNull);
+      // Eşik altı teklifin eksik çeki teklifle tek iş; sahipsiz belge kalmaz.
+      expect(quotes.single.actionKind, TaskActionKind.uploadDocument);
+      expect(inbox.of(TaskKind.paymentDocument), isNull);
+      for (final t in inbox.items.where((t) => t.kind == TaskKind.draft)) {
+        expect(t.counts, isFalse);
+      }
+    },
+  );
 
-  // v4 tur 2: talep eden de tek sayı görür — ana sayfa = Diğer › Onaylar rozeti = Bende; Siparişler'de
-  // ve sipariş ayrıntısında teklif kararı onun sırası değildir (tek kural: customerDecides).
-  test('talep: ana sayfa = Onaylar rozeti = Bende; teklif kararı yok', () async {
-    final c = await _signedIn('talep');
-    c.listen(customerTasksProvider, (_, _) {});
-    c.listen(destinationBadgesProvider, (_, _) {});
-    c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
-    await _until(
-      () =>
-          c.read(customerHomeProvider).data != null &&
-          c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
-    );
-    final policy = c.read(accessPolicyProvider);
-    expect(policy.customerDecides, isFalse);
-    final inbox = c.read(customerTasksProvider);
-    final badge = c.read(destinationBadgesProvider)[DestinationId.approvals];
-    expect(badge, inbox.count);
-    expect(c.read(taskCountProvider), inbox.count);
-    // Bende'nin satırları kahramanın sayılan işleridir; bayinin istediği belge onun işidir.
-    expect(inbox.items.where((t) => t.counts), hasLength(inbox.count));
-    expect(inbox.of(TaskKind.financeQuestion), isNotNull);
-    // Siparişler'in "sıra sizde" sayısı: talep edende yok (onay bekleyen teklif nötr).
-    final waiting = c.read(customerHomeProvider).data!.dashboard;
-    expect(waiting.pendingDecisionTotal, greaterThan(0));
-    expect(inbox.items.where((t) => t.kind == TaskKind.quoteDecision), isEmpty);
-  });
+  // v4 tur 2: talep eden de tek sayı görür — ana sayfa = Diğer › Onaylar rozeti = Bende. Panel
+  // eşitliği: sayı, panelde kullanılabilir kararı olanlardır (eşik altı teklif, teslimat, bayinin
+  // istediği çek); eşik üstü teklif onay bekleyenlerdedir ama sayılmaz.
+  test(
+    'talep: ana sayfa = Onaylar rozeti = Bende; eşik üstü teklif sayılmaz',
+    () async {
+      final c = await _signedIn('talep');
+      c.listen(customerTasksProvider, (_, _) {});
+      c.listen(destinationBadgesProvider, (_, _) {});
+      c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
+      await _until(
+        () =>
+            c.read(customerHomeProvider).data != null &&
+            c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+      );
+      final inbox = c.read(customerTasksProvider);
+      final badge = c.read(destinationBadgesProvider)[DestinationId.approvals];
+      expect(badge, inbox.count);
+      expect(c.read(taskCountProvider), inbox.count);
+      // Bende'nin satırları kahramanın sayılan işleridir; bayinin istediği belge onun işidir.
+      expect(inbox.items.where((t) => t.counts), hasLength(inbox.count));
+      expect(inbox.of(TaskKind.financeQuestion), isNotNull);
+      final waiting = c.read(customerHomeProvider).data!.dashboard;
+      expect(waiting.pendingDecisionTotal, 2);
+      expect(
+        inbox.items.where((t) => t.kind == TaskKind.quoteDecision),
+        hasLength(1),
+      );
+      // 12002 (+ çeki), bildirilen teslimat, bayinin istediği 12012 çeki.
+      expect(inbox.count, 3);
+    },
+  );
+
+  // Yayındaki eski API panel değerlerini göndermez: yedek kural (Teklifler / Sevkiyatlar "Düzenler",
+  // şirket rolü ve ana sayfanın onay eşiği) aynı işleri, aynı sırayla verir.
+  for (final key in ['talep', 'onay', 'musteri']) {
+    test('$key (eski API, alanlar yok): aynı işler, aynı sayı', () async {
+      Future<List<String>> ids({required bool fields}) async {
+        final world = FakeWorld.seeded();
+        FakeParity.set(world, value: fields);
+        final c = await _signedIn(key, world: world);
+        c.listen(customerTasksProvider, (_, _) {});
+        c.listen(approvalsListProvider(const ApprovalsQuery()), (_, _) {});
+        await _until(
+          () =>
+              c.read(customerHomeProvider).data != null &&
+              c.read(approvalsListProvider(const ApprovalsQuery())).hasData,
+        );
+        final rows = c.read(customerHomeProvider).data!.dashboard;
+        for (final r in rows.pendingDecisions) {
+          expect(r.canApproveQuote == null, !fields, reason: '${r.orderId}');
+        }
+        return [
+          for (final t in c.read(customerTasksProvider).items)
+            if (t.counts) t.id,
+        ];
+      }
+
+      final server = await ids(fields: true);
+      final fallback = await ids(fields: false);
+      expect(fallback, server);
+      expect(server, isNotEmpty);
+    });
+  }
 
   // v4 tur 2 (H4, M2): teklif işi teklif ekleme yetkisidir, masayı görmek değil; itiraz işi sevkiyata
   // dokunabilenindir. Finans "Sıradaki işiniz"de teklif veremeyeceği siparişi açmaz; izleyiciye
@@ -581,7 +651,7 @@ void main() {
             ),
           ],
         ),
-        canDecide: true,
+        decider: CustomerDecider.full,
       );
       // Satır yalnızca " · "da kırılır: "Pendik Lojistik / Merkezi" olmaz.
       expect(

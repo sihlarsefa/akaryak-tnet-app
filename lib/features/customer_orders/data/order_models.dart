@@ -47,6 +47,10 @@ class CustomerOrderRow {
     this.createdAt,
     this.paymentDueDate,
     this.paymentDocumentMissing = false,
+    this.canDecideQuote,
+    this.canApproveQuote,
+    this.approveBlockedReason,
+    this.canAcceptDelivery,
   });
 
   factory CustomerOrderRow.fromJson(JsonReader r) => CustomerOrderRow(
@@ -76,6 +80,10 @@ class CustomerOrderRow {
     createdAt: r.dateTr('createdAt'),
     paymentDueDate: r.dateTr('paymentDueDate'),
     paymentDocumentMissing: r.boolean('paymentDocumentMissing'),
+    canDecideQuote: r.boolOrNull('canDecideQuote'),
+    canApproveQuote: r.boolOrNull('canApproveQuote'),
+    approveBlockedReason: r.nonEmpty('approveBlockedReason'),
+    canAcceptDelivery: r.boolOrNull('canAcceptDelivery'),
   );
 
   final int id;
@@ -106,6 +114,22 @@ class CustomerOrderRow {
 
   /// Zorunlu çek / senet görseli eksik (teklif onaylanamaz).
   final bool paymentDocumentMissing;
+
+  // Panel eşitliği (sunucu her satırda doldurur; yayındaki eski API göndermez → null, uygulama yedek
+  // kurala döner): web müşteri sipariş ayrıntısının değerleri.
+
+  /// Teklif kararı (revize, red) verilebilir.
+  final bool? canDecideQuote;
+
+  /// "Teklifi onayla" açık (talep edenin eşik üstü teklifinde false; finans kilidi ve eksik belge
+  /// ayrıca).
+  final bool? canApproveQuote;
+
+  /// Onay şirket içi kuralla kapalıysa panelin notu.
+  final String? approveBlockedReason;
+
+  /// Tek dokunuşla teslim kabulü (kabul bekleyen sevkiyat ve Sevkiyatlar "Düzenler").
+  final bool? canAcceptDelivery;
 
   String get displayStatus => statusLabel ?? status.label;
 }

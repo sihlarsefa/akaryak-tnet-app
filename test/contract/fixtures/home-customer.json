@@ -46,7 +46,10 @@
     "latestDeliveryDate": "2026-05-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13809404130
+    "msLeft": -13809404130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 372,
@@ -70,7 +73,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12548564130
+    "msLeft": -12548564130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 371,
@@ -94,7 +100,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12458504130
+    "msLeft": -12458504130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 357,
@@ -118,7 +127,10 @@
     "latestDeliveryDate": "2026-06-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -11272364130
+    "msLeft": -11272364130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 356,
@@ -142,7 +154,10 @@
     "latestDeliveryDate": "2026-06-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -11182304130
+    "msLeft": -11182304130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 342,
@@ -166,7 +181,10 @@
     "latestDeliveryDate": "2026-07-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -9993464130
+    "msLeft": -9993464130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 341,
@@ -190,7 +208,10 @@
     "latestDeliveryDate": "2026-07-07T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -9903404130
+    "msLeft": -9903404130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    },
    {
     "orderId": 327,
@@ -214,7 +235,10 @@
     "latestDeliveryDate": "2026-07-25T00:00:00",
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -8642564130
+    "msLeft": -8642564130,
+    "canDecideQuote": true,
+    "canApproveQuote": true,
+    "approveBlockedReason": null
    }
   ],
   "pendingDecisionTotal": 33,
@@ -242,7 +266,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13719344130
+    "msLeft": -13719344130,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 384,
@@ -266,7 +293,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -13629284130
+    "msLeft": -13629284130,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 373,
@@ -290,7 +320,10 @@
     "latestDeliveryDate": "2026-06-07T00:00:00",
     "revisionNote": "Litre/fiyat revizesi",
     "financeStatus": 0,
-    "msLeft": -12638624130
+    "msLeft": -12638624130,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 370,
@@ -314,7 +347,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12368444130
+    "msLeft": -12368444130,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    },
    {
     "orderId": 369,
@@ -338,7 +374,10 @@
     "latestDeliveryDate": null,
     "revisionNote": null,
     "financeStatus": 0,
-    "msLeft": -12278384130
+    "msLeft": -12278384130,
+    "canDecideQuote": false,
+    "canApproveQuote": false,
+    "approveBlockedReason": null
    }
   ],
   "awaitingQuoteTotal": 33,
@@ -366,7 +405,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": true
    },
    {
     "shipmentId": 10,
@@ -389,7 +429,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Anadolu Lojistik Üssü #02",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 3,
@@ -412,7 +453,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 9,
@@ -435,7 +477,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 4,
@@ -458,7 +501,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 2,
@@ -481,7 +525,8 @@
     "productName": "Kurşunsuz 95",
     "deliveryPointName": "Merkez Depo",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    },
    {
     "shipmentId": 11,
@@ -504,7 +549,8 @@
     "productName": "Motorin (Euro 5)",
     "deliveryPointName": "Anadolu Lojistik Üssü #02",
     "deliveryCity": "İstanbul",
-    "isOverdue": false
+    "isOverdue": false,
+    "canAcceptDelivery": false
    }
   ],
   "plannedShipmentTotal": 4,

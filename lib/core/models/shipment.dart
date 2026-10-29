@@ -152,38 +152,43 @@ class ShipmentListItem {
     this.deliveryCity,
     this.deliveryDistrict,
     this.requestedDeliveryDate,
+    this.canAcceptDelivery,
   });
 
-  factory ShipmentListItem.fromJson(JsonReader r) => ShipmentListItem(
-    id: r.integer('id'),
-    orderId: r.integer('orderId'),
-    orderNumber: r.str('orderNumber'),
-    stationId: r.integer('stationId'),
-    stationName: r.str('stationName'),
-    customerId: r.integer('customerId'),
-    customerName: r.str('customerName'),
-    customerCity: r.str('customerCity'),
-    productId: r.integer('productId'),
-    productName: r.str('productName'),
-    plannedLiters: r.dec('plannedLiters'),
-    deliveredLiters: r.decOrNull('deliveredLiters'),
-    vehiclePlate: r.str('vehiclePlate'),
-    driverName: r.str('driverName'),
-    driverUserId: r.nonEmpty('driverUserId'),
-    scheduledAt: r.dateTr('scheduledAt'),
-    deliveredAt: r.dateTr('deliveredAt'),
-    acceptedAt: r.dateTr('acceptedAt'),
-    createdAt: r.dateUtc('createdAt'),
-    deliveryDocumentNo: r.nonEmpty('deliveryDocumentNo'),
-    status: r.enumOf('status', ShipmentStatus.fromCode),
-    disputeNote: r.nonEmpty('disputeNote'),
-    orderStatus: r.enumOf('orderStatus', OrderStatus.fromCode),
-    deliveryAddress: r.nonEmpty('deliveryAddress'),
-    deliveryPointName: r.nonEmpty('deliveryPointName'),
-    deliveryCity: r.nonEmpty('deliveryCity'),
-    deliveryDistrict: r.nonEmpty('deliveryDistrict'),
-    requestedDeliveryDate: r.dateTr('requestedDeliveryDate'),
-  );
+  /// [customer]: müşterinin Teslimatlar listesi; teslim kabulü ([canAcceptDelivery]) da okunur
+  /// (bayi listesinde sunucu boş bırakır, orada okunmaz).
+  factory ShipmentListItem.fromJson(JsonReader r, {bool customer = false}) =>
+      ShipmentListItem(
+        id: r.integer('id'),
+        orderId: r.integer('orderId'),
+        orderNumber: r.str('orderNumber'),
+        stationId: r.integer('stationId'),
+        stationName: r.str('stationName'),
+        customerId: r.integer('customerId'),
+        customerName: r.str('customerName'),
+        customerCity: r.str('customerCity'),
+        productId: r.integer('productId'),
+        productName: r.str('productName'),
+        plannedLiters: r.dec('plannedLiters'),
+        deliveredLiters: r.decOrNull('deliveredLiters'),
+        vehiclePlate: r.str('vehiclePlate'),
+        driverName: r.str('driverName'),
+        driverUserId: r.nonEmpty('driverUserId'),
+        scheduledAt: r.dateTr('scheduledAt'),
+        deliveredAt: r.dateTr('deliveredAt'),
+        acceptedAt: r.dateTr('acceptedAt'),
+        createdAt: r.dateUtc('createdAt'),
+        deliveryDocumentNo: r.nonEmpty('deliveryDocumentNo'),
+        status: r.enumOf('status', ShipmentStatus.fromCode),
+        disputeNote: r.nonEmpty('disputeNote'),
+        orderStatus: r.enumOf('orderStatus', OrderStatus.fromCode),
+        deliveryAddress: r.nonEmpty('deliveryAddress'),
+        deliveryPointName: r.nonEmpty('deliveryPointName'),
+        deliveryCity: r.nonEmpty('deliveryCity'),
+        deliveryDistrict: r.nonEmpty('deliveryDistrict'),
+        requestedDeliveryDate: r.dateTr('requestedDeliveryDate'),
+        canAcceptDelivery: customer ? r.boolOrNull('canAcceptDelivery') : null,
+      );
 
   final int id;
   final int orderId;
@@ -213,6 +218,11 @@ class ShipmentListItem {
   final String? deliveryCity;
   final String? deliveryDistrict;
   final DateTime? requestedDeliveryDate;
+
+  /// Panel eşitliği (yalnızca müşterinin listesi; null = değerlendirilmedi, yayındaki eski API):
+  /// tek dokunuşla teslim kabulü (carinin "Onaylandı" siparişi, sevkiyat kabul bekliyor, Sevkiyatlar
+  /// "Düzenler").
+  final bool? canAcceptDelivery;
 
   /// Sevkiyat no: `SVK-00001234`.
   String get code => 'SVK-${id.toString().padLeft(8, '0')}';

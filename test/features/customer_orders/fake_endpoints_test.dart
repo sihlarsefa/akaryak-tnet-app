@@ -77,7 +77,14 @@ void main() {
         expect(home.minDeliveryDate, TrTime.addDays(TrTime.todayStart(), 1));
         expect(home.suggestedDeliveryDate, home.minDeliveryDate);
         expect(home.dashboard.pendingDecisions, isNotEmpty);
-        expect(home.dashboard.pendingDecisionTotal, 1);
+        // 12002 ve şirketin onay eşiğini aşan 24.000 L teklif (panel eşitliği tohumu).
+        expect(home.dashboard.pendingDecisionTotal, 2);
+        // Yönetici eşiğe tabi değil: iki teklifte de onay açık (sunucunun panel değerleri).
+        for (final r in home.dashboard.pendingDecisions) {
+          expect(r.canDecideQuote, isTrue, reason: '${r.orderId}');
+          expect(r.canApproveQuote, isTrue, reason: '${r.orderId}');
+          expect(r.approveBlockedReason, isNull, reason: '${r.orderId}');
+        }
         expect(home.dashboard.activeShipment?.status, ShipmentStatus.inTransit);
         expect(home.pendingPaymentDocuments, hasLength(1));
         final doc = home.pendingPaymentDocuments.single;
@@ -131,13 +138,23 @@ void main() {
       () async {
         await signIn('musteri');
         final decision = await repo.orders(segment: OrderSegment.decision);
-        expect(decision.items, hasLength(1));
-        final row = decision.items.single;
+        // Süre sırasıyla: 12002 (8.000 L, çekli) ve şirketin onay eşiğini aşan 24.000 L teklif (panel
+        // eşitliği tohumu; yöneticinin onayı açık).
+        expect(decision.items, hasLength(2));
+        final row = decision.items.first;
         expect(row.status, OrderStatus.awaitingApproval);
         expect(row.quotedUnitPrice, 42.35);
         expect(row.paymentDocumentMissing, isTrue);
         expect(row.expiresAt, isNotNull);
         expect(row.paymentMethodName, 'Çek');
+        final big = decision.items.last;
+        expect(big.quantityLiters, 24000);
+        for (final r in decision.items) {
+          expect(r.canDecideQuote, isTrue, reason: '${r.id}');
+          expect(r.canApproveQuote, isTrue, reason: '${r.id}');
+          expect(r.approveBlockedReason, isNull, reason: '${r.id}');
+          expect(r.canAcceptDelivery, isFalse, reason: '${r.id}');
+        }
         final active = await repo.orders(segment: OrderSegment.active);
         expect(
           active.items.map((r) => r.status).toSet(),

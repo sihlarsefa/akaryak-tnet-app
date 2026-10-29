@@ -73,17 +73,11 @@ class AccessPolicy {
     return a.capabilities.any((c) => c.code.startsWith('approve.'));
   }
 
-  /// Müşterinin şirket içi rolü.
+  /// Müşterinin şirket içi rolü. Teklif kararı ve teslim kabulü rolden değil, sunucunun sipariş /
+  /// sevkiyat başına verdiği panel değerlerinden okunur (`CustomerDecider`; rol yalnızca talep edenin
+  /// şirket içi onay eşiğinde ve yedek kuralda anlamlıdır).
   CustomerUserRole get customerRole =>
       access?.customerUserRole ?? CustomerUserRole.unknown;
-
-  /// Müşteride kararı veren (v4 tur 2, P2 tek kural): Teklifler düzenleme yetkisi ve şirket rolü
-  /// Onaylayan ya da Yönetici. Talep edenin teklif ve teslimat kararı "sıra sizde" sayılmaz; ana sayfa
-  /// kahramanı, Onaylar rozeti, Siparişler, Teslimatlar ve sipariş ayrıntısı bu kuralı okur.
-  bool get customerDecides =>
-      isCustomer &&
-      customerRole.canApprove &&
-      can(Pg.customerQuotes, Perm.edit);
 
   /// Bayide teklif verir mi (v4 tur 2): Teklifler'de ya da sipariş ayrıntısında teklif ekleme
   /// yetkisi (`StationQuoteDesk:Ekler` ya da `StationQuotes:Ekler`). Masayı yalnızca görmek teklif işi

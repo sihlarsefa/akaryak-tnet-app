@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
@@ -103,12 +104,19 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     _search('');
   }
 
-  /// Bandın durum satırı (v4 §3.2): karar verebilen için Pas "1 teklif onayınızı bekliyor"; iş
-  /// yoksa sakin "2 sipariş sürüyor" (Aktif listesi yüklüyse).
-  Object? _status(int decisions, bool canDecide) {
+  /// Bandın durum satırı (v4 §3.2): sırası görüntüleyende olan teklifler ([mine]: görev kutusunun
+  /// teklif işleri, ana sayfa = Onaylar rozeti = Bende ile aynı sayı) için Pas "1 teklif onayınızı
+  /// bekliyor"; onay bekleyen teklifler başkasını bekliyorsa (bayinin finansı, şirketin onaylayanı,
+  /// karar yetkisi yok) sakin "2 teklif onay bekliyor"; iş yoksa "2 sipariş sürüyor" (Aktif listesi
+  /// yüklüyse).
+  Object? _status(int decisions, int mine) {
+    if (mine > 0) {
+      return AknStatusClause.yourMove(
+        OrdersCopy.decisionsWaiting(mine, yours: true),
+      );
+    }
     if (decisions > 0) {
-      final text = OrdersCopy.decisionsWaiting(decisions, yours: canDecide);
-      return canDecide ? AknStatusClause.yourMove(text) : text;
+      return OrdersCopy.decisionsWaiting(decisions, yours: false);
     }
     if (!ref.exists(ordersListProvider(OrderSegment.active))) return null;
     final active = ref.watch(ordersListProvider(OrderSegment.active));
@@ -119,15 +127,21 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   @override
   Widget build(BuildContext context) {
     final home = ref.watch(customerHomeProvider).data;
-    final policy = ref.watch(accessPolicyProvider);
-    // Tek kural (v4 tur 2): talep edenin teklif kararı yok; band ona "onay bekliyor" der.
-    final canDecide = policy.customerDecides;
+    // Panel eşitliği (tek kural, `CustomerDecider`): sıra sizde olan teklifler görev kutusundan; talep
+    // edenin eşik üstü teklifi onaylayanı bekler, band ona "onay bekliyor" der.
+    final mine = ref.watch(
+      customerTasksProvider.select(
+        (inbox) => inbox.items
+            .where((t) => t.counts && t.kind == TaskKind.quoteDecision)
+            .length,
+      ),
+    );
     final decisions = home?.dashboard.pendingDecisionTotal ?? 0;
     final s = ref.watch(ordersListProvider(_segment));
     return AppScaffold(
       title: OrdersCopy.myOrders,
       bandIcon: PhosphorIconsRegular.receipt,
-      status: _status(decisions, canDecide),
+      status: _status(decisions, mine),
       refreshing: s.loading && s.loaded,
       actions: [
         AknSearchReveal.button(

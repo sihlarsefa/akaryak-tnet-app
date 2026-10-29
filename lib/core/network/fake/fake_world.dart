@@ -942,6 +942,39 @@ class FakeWorld {
       ),
     );
 
+    // Panel eşitliği (şirket içi onay eşiği teklif onayında): Anadolu Lojistik'in eşiği 20.000 L /
+    // 750.000 ₺ (`A2Fake.companyApproval`); bu teklif ikisini de aşar (24.000 L · 1.006.800 ₺). Yönetici
+    // ve onaylayan onaylar; talep eden (Burak Yılmaz) yalnızca revize ister ya da reddeder, sırası
+    // değildir ("Onaylayanın kararı bekleniyor"). Talep edenin eşik altı teklifi 12002 (8.000 L).
+    final o10 = oid();
+    orders.add(
+      newOrder(
+        id: o10,
+        customerId: 101,
+        stationId: 1,
+        deliveryPointId: 1001,
+        productId: 1,
+        liters: 24000,
+        status: 2,
+        createdAt: _h(-7),
+        expiresAt: _h(20),
+        requestedDeliveryDate: _h(48),
+        paymentMethodCode: 'ACIK_HESAP',
+        paymentTermDays: 30,
+        createdByUserId: 'u-musteri',
+        quotes: [
+          newQuote(
+            id: qid(),
+            version: 1,
+            unitPrice: 41.95,
+            liters: 24000,
+            deliveryDate: _h(48),
+            createdAt: _h(-2),
+          ),
+        ],
+      ),
+    );
+
     int sid() => nextId('shipment');
     // Yoldaki araç 40 dk önce çıktı, ~70 dk sonra Pendik'te (08:00–18:00); planlı sevkiyat ~4 saat
     // sonra İzmit'te (08:00–17:00), yoldakinden en az 45 dk sonra. Saatler gösterim anına göredir:

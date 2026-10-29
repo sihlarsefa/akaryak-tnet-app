@@ -117,9 +117,11 @@ class ActiveShipmentSection extends ConsumerWidget {
     } else if (reported) {
       children.add(
         Text(
+          // Panel eşitliği: kabul şirket rolüne değil Sevkiyatlar "Düzenler" yetkisine bağlı (web
+          // sipariş ayrıntısının uyarısıyla aynı söz).
           canAccept
               ? 'Litreyi ve irsaliyeyi kontrol edip teslimatı onaylayın; bir sorun varsa itiraz edin.'
-              : 'Teslimat şirket yöneticinizin onayını bekliyor.',
+              : OrdersCopy.noAcceptRight,
           style: t.bodySmall.copyWith(color: c.dim),
         ),
       );

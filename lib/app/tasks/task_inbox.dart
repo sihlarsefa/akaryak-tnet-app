@@ -466,9 +466,6 @@ final customerTasksProvider = Provider.autoDispose<TaskInbox>((ref) {
   if (!policy.isCustomer) return TaskInbox.empty;
   final state = ref.watch(customerHomeProvider);
   final home = state.data;
-  // One rule for "the customer decides" (v4 round 2): the hero, the badge,
-  // Bende, Siparişler and the order page read the same predicate.
-  final canDecide = policy.customerDecides;
   final approvalsOn = policy.can(Pg.customerApprovals);
   final approvals = approvalsOn
       ? ref.watch(approvalsListProvider(const ApprovalsQuery()))
@@ -481,7 +478,11 @@ final customerTasksProvider = Provider.autoDispose<TaskInbox>((ref) {
   return TaskInbox(
     items: buildCustomerTasks(
       home: home,
-      canDecide: canDecide,
+      // The panel's rule, one place (CustomerDecider): the hero, the badge,
+      // Bende, Siparişler, Teslimatlar and the order page read the same
+      // values — the server's per row, else its rule from me/access and
+      // the home's company approval rule.
+      decider: CustomerDecider.of(policy, companyRule: home.companyApproval),
       approvals: approvals?.items ?? const [],
       draft: draft,
     ),
@@ -490,9 +491,18 @@ final customerTasksProvider = Provider.autoDispose<TaskInbox>((ref) {
 
 /// Pure: the customer's tasks from the home, the approvals rows (`scope:
 /// toMe`, page 1) and the draft (tests call it directly).
+///
+/// A quote or a delivery counts exactly when the viewer has a usable
+/// decision on it, as on the web panel ([decider]): a quote when "Teklifi
+/// onayla" is open for them ([QuoteRights.yourMove]: the server's
+/// `canApproveQuote`, else the panel's rule) and no finance lock holds it; a
+/// delivery when they can accept it (`canAcceptDelivery`, else the
+/// Sevkiyatlar edit grant). A requester's quote over the company threshold
+/// is the approver's move: it is not counted here (revise and reject stay on
+/// the order page).
 List<TaskItem> buildCustomerTasks({
   required CustomerHomeData home,
-  required bool canDecide,
+  required CustomerDecider decider,
   List<ApprovalRow> approvals = const [],
   DraftSummary? draft,
   DateTime? now,
@@ -533,67 +543,69 @@ List<TaskItem> buildCustomerTasks({
     for (final a in approvals)
       if (_isFinanceQuestion(a)) ?_questionOrder(a),
   };
-  if (canDecide) {
-    for (final row in dash.pendingDecisions) {
-      // Held by the bayi's finance: not the customer's move.
-      if (row.financeStatus == OrderFinanceStatus.pending ||
-          row.status != OrderStatus.awaitingApproval) {
-        continue;
-      }
-      decided.add(row.orderId);
-      final doc = docs.where((d) => d.orderId == row.orderId).firstOrNull;
-      final left = row.remaining(now: DateTime.now().toUtc());
-      final deadline = dash.expiryEnabled && row.msLeft > 0
-          ? at.add(left)
-          : null;
-      items.add(
-        TaskItem(
-          id: 'quote-${row.orderId}',
-          kind: TaskKind.quoteDecision,
-          orderId: row.orderId,
-          title: 'Teklifi onaylayın',
-          subtitle: _orderLine(
-            station: oneBayi ? null : row.stationTitle,
-            product: row.productName,
-            liters: row.quantityLiters,
-            place: row.deliveryPointName ?? row.deliveryCity,
-            partyLast: true,
-          ),
-          figure: row.latestTotalAmountTry == null
-              ? null
-              : _money(row.latestTotalAmountTry!),
-          amount: row.latestTotalAmountTry == null
-              ? null
-              : _money(row.latestTotalAmountTry!),
-          deadline: deadline,
-          route: AppRoutes.order(row.orderId),
-          focus: doc == null ? 'quote' : 'documents',
-          actionKind: doc == null
-              ? TaskActionKind.reviewQuote
-              : TaskActionKind.uploadDocument,
-          actionLabel: doc == null
-              ? 'Teklifi incele'
-              : AknStatus.uploadAction(doc.kind),
-          caption: doc == null
-              ? null
-              : 'Yükledikten sonra teklifi onaylayabilirsiniz',
-          note: doc == null
-              ? null
-              : 'Önce ${_lowerFirst(AknStatus.uploadPhrase(doc.kind))}',
-          documentKind: doc?.kind,
-          createdAt: row.updatedAt ?? row.createdAt,
-        ),
-      );
+  for (final row in dash.pendingDecisions) {
+    // Held by the bayi's finance (reviewing or asking for information: the
+    // panel locks "Onayla" for both): not the customer's quote move.
+    if (row.financeStatus.isAwaitingDecision ||
+        row.status != OrderStatus.awaitingApproval) {
+      continue;
     }
+    final rights = decider.quoteOfRow(row);
+    // The order's missing document goes with its quote decision, never an
+    // orphan task of its own: merged below when the quote is the viewer's;
+    // the approver's when it is over a requester's company threshold.
+    if (rights.canDecide) decided.add(row.orderId);
+    if (!rights.yourMove) continue;
+    final doc = docs.where((d) => d.orderId == row.orderId).firstOrNull;
+    final left = row.remaining(now: DateTime.now().toUtc());
+    final deadline = dash.expiryEnabled && row.msLeft > 0 ? at.add(left) : null;
+    items.add(
+      TaskItem(
+        id: 'quote-${row.orderId}',
+        kind: TaskKind.quoteDecision,
+        orderId: row.orderId,
+        title: 'Teklifi onaylayın',
+        subtitle: _orderLine(
+          station: oneBayi ? null : row.stationTitle,
+          product: row.productName,
+          liters: row.quantityLiters,
+          place: row.deliveryPointName ?? row.deliveryCity,
+          partyLast: true,
+        ),
+        figure: row.latestTotalAmountTry == null
+            ? null
+            : _money(row.latestTotalAmountTry!),
+        amount: row.latestTotalAmountTry == null
+            ? null
+            : _money(row.latestTotalAmountTry!),
+        deadline: deadline,
+        route: AppRoutes.order(row.orderId),
+        focus: doc == null ? 'quote' : 'documents',
+        actionKind: doc == null
+            ? TaskActionKind.reviewQuote
+            : TaskActionKind.uploadDocument,
+        actionLabel: doc == null
+            ? 'Teklifi incele'
+            : AknStatus.uploadAction(doc.kind),
+        caption: doc == null
+            ? null
+            : 'Yükledikten sonra teklifi onaylayabilirsiniz',
+        note: doc == null
+            ? null
+            : 'Önce ${_lowerFirst(AknStatus.uploadPhrase(doc.kind))}',
+        documentKind: doc?.kind,
+        createdAt: row.updatedAt ?? row.createdAt,
+      ),
+    );
   }
 
   // 3. Orphan documents (no decision or finance question carries them),
   // named by their order ("Motorin 12.000 L · Pendik Lojistik Merkezi") so
   // they never read like the lead's own upload. They belong to whoever
-  // decides the quote: for a requester the company-wide list is not their
-  // move (v4 round 2).
+  // decides quotes (the panel's Teklifler edit grant, any company role); a
+  // viewer without it has no quote move to prepare.
   for (final d in docs) {
-    if (!canDecide) break;
+    if (!decider.quotesEdit) break;
     if (decided.contains(d.orderId) || asked.contains(d.orderId)) continue;
     final order = _orderOf(dash, d.orderId);
     items.add(
@@ -618,34 +630,34 @@ List<TaskItem> buildCustomerTasks({
     );
   }
 
-  // 4. Reported deliveries.
-  if (canDecide) {
-    for (final s in dash.shipments) {
-      if (s.status != ShipmentStatus.reported) continue;
-      items.add(
-        TaskItem(
-          id: 'delivery-${s.shipmentId}',
-          kind: TaskKind.deliveryAcceptance,
-          orderId: s.orderId,
-          title: 'Teslimatı onaylayın',
-          // The litres are the row's amount: the line does not say them
-          // twice (P4).
-          subtitle: _orderLine(
-            station: oneBayi ? null : s.stationTitle,
-            product: s.productName,
-            place: s.deliveryPointName ?? s.deliveryCity,
-            partyLast: true,
-          ),
-          amount: Fmt.liters(s.deliveredLiters ?? s.plannedLiters),
-          time: s.deliveredAt == null ? null : Fmt.relative(s.deliveredAt),
-          route: AppRoutes.shipment(s.shipmentId),
-          focus: 'delivery',
-          actionKind: TaskActionKind.acceptDelivery,
-          actionLabel: 'Teslimatı onayla',
-          createdAt: s.deliveredAt ?? s.updatedAt,
+  // 4. Reported deliveries the viewer can accept (the panel: no company
+  // role, the Sevkiyatlar edit grant).
+  for (final s in dash.shipments) {
+    if (s.status != ShipmentStatus.reported) continue;
+    if (!decider.acceptsShipmentRow(s)) continue;
+    items.add(
+      TaskItem(
+        id: 'delivery-${s.shipmentId}',
+        kind: TaskKind.deliveryAcceptance,
+        orderId: s.orderId,
+        title: 'Teslimatı onaylayın',
+        // The litres are the row's amount: the line does not say them
+        // twice (P4).
+        subtitle: _orderLine(
+          station: oneBayi ? null : s.stationTitle,
+          product: s.productName,
+          place: s.deliveryPointName ?? s.deliveryCity,
+          partyLast: true,
         ),
-      );
-    }
+        amount: Fmt.liters(s.deliveredLiters ?? s.plannedLiters),
+        time: s.deliveredAt == null ? null : Fmt.relative(s.deliveredAt),
+        route: AppRoutes.shipment(s.shipmentId),
+        focus: 'delivery',
+        actionKind: TaskActionKind.acceptDelivery,
+        actionLabel: 'Teslimatı onayla',
+        createdAt: s.deliveredAt ?? s.updatedAt,
+      ),
+    );
   }
 
   // 5. Company requests and finance questions (approvals `scope: toMe`,

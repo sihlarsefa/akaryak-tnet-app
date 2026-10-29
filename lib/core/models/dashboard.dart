@@ -30,33 +30,44 @@ class DashboardOrderRow {
     this.financeStatus = OrderFinanceStatus.notRequired,
     this.msLeft = 0,
     this.receivedAt,
+    this.canDecideQuote,
+    this.canApproveQuote,
+    this.approveBlockedReason,
   });
 
-  factory DashboardOrderRow.fromJson(JsonReader r) => DashboardOrderRow(
-    orderId: r.integer('orderId'),
-    orderNumber: r.str('orderNumber'),
-    status: r.enumOf('status', OrderStatus.fromCode),
-    createdAt: r.dateTr('createdAt'),
-    updatedAt: r.dateTr('updatedAt'),
-    expiresAt: r.dateTr('expiresAt'),
-    requestedDeliveryDate: r.dateTr('requestedDeliveryDate'),
-    quantityLiters: r.dec('quantityLiters'),
-    productName: r.nonEmpty('productName'),
-    customerId: r.integer('customerId'),
-    customerTitle: r.nonEmpty('customerTitle'),
-    stationId: r.integer('stationId'),
-    stationTitle: r.nonEmpty('stationTitle'),
-    deliveryPointName: r.nonEmpty('deliveryPointName'),
-    deliveryCity: r.nonEmpty('deliveryCity'),
-    latestVersion: r.intOrNull('latestVersion'),
-    latestUnitPriceTry: r.decOrNull('latestUnitPriceTry'),
-    latestTotalAmountTry: r.decOrNull('latestTotalAmountTry'),
-    latestDeliveryDate: r.dateTr('latestDeliveryDate'),
-    revisionNote: r.nonEmpty('revisionNote'),
-    financeStatus: r.enumOf('financeStatus', OrderFinanceStatus.fromCode),
-    msLeft: r.integer('msLeft'),
-    receivedAt: DateTime.now().toUtc(),
-  );
+  /// [customer]: müşteri ana sayfasının satırı (`home/customer`); panel eşitliği alanları da okunur.
+  /// Bayi satırlarında sunucu bunları boş bırakır (değerlendirilmez), orada okunmaz.
+  factory DashboardOrderRow.fromJson(JsonReader r, {bool customer = false}) =>
+      DashboardOrderRow(
+        orderId: r.integer('orderId'),
+        orderNumber: r.str('orderNumber'),
+        status: r.enumOf('status', OrderStatus.fromCode),
+        createdAt: r.dateTr('createdAt'),
+        updatedAt: r.dateTr('updatedAt'),
+        expiresAt: r.dateTr('expiresAt'),
+        requestedDeliveryDate: r.dateTr('requestedDeliveryDate'),
+        quantityLiters: r.dec('quantityLiters'),
+        productName: r.nonEmpty('productName'),
+        customerId: r.integer('customerId'),
+        customerTitle: r.nonEmpty('customerTitle'),
+        stationId: r.integer('stationId'),
+        stationTitle: r.nonEmpty('stationTitle'),
+        deliveryPointName: r.nonEmpty('deliveryPointName'),
+        deliveryCity: r.nonEmpty('deliveryCity'),
+        latestVersion: r.intOrNull('latestVersion'),
+        latestUnitPriceTry: r.decOrNull('latestUnitPriceTry'),
+        latestTotalAmountTry: r.decOrNull('latestTotalAmountTry'),
+        latestDeliveryDate: r.dateTr('latestDeliveryDate'),
+        revisionNote: r.nonEmpty('revisionNote'),
+        financeStatus: r.enumOf('financeStatus', OrderFinanceStatus.fromCode),
+        msLeft: r.integer('msLeft'),
+        receivedAt: DateTime.now().toUtc(),
+        canDecideQuote: customer ? r.boolOrNull('canDecideQuote') : null,
+        canApproveQuote: customer ? r.boolOrNull('canApproveQuote') : null,
+        approveBlockedReason: customer
+            ? r.nonEmpty('approveBlockedReason')
+            : null,
+      );
 
   final int orderId;
   final String orderNumber;
@@ -89,6 +100,16 @@ class DashboardOrderRow {
 
   /// Yanıtın alındığı an ([remaining] hesabı için).
   final DateTime? receivedAt;
+
+  /// Panel eşitliği (yalnızca müşteri ana sayfası; null = değerlendirilmedi, yayındaki eski API):
+  /// teklif kararı (revize, red) verilebilir.
+  final bool? canDecideQuote;
+
+  /// "Teklifi onayla" açık (talep edenin eşik üstü teklifinde false; finans kilidi ayrıca).
+  final bool? canApproveQuote;
+
+  /// Onay şirket içi kuralla kapalıysa panelin notu (sunucunun ret metni).
+  final String? approveBlockedReason;
 
   /// Şu an kalan süre (sunucu [msLeft] değerinden, cihaz saatine bağımlı olmadan).
   Duration remaining({DateTime? now}) {
@@ -123,9 +144,14 @@ class DashboardShipmentRow {
     this.deliveryPointName,
     this.deliveryCity,
     this.isOverdue = false,
+    this.canAcceptDelivery,
   });
 
-  factory DashboardShipmentRow.fromJson(JsonReader r) => DashboardShipmentRow(
+  /// [customer]: müşteri ana sayfasının satırı; teslim kabulü ([canAcceptDelivery]) da okunur.
+  factory DashboardShipmentRow.fromJson(
+    JsonReader r, {
+    bool customer = false,
+  }) => DashboardShipmentRow(
     shipmentId: r.integer('shipmentId'),
     orderId: r.integer('orderId'),
     orderNumber: r.str('orderNumber'),
@@ -147,6 +173,7 @@ class DashboardShipmentRow {
     deliveryPointName: r.nonEmpty('deliveryPointName'),
     deliveryCity: r.nonEmpty('deliveryCity'),
     isOverdue: r.boolean('isOverdue'),
+    canAcceptDelivery: customer ? r.boolOrNull('canAcceptDelivery') : null,
   );
 
   final int shipmentId;
@@ -172,6 +199,10 @@ class DashboardShipmentRow {
 
   /// Planlı ama planlanan gün geçmiş (yola çıkmamış).
   final bool isOverdue;
+
+  /// Panel eşitliği (yalnızca müşteri ana sayfası; null = değerlendirilmedi): tek dokunuşla teslim
+  /// kabulü (sipariş "Onaylandı", sevkiyat kabul bekliyor, Sevkiyatlar "Düzenler").
+  final bool? canAcceptDelivery;
 }
 
 /// Günlük toplam (`DashboardDayDto`).
