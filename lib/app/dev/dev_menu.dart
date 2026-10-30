@@ -140,6 +140,7 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
                 subtitle:
                     'Şifre ${FakeAuth.password}, SMS kodu ${FakeAuth.code}',
               ),
+              // Roller v5: pasif rollerin personaları girişte kart almaz ama burada kalır ("pasif").
               _Group(
                 children: [
                   for (final p in fakePersonas)
@@ -147,7 +148,11 @@ class _DevMenuPageState extends ConsumerState<DevMenuPage> {
                       leading: AknAvatar(name: p.displayName),
                       title: p.displayName,
                       subtitle: p.summary,
-                      meta: p.userId == current ? 'açık' : p.key,
+                      meta: p.userId == current
+                          ? 'açık'
+                          : p.passive
+                          ? '${p.key} · pasif'
+                          : p.key,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 6,

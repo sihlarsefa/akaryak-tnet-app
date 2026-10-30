@@ -25,6 +25,18 @@ Matcher fakeStatus(int status, {String? code, String? field}) =>
         );
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talepler (9003,
+  // 9013) ve iki kademeli finans onayı (9006). Roller v5 kuralları test/app/roles_v5_test.dart
+  // içinde.
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+    FakeWorld.defaultV5Station = true;
+  });
+
   late FakeWorld world;
   late A5FakeStore store;
 

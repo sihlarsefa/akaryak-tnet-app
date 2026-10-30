@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/models/enums.dart'
@@ -103,9 +104,10 @@ class FieldHome extends ConsumerWidget {
     }
 
     final name = (me?.displayName ?? '').trim();
+    // Rol adı sunucudan (panelle aynı); yoksa şablonun adı (roller v5: "Satış temsilcisi").
     final role = (me?.bayiRoleNames.isNotEmpty ?? false)
         ? me!.bayiRoleNames.first
-        : 'Saha satış temsilcisi';
+        : BayiRoleCodes.name(BayiRoleCodes.fieldRep);
     return AppScaffold(
       homeHeader: AknHomeHeader(
         company: me?.stationTitle ?? 'Saha satış',

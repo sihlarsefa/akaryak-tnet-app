@@ -158,7 +158,9 @@ void registerProfileFakes(FakeServer s) {
         'Merkez hesapları uygulamadan silinemez; merkez yöneticinize başvurun.',
       );
     }
-    if (p.bayiRoleCodes.contains('owner')) {
+    // Bayinin ana hesabı (`Station.UserId`; sunucu rol koduna değil hesaba bakar): roller v5'te Bayi
+    // yöneticisi rolü başka personele de verilebilir, onların hesabı silinebilir.
+    if (p.persona == Persona.bayi && p.key == 'sahip') {
       throw FakeResponse.business(
         'Bayi sahibi hesabı uygulamadan silinemez. Bayi kaydınızın kapatılması için merkezle görüşün.',
       );

@@ -13,9 +13,21 @@ import '../../data/company.dart';
 import '../cm_widgets.dart';
 import 'company_user_sheets.dart';
 
+/// Tek rolde yalnız kullanıcıya not (rol belirleme yok).
+const _usersAloneSingleRole =
+    'Şu an şirketinizde yalnızca siz varsınız. Satın alma ekibinizi ekleyin; '
+    'herkes doğrudan sipariş verir ve teklife karar verir.';
+
+/// Ana kullanıcı etiketi (`CompanyUserDto.isMainUser`; sunucu `CustomerSingleRoleTexts.MainUserChip`).
+const mainUserLabel = 'Ana kullanıcı';
+
 /// Şirket kullanıcıları (yalnızca şirket Yöneticisi + `CustomerCompanyUsers:Gorur`): liste (rol çipi,
 /// "Davet bekliyor", son giriş), ekle, rol düzenle, aktif / pasif (onaylı), "Bağlantıyı yeniden gönder",
 /// şirket içi onay eşikleri.
+///
+/// Roller v5 (`me/access.companyApprovalsEnabled == false`, tek müşteri rolü): rol sütunu, rol seçimi,
+/// rol açıklamaları ve eşik kartı yok; ana kullanıcıda "Ana kullanıcı" yazar (panelle aynı). Eski akış
+/// (eski sunucu, geçiş yapılmamış şirket) olduğu gibi kalır.
 class CompanyUsersPage extends ConsumerWidget {
   const CompanyUsersPage({super.key});
 
@@ -37,6 +49,7 @@ class CompanyUsersPage extends ConsumerWidget {
     final s = ref.watch(companyUsersControllerProvider);
     final ctrl = ref.read(companyUsersControllerProvider.notifier);
     final online = ref.watch(isOnlineProvider);
+    final approvals = policy.companyApprovals;
     final active = s.users.where((u) => u.isActive).toList();
     final inactive = s.users.where((u) => !u.isActive).toList();
     Widget body;
@@ -57,9 +70,12 @@ class CompanyUsersPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(24, 8, 12, 8),
         ),
         if (s.users.length <= 1)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: AknBanner(tone: AknTone.info, message: CmCopy.usersAlone),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: AknBanner(
+              tone: AknTone.info,
+              message: approvals ? CmCopy.usersAlone : _usersAloneSingleRole,
+            ),
           ),
         if (active.isNotEmpty) group(active),
         if (inactive.isNotEmpty) ...[
@@ -70,11 +86,14 @@ class CompanyUsersPage extends ConsumerWidget {
           ),
           group(inactive),
         ],
-        _ThresholdsCard(
-          thresholds: s.thresholds,
-          canEdit: policy.cmCompanyUserEdit && online,
-        ),
-        const _RolesLegend(),
+        // Eşikler yüklenemediyse kart yok (liste yine açılır); onay kapalıyken kart ve rol açıklamaları
+        // hiç yok.
+        if (approvals && s.thresholds != null)
+          _ThresholdsCard(
+            thresholds: s.thresholds,
+            canEdit: policy.cmCompanyUserEdit && online,
+          ),
+        if (approvals) const _RolesLegend(),
       ];
       body = PullToRefresh(
         onRefresh: ctrl.load,
@@ -178,6 +197,10 @@ class UserCard extends ConsumerWidget {
         ? 'Henüz giriş yapmadı'
         : 'Son giriş ${Fmt.relative(u.lastLoginAt)}';
     final role = u.role.statusStyle.withLabel(u.roleLabel);
+    // Roller v5: tek rolde rol sütunu yok; ana kullanıcıda "Ana kullanıcı".
+    final meta = policy.companyApprovals
+        ? role.label
+        : (u.isMainUser ? mainUserLabel : null);
     final canManage = policy.cmCompanyUserEdit;
     final contact = [
       if (u.email.isNotEmpty) u.email,
@@ -197,7 +220,7 @@ class UserCard extends ConsumerWidget {
       titleStyle: cmRowTitle(context),
       title: u.isSelf ? '${u.displayName} (siz)' : u.displayName,
       subtitle: contact.isEmpty ? null : contact,
-      meta: role.label,
+      meta: meta,
       status: AknStatusLine(
         lamp: lamp ?? Text(last, style: t.bodySmall.copyWith(color: c.dim)),
         trailing: lamp == null
@@ -208,13 +231,17 @@ class UserCard extends ConsumerWidget {
       onTap: canManage
           ? () {
               AknHaptics.selection();
-              showUserActionsSheet(context, u);
+              showUserActionsSheet(
+                context,
+                u,
+                companyApprovals: policy.companyApprovals,
+              );
             }
           : null,
       semanticLabel: [
         u.displayName,
         if (u.isSelf) 'siz',
-        role.label,
+        ?meta,
         if (u.invitationPending) 'davet bekliyor',
         if (!u.isActive) 'pasif',
         u.email,

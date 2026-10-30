@@ -9,7 +9,8 @@ import 'package:akaryakitnet/core/utils/turkish_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final w = FakeWorld.seeded();
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış cari): şirket içi talep bildirimi (9003).
+  final w = FakeWorld.seeded(companyApprovals: true);
   JsonMap note(String user, String code) => w.notifications.firstWhere(
     (n) => n['userId'] == 'u-$user' && n['eventCode'] == code,
   );

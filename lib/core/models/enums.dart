@@ -397,6 +397,10 @@ enum InstrumentStatus implements CodedEnum {
 }
 
 /// Müşteri şirket kullanıcısının şirket içi rolü. Sunucuda null = Yönetici ([fromCode] null → [admin]).
+///
+/// Roller v5: müşteride tek rol vardır, [admin] ("Yönetici"; sipariş, teklif kararı, teslim kabulü,
+/// şirket kullanıcıları). [requester] ve [approver] pasiftir: değerleri korunur (geçmiş, geri alma, eski
+/// sunucu), yeni kullanıcıya önerilmez; geçiş yapılmış şirkette sunucu her yazımda 3'e çevirir.
 enum CustomerUserRole implements CodedEnum {
   requester(1, 'Talep eden'),
   approver(2, 'Onaylayan'),
@@ -417,6 +421,9 @@ enum CustomerUserRole implements CodedEnum {
 
   /// Şirket içi talepleri onaylayabilir (Onaylayan ya da Yönetici).
   bool get canApprove => this == approver || this == admin;
+
+  /// Roller v5'te pasif rol (Talep eden, Onaylayan): yeni kullanıcıya önerilmez.
+  bool get isPassive => this == requester || this == approver;
 }
 
 /// Cari finans kartı durumu (CustomerFinanceProfile.Status).

@@ -3,6 +3,7 @@
 import 'package:akaryakitnet/core/models/models.dart';
 import 'package:akaryakitnet/core/network/api_client.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/customer_orders/data/customer_orders_repository.dart';
@@ -17,6 +18,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/a2_support.dart';
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi bekleyen talepler.
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+  });
+
   late A2Env env;
   late ProviderContainer c;
   late CustomerOrdersRepository repo;

@@ -98,6 +98,10 @@ abstract final class Roles {
 }
 
 /// Bayi rolü şablon kodları (`BayiRoleTemplateCodes`). Özel rollerde kod olmayabilir.
+///
+/// Roller v5: [active] 7 etkin şablon (Bayi yöneticisi, Satış müdürü, Satış temsilcisi, Finans birimi,
+/// İkmal birimi, Muhasebe birimi, Şoför), [passive] 6 pasif şablon. Pasif rol yeni atamaya kapalıdır ama
+/// mevcut kullanıcısına yetki vermeye devam eder: uygulama pasif kodları da tanır (ön ayar, ipucu).
 abstract final class BayiRoleCodes {
   static const owner = 'owner';
   static const manager = 'manager';
@@ -112,6 +116,10 @@ abstract final class BayiRoleCodes {
   static const depot = 'depot';
   static const viewer = 'viewer';
 
+  /// Roller v5: İkmal birimi (Sipariş masası, Sevkiyat planlama ve Depo / dolum şablonlarının birleşimi).
+  static const supply = 'supply';
+
+  /// Tüm kodlar. Sıra sahte personel listesinin `roleId` değerini verir: yalnızca sona ekleyin.
   static const all = [
     owner,
     manager,
@@ -119,25 +127,128 @@ abstract final class BayiRoleCodes {
     financeSpecialist,
     accounting,
     salesManager, //
-    fieldRep, orderDesk, dispatch, driver, depot, viewer,
+    fieldRep, orderDesk, dispatch, driver, depot, viewer, supply,
   ];
 
-  /// Şablonun Türkçe adı (bilinmeyen kod olduğu gibi döner).
+  /// Roller v5 etkin şablonları (7; panelin sırasıyla).
+  static const active = [
+    owner,
+    salesManager,
+    fieldRep,
+    financeManager,
+    supply,
+    accounting,
+    driver,
+  ];
+
+  /// Roller v5 pasif şablonları (6): yeni atamaya kapalı; mevcut atamalar çalışmaya devam eder.
+  static const passive = [
+    manager,
+    financeSpecialist,
+    orderDesk,
+    dispatch,
+    depot,
+    viewer,
+  ];
+
+  /// Pasif rolün ad eki (sunucu `BayiRoleDisplay.RetiredSuffix`).
+  static const passiveSuffix = ' (pasif)';
+
+  /// Pasif şablon kodu mu.
+  static bool isPassive(String? code) => passive.contains(code);
+
+  /// Pasif şablonun kullanıcılarının taşındığı etkin şablon (sunucu `ReplacedBy`): Bayi müdürü → Bayi
+  /// yöneticisi, Finans / kredi uzmanı → Finans birimi, Sipariş masası / Sevkiyat / Depo → İkmal birimi.
+  /// Görüntüleyicide ve etkin kodlarda null.
+  static String? replacedBy(String? code) => switch (code) {
+    manager => owner,
+    financeSpecialist => financeManager,
+    orderDesk || dispatch || depot => supply,
+    _ => null,
+  };
+
+  /// Şablonun Türkçe adı, sunucunun adıyla aynı (bilinmeyen kod olduğu gibi döner). Pasif şablonlar eski
+  /// adlarını korur.
   static String name(String code) => switch (code) {
-    owner => 'Bayi sahibi',
+    owner => 'Bayi yöneticisi',
     manager => 'Bayi müdürü',
-    financeManager => 'Finans müdürü',
+    financeManager => 'Finans birimi',
     financeSpecialist => 'Finans / kredi uzmanı',
-    accounting => 'Muhasebe',
+    accounting => 'Muhasebe birimi',
     salesManager => 'Satış müdürü',
-    fieldRep => 'Saha satış temsilcisi',
+    fieldRep => 'Satış temsilcisi',
     orderDesk => 'Sipariş masası / operasyon',
     dispatch => 'Sevkiyat planlama',
     driver => 'Şoför',
     depot => 'Depo / dolum',
     viewer => 'Görüntüleyici',
+    supply => 'İkmal birimi',
     _ => code,
   };
+
+  /// Rolün ekran etiketi (sunucu `BayiRoleDisplay.Label`): pasif rolde ad + " (pasif)"; ek iki kez
+  /// eklenmez.
+  static String label(String name, {required bool passive}) =>
+      passive && !name.endsWith(passiveSuffix) ? '$name$passiveSuffix' : name;
+}
+
+/// Roller v5 "her birimde 1 onaycı": onay akışı olan bayi birimleri (`BayiApproverUnits`). Birimin etkin
+/// onaycısı varsa birimin `approve.*` kodlarıyla bayide yalnızca o imzalar (`me/access`
+/// `signingCapabilities`); onaycı yoksa yetkinliği olan herkes imzalar. İkmal ve Muhasebe biriminin onay
+/// akışı yoktur.
+abstract final class ApproverUnits {
+  static const management = 'management';
+  static const sales = 'sales';
+  static const finance = 'finance';
+
+  /// Panelin "Birim onaycıları" sırası.
+  static const all = [management, sales, finance];
+
+  /// Kısa ad: Ekip'teki "Onaycı · Finans" çipi (sunucu `ShortLabel`).
+  static String shortLabel(String unit) => switch (unit) {
+    management => 'Bayi yöneticisi',
+    sales => 'Satış',
+    finance => 'Finans',
+    _ => unit,
+  };
+
+  /// Panel adı (sunucu `Label`): "Finans birimi onaycısı".
+  static String label(String unit) => switch (unit) {
+    management => 'Bayi yöneticisi onaycısı',
+    sales => 'Satış onaycısı',
+    finance => 'Finans birimi onaycısı',
+    _ => unit,
+  };
+
+  /// Birimin imza yetkinlikleri (sunucu `CapabilitiesOf`).
+  static List<String> capabilitiesOf(String unit) => switch (unit) {
+    management => const [
+      Caps.approveFieldSenior,
+      Caps.approveFieldException,
+      Caps.approveOrderExecutive,
+    ],
+    sales => const [Caps.approveFieldManager],
+    finance => const [
+      Caps.approveFinanceOrder,
+      Caps.approveFinanceOnboarding,
+      Caps.approveFinanceLead,
+    ],
+    _ => const [],
+  };
+
+  /// Rol satırı: birim onaycısında rolün ardından " · onaycı" (Profil ve "Diğer": "Finans birimi ·
+  /// onaycı").
+  static String roleLine(String role, List<String> units) =>
+      units.isEmpty ? role : '$role · onaycı';
+
+  /// Yetkinliğin birimi (sunucu `UnitOf`); merkez (`approve.limit.hq`, `approve.hq`), cari
+  /// (`approve.company.order`) ve onay dışı kodlarda null.
+  static String? unitOf(String? capability) {
+    for (final u in all) {
+      if (capabilitiesOf(u).contains(capability)) return u;
+    }
+    return null;
+  }
 }
 
 /// Bayi rolü yetkinlik kodları (`BayiCapabilities`). Platform personeli her yetkinliğe sahiptir.

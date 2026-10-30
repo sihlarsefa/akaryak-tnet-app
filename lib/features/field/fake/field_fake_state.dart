@@ -736,8 +736,9 @@ class FieldFakeState {
     return 'SSF-${_day(at)}-${seq.toString().padLeft(6, '0')}';
   }
 
-  /// Saha formu onay bandının metni (alan sahtesi ve onaylar sahtesi aynı sözcükleri kullanır).
-  static const bandManager = 'Bayi yöneticisi onayı';
+  /// Saha formu onay bandının metni (alan sahtesi ve onaylar sahtesi aynı sözcükleri kullanır; Roller v5
+  /// sunucu `FieldOrderRules.Band`: 1. bant "Satış müdürü onayı").
+  static const bandManager = 'Satış müdürü onayı';
   static const bandUpper = 'Üst onay';
   static const bandAutoReject = 'Otomatik ret';
 
@@ -783,7 +784,9 @@ class FieldFakeState {
     return a['id'] as int;
   }
 
-  /// Ortak dünyaya saha onay talebi ekler (Onaylarım'da görünür).
+  /// Ortak dünyaya saha onay talebi ekler (Onaylarım'da görünür). [eligible] yetkinliği taşıyanlardır;
+  /// roller v5'te birimin onaycısı başkasıysa imza süzgeci ([FakeWorld.signsStep], kademenin
+  /// [capability] kodu) onları düşürür.
   JsonMap addApproval({
     required int type,
     required int status,
@@ -792,6 +795,7 @@ class FieldFakeState {
     required String summary,
     required List<String> eligible,
     DateTime? createdAt,
+    String? capability,
   }) {
     final created = createdAt ?? DateTime.now().toUtc();
     final a = <String, dynamic>{
@@ -818,6 +822,7 @@ class FieldFakeState {
       'currentLevelNo': 1,
       'levelCount': 1,
       'eligibleUserIds': [for (final k in eligible) 'u-$k'],
+      '_capability': ?capability,
     };
     world.approvals.add(a);
     return a;

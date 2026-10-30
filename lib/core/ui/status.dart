@@ -541,7 +541,7 @@ abstract final class AknStatus {
       'auto' ||
       'ok' => (AknTone.ok, PhosphorIconsFill.lightning, 'Otomatik onay'),
       'manager' ||
-      'mid' => (AknTone.warn, PhosphorIconsFill.users, 'Yönetici onayı'),
+      'mid' => (AknTone.warn, PhosphorIconsFill.users, 'Satış müdürü onayı'),
       'unknown' => (
         AknTone.warn,
         PhosphorIconsRegular.question,

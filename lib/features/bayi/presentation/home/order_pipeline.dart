@@ -55,10 +55,11 @@ class PipelineStop {
       '$label, ${Fmt.integer(count)} $unit${isYourMove ? ', sıra sizde' : ''}';
 }
 
-/// "Sıra sizde" durakları rol ön ayarına göre: sahip / müdür Finans, Teklif, Plan; sipariş masası
-/// Teklif; finans Finans; sevkiyat / depo Plan.
+/// "Sıra sizde" durakları rol ön ayarına göre: Bayi yöneticisi (ve pasif müdür) Finans, Teklif, Plan;
+/// İkmal birimi Teklif, Plan; sipariş masası Teklif; finans Finans; sevkiyat / depo Plan.
 Set<String> pipelineYourMoves(RolePreset preset) => switch (preset) {
   RolePreset.owner => const {'Finans', 'Teklif', 'Plan'},
+  RolePreset.supply => const {'Teklif', 'Plan'},
   RolePreset.orderDesk => const {'Teklif'},
   RolePreset.finance => const {'Finans'},
   RolePreset.dispatch => const {'Plan'},

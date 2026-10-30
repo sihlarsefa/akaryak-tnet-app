@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/application/home_controller.dart';
 import 'package:akaryakitnet/features/bayi/application/role_tip.dart';
@@ -26,6 +27,15 @@ import 'support/bayi_app.dart';
 const _phone = Size(390, 844);
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): birim onaycısı olmayan bayide
+  // sahip finans kararlarını da verir (gecikmiş onaylar kuyruğu).
+  setUpAll(() {
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultV5Station = true;
+  });
+
   testWidgets(
     'sahip: "Sıra sizde" ilk kart, hat içinde, "Teklif ver" 746 üstünde, deste ilk ekranda',
     (tester) async {

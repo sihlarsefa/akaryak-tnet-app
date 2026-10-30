@@ -137,7 +137,8 @@ class A5FakeStore {
 
   void _seed() {
     _seedLeads();
-    _seedCompanyRequests();
+    // Roller v5: şirket içi talepler (3001, 2987) ve onların aynaları (9003, 9013) yalnızca eski akışta.
+    if (world.companyApprovals) _seedCompanyRequests();
     _seedApprovals();
     _bumpApprovalIds();
     _seedFinanceCards();
@@ -148,7 +149,9 @@ class A5FakeStore {
   /// talepler (ör. teklif limit aşımında finans onayı) aynı kimliği almaz. v4'te depo oturum açılır
   /// açılmaz kurulur (rozet `notifications/unread-count` Bende'yi sayar), teklif akışından önce.
   void _bumpApprovalIds() {
-    var max = 0;
+    // 9013 (eski akışın şirket talebi) tohumlanmasa da kimliği ayrılır: yeni talepler iki dünyada aynı
+    // kimliği alır.
+    var max = 9013;
     for (final a in world.approvals) {
       final id = a['id'];
       if (id is int && id > max) max = id;
@@ -502,7 +505,7 @@ class A5FakeStore {
           _step(
             90021,
             1,
-            'Yönetici onayı',
+            FieldFakeState.bandManager,
             Caps.approveFieldManager,
             status: 1,
             dueAt: _h(22.5),
@@ -790,7 +793,10 @@ class A5FakeStore {
             'at': utc(_h(-2)),
           };
 
-    // ---- 9006 Saha formu finans (Körfez Nakliyat; iki kademe, süresi geçti) ----
+    // ---- 9006 Saha formu finans (Körfez Nakliyat; süresi geçti) ----
+    // Roller v5: finans onayı tek kademe "Finans birimi" (tek imza her tutarı kapsar); eski akışta iki
+    // kademe (Finans uzmanı → Finans müdürü 750.000 ₺ üzeri).
+    final singleLevel = world.v5Station;
     final n9006 = FieldFakeState.seedFormNumber(world, 7002);
     world.approvals.add(
       _approvalRecord(
@@ -809,7 +815,7 @@ class A5FakeStore {
         requestedByName: 'Deniz Koç',
         createdAt: _h(-9),
         dueAt: _h(-1),
-        levelCount: 2,
+        levelCount: singleLevel ? 1 : 2,
         eligible: const ['finans', 'sahip'],
       ),
     );
@@ -819,21 +825,22 @@ class A5FakeStore {
         _step(
           90061,
           1,
-          'Finans uzmanı',
+          singleLevel ? 'Finans birimi' : 'Finans uzmanı',
           Caps.approveFinanceOrder,
           status: 1,
           dueAt: _h(-1),
           eligible: const ['finans', 'sahip'],
         ),
-        _step(
-          90062,
-          2,
-          'Finans müdürü (750.000 ₺ üzeri)',
-          Caps.approveFinanceOrder,
-          status: 0,
-          minAmount: 750000,
-          eligible: const ['finans', 'sahip'],
-        ),
+        if (!singleLevel)
+          _step(
+            90062,
+            2,
+            'Finans müdürü (750.000 ₺ üzeri)',
+            Caps.approveFinanceOrder,
+            status: 0,
+            minAmount: 750000,
+            eligible: const ['finans', 'sahip'],
+          ),
       ],
       events: [
         event(ApprovalEventKind.created, userKey: 'saha', at: _h(-9)),
@@ -1191,7 +1198,7 @@ class A5FakeStore {
               _step(
                 90121,
                 1,
-                'Yönetici onayı',
+                FieldFakeState.bandManager,
                 Caps.approveFieldManager,
                 status: 3,
                 decidedBy: 'satis',
@@ -1229,7 +1236,11 @@ class A5FakeStore {
           ..decisionNote =
               'Fiyat barem dışında; yeni teklifle tekrar gönderin.';
 
-    // ---- 9013 Karar verilmiş: şirket içi talep onaylandı (kısmi) ----
+    // ---- 9013 Karar verilmiş: şirket içi talep onaylandı (kısmi; yalnızca eski akışta) ----
+    if (world.companyApprovals) _seedCompanyDecision();
+  }
+
+  void _seedCompanyDecision() {
     final done = companyRequests.firstWhere((r) => r['id'] == 2987);
     world.approvals.add(
       _approvalRecord(
@@ -1375,9 +1386,33 @@ class A5FakeStore {
       a['type'] != ApprovalType.companyOrderRequest.code;
 
   bool _eligible(FakePersona p, JsonMap a) {
-    final list = (a['eligibleUserIds'] as List?) ?? const [];
-    if (list.contains(p.userId)) return true;
+    if (_listed(p, a)) return world.signsStep(p, _stepCapability(a));
     return p.persona == Persona.platform && a['escalated'] == true;
+  }
+
+  /// Talebin uygunlar listesinde mi (yetkinliği taşıyanlar; roller v5 süzgecinden önce).
+  static bool _listed(FakePersona p, JsonMap a) =>
+      ((a['eligibleUserIds'] as List?) ?? const []).contains(p.userId);
+
+  /// Şu anki kademenin yetkinliği (adım yoksa talebin türünden).
+  String? _stepCapability(JsonMap a) {
+    final level = (a['currentLevelNo'] as int?) ?? 1;
+    final step = approvalExtras[a['id']]?.steps
+        .where((s) => s['levelNo'] == level)
+        .firstOrNull;
+    final code = step?['capabilityCode'] as String?;
+    return code == null || code.isEmpty
+        ? FakeWorld.approvalCapability(a)
+        : code;
+  }
+
+  /// Roller v5: personanın imzasını engelleyen birim onaycısı (listede ama birimin onaycısı başkası);
+  /// ipucu "Bu birimin onaycısı {Ad}; talebi o onaylar." (sunucu `ApprovalDecisionHints.UnitApprover`).
+  FakePersona? _blockingApprover(FakePersona p, JsonMap a) {
+    if (!_listed(p, a)) return null;
+    final code = _stepCapability(a);
+    if (world.signsStep(p, code)) return null;
+    return world.blockingApprover(p, code);
   }
 
   /// Kademeye uygun yetkinliğin tutar sınırı aşılıyor mu.
@@ -1517,6 +1552,10 @@ class A5FakeStore {
     }
     if (type == ApprovalType.companyOrderRequest.code) {
       return 'Sipariş talebini şirketinizin onaylayanı ya da yöneticisi onaylar.';
+    }
+    final designee = _blockingApprover(p, a);
+    if (designee != null) {
+      return 'Bu birimin onaycısı ${designee.displayName}; talebi o onaylar.';
     }
     if (_eligible(p, a) && _overLimit(p, a)) {
       return 'Tutar onay sınırınızı aşıyor.';

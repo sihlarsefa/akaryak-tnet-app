@@ -148,9 +148,11 @@ class _StaffPageState extends ConsumerState<StaffPage> {
   }
 }
 
-/// Ekip kartının içeriği (tasarım v3): baş harf yuvarlağı (pasifken soluk), ad ("Siz", "Pasif"
-/// çipleri), e-posta, roller Beton küçük haplarda, son giriş; arama düğmesi; yönetici için aktif /
-/// pasif anahtarı ve "Şifre bağlantısı gönder" (kart içinde ince çizginin altında).
+/// Ekip kartının içeriği (tasarım v3): baş harf yuvarlağı (pasifken soluk), ad ("Siz", "Pasif",
+/// "İncelenecek" çipleri), e-posta, roller Beton küçük haplarda (adı sunucudan; pasif rol "(pasif)"
+/// ekiyle), birim onaycısında "Onaycı · Finans" hapı, son giriş; arama düğmesi; yönetici için aktif /
+/// pasif anahtarı ve "Şifre bağlantısı gönder" (kart içinde ince çizginin altında). Roller v5:
+/// "İncelenecek" (amber) rolü otomatik taşınan ve pasif kalan personeldedir (`needsReview`).
 class StaffRow extends ConsumerWidget {
   const StaffRow({
     super.key,
@@ -162,6 +164,9 @@ class StaffRow extends ConsumerWidget {
   final StaffMember member;
   final bool manage;
   final bool busy;
+
+  /// Gözden geçirme çipi (sunucu `BayiRoleDisplay.ReviewChip`).
+  static const reviewLabel = 'İncelenecek';
 
   Future<void> _toggle(BuildContext context, WidgetRef ref, bool active) async {
     final m = member;
@@ -273,10 +278,18 @@ class StaffRow extends ConsumerWidget {
                             tone: AknTone.neutral,
                             size: AknLampSize.small,
                           ),
+                        if (m.needsReview)
+                          const AknLamp(
+                            label: StaffRow.reviewLabel,
+                            tone: AknTone.warn,
+                            size: AknLampSize.small,
+                            semanticLabel:
+                                'İncelenecek: rolü pasif, gözden geçirilmeli',
+                          ),
                       ],
                     ),
                     Text(m.email, style: t.bodySmall.copyWith(color: c.dim)),
-                    if (roles.isNotEmpty) ...[
+                    if (roles.isNotEmpty || m.approverOf.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 6,
@@ -297,6 +310,42 @@ class StaffRow extends ConsumerWidget {
                                   roles[i],
                                   semanticsLabel: roles[i],
                                   style: t.label.copyWith(color: c.ink),
+                                ),
+                              ),
+                            ),
+                          // Birim onaycısı (roller v5): rol hapıyla aynı Beton zemin, mühür simgesi.
+                          for (final u in m.approverOf)
+                            DecoratedBox(
+                              key: ValueKey('approver-$u'),
+                              decoration: BoxDecoration(
+                                color: c.surfaceAlt,
+                                borderRadius: AknRadius.pillAll,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsetsDirectional.fromSTEB(
+                                  8,
+                                  3,
+                                  10,
+                                  3,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      PhosphorIconsBold.sealCheck,
+                                      size: 13,
+                                      color: c.ink,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    // Büyük yazıda hap içinde sarılır (taşmaz).
+                                    Flexible(
+                                      child: Text(
+                                        'Onaycı · ${ApproverUnits.shortLabel(u)}',
+                                        semanticsLabel: ApproverUnits.label(u),
+                                        style: t.label.copyWith(color: c.ink),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),

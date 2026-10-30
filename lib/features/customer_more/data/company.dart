@@ -19,6 +19,7 @@ class CompanyUser {
     this.lastLoginAt,
     this.invitationPending = false,
     this.invitationQueued = false,
+    this.isMainUser = false,
   });
 
   factory CompanyUser.fromJson(JsonReader r) => CompanyUser(
@@ -34,6 +35,7 @@ class CompanyUser {
     lastLoginAt: r.dateUtc('lastLoginAt'),
     invitationPending: r.boolean('invitationPending'),
     invitationQueued: r.boolean('invitationQueued'),
+    isMainUser: r.boolean('isMainUser'),
   );
 
   final String userId;
@@ -53,10 +55,15 @@ class CompanyUser {
   /// Ekleme / bağlantı gönderme sonucunda: e-posta kuyruğa alındı.
   final bool invitationQueued;
 
+  /// Roller v5: şirketin ana kullanıcısı (`Customer.UserId`; "Ana kullanıcı" çipi). Onu yalnızca merkez
+  /// ya da kendisi pasifleştirebilir.
+  final bool isMainUser;
+
   String get displayRole => roleLabel ?? role.label;
 }
 
-/// Rol açıklamaları (web `CompanyUsers.cshtml`).
+/// Rol açıklamaları (web `CompanyUsers.cshtml`). Roller v5: şirket içi onay kapalıyken rol seçimi ve
+/// açıklamaları gösterilmez (tek rol); bu metinler eski akış (eski sunucu, geçiş yapılmamış şirket) içindir.
 String companyRoleHint(CustomerUserRole role) => switch (role) {
   CustomerUserRole.requester =>
     'Sipariş hazırlar; eşik üstü siparişi onaya gider.',

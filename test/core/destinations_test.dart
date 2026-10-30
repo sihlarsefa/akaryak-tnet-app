@@ -1,5 +1,7 @@
 // Yetki → alt menü (spec A.2, A-INT D.7.1): ön ayarlar, "Diğer", kısa çubuk adları, Onaylarım kuralı,
-// atanmış teslimatı olan personel, yalnızca şoför, merkez, özel rol.
+// atanmış teslimatı olan personel, yalnızca şoför, merkez, özel rol. Roller v5: İkmal birimi ön ayarı,
+// Onaylar imza yetkinliğinden (`signingCapabilities`; birim onaycısı başkasıysa "Diğer"de), şirket içi
+// onay kapalıyken Talepler yok.
 import 'package:akaryakitnet/app/destinations.dart';
 import 'package:akaryakitnet/app/fakes.dart';
 import 'package:akaryakitnet/core/auth/access_policy.dart';
@@ -58,6 +60,8 @@ void main() {
       'sevkiyat': RolePreset.dispatch,
       'depo': RolePreset.dispatch,
       'izleyici': RolePreset.viewer,
+      'finansuzman': RolePreset.finance,
+      'ikmal': RolePreset.supply,
     };
     expected.forEach((key, preset) {
       test(
@@ -118,6 +122,59 @@ void main() {
       final layout = buildNavLayout(p, noAssistant);
       expect(layout.bar.map((d) => d.id), contains(DestinationId.approvals));
     });
+
+    test(
+      'roller v5: İkmal birimi sipariş masası ve sevkiyattan önce eşleşir',
+      () {
+        AccessPolicy withCodes(List<String> codes) => AccessPolicy(
+          MeAccess(
+            userId: 'u',
+            userName: 'u',
+            displayName: 'Geçişte',
+            persona: Persona.bayi,
+            bayiRoleCodes: codes,
+            pages: FakeRoleTemplates.grants(codes),
+          ),
+        );
+        expect(
+          withCodes(const [
+            BayiRoleCodes.orderDesk,
+            BayiRoleCodes.supply,
+          ]).rolePreset,
+          RolePreset.supply,
+        );
+        expect(
+          withCodes(const [
+            BayiRoleCodes.dispatch,
+            BayiRoleCodes.depot,
+            BayiRoleCodes.supply,
+          ]).rolePreset,
+          RolePreset.supply,
+        );
+        // Bayi yöneticisi İkmal'den önce gelir.
+        expect(
+          withCodes(const [
+            BayiRoleCodes.supply,
+            BayiRoleCodes.owner,
+          ]).rolePreset,
+          RolePreset.owner,
+        );
+        // Pasif kodlar ön ayarlarını korur.
+        expect(
+          withCodes(const [BayiRoleCodes.orderDesk]).rolePreset,
+          RolePreset.orderDesk,
+        );
+        expect(
+          withCodes(const [BayiRoleCodes.viewer]).rolePreset,
+          RolePreset.viewer,
+        );
+        expect(presetTabs[RolePreset.supply], const [
+          DestinationId.quoteDesk,
+          DestinationId.dispatch,
+          DestinationId.bayiOrders,
+        ]);
+      },
+    );
 
     test('ilk eşleşen kod kazanır (müdür + muhasebe → müdür ön ayarı)', () {
       final p = AccessPolicy(
@@ -221,160 +278,153 @@ void main() {
       'Şablonlar',
       'Limitler',
     ];
-    final cases =
-        <String, (List<String> bar, List<String> more, String? center)>{
-          'musteri': (
-            ['Ana sayfa', 'Siparişler', 'Onaylar'],
-            [
-              'Teslimatlar',
-              ...customerMore,
-              'Şirket kullanıcıları',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            'Sipariş ver',
-          ),
-          'talep': (
-            ['Ana sayfa', 'Siparişler', 'Teslimatlar'],
-            ['Onaylar', ...customerMore, 'Asistan', 'Bildirimler', 'Profil'],
-            'Sipariş ver',
-          ),
-          'onay': (
-            ['Ana sayfa', 'Siparişler', 'Onaylar'],
-            [
-              'Teslimatlar',
-              ...customerMore,
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            'Sipariş ver',
-          ),
-          'sahip': (
-            ['Ana sayfa', 'Onaylar', 'Teklifler', 'Siparişler'],
-            [
-              'Teslimatlar',
-              'Sevkiyat',
-              'Tahsilat',
-              'Finans',
-              'Cariler',
-              'Saha',
-              'Ekip',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'mudur': (
-            ['Ana sayfa', 'Onaylar', 'Teklifler', 'Siparişler'],
-            [
-              'Sevkiyat',
-              'Tahsilat',
-              'Finans',
-              'Cariler',
-              'Saha',
-              'Ekip',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'finans': (
-            ['Ana sayfa', 'Onaylar', 'Finans', 'Tahsilat'],
-            [
-              'Teklifler',
-              'Siparişler',
-              'Cariler',
-              'Saha',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'muhasebe': (
-            ['Ana sayfa', 'Tahsilat', 'Finans', 'Siparişler'],
-            [
-              'Onaylar',
-              'Cariler',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'satis': (
-            ['Ana sayfa', 'Onaylar', 'Saha', 'Cariler'],
-            [
-              'Siparişler',
-              'Ekip',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'saha': (
-            ['Ana sayfa', 'Saha', 'Cariler'],
-            ['Onaylar', 'İstatistikler', 'Asistan', 'Bildirimler', 'Profil'],
-            'Yeni form',
-          ),
-          'siparis': (
-            ['Ana sayfa', 'Teklifler', 'Siparişler', 'Sevkiyat'],
-            [
-              'Onaylar',
-              'Tahsilat',
-              'Cariler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'sevkiyat': (
-            ['Ana sayfa', 'Sevkiyat', 'Siparişler', 'Cariler'],
-            ['Asistan', 'Bildirimler', 'Profil'],
-            null,
-          ),
-          'sofor': (
-            ['Teslimatlar', 'Bildirimler', 'Asistan', 'Profil'],
-            [],
-            null,
-          ),
-          'depo': (
-            ['Ana sayfa', 'Sevkiyat', 'Siparişler', 'Asistan'],
-            ['Bildirimler', 'Profil'],
-            null,
-          ),
-          'izleyici': (
-            ['Ana sayfa', 'Siparişler', 'Sevkiyat', 'Cariler'],
-            [
-              'Onaylar',
-              'Teklifler',
-              'Saha',
-              'İstatistikler',
-              'Asistan',
-              'Bildirimler',
-              'Profil',
-            ],
-            null,
-          ),
-          'merkez': (
-            ['Ana sayfa', 'Onaylar', 'Bildirimler', 'Profil'],
-            [],
-            null,
-          ),
-        };
+    final cases = <String, (List<String> bar, List<String> more, String? center)>{
+      // Roller v5: tek müşteri rolü, şirket içi onay kapalı → Talepler yok.
+      'musteri': (
+        ['Ana sayfa', 'Siparişler', 'Onaylar'],
+        [
+          'Teslimatlar',
+          ...customerMore.where((l) => l != 'Talepler'),
+          'Şirket kullanıcıları',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        'Sipariş ver',
+      ),
+      'talep': (
+        ['Ana sayfa', 'Siparişler', 'Teslimatlar'],
+        ['Onaylar', ...customerMore, 'Asistan', 'Bildirimler', 'Profil'],
+        'Sipariş ver',
+      ),
+      'onay': (
+        ['Ana sayfa', 'Siparişler', 'Onaylar'],
+        [
+          'Teslimatlar',
+          ...customerMore,
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        'Sipariş ver',
+      ),
+      'sahip': (
+        ['Ana sayfa', 'Onaylar', 'Teklifler', 'Siparişler'],
+        [
+          'Teslimatlar',
+          'Sevkiyat',
+          'Tahsilat',
+          'Finans',
+          'Cariler',
+          'Saha',
+          'Ekip',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      // Pasif Bayi müdürü: birimlerin onaycısı başkası (sahip, satis, finans), imza yetkinliği
+      // yok → Onaylar "Diğer"de.
+      'mudur': (
+        ['Ana sayfa', 'Teklifler', 'Siparişler', 'Sevkiyat'],
+        [
+          'Onaylar',
+          'Tahsilat',
+          'Finans',
+          'Cariler',
+          'Saha',
+          'Ekip',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      'finans': (
+        ['Ana sayfa', 'Onaylar', 'Finans', 'Tahsilat'],
+        [
+          'Teklifler',
+          'Siparişler',
+          'Cariler',
+          'Saha',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      'muhasebe': (
+        ['Ana sayfa', 'Tahsilat', 'Finans', 'Siparişler'],
+        [
+          'Onaylar',
+          'Cariler',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      'satis': (
+        ['Ana sayfa', 'Onaylar', 'Saha', 'Cariler'],
+        [
+          'Siparişler',
+          'Ekip',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      'saha': (
+        ['Ana sayfa', 'Saha', 'Cariler'],
+        ['Onaylar', 'İstatistikler', 'Asistan', 'Bildirimler', 'Profil'],
+        'Yeni form',
+      ),
+      'siparis': (
+        ['Ana sayfa', 'Teklifler', 'Siparişler', 'Sevkiyat'],
+        ['Onaylar', 'Tahsilat', 'Cariler', 'Asistan', 'Bildirimler', 'Profil'],
+        null,
+      ),
+      'sevkiyat': (
+        ['Ana sayfa', 'Sevkiyat', 'Siparişler', 'Cariler'],
+        ['Asistan', 'Bildirimler', 'Profil'],
+        null,
+      ),
+      'sofor': (['Teslimatlar', 'Bildirimler', 'Asistan', 'Profil'], [], null),
+      'depo': (
+        ['Ana sayfa', 'Sevkiyat', 'Siparişler', 'Asistan'],
+        ['Bildirimler', 'Profil'],
+        null,
+      ),
+      'izleyici': (
+        ['Ana sayfa', 'Siparişler', 'Sevkiyat', 'Cariler'],
+        [
+          'Onaylar',
+          'Teklifler',
+          'Saha',
+          'İstatistikler',
+          'Asistan',
+          'Bildirimler',
+          'Profil',
+        ],
+        null,
+      ),
+      'merkez': (['Ana sayfa', 'Onaylar', 'Bildirimler', 'Profil'], [], null),
+      // Roller v5 İkmal birimi: Teklifler · Sevkiyat · Siparişler; onay akışı yok.
+      'ikmal': (
+        ['Ana sayfa', 'Teklifler', 'Sevkiyat', 'Siparişler'],
+        ['Onaylar', 'Tahsilat', 'Cariler', 'Asistan', 'Bildirimler', 'Profil'],
+        null,
+      ),
+    };
 
     test('her persona için bir beklenti var', () {
       expect(
@@ -569,6 +619,52 @@ void main() {
       );
     });
 
+    test(
+      'roller v5: şirket içi onay kapalıyken Talepler menüde yok; eski talebin bağlantısı açılır',
+      () {
+        final p = _policy('musteri');
+        expect(p.access!.companyApprovalsEnabled, isFalse);
+        expect(p.companyApprovals, isFalse);
+        expect(
+          buildNavLayout(
+            p,
+            withAssistant,
+          ).contains(DestinationId.companyRequests),
+          isFalse,
+        );
+        // Sayfa yetkisi sürdükçe (şirketin geçmiş talebi var) bildirimden gelen bağlantı açılır.
+        expect(
+          RouteAccess.isAllowed('/company/requests/2987', p, noAssistant),
+          isTrue,
+        );
+        // Eski akışın personası (pasif Talep eden) Talepler'i görür.
+        final legacy = _policy('talep');
+        expect(legacy.companyApprovals, isTrue);
+        expect(
+          buildNavLayout(
+            legacy,
+            withAssistant,
+          ).contains(DestinationId.companyRequests),
+          isTrue,
+        );
+        // Alan yoksa (eski sunucu) akış açık sayılır.
+        final old = AccessPolicy(
+          MeAccess.fromJson({
+            ...p.access!.toJson(),
+            'companyApprovalsEnabled': null,
+          }),
+        );
+        expect(old.companyApprovals, isTrue);
+        expect(
+          buildNavLayout(
+            old,
+            withAssistant,
+          ).contains(DestinationId.companyRequests),
+          isTrue,
+        );
+      },
+    );
+
     test('Şablonlarım, Limitlerim, Finans bilgisi yalnızca müşteri', () {
       for (final path in ['/templates', '/limits', '/finance-info']) {
         expect(
@@ -600,16 +696,95 @@ void main() {
       expect(_policy('sevkiyat').isDriverOnly, isFalse);
     });
 
-    test('onaylayan: approve.* yetkinliği, müşteride Onaylayan/Yönetici', () {
+    test('onaylayan: imza yetkinliğinde approve.*, müşteri, merkez', () {
+      // Birim onaycıları (demo bayisi Roller v5'te): sahip yönetici, satis satış, finans finans.
       expect(_policy('sahip').isApprover, isTrue);
       expect(_policy('finans').isApprover, isTrue);
       expect(_policy('satis').isApprover, isTrue);
       expect(_policy('muhasebe').isApprover, isFalse);
       expect(_policy('saha').isApprover, isFalse);
+      expect(_policy('ikmal').isApprover, isFalse);
+      // Ham yetkinliği var ama birimin onaycısı başkası: imzalayamaz.
+      expect(_policy('mudur').isApprover, isFalse);
+      expect(_policy('finansuzman').isApprover, isFalse);
+      expect(_policy('mudur').hasCap(Caps.approveFinanceOrder), isTrue);
+      // Müşteri (tek rol; Onaylar'da bilgi isteklerini yanıtlar), merkez.
       expect(_policy('musteri').isApprover, isTrue);
       expect(_policy('onay').isApprover, isTrue);
-      expect(_policy('talep').isApprover, isFalse);
+      expect(_policy('talep').isApprover, isTrue);
       expect(_policy('merkez').isApprover, isTrue);
+    });
+
+    group('roller v5 imza yetkinliği', () {
+      // Sekmeler çubuğa sığmasın diye eski müdür şablonunun sayfaları (Onaylar ancak onaylayanda ana
+      // sekme).
+      MeAccess bayi({
+        List<Capability> caps = const [],
+        List<Capability>? signing,
+      }) => MeAccess(
+        userId: 'u',
+        userName: 'u',
+        displayName: 'u',
+        persona: Persona.bayi,
+        roles: const [Roles.station],
+        bayiRoleCodes: const [BayiRoleCodes.manager],
+        pages: FakeRoleTemplates.grants(const [BayiRoleCodes.manager]),
+        capabilities: caps,
+        signingCapabilities: signing,
+      );
+      const finance = Capability(Caps.approveFinanceOrder);
+
+      test('alan yoksa (eski sunucu) capabilities geçerli', () {
+        final p = AccessPolicy(bayi(caps: const [finance]));
+        expect(p.access!.signingCapabilities, isNull);
+        expect(p.isApprover, isTrue);
+        expect(
+          buildNavLayout(p, noAssistant).inBar(DestinationId.approvals),
+          isTrue,
+        );
+      });
+
+      test(
+        'imza yetkinliğinde approve.* yoksa Onaylar "Diğer"de (ham yetki sürer)',
+        () {
+          final p = AccessPolicy(
+            bayi(
+              caps: const [finance, Capability(Caps.costsView)],
+              signing: const [Capability(Caps.costsView)],
+            ),
+          );
+          expect(p.isApprover, isFalse);
+          expect(p.hasCap(Caps.approveFinanceOrder), isTrue);
+          final layout = buildNavLayout(p, noAssistant);
+          expect(layout.inBar(DestinationId.approvals), isFalse);
+          expect(layout.contains(DestinationId.approvals), isTrue);
+        },
+      );
+
+      test('JSON: null ve eksik aynı; liste okunur; menü imzasına girer', () {
+        final base = bayi(caps: const [finance]).toJson();
+        final missing = MeAccess.fromJson(
+          {...base}..remove('signingCapabilities'),
+        );
+        final nulled = MeAccess.fromJson({
+          ...base,
+          'signingCapabilities': null,
+        });
+        expect(missing.signingCapabilities, isNull);
+        expect(nulled.signingCapabilities, isNull);
+        final empty = MeAccess.fromJson({
+          ...base,
+          'signingCapabilities': const <Object>[],
+          'approverUnits': const ['finance'],
+        });
+        expect(empty.signingCapabilities, isEmpty);
+        expect(empty.approverUnits, const ['finance']);
+        expect(AccessPolicy(empty).isApprover, isFalse);
+        expect(empty.layoutKey, isNot(nulled.layoutKey));
+        final designee = MeAccess.fromJson(empty.toJson());
+        expect(designee.approverUnits, const ['finance']);
+        expect(designee.signingCapabilities, isEmpty);
+      });
     });
 
     test('merkez her yetkinliğe sahiptir; giriş yoksa hiçbir şey görünmez', () {

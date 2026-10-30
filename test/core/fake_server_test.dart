@@ -61,7 +61,8 @@ void main() {
     });
 
     test('dünya tohumu tutarlı', () {
-      final w = FakeWorld.seeded();
+      // Roller v5 öncesi akış: Onaylayan'ın bekleyen şirket içi talebi (9003) tohumlanır.
+      final w = FakeWorld.seeded(companyApprovals: true);
       for (final s in w.shipments) {
         expect(
           w.order(s['orderId'] as int),

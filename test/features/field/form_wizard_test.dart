@@ -99,9 +99,9 @@ void main() {
       final p = s().preview!;
       expect(s().showCosts, isFalse);
       expect(p.showCosts, isFalse);
-      // 41,90 ₺/L: (41.900 − 39.600) / 39.600 = %5,81 → yönetici onayı.
+      // 41,90 ₺/L: (41.900 − 39.600) / 39.600 = %5,81 → satış müdürü onayı (Roller v5 1. bant).
       expect(p.band.key, 'mid');
-      expect(p.band.label, 'Bayi yöneticisi onayı');
+      expect(p.band.label, 'Satış müdürü onayı');
       expect(p.lines.single.profitPercent, isNull);
       expect(p.chip, isNull);
       expect(s().previewKeys, [key]);

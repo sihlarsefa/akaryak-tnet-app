@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
@@ -100,8 +101,14 @@ class ShipmentListState {
   );
 }
 
+/// Sevkiyat ekranı "Bugünkü yüklemeler" ile açılır mı (depo / dolum işi): yükleme kaydı yetkinliği
+/// (`loading.record`) var, şoför atama (`shipment.assign`) yok. Roller v5: rol koduna (`depot`) değil
+/// yetkinliğe bakılır; ikisini birden tutan İkmal birimi panoyla açar.
+bool opensWithLoadings(AccessPolicy p) =>
+    p.isBayi && p.hasCap(Caps.loadingRecord) && !p.hasCap(Caps.shipmentAssign);
+
 /// "Sevkiyatlar" listesi (`GET shipments?statuses&hasDispute&scheduledFrom/To&page&pageSize`). Depo
-/// personeli "Bugünkü yüklemeler" ile açar.
+/// personeli "Bugünkü yüklemeler" ile açar ([opensWithLoadings]).
 final shipmentListProvider =
     NotifierProvider<ShipmentListController, ShipmentListState>(
       ShipmentListController.new,
@@ -117,8 +124,7 @@ class ShipmentListController extends Notifier<ShipmentListState>
     });
     ref.onDispose(sub.cancel);
     if (user == null) return const ShipmentListState(list: PagedList());
-    final access = ref.read(sessionControllerProvider).access;
-    final depot = access?.bayiRoleCodes.contains(BayiRoleCodes.depot) ?? false;
+    final depot = opensWithLoadings(ref.read(accessPolicyProvider));
     final initial = ShipmentListState(
       filter: depot
           ? ShipmentListFilter.todayLoadingsFilter()

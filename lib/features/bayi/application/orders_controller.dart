@@ -76,10 +76,15 @@ class BayiOrdersController extends Notifier<BayiOrdersState>
 
   /// Açılış segmenti (v4 §5 06): Teklifler alt menüdeyse Tümü (teklif işi orada); değilse teklif
   /// verebilen için "Teklif bekleyen" (Siparişler onun teklif listesidir); teklif veremeyen için Tümü.
-  /// Teklifler alt menüde: sahip / müdür, sipariş masası ve özel roller (öncelik sırası) masayı
-  /// görebiliyorsa.
+  /// Teklifler alt menüde: Bayi yöneticisi / müdür, İkmal birimi, sipariş masası ve özel roller (öncelik
+  /// sırası) masayı görebiliyorsa.
   static BayiOrderSegment? defaultSegment(AccessPolicy p, BayiGrants g) {
-    const tabbed = {RolePreset.owner, RolePreset.orderDesk, RolePreset.generic};
+    const tabbed = {
+      RolePreset.owner,
+      RolePreset.supply,
+      RolePreset.orderDesk,
+      RolePreset.generic,
+    };
     if (g.viewDesk && tabbed.contains(p.rolePreset)) return null;
     return g.quoteOnOrder ? BayiOrderSegment.awaitingQuote : null;
   }

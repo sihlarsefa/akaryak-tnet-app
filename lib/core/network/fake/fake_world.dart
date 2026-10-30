@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../../auth/permissions.dart';
 import '../../models/json.dart';
 import '../../models/me_access.dart';
 import '../../utils/format.dart';
@@ -20,11 +21,54 @@ typedef FakeAttachmentListener =
 /// (`world.bag('field.forms', () => <JsonMap>[])`).
 ///
 /// Sahibi M0a'dır; özellik ajanları kayıt ekleyebilir/güncelleyebilir, alanları yeniden adlandırmaz.
+///
+/// Roller v5 (sunucunun aynası): demo bayisi Roller v5'e geçmiştir ([v5Station]: birim onaycıları
+/// [unitApprovers], tek kademeli finans onayı, `me/access.signingCapabilities` / `approverUnits`); demo
+/// carisinde şirket içi onay kapalıdır ([companyApprovals]: 9003 / 9013 tohumları, talep bildirimi,
+/// eşikler ve şirket talepleri yok; `companyApprovalsEnabled: false`). Pasif rollerin personaları (talep,
+/// onay) eski akışta kalır. Eski akışın testleri anahtarları açar ([defaultCompanyApprovals],
+/// [defaultV5Station] ya da [FakeWorld.seeded]).
 class FakeWorld {
-  FakeWorld._();
+  FakeWorld._({bool? companyApprovals, bool? v5Station})
+    : companyApprovals = companyApprovals ?? defaultCompanyApprovals,
+      v5Station = v5Station ?? defaultV5Station;
 
-  /// Tohumlanmış dünya. [now] verilirse tarihler ona göre üretilir (testler).
-  factory FakeWorld.seeded({DateTime? now}) => FakeWorld._()..reset(now: now);
+  /// Tohumlanmış dünya. [now] verilirse tarihler ona göre üretilir (testler). [companyApprovals] ve
+  /// [v5Station] verilmezse varsayılanlar ([defaultCompanyApprovals], [defaultV5Station]) geçerlidir.
+  factory FakeWorld.seeded({
+    DateTime? now,
+    bool? companyApprovals,
+    bool? v5Station,
+  }) =>
+      FakeWorld._(companyApprovals: companyApprovals, v5Station: v5Station)
+        ..reset(now: now);
+
+  /// Yeni dünyaların şirket içi onay anahtarı (kapalı; eski akışın testleri `setUpAll` içinde açar —
+  /// her test dosyası ayrı süreçte çalışır).
+  static bool defaultCompanyApprovals = false;
+
+  /// Yeni dünyaların Roller v5 bayi anahtarı (açık; eski çok kademeli / çok imzacılı akışın testleri
+  /// kapatır).
+  static bool defaultV5Station = true;
+
+  /// Roller v5 öncesi şirket içi onay akışı (talep eden → onaylayan): açıkken 9003 / 9013, "Onayınızı
+  /// bekleyen talep" bildirimi, onay eşikleri ve şirket talepleri tohumlanır ve `me/access`
+  /// `companyApprovalsEnabled: true` döner. Kapalıyken (varsayılan; sunucuda geçiş yapılmış cari) yalnızca
+  /// pasif rolün personaları (Talep eden, Onaylayan) eski akışı görür.
+  final bool companyApprovals;
+
+  /// Demo bayisi (1) Roller v5'e geçti: birim onaycıları ([unitApprovers]) imzayı tek kişiye indirir ve
+  /// finans onayları tek kademelidir. Kapalıyken eski davranış: yetkinliği olan herkes imzalar, 9006 iki
+  /// kademelidir, `signingCapabilities` gönderilmez.
+  final bool v5Station;
+
+  /// Roller v5 birim onaycıları (demo bayisi 1; panelde "Birim onaycıları"): yönetici birimi → sahip,
+  /// satış → satis, finans → finans.
+  static const unitApprovers = {
+    ApproverUnits.management: 'sahip',
+    ApproverUnits.sales: 'satis',
+    ApproverUnits.finance: 'finans',
+  };
 
   /// Tohumlama anı (UTC).
   late DateTime seededAt;
@@ -139,8 +183,86 @@ class FakeWorld {
     }
   }
 
+  // ------------------------------------------------------------------ Roller v5 imza
+
+  /// Birimin etkin onaycısı (persona anahtarı); bayi Roller v5'te değilse null.
+  String? unitApproverKey(String unit) =>
+      v5Station ? unitApprovers[unit] : null;
+
+  /// Personanın onaycısı olduğu birimler (panelin sırasıyla).
+  List<String> approverUnitsOf(FakePersona p) => [
+    if (p.persona == Persona.bayi && p.stationId == 1)
+      for (final u in ApproverUnits.all)
+        if (unitApproverKey(u) == p.key) u,
+  ];
+
+  /// Bu kodla imzayı engelleyen birim onaycısı (sunucu `ApprovalSigning.BlockingDesignee`): kodun
+  /// biriminin etkin onaycısı başka biriyse ve o kodu taşıyorsa o; yoksa null (yetkinliği olan herkes
+  /// imzalar). Birime bağlı olmayan kodlar, müşteri ve merkez hiç engellenmez.
+  FakePersona? blockingApprover(FakePersona p, String? code) {
+    if (p.persona != Persona.bayi) return null;
+    final unit = ApproverUnits.unitOf(code);
+    if (unit == null) return null;
+    final key = unitApproverKey(unit);
+    if (key == null || key == p.key) return null;
+    final designee = persona(key);
+    if (designee == null || designee.stationId != p.stationId) return null;
+    return designee.capabilities.containsKey(code) ? designee : null;
+  }
+
+  /// Persona bu kademenin yetkinliğiyle imzalayabilir mi (roller v5 imza süzgeci). Saha formunda üst ve
+  /// istisna onayı alt bandı da imzalar (sunucudaki hiyerarşi): yönetici birimi onaycısı bant 1'i de
+  /// imzalar. [code] yoksa süzgeç uygulanmaz.
+  bool signsStep(FakePersona p, String? code) {
+    if (code == null || blockingApprover(p, code) == null) return true;
+    final higher = switch (code) {
+      Caps.approveFieldManager => const [
+        Caps.approveFieldSenior,
+        Caps.approveFieldException,
+      ],
+      Caps.approveFieldSenior => const [Caps.approveFieldException],
+      _ => const <String>[],
+    };
+    return higher.any(
+      (c) => p.capabilities.containsKey(c) && blockingApprover(p, c) == null,
+    );
+  }
+
+  /// Roller v5: onay bildiriminin alıcıları (sunucu `EligibleApproversAsync` imza süzgecinden geçer):
+  /// listedeki kullanıcılardan bu kademenin yetkinliğiyle imzalayabilenler ([signsStep]). Tanınmayan
+  /// kullanıcı kimliği olduğu gibi kalır.
+  List<String> signingUserIds(Iterable<String> userIds, String? code) =>
+      userIds.where((id) {
+        final p = personaByUserId(id);
+        return p == null || signsStep(p, code);
+      }).toList();
+
+  /// İmza yetkinlikleri (`me/access.signingCapabilities`): bayide, birimin onaycısı başkası olduğu için
+  /// imzalanamayan `approve.*` kodları düşer; müşteri ve merkezde ve bayi Roller v5'te değilse null.
+  List<JsonMap>? signingCapabilitiesOf(FakePersona p) {
+    if (!v5Station || p.persona != Persona.bayi) return null;
+    return [
+      for (final e in p.capabilities.entries)
+        if (blockingApprover(p, e.key) == null)
+          {'code': e.key, 'limit': e.value},
+    ];
+  }
+
+  /// Onay talebinin şu anki kademesinin yetkinliği: kaydın `_capability` alanı, yoksa türünden (saha
+  /// formu kârlılığı yönetici bandı, finans türleri). Merkez ve şirket içi talep süzülmez.
+  static String? approvalCapability(JsonMap a) =>
+      a['_capability'] as String? ??
+      switch (a['type']) {
+        1 => Caps.approveFieldManager,
+        4 || 5 => Caps.approveFinanceOrder,
+        6 => Caps.approveFinanceOnboarding,
+        7 => Caps.approveFinanceLead,
+        _ => null,
+      };
+
   /// Personanın `me/access` gövdesi (spec B.3: `isFieldSales`, `isStationOwner`,
-  /// `assignedOpenShipments` dahil).
+  /// `assignedOpenShipments` dahil; roller v5: `signingCapabilities`, `approverUnits`,
+  /// `companyApprovalsEnabled`).
   JsonMap meAccess(FakePersona p) {
     ensureLazySeeds();
     final assigned = shipments
@@ -164,6 +286,13 @@ class FakeWorld {
           2 => 'Onaylayan',
           _ => 'Yönetici',
         },
+      'signingCapabilities': signingCapabilitiesOf(p),
+      'approverUnits': approverUnitsOf(p),
+      // Müşteride: geçiş yapılmış caride kapalı; pasif rolün personası (Talep eden, Onaylayan) eski
+      // akıştadır. Bayi ve merkezde null.
+      'companyApprovalsEnabled': p.persona == Persona.customer
+          ? companyApprovals || (p.customerUserRole ?? 3) != 3
+          : null,
     };
   }
 
@@ -176,11 +305,13 @@ class FakeWorld {
   int approvalsWaitingFor(FakePersona p) =>
       approvals.where((a) => canDecide(p, a)).length;
 
-  /// Persona bu onay talebinde karar verebilir mi (açık + uygun onaycı).
+  /// Persona bu onay talebinde karar verebilir mi (açık + uygun onaycı; roller v5: birimin onaycısı
+  /// başkasıysa imzalayamaz, [signsStep]).
   bool canDecide(FakePersona p, JsonMap a) {
     final open = a['status'] == 0;
     final eligible =
-        (a['eligibleUserIds'] as List?)?.contains(p.userId) ?? false;
+        ((a['eligibleUserIds'] as List?)?.contains(p.userId) ?? false) &&
+        signsStep(p, approvalCapability(a));
     return open &&
         (eligible || (p.persona == Persona.platform && a['escalated'] == true));
   }
@@ -1110,63 +1241,63 @@ class FakeWorld {
       eligible: ['finans', 'mudur', 'sahip', 'finansuzman'],
     );
     financeOrder['financeApprovalRequestId'] = fa['id'];
-    approvals.addAll([
-      fa,
-      a(
-        type: 1,
-        status: 0,
-        subjectType: 'FieldOrderForm',
-        subjectId: 7001,
-        subjectNumber: 'SF-2026-00007',
-        title: 'Saha formu kârlılık onayı',
-        summary: 'Ege Tarım Kooperatifi · 18.000 L · Bayi yöneticisi onayı',
-        amount: 702000,
-        liters: 18000,
-        customerId: 103,
-        requestedByUserId: 'u-saha',
-        requestedByName: 'Deniz Koç',
-        createdAt: _h(-1.5),
-        dueAt: _h(22.5),
-        eligible: ['satis', 'mudur', 'sahip'],
-      ),
-      a(
-        type: 3,
-        status: 0,
-        subjectType: 'CustomerOrderRequest',
-        subjectId: 3001,
-        subjectNumber: 'TLP-00031',
-        title: 'Şirket içi sipariş talebi',
-        // Sunucunun biçimi (CompanyOrderRequestApprovalSource.OpenCommand): ürünler · toplam litre ·
-        // tahmini tutar · not. Talep iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı) ve iki
-        // noktadır (A5 deposu, 3001); satır tek ürün ve tek nokta söylemez (v4 B11).
-        summary:
-            'Motorin, Kalorifer Yakıtı · 30.000 L · tahmini 1.263.000,00 ₺ · '
-            'Not: Ay sonu stok için; iki noktaya ayrı teslim.',
-        amount: 1263000,
-        liters: 30000,
-        customerId: 101,
-        requestedByUserId: 'u-talep',
-        requestedByName: 'Burak Yılmaz',
-        createdAt: _h(-0.5),
-        eligible: ['onay', 'musteri'],
-      ),
-      a(
-        type: 7,
-        status: 4,
-        subjectType: 'CustomerLead',
-        subjectId: 8001,
-        subjectNumber: 'ONK-00008',
-        title: 'Ön kayıt finans onayı',
-        summary: 'Başkent Yapı Market · vergi levhası bekleniyor',
-        customerId: null,
-        requestedByUserId: 'u-saha',
-        requestedByName: 'Deniz Koç',
-        createdAt: _h(-28),
-        dueAt: _h(20),
-        slaState: 1,
-        eligible: ['finans', 'sahip'],
-      ),
-    ]);
+    final field = a(
+      type: 1,
+      status: 0,
+      subjectType: 'FieldOrderForm',
+      subjectId: 7001,
+      subjectNumber: 'SF-2026-00007',
+      title: 'Saha formu kârlılık onayı',
+      summary: 'Ege Tarım Kooperatifi · 18.000 L · Satış müdürü onayı',
+      amount: 702000,
+      liters: 18000,
+      customerId: 103,
+      requestedByUserId: 'u-saha',
+      requestedByName: 'Deniz Koç',
+      createdAt: _h(-1.5),
+      dueAt: _h(22.5),
+      eligible: ['satis', 'mudur', 'sahip'],
+    );
+    // 9003 şirket içi talep yalnızca eski akışta ([companyApprovals]); kimlik yine ayrılır, ön kayıt
+    // 9004 kalır.
+    final company = a(
+      type: 3,
+      status: 0,
+      subjectType: 'CustomerOrderRequest',
+      subjectId: 3001,
+      subjectNumber: 'TLP-00031',
+      title: 'Şirket içi sipariş talebi',
+      // Sunucunun biçimi (CompanyOrderRequestApprovalSource.OpenCommand): ürünler · toplam litre ·
+      // tahmini tutar · not. Talep iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı) ve iki
+      // noktadır (A5 deposu, 3001); satır tek ürün ve tek nokta söylemez (v4 B11).
+      summary:
+          'Motorin, Kalorifer Yakıtı · 30.000 L · tahmini 1.263.000,00 ₺ · '
+          'Not: Ay sonu stok için; iki noktaya ayrı teslim.',
+      amount: 1263000,
+      liters: 30000,
+      customerId: 101,
+      requestedByUserId: 'u-talep',
+      requestedByName: 'Burak Yılmaz',
+      createdAt: _h(-0.5),
+      eligible: ['onay', 'musteri'],
+    );
+    final lead = a(
+      type: 7,
+      status: 4,
+      subjectType: 'CustomerLead',
+      subjectId: 8001,
+      subjectNumber: 'ONK-00008',
+      title: 'Ön kayıt finans onayı',
+      summary: 'Başkent Yapı Market · vergi levhası bekleniyor',
+      customerId: null,
+      requestedByUserId: 'u-saha',
+      requestedByName: 'Deniz Koç',
+      createdAt: _h(-28),
+      dueAt: _h(20),
+      slaState: 1,
+      eligible: ['finans', 'sahip'],
+    );
+    approvals.addAll([fa, field, if (companyApprovals) company, lead]);
   }
 
   void _seedNotifications() {
@@ -1178,7 +1309,7 @@ class FakeWorld {
     final newest = orders.lastWhere((o) => o['status'] == 1);
     final finance = approvals.firstWhere((a) => a['type'] == 4);
     final field = approvals.firstWhere((a) => a['type'] == 1);
-    final company = approvals.firstWhere((a) => a['type'] == 3);
+    final company = approvals.where((a) => a['type'] == 3).firstOrNull;
 
     // v4 (§4): bildirim metinlerinde kod (SIP-, SVK-) ve tutar (₺) yok; kim, ne, nerede ve ne
     // zamana kadar — doğal cümleyle. Bayi kısa adıyla ("Demir Petrol"), uygulamanın her yerindeki
@@ -1283,21 +1414,24 @@ class FakeWorld {
       entityId: o2['id'] as int,
       hoursAgo: 1,
     );
+    // Şirket içi talep bildirimi yalnızca eski akışta (roller v5: tek müşteri rolü, akış kapalı).
+    if (company != null) {
+      n(
+        ['onay', 'musteri'],
+        'approvals',
+        // Sunucu şirket içi talep için ayrı olay göndermez; onaylayanlara approval.pending gider (spec A.5).
+        // Talep iki noktaya iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı; A5 deposu 3001).
+        'approval.pending',
+        'Onayınızı bekleyen talep',
+        'Burak Yılmaz 2 noktaya 30.000 L yakıt talep etti.',
+        '/approvals/${company['id']}',
+        entityType: 'ApprovalRequest',
+        entityId: company['id'] as int,
+        hoursAgo: 0.5,
+      );
+    }
     n(
-      ['onay', 'musteri'],
-      'approvals',
-      // Sunucu şirket içi talep için ayrı olay göndermez; onaylayanlara approval.pending gider (spec A.5).
-      // Talep iki noktaya iki ürün (20.000 L motorin + 10.000 L kalorifer yakıtı; A5 deposu 3001).
-      'approval.pending',
-      'Onayınızı bekleyen talep',
-      'Burak Yılmaz 2 noktaya 30.000 L yakıt talep etti.',
-      '/approvals/${company['id']}',
-      entityType: 'ApprovalRequest',
-      entityId: company['id'] as int,
-      hoursAgo: 0.5,
-    );
-    n(
-      ['sahip', 'mudur', 'siparis', 'izleyici'],
+      ['sahip', 'mudur', 'siparis', 'izleyici', 'ikmal'],
       'orders',
       'order.created',
       'Yeni sipariş',
@@ -1311,8 +1445,9 @@ class FakeWorld {
       // Sipariş geldiği an (sipariş listesindeki saatle aynı).
       at: localAt(newest['createdAt']),
     );
+    // Onayınızı bekleyenler sunucunun uygun onaylayanlarıdır (roller v5: birimin onaycısı varsa yalnızca o).
     n(
-      ['finans', 'mudur', 'sahip'],
+      v5Station ? const ['finans'] : const ['finans', 'mudur', 'sahip'],
       'approvals',
       'approval.pending',
       'Finans onayı bekliyor',
@@ -1347,7 +1482,7 @@ class FakeWorld {
       hoursAgo: 2,
     );
     n(
-      ['sevkiyat', 'depo'],
+      ['sevkiyat', 'depo', 'ikmal'],
       'orders',
       'order.approved',
       'Sipariş onaylandı',

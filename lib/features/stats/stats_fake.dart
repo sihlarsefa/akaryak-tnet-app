@@ -288,6 +288,8 @@ abstract final class StatsFake {
     final accepted = cur.where((e) => e.accepted).toList();
     final amount = _sum(accepted, (e) => e.amount);
     final codes = p.bayiRoleCodes;
+    // Ekip istatistiği: Bayi yöneticisi (`owner`), Satış müdürü ve pasif Bayi müdürü (roller v5: kodlar
+    // korunur; sunucu `MobileStatsService` ham yetkinlikle sürer).
     final teamAll =
         !own &&
         (codes.contains(BayiRoleCodes.owner) ||

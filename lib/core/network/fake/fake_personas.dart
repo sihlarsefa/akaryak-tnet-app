@@ -5,6 +5,10 @@ import '../../utils/turkish_text.dart';
 
 /// Sahte kipte giriş yapılabilen demo kullanıcı (spec D.3 M0a). Yalnızca sahte kip: şifre `demo`,
 /// SMS kodu `123456`. Kullanıcı adı = anahtar (`musteri`, `sofor` …).
+///
+/// Roller v5: giriş ekranında yalnızca etkin rollerin kartları vardır; pasif rollerin personaları
+/// ([passive]) silinmez — dev menüsünde "pasif" diye listelenir, formdan giriş yapar, saklı oturumları
+/// açılmaya devam eder ve eski akışların testlerini taşır.
 class FakePersona {
   const FakePersona({
     required this.key,
@@ -21,6 +25,7 @@ class FakePersona {
     this.roleNames,
     this.capabilities = const {},
     this.requiresTwoFactor = false,
+    this.passive = false,
   });
 
   /// Giriş adı ve dev menüsü anahtarı.
@@ -53,6 +58,9 @@ class FakePersona {
   /// Şifreden sonra SMS kodu ister (merkez).
   final bool requiresTwoFactor;
 
+  /// Roller v5: pasif rolün personası (giriş ekranında kartı yok; formdan ve dev menüsünden girer).
+  final bool passive;
+
   String get userId => 'u-$key';
   String get userName => key;
   String get email => '$key@demo.akaryakitnet.local';
@@ -67,8 +75,16 @@ class FakePersona {
   bool hasCap(String code) =>
       persona == Persona.platform || capabilities.containsKey(code);
 
+  /// Sunucunun rol etiketleri (`BayiRoleDisplay.Label`): pasif şablonda " (pasif)" ekiyle.
   List<String> get bayiRoleNames =>
-      roleNames ?? [for (final c in bayiRoleCodes) BayiRoleCodes.name(c)];
+      roleNames ??
+      [
+        for (final c in bayiRoleCodes)
+          BayiRoleCodes.label(
+            BayiRoleCodes.name(c),
+            passive: BayiRoleCodes.isPassive(c),
+          ),
+      ];
 
   /// `GET me/access` gövdesi.
   JsonMap meAccessJson({
@@ -99,8 +115,11 @@ class FakePersona {
   };
 }
 
-/// Bayi rolü şablonlarının sayfa harfleri (sunucu `BayiRoleTemplates.cs` ile aynı):
-/// G Görür · E Ekler · D Düzenler · S Siler · I İnceler · T hepsi.
+/// Bayi rolü şablonlarının sayfa harfleri (sunucu `BayiRoleTemplates.cs` ile aynı: 7 etkin şablon
+/// `All` ve pasif şablonların dondurulmuş tanımları `RetiredDefinitions`):
+/// G Görür · E Ekler · D Düzenler · S Siler · I İnceler · T hepsi. Roller v5: Bayi yöneticisi (`owner`),
+/// Finans birimi (`finance_manager`) ve diğer yeniden adlandırılan şablonların yetkileri değişmedi;
+/// İkmal birimi (`supply`) sipariş masası, sevkiyat planlama ve depo / dolumun birleşimidir.
 abstract final class FakeRoleTemplates {
   static const stationPages = [
     Pg.stationQuoteDesk,
@@ -209,6 +228,18 @@ abstract final class FakeRoleTemplates {
       Pg.stationCustomers: 'G',
     },
     BayiRoleCodes.driver: {Pg.stationShipments: 'GD'},
+    // Roller v5 İkmal birimi: QD T, Q T, O T, SH T, SB T; C R AP PY G.
+    BayiRoleCodes.supply: {
+      Pg.stationQuoteDesk: 'T',
+      Pg.stationQuotes: 'T',
+      Pg.stationOrders: 'T',
+      Pg.stationShipments: 'T',
+      Pg.stationShipmentBoard: 'T', //
+      Pg.stationCustomers: 'G',
+      Pg.stationReports: 'G',
+      Pg.stationApprovals: 'G',
+      Pg.stationPayments: 'G',
+    },
     BayiRoleCodes.depot: {
       Pg.stationShipments: 'GD',
       Pg.stationShipmentBoard: 'G',
@@ -321,6 +352,7 @@ abstract final class FakeRoleTemplates {
     BayiRoleCodes.orderDesk: {},
     BayiRoleCodes.dispatch: {Caps.shipmentAssign: null},
     BayiRoleCodes.driver: {Caps.shipmentOwnOnly: null},
+    BayiRoleCodes.supply: {Caps.shipmentAssign: null, Caps.loadingRecord: null},
     BayiRoleCodes.depot: {Caps.loadingRecord: null},
     BayiRoleCodes.viewer: {},
   };
@@ -334,6 +366,7 @@ FakePersona _bayi(
   String role,
   String summary, {
   List<String> roles = const [Roles.station],
+  bool passive = false,
 }) => FakePersona(
   key: key,
   displayName: name,
@@ -345,6 +378,7 @@ FakePersona _bayi(
   bayiRoleCodes: [role],
   pages: FakeRoleTemplates.grants([role]),
   capabilities: FakeRoleTemplates.capabilities[role] ?? const {},
+  passive: passive,
 );
 
 /// Müşteri (cari) şirket kullanıcısı.
@@ -353,8 +387,9 @@ FakePersona _customer(
   String name,
   String phone,
   int companyRole,
-  String summary,
-) => FakePersona(
+  String summary, {
+  bool passive = false,
+}) => FakePersona(
   key: key,
   displayName: name,
   phone: phone,
@@ -371,10 +406,14 @@ FakePersona _customer(
   capabilities: companyRole >= 2
       ? const {Caps.approveCompanyOrder: null}
       : const {},
+  passive: passive,
 );
 
 /// Sahte kipteki tüm demo kullanıcılar (spec D.3'teki 14 persona + merkez + A-INT'in finans uzmanı ve
-/// özel rolü).
+/// özel rolü + roller v5 İkmal birimi). Roller v5: giriş ekranında 9 kart (her etkin rol + merkez);
+/// pasif rollerin personaları ([FakePersona.passive]: talep, onay, mudur, finansuzman, siparis,
+/// sevkiyat, depo, izleyici, ozelrol) eski kodlarıyla kalır. Kimlikleri ve sırası değişmez (saklı
+/// oturumlar anahtarla açılır); yeni persona sona eklenir.
 final List<FakePersona> fakePersonas = List.unmodifiable([
   _customer(
     'musteri',
@@ -389,14 +428,22 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000102',
     1,
     'Müşteri · talep eden (şirket içi onaya düşer)',
+    passive: true,
   ),
-  _customer('onay', 'Elif Demir', '5320000103', 2, 'Müşteri · onaylayan'),
+  _customer(
+    'onay',
+    'Elif Demir',
+    '5320000103',
+    2,
+    'Müşteri · onaylayan',
+    passive: true,
+  ),
   _bayi(
     'sahip',
     'Mehmet Demir',
     '5320000201',
     BayiRoleCodes.owner,
-    'Bayi sahibi',
+    'Bayi yöneticisi (ana hesap; yönetici birimi onaycısı)',
   ),
   _bayi(
     'mudur',
@@ -404,34 +451,35 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000202',
     BayiRoleCodes.manager,
     'Bayi müdürü',
+    passive: true,
   ),
   _bayi(
     'finans',
     'Can Öztürk',
     '5320000203',
     BayiRoleCodes.financeManager,
-    'Finans müdürü',
+    'Finans birimi (birimin onaycısı)',
   ),
   _bayi(
     'muhasebe',
     'Zeynep Arslan',
     '5320000204',
     BayiRoleCodes.accounting,
-    'Muhasebe / tahsilat',
+    'Muhasebe birimi / tahsilat',
   ),
   _bayi(
     'satis',
     'Emre Çelik',
     '5320000205',
     BayiRoleCodes.salesManager,
-    'Satış müdürü',
+    'Satış müdürü (satış birimi onaycısı)',
   ),
   _bayi(
     'saha',
     'Deniz Koç',
     '5320000206',
     BayiRoleCodes.fieldRep,
-    'Saha satış temsilcisi',
+    'Satış temsilcisi',
     roles: const [Roles.station, Roles.fieldSales],
   ),
   _bayi(
@@ -440,6 +488,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000207',
     BayiRoleCodes.orderDesk,
     'Sipariş masası',
+    passive: true,
   ),
   _bayi(
     'sevkiyat',
@@ -447,6 +496,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000208',
     BayiRoleCodes.dispatch,
     'Sevkiyat planlama',
+    passive: true,
   ),
   _bayi(
     'sofor',
@@ -461,6 +511,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000210',
     BayiRoleCodes.depot,
     'Depo / dolum',
+    passive: true,
   ),
   _bayi(
     'izleyici',
@@ -468,6 +519,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000211',
     BayiRoleCodes.viewer,
     'Görüntüleyici (salt okunur)',
+    passive: true,
   ),
   // A-INT ek personaları (spec D.7.5): onay sınırı aşılan finans uzmanı ve şablonsuz özel rol.
   _bayi(
@@ -476,6 +528,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     '5320000212',
     BayiRoleCodes.financeSpecialist,
     'Finans uzmanı (1.000.000 ₺ onay sınırı; üstü "Tutar onay sınırınızı aşıyor")',
+    passive: true,
   ),
   const FakePersona(
     key: 'ozelrol',
@@ -497,6 +550,7 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
       'StationReports:Gorur',
       'StationApprovals:Gorur',
     },
+    passive: true,
   ),
   FakePersona(
     key: 'merkez',
@@ -508,6 +562,15 @@ final List<FakePersona> fakePersonas = List.unmodifiable([
     pages: FakeRoleTemplates.platformGrants(),
     capabilities: {for (final c in Caps.all) c: null},
     requiresTwoFactor: true,
+  ),
+  // Roller v5: İkmal birimi (teklif, sevkiyat planı ve şoför ataması, dolum kaydı). Telefon boş bir
+  // numaradır (ek personel 212–214'ü kullanır).
+  _bayi(
+    'ikmal',
+    'İlker Kaya',
+    '5320000215',
+    BayiRoleCodes.supply,
+    'İkmal birimi (teklif, sevkiyat planı, şoför ataması, dolum)',
   ),
 ]);
 

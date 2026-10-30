@@ -52,6 +52,15 @@ void _emptyDesk(FakeWorld w) {
 }
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): birim onaycısı olmayan bayide
+  // sahip finans kararını verir (B7).
+  setUpAll(() {
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultV5Station = true;
+  });
+
   group('B7: finans durağı → karar', () {
     testWidgets(
       'sahip: finans onayındaki siparişte birincil "Finans kararını ver" talebi açar',

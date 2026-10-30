@@ -416,6 +416,16 @@ const Map<String, String> _knownMissing = {
   // StatsSummary bayi ve cari için ortak; cari istatistiğinde cari sayıları yok (null kalır, ekran göstermez).
   'stats-customer: .spending.activeCustomers': 'ortak model (yalnızca bayi)',
   'stats-customer: .spending.newCustomers': 'ortak model (yalnızca bayi)',
+  // Roller v5 (sunucu: MeAccessDto, StationStaffDto, UserBayiRoleDto, CompanyUserDto alanları eklendi; fikstürler
+  // 28.10 yakalaması). Sandbox Roller v5 sunucusuyla yeniden yakalanınca (me-access.*, staff, company-users.*)
+  // bu satırlar silinir; test kapanan boşluğu ayrıca bildirir.
+  'me-access: .signingCapabilities': 'roller v5: yeniden yakalanacak',
+  'me-access: .approverUnits': 'roller v5: yeniden yakalanacak',
+  'me-access: .companyApprovalsEnabled': 'roller v5: yeniden yakalanacak',
+  'staff: [].approverOf': 'roller v5: yeniden yakalanacak',
+  'staff: [].needsReview': 'roller v5: yeniden yakalanacak',
+  'staff: [].bayiRoles[].isRetired': 'roller v5: yeniden yakalanacak',
+  'company-users: [].isMainUser': 'roller v5: yeniden yakalanacak',
 };
 
 /// Okuyucusu JSON tipiyle uyuşmayan alanlar (`okuyucu-anahtarı: yol.anahtar (okuyucu←tip)`).

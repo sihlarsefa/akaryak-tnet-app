@@ -6,11 +6,20 @@ import 'permissions.dart';
 
 /// Rol ön ayarı (alt menü sırası; spec A.2). Kodlar tablodaki sırayla denenir; özel rol ve kodsuz
 /// kullanıcı [generic] kullanır. Rolü atanmamış bayi sahibi (`isStationOwner`, kod yok) [owner] alır.
+///
+/// Roller v5: Bayi yöneticisi `owner`, Finans birimi `finance_manager`, Satış temsilcisi `field_rep`,
+/// Muhasebe birimi `accounting` kodunu korur; İkmal birimi (`supply`) yeni ön ayardır ve sipariş masası ile
+/// sevkiyattan önce denenir (geçiş sırasında ikisini birden tutan kullanıcı İkmal olur). Pasif kodlar
+/// (`manager`, `finance_specialist`, `order_desk`, `dispatch`, `depot`, `viewer`) yerinde kalır: pasif
+/// rolde çalışmaya devam eden kullanıcının menüsü değişmez.
 enum RolePreset {
   owner([BayiRoleCodes.owner, BayiRoleCodes.manager]),
   finance([BayiRoleCodes.financeManager, BayiRoleCodes.financeSpecialist]),
   salesManager([BayiRoleCodes.salesManager]),
   accounting([BayiRoleCodes.accounting]),
+
+  /// İkmal birimi: Teklifler · Sevkiyat · Siparişler; "sıra sizde" Teklif ve Plan.
+  supply([BayiRoleCodes.supply]),
   orderDesk([BayiRoleCodes.orderDesk]),
   dispatch([BayiRoleCodes.dispatch, BayiRoleCodes.depot]),
   fieldRep([BayiRoleCodes.fieldRep]),
@@ -63,15 +72,25 @@ class AccessPolicy {
               false) ||
           assignedOpenShipments > 0);
 
-  /// Onaylarım ana sekme olabilir mi (spec A.2): `approve.*` yetkinliği, müşteride Onaylayan / Yönetici,
-  /// merkez. (Bekleyen onay rozeti de sekmeyi öne alır; bkz. `buildNavLayout`.)
+  /// Onaylarım ana sekme olabilir mi (spec A.2; roller v5 §7): merkez, müşteri (tek rol; şirket
+  /// kullanıcıları Onaylar'da bayi finansının bilgi isteklerini yanıtlar) ya da imza yetkinliklerinde
+  /// (`signingCapabilities`) bir `approve.*` kodu. İmza yetkinlikleri bu bayide birimin onaycısı başkası
+  /// olduğu için imzalayamadığı kodları içermez; alanı göndermeyen eski sunucuda `capabilities` geçerlidir.
+  /// Görev ve rozetler zaten sunucunun `canDecide` ve sayılarını izler.
   bool get isApprover {
     final a = access;
     if (a == null) return false;
-    if (isPlatform) return true;
-    if (isCustomer) return customerRole.canApprove;
-    return a.capabilities.any((c) => c.code.startsWith('approve.'));
+    if (isPlatform || isCustomer) return true;
+    return a.signingOrCapabilities.any((c) => c.code.startsWith('approve.'));
   }
+
+  /// Kullanıcının onaycısı olduğu birimler (`management`, `sales`, `finance`; panelin sırasıyla).
+  List<String> get approverUnits => access?.approverUnits ?? const [];
+
+  /// Müşteride şirket içi onay akışı açık mı (`me/access.companyApprovalsEnabled`; null / eski sunucu =
+  /// açık). Kapalıyken rol seçimi, onay eşikleri, rol açıklamaları, Talepler ve talep edenin ana sayfası
+  /// gösterilmez (roller v5: tek müşteri rolü).
+  bool get companyApprovals => access?.companyApprovals ?? true;
 
   /// Müşterinin şirket içi rolü. Teklif kararı ve teslim kabulü rolden değil, sunucunun sipariş /
   /// sevkiyat başına verdiği panel değerlerinden okunur (`CustomerDecider`; rol yalnızca talep edenin

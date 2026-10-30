@@ -113,7 +113,8 @@ void _notifyBayi(
   int severity = 0,
 }) {
   final route = '/bayi/orders/${sh['orderId']}';
-  for (final key in const ['sahip', 'mudur', 'sevkiyat']) {
+  // Bayi yöneticisi, müdür (pasif rol), sevkiyat (pasif rol) ve İkmal birimi (roller v5).
+  for (final key in const ['sahip', 'mudur', 'sevkiyat', 'ikmal']) {
     w.addNotification(
       userId: 'u-$key',
       category: 'shipments',

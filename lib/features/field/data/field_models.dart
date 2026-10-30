@@ -40,12 +40,12 @@ abstract final class FieldLevels {
   static String waitingText(int? level, {bool barem = true}) => switch (level) {
     null => 'Onay bekleniyor.',
     auto => 'Otomatik onay kademesinde.',
-    manager => 'Bayi yöneticisinin onayı bekleniyor.',
+    manager => 'Satış müdürü onayı bekleniyor.',
     senior =>
       barem
-          ? 'Üst onay (bayi müdürü / finans müdürü ya da merkez) bekleniyor.'
-          : 'Üst yönetici onayı bekleniyor.',
-    _ => 'İstisna onayı (bayi sahibi ya da merkez) bekleniyor.',
+          ? 'Üst onay (Bayi yöneticisi, Finans birimi ya da merkez) bekleniyor.'
+          : 'Bayi yöneticisi onayı bekleniyor.',
+    _ => 'İstisna onayı (Bayi yöneticisi ya da merkez) bekleniyor.',
   };
 }
 

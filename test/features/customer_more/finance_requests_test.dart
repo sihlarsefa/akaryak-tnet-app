@@ -1,3 +1,4 @@
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/customer_more/data/customer_more_repository.dart';
 import 'package:akaryakitnet/features/customer_more/presentation/finance_info/finance_info_page.dart';
@@ -8,6 +9,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'cm_test_utils.dart';
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talepler (Talepler
+  // listesi ve ayrıntısı).
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+  });
+
   group('Finans bilgisi', () {
     test('{links, orders} okunur', () async {
       final env = await CmEnv.create();

@@ -84,9 +84,11 @@ class BayiHome extends ConsumerWidget {
   }
 }
 
-/// Tüpraş kartını gösteren roller (fiyat bağlamı teklif verenlere ve satışa ait).
+/// Tüpraş kartını gösteren roller (fiyat bağlamı teklif verenlere ve satışa ait; İkmal birimi teklif
+/// verir).
 const _tuprasPresets = {
   RolePreset.owner,
+  RolePreset.supply,
   RolePreset.orderDesk,
   RolePreset.salesManager,
   RolePreset.viewer,

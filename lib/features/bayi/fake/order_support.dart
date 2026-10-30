@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import '../../../core/auth/permissions.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/json.dart';
 import '../../../core/network/fake/fake_personas.dart';
@@ -386,9 +387,14 @@ void routeToFinance(FakeWorld w, JsonMap o, double total, FakePersona actor) {
     'eligibleUserIds': ['u-finans', 'u-mudur', 'u-sahip'],
   });
   o['financeApprovalRequestId'] = id;
+  // Roller v5: bildirim yalnızca imzalayabilenlere (birimin onaycısı varsa yalnızca ona; sunucu gibi)
   notify(
     w,
-    userIds: const ['u-finans', 'u-mudur', 'u-sahip'],
+    userIds: w.signingUserIds(const [
+      'u-finans',
+      'u-mudur',
+      'u-sahip',
+    ], Caps.approveFinanceOrder),
     actorId: actor.userId,
     category: 'approvals',
     eventCode: 'approval.pending',

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/utils/log.dart';
 import '../data/company.dart';
 import '../data/customer_more_repository.dart';
 import '../data/finance_info.dart';
@@ -45,7 +46,9 @@ class CompanyUsersState {
   );
 }
 
-/// Şirket kullanıcıları ve onay eşikleri (`customers/me/company-users*`; yalnızca Yönetici).
+/// Şirket kullanıcıları ve onay eşikleri (`customers/me/company-users*`; yalnızca Yönetici). Roller v5:
+/// şirket içi onay kapalıysa (`me/access.companyApprovalsEnabled == false`) eşikler istenmez; açıkken
+/// eşiklerin yüklenememesi sayfayı düşürmez (kullanıcılar görünür, eşik kartı gizlenir).
 final companyUsersControllerProvider =
     NotifierProvider.autoDispose<CompanyUsersController, CompanyUsersState>(
       CompanyUsersController.new,
@@ -78,15 +81,16 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
       refreshing: s.users.isNotEmpty,
       clearError: true,
     );
+    final thresholds = ref.read(accessPolicyProvider).companyApprovals
+        ? _thresholdsOrNull()
+        : Future<ApprovalThresholds?>.value();
     try {
-      final results = await Future.wait([
-        _repo.companyUsers(),
-        _repo.approvalThresholds(),
-      ]);
+      final users = await _repo.companyUsers();
+      final t = await thresholds;
       if (epoch != _epoch) return;
       state = state.copyWith(
-        users: results[0] as List<CompanyUser>,
-        thresholds: results[1] as ApprovalThresholds,
+        users: users,
+        thresholds: t,
         loading: false,
         refreshing: false,
       );
@@ -97,6 +101,16 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
         refreshing: false,
         error: AppFailure.from(e),
       );
+    }
+  }
+
+  /// Onay eşikleri; yüklenemezse null (kart gizlenir; liste yine açılır).
+  Future<ApprovalThresholds?> _thresholdsOrNull() async {
+    try {
+      return await _repo.approvalThresholds();
+    } catch (e) {
+      AppLog.debug('Şirket içi onay eşikleri yüklenemedi: $e');
+      return null;
     }
   }
 

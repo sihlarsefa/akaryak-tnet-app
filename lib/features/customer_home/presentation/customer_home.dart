@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/tasks/task_inbox.dart';
+import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
@@ -35,6 +36,13 @@ final homeSpendingProvider = FutureProvider.autoDispose<List<SpendingMonth>?>((
   }
 });
 
+/// Talep edenin ana sayfası mı (deste yok, "Taleplerim", talep edenin ipuçları): şirket içi rolü Talep
+/// eden ve şirket içi onay açık. Roller v5'te akış kapalıysa (`companyApprovalsEnabled == false`) bu dal
+/// uyur; eski sunucu ve geçiş yapılmamış şirket için korunur.
+bool customerRequesterHome(AccessPolicy policy) =>
+    policy.companyApprovals &&
+    policy.customerRole == CustomerUserRole.requester;
+
 /// Müşteri ana sayfası (tasarım v4 "Sade" §3.3, sahip kararı G): ışıklı turuncu üst bant (avatar
 /// profili açar, selamlama, şirket, zil) → bandın üstüne binen "Sıra sizde" kartı (görev kutusu:
 /// sayısı Onaylar rozetiyle aynı; iş yoksa sakin satır) → gönderim durumu (varsa) → yönetici
@@ -42,6 +50,9 @@ final homeSpendingProvider = FutureProvider.autoDispose<List<SpendingMonth>?>((
 /// ya da bugün planlıyken) → "Hızlı sipariş" → başlıksız limit ve bayi kartı. Talep eden: deste yok;
 /// "Sıra sizde"den sonra "Taleplerim". Karar, belge, şirket talebi ve finans uyarıları ayrı bölüm
 /// değildir: hepsi "Sıra sizde"nin satırlarıdır. Sınıf adı ve kurucu imzası sabittir (spec C.3).
+///
+/// Roller v5: şirket içi onay kapalıysa (`companyApprovalsEnabled == false`, tek müşteri rolü) talep
+/// edenin dalı uyur; her kullanıcı yöneticinin ana sayfasını görür.
 class CustomerHome extends ConsumerStatefulWidget {
   const CustomerHome({super.key});
 
@@ -155,7 +166,7 @@ class _HomeContent extends ConsumerWidget {
     final inbox = ref.watch(customerTasksProvider);
     final dash = home.dashboard;
     final role = policy.customerRole;
-    final requester = role == CustomerUserRole.requester;
+    final requester = customerRequesterHome(policy);
     final canCreate = policy.can(Pg.customerCreateOrder, Perm.create);
     final deck = !requester && ref.watch(canSeeStatsDeckProvider);
     final monthPlate =

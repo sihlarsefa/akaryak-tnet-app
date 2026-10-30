@@ -76,27 +76,33 @@ class DemoAccount {
   String get spoken => '$name, ${group.label}, $role';
 }
 
-/// Sıra ve roller (sahip kararındaki sırayla). Rol, kartta tarafın ardından okunur ("Bayi · Sahip"),
-/// bu yüzden tarafı tekrarlamaz ve 156 dp kartta tek satıra sığar. Listede olmayan yeni bir persona
+/// Sıra ve roller (sahip kararındaki sırayla). Rol, kartta tarafın ardından okunur ("Bayi · Yönetici"),
+/// bu yüzden tarafı tekrarlamaz ve 156 dp kartta iki satıra sığar. Listede olmayan yeni bir persona
 /// türünden gruba girer ve özetinden kısa bir rol adı alır.
+///
+/// Roller v5: girişte 9 kart — her etkin rol ve merkez (Müşteri · Yönetici, Bayi · Yönetici, Satış
+/// müdürü, Satış temsilcisi, Finans, İkmal, Muhasebe, Şoför, Merkez · Yönetici). Pasif rollerin
+/// personaları ([FakePersona.passive]) sırada en sonda durur ve kart almaz ([demoAccounts]).
 const Map<String, (DemoGroup, String, DemoTone)> _known = {
   'musteri': (DemoGroup.customer, 'Yönetici', DemoTone.orange),
+  'sahip': (DemoGroup.bayi, 'Yönetici', DemoTone.slate),
+  'satis': (DemoGroup.bayi, 'Satış müdürü', DemoTone.amber),
+  'saha': (DemoGroup.bayi, 'Satış temsilcisi', DemoTone.amber),
+  'finans': (DemoGroup.bayi, 'Finans', DemoTone.green),
+  'ikmal': (DemoGroup.bayi, 'İkmal', DemoTone.blue),
+  'muhasebe': (DemoGroup.bayi, 'Muhasebe', DemoTone.green),
+  'sofor': (DemoGroup.bayi, 'Şoför', DemoTone.blue),
+  'merkez': (DemoGroup.center, 'Yönetici', DemoTone.ink),
+  // Pasif roller (kart yok; dev menüsü ve formdan giriş).
   'onay': (DemoGroup.customer, 'Onaylayan', DemoTone.orange),
   'talep': (DemoGroup.customer, 'Talep eden', DemoTone.orange),
-  'sahip': (DemoGroup.bayi, 'Sahip', DemoTone.slate),
   'mudur': (DemoGroup.bayi, 'Müdür', DemoTone.slate),
-  'finans': (DemoGroup.bayi, 'Finans müdürü', DemoTone.green),
   'finansuzman': (DemoGroup.bayi, 'Finans uzmanı', DemoTone.green),
-  'muhasebe': (DemoGroup.bayi, 'Muhasebe', DemoTone.green),
-  'satis': (DemoGroup.bayi, 'Satış müdürü', DemoTone.amber),
-  'saha': (DemoGroup.bayi, 'Saha satış', DemoTone.amber),
   'siparis': (DemoGroup.bayi, 'Sipariş masası', DemoTone.blue),
   'sevkiyat': (DemoGroup.bayi, 'Sevkiyat', DemoTone.blue),
-  'sofor': (DemoGroup.bayi, 'Şoför', DemoTone.blue),
   'depo': (DemoGroup.bayi, 'Depo', DemoTone.blue),
   'izleyici': (DemoGroup.bayi, 'Görüntüleyici', DemoTone.grey),
   'ozelrol': (DemoGroup.bayi, 'Özel rol', DemoTone.grey),
-  'merkez': (DemoGroup.center, 'Yönetici', DemoTone.ink),
 };
 
 String _capitalize(String s) =>
@@ -129,10 +135,15 @@ DemoAccount _accountFor(FakePersona p) {
   );
 }
 
-/// Demo hesapları grup ve rol sırasıyla (Müşteri, Bayi, Merkez). [personas] verilmezse sahte
-/// sunucunun tüm personaları.
+/// Demo hesapları grup ve rol sırasıyla (Müşteri, Bayi, Merkez). [personas] verilmezse giriş ekranının
+/// kartları: sahte sunucunun pasif olmayan personaları (roller v5; pasifler silinmez, formdan girer).
 List<DemoAccount> demoAccounts([List<FakePersona>? personas]) {
-  final source = personas ?? fakePersonas;
+  final source =
+      personas ??
+      [
+        for (final p in fakePersonas)
+          if (!p.passive) p,
+      ];
   final order = _known.keys.toList();
   final indexed = [
     for (var i = 0; i < source.length; i++) (i, _accountFor(source[i])),

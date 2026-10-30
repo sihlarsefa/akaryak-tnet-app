@@ -44,7 +44,9 @@ void main() {
         check('tanıtım');
         expect(app.location, '/login');
 
+        // Roller v5: pasif rollerin personalarının kartı yok; onlar formdan girer.
         if (i.isEven &&
+            !persona.passive &&
             find.byType(DemoAccountsSection).evaluate().isNotEmpty) {
           // Demo kartı: tek dokunuş = oturum açık (merkez için kod kendiliğinden).
           final card = find.widgetWithText(

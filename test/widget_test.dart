@@ -44,6 +44,7 @@ const _homes = <String, Type>{
   'finansuzman': BayiHome,
   'ozelrol': BayiHome,
   'merkez': PlatformHome,
+  'ikmal': BayiHome,
 };
 
 Future<ProviderContainer> _launch(

@@ -99,6 +99,9 @@ class MeAccess {
     this.assignedOpenShipments = 0,
     this.phoneVerified = false,
     this.customerUserRoleLabel,
+    this.signingCapabilities,
+    this.approverUnits = const [],
+    this.companyApprovalsEnabled,
   });
 
   factory MeAccess.fromJson(Object? json) {
@@ -131,6 +134,14 @@ class MeAccess {
       assignedOpenShipments: r.integer('assignedOpenShipments'),
       phoneVerified: r.boolean('phoneVerified'),
       customerUserRoleLabel: r.nonEmpty('customerUserRoleLabel'),
+      // Roller v5: alan yoksa ya da null ise "hesaplanmadı" (eski sunucu, müşteri, merkez).
+      signingCapabilities: r['signingCapabilities'] is List
+          ? List.unmodifiable(
+              r.list('signingCapabilities', Capability.fromJson),
+            )
+          : null,
+      approverUnits: List.unmodifiable(r.strings('approverUnits')),
+      companyApprovalsEnabled: r.boolOrNull('companyApprovalsEnabled'),
     );
   }
 
@@ -180,6 +191,25 @@ class MeAccess {
   /// Cari kullanıcısında şirket rolünün Türkçe adı ("Talep eden", "Onaylayan", "Yönetici").
   final String? customerUserRoleLabel;
 
+  /// Roller v5: imzada kullanılabilen yetkinlikler. [capabilities] ile aynı biçim; bu bayide birimin
+  /// onaycısı başkası olduğu için imzalanamayan `approve.*` kodları yoktur (vekâletler dahil değil). null =
+  /// hesaplanmadı (eski sunucu; müşteri ve merkez): [capabilities] geçerlidir.
+  final List<Capability>? signingCapabilities;
+
+  /// Roller v5: kullanıcının onaycısı olduğu birimler (`management`, `sales`, `finance`; panelin sırasıyla).
+  final List<String> approverUnits;
+
+  /// Roller v5: müşteride şirket içi onay akışı açık mı (false = tek rol, akış kapalı). Bayi ve merkezde
+  /// ve eski sunucuda null: eski davranış (açık) geçerlidir.
+  final bool? companyApprovalsEnabled;
+
+  /// İmza kararlarında okunacak yetkinlikler ([signingCapabilities] yoksa [capabilities]).
+  List<Capability> get signingOrCapabilities =>
+      signingCapabilities ?? capabilities;
+
+  /// Şirket içi onay akışı açık mı (null = açık).
+  bool get companyApprovals => companyApprovalsEnabled ?? true;
+
   CustomerUserRole get customerUserRole =>
       CustomerUserRole.fromCode(customerUserRoleCode);
 
@@ -211,6 +241,11 @@ class MeAccess {
     'assignedOpenShipments': assignedOpenShipments,
     'phoneVerified': phoneVerified,
     'customerUserRoleLabel': customerUserRoleLabel,
+    'signingCapabilities': signingCapabilities == null
+        ? null
+        : [for (final c in signingCapabilities!) c.toJson()],
+    'approverUnits': approverUnits,
+    'companyApprovalsEnabled': companyApprovalsEnabled,
   };
 
   /// Menüyü ve rotaları etkileyen alanların parmak izi (yalnızca bunlar değişince yeniden kurulur).
@@ -227,5 +262,12 @@ class MeAccess {
     assignedOpenShipments > 0 ? 'driver' : '',
     isFieldSalesFlag ? 'fs' : '',
     isStationOwner ? 'own' : '',
+    // Roller v5: imza yetkinliği değişince (birim onaycısı atandı / kaldırıldı) Onaylar sekmesi yer
+    // değiştirir; şirket içi onay kapanınca Talepler düşer.
+    signingCapabilities == null
+        ? '-'
+        : (signingCapabilities!.map((c) => c.code).toList()..sort()).join(','),
+    approverUnits.join(','),
+    '${companyApprovalsEnabled ?? ''}',
   ].join('|');
 }

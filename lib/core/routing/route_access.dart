@@ -134,8 +134,8 @@ abstract final class RouteAccess {
   /// `features/stats` kapsamı bundan türetir, sunucu ayrıca denetler):
   /// - müşteri: harcama raporu yetkisi + şirket rolü Yönetici ya da Onaylayan (talep eden görmez),
   /// - saha satış: kendi portföyü,
-  /// - bayi: rapor yetkisi olan yönetim rolleri; operasyon ekranları (sipariş masası, sevkiyat / depo,
-  ///   yalnızca şoför) görmez.
+  /// - bayi: rapor yetkisi olan yönetim rolleri; operasyon ekranları (İkmal birimi, sipariş masası,
+  ///   sevkiyat / depo, yalnızca şoför) görmez.
   static bool statsAudience(AccessPolicy p) {
     if (p.isCustomer) {
       return p.can(Pg.customerSpending) && p.customerRole.canApprove;
@@ -143,8 +143,11 @@ abstract final class RouteAccess {
     if (!p.isBayi) return false;
     if (p.isFieldSales) return true;
     if (p.isDriverOnly) return false;
-    if (p.rolePreset == RolePreset.orderDesk ||
-        p.rolePreset == RolePreset.dispatch) {
+    if (const {
+      RolePreset.supply,
+      RolePreset.orderDesk,
+      RolePreset.dispatch,
+    }.contains(p.rolePreset)) {
       return false;
     }
     return p.can(Pg.stationReports);

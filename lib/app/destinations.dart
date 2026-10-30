@@ -212,7 +212,10 @@ final List<AppDestination> appDestinations = List.unmodifiable([
     selectedIcon: PhosphorIconsFill.listChecks,
     path: AppRoutes.companyRequests,
     priority: 12,
-    visible: (p, f) => p.isCustomer && p.can(Pg.customerOrderRequests),
+    // Roller v5: şirket içi onay kapalıysa (tek müşteri rolü) Talepler menüde yok; eski talepler bağlantıyla
+    // (bildirim) sayfa yetkisiyle açılır.
+    visible: (p, f) =>
+        p.isCustomer && p.companyApprovals && p.can(Pg.customerOrderRequests),
   ),
   AppDestination(
     id: DestinationId.staff,
@@ -359,6 +362,12 @@ const Map<RolePreset, List<DestinationId>> presetTabs = {
   RolePreset.accounting: [
     DestinationId.payments,
     DestinationId.finance,
+    DestinationId.bayiOrders,
+  ],
+  // Roller v5: İkmal birimi teklif verir, sevkiyatı planlar ve dolumu kaydeder.
+  RolePreset.supply: [
+    DestinationId.quoteDesk,
+    DestinationId.dispatch,
     DestinationId.bayiOrders,
   ],
   RolePreset.orderDesk: [

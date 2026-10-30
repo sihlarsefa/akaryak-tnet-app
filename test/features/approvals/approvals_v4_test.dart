@@ -6,6 +6,7 @@ import 'package:akaryakitnet/app/tasks/task_inbox.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
 import 'package:akaryakitnet/core/push/unread_count_provider.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -51,6 +52,17 @@ void _phone(WidgetTester tester) {
 }
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talep sonucu
+  // (9013) ve müdürün de karar verdiği bayi.
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+    FakeWorld.defaultV5Station = true;
+  });
+
   group('tek sayı (P2)', () {
     for (final key in ['sahip', 'mudur', 'finans']) {
       test(

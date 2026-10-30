@@ -4,12 +4,22 @@ import 'package:akaryakitnet/app/destinations.dart';
 import 'package:akaryakitnet/core/auth/access_policy.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/models/json.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/test_app.dart';
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): finans uzmanının 1.000.000 ₺
+  // sınırı birim onaycısı olmayan bayide sınanır.
+  setUpAll(() {
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultV5Station = true;
+  });
+
   test(
     'finansuzman: 1.000.000 ₺ üstü finans onayında karar yok, ipucu var',
     () async {

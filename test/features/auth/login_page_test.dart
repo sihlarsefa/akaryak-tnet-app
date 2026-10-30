@@ -382,7 +382,7 @@ void main() {
   });
 
   group('demo hesapları', () {
-    testWidgets('tüm demo hesapları tek satırda, her persona bir kart', (
+    testWidgets('roller v5: 9 kart (her etkin rol ve merkez) tek satırda', (
       tester,
     ) async {
       setPhoneSize(tester);
@@ -394,41 +394,43 @@ void main() {
       for (final g in ['Müşteri', 'Bayi', 'Merkez']) {
         expect(find.text(g), findsNothing, reason: g);
       }
-      expect(find.byType(DemoPersonaCard), findsNWidgets(fakePersonas.length));
+      expect(find.byType(DemoPersonaCard), findsNWidgets(9));
       for (final p in fakePersonas) {
-        expect(find.text(p.displayName), findsOneWidget, reason: p.key);
+        expect(
+          find.text(p.displayName),
+          p.passive ? findsNothing : findsOneWidget,
+          reason: p.key,
+        );
       }
-      // v4 §5 01: her kartın alt satırı önce tarafı adlandırır ("Müşteri · Yönetici", "Bayi · Sahip").
-      for (final subtitle in [
+      // v4 §5 01: her kartın alt satırı önce tarafı adlandırır; roller v5 sırasıyla.
+      final cards = tester
+          .widgetList<DemoPersonaCard>(find.byType(DemoPersonaCard))
+          .map((c) => c.account.subtitle)
+          .toList();
+      expect(cards, const [
         'Müşteri · Yönetici',
-        'Müşteri · Onaylayan',
-        'Müşteri · Talep eden',
-        'Bayi · Sahip',
-        'Bayi · Müdür',
-        'Bayi · Finans müdürü',
-        'Bayi · Finans uzmanı',
-        'Bayi · Muhasebe',
+        'Bayi · Yönetici',
         'Bayi · Satış müdürü',
-        'Bayi · Saha satış',
-        'Bayi · Sipariş masası',
-        'Bayi · Sevkiyat',
+        'Bayi · Satış temsilcisi',
+        'Bayi · Finans',
+        'Bayi · İkmal',
+        'Bayi · Muhasebe',
         'Bayi · Şoför',
-        'Bayi · Depo',
-        'Bayi · Görüntüleyici',
         'Merkez · Yönetici',
-      ]) {
+      ]);
+      for (final subtitle in cards) {
         expect(find.text(subtitle), findsOneWidget, reason: subtitle);
       }
-      // Kartlar yatay kayar: müşteri kartları aynı satırda, soldan sağa, aynı boyda.
+      // Kartlar yatay kayar: kartlar aynı satırda, soldan sağa, aynı boyda.
       Finder card(String name) => find.ancestor(
         of: find.text(name),
         matching: find.byType(DemoPersonaCard),
       );
       final selin = tester.getRect(card('Selin Aydın'));
-      final elif = tester.getRect(card('Elif Demir'));
-      expect(elif.top, selin.top);
-      expect(elif.height, selin.height);
-      expect(elif.left, greaterThan(selin.right));
+      final mehmet = tester.getRect(card('Mehmet Demir'));
+      expect(mehmet.top, selin.top);
+      expect(mehmet.height, selin.height);
+      expect(mehmet.left, greaterThan(selin.right));
       // Ekran okuyucu kartı tek düğme olarak okur.
       final semantics = tester.ensureSemantics();
       expect(
@@ -451,8 +453,8 @@ void main() {
           matching: find.byType(DemoPersonaCard),
         );
         final first = tester.getRect(card('Selin Aydın'));
-        final second = tester.getRect(card('Elif Demir'));
-        final third = tester.getRect(card('Burak Yılmaz'));
+        final second = tester.getRect(card('Mehmet Demir'));
+        final third = tester.getRect(card('Emre Çelik'));
         expect(first.width, demoCardWidth);
         expect(first.left, 20);
         expect(second.left - first.right, 12);
@@ -530,17 +532,58 @@ void main() {
         of: find.text('Mehmet Demir'),
         matching: find.byType(Scrollable),
       );
+      // Bayi kartlarının sonuncusu Şoför (roller v5 sırası).
       await tester.scrollUntilVisible(
-        find.text('Kemal Aydın'),
+        find.text('Ahmet Kurt'),
         200,
         scrollable: row.first,
       );
-      await tapVisible(tester, find.text('Kemal Aydın'));
+      await tapVisible(tester, find.text('Ahmet Kurt'));
       await pumpUntil(tester, () => isSignedIn(c));
-      expect(c.read(sessionControllerProvider).access!.userName, 'ozelrol');
+      expect(c.read(sessionControllerProvider).access!.userName, 'sofor');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     });
+
+    testWidgets(
+      'roller v5: İkmal kartı giriş yapar (Teklifler · Sevkiyat · Siparişler)',
+      (tester) async {
+        setPhoneSize(tester);
+        final c = await pumpAuthRoute(tester, '/login');
+        final row = find.ancestor(
+          of: find.text('Mehmet Demir'),
+          matching: find.byType(Scrollable),
+        );
+        await tester.scrollUntilVisible(
+          find.text('İlker Kaya'),
+          200,
+          scrollable: row.first,
+        );
+        expect(find.text('Bayi · İkmal'), findsOneWidget);
+        await tapVisible(tester, find.text('İlker Kaya'));
+        await pumpUntil(tester, () => isSignedIn(c));
+        final access = c.read(sessionControllerProvider).access!;
+        expect(access.userName, 'ikmal');
+        expect(access.bayiRoleCodes, const ['supply']);
+        expect(access.bayiRoleNames, const ['İkmal birimi']);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets(
+      'roller v5: pasif rolün personası kart almaz ama formdan girer',
+      (tester) async {
+        setPhoneSize(tester);
+        final c = await pumpAuthRoute(tester, '/login');
+        expect(find.text('Burak Yılmaz'), findsNothing);
+        await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'talep');
+        await tester.enterText(_field('Şifre'), 'demo');
+        await tapVisible(tester, find.text('Giriş yap'));
+        await pumpUntil(tester, () => isSignedIn(c));
+        expect(c.read(sessionControllerProvider).access!.userName, 'talep');
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
     testWidgets('"Tümünü gör": gruplu liste, açıklamalar; satır giriş yapar', (
       tester,
@@ -558,17 +601,24 @@ void main() {
       expect(
         find.descendant(
           of: sheet,
-          matching: find.text('Talep eden (şirket içi onaya düşer)'),
+          matching: find.text(
+            'İkmal birimi (teklif, sevkiyat planı, şoför ataması, dolum)',
+          ),
         ),
         findsOneWidget,
       );
-      final burak = find.descendant(
-        of: sheet,
-        matching: find.text('Burak Yılmaz'),
+      // Pasif rollerin personaları listede yok.
+      expect(
+        find.descendant(of: sheet, matching: find.text('Burak Yılmaz')),
+        findsNothing,
       );
-      await tapVisible(tester, burak);
+      final ilker = find.descendant(
+        of: sheet,
+        matching: find.text('İlker Kaya'),
+      );
+      await tapVisible(tester, ilker);
       await pumpUntil(tester, () => isSignedIn(c));
-      expect(c.read(sessionControllerProvider).access!.userName, 'talep');
+      expect(c.read(sessionControllerProvider).access!.userName, 'ikmal');
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -612,41 +662,91 @@ void main() {
     });
 
     test(
-      'sıra ve gruplar: Müşteri, Bayi, Merkez (sahip kararındaki sırayla)',
+      'sıra ve gruplar: Müşteri, Bayi, Merkez (roller v5: 9 etkin kart)',
       () {
         final all = demoAccounts();
-        expect(all.length, fakePersonas.length);
+        expect(all.length, 9);
         expect(all.map((a) => a.key).toSet(), {
-          for (final p in fakePersonas) p.key,
+          for (final p in fakePersonas)
+            if (!p.passive) p.key,
         });
         final groups = demoGroups(all);
         expect(groups.map((g) => g.$1).toList(), DemoGroup.values);
-        expect(groups[0].$2.map((a) => a.key).toList(), [
-          'musteri',
-          'onay',
-          'talep',
-        ]);
-        expect(groups[1].$2.map((a) => a.key).take(11).toList(), [
+        expect(groups[0].$2.map((a) => a.key).toList(), ['musteri']);
+        expect(groups[1].$2.map((a) => a.key).toList(), [
           'sahip',
-          'mudur',
-          'finans',
-          'finansuzman',
-          'muhasebe',
           'satis',
           'saha',
-          'siparis',
-          'sevkiyat',
+          'finans',
+          'ikmal',
+          'muhasebe',
           'sofor',
-          'depo',
         ]);
         expect(groups[2].$2.single.key, 'merkez');
+        expect(all.map((a) => a.subtitle).toList(), const [
+          'Müşteri · Yönetici',
+          'Bayi · Yönetici',
+          'Bayi · Satış müdürü',
+          'Bayi · Satış temsilcisi',
+          'Bayi · Finans',
+          'Bayi · İkmal',
+          'Bayi · Muhasebe',
+          'Bayi · Şoför',
+          'Merkez · Yönetici',
+        ]);
         // Ayrıntıda grup öneki ve " · " yok.
         for (final a in all) {
           expect(a.detail, isNot(contains(' · ')), reason: a.key);
           expect(a.role, isNotEmpty, reason: a.key);
         }
         expect(
-          all.firstWhere((a) => a.key == 'talep').detail,
+          all.firstWhere((a) => a.key == 'ikmal').detail,
+          'İkmal birimi (teklif, sevkiyat planı, şoför ataması, dolum)',
+        );
+      },
+    );
+
+    test(
+      'roller v5: pasif personalar gizli ama silinmedi (sırada en sonda)',
+      () {
+        const hidden = {
+          'talep',
+          'onay',
+          'mudur',
+          'finansuzman',
+          'siparis',
+          'sevkiyat',
+          'depo',
+          'izleyici',
+          'ozelrol',
+        };
+        expect({
+          for (final p in fakePersonas)
+            if (p.passive) p.key,
+        }, hidden);
+        for (final key in hidden) {
+          expect(findFakePersona(key), isNotNull, reason: key);
+        }
+        // Tüm personalar verilirse (dev menüsü gibi) pasifler grubunun sonunda.
+        final everyone = demoAccounts(fakePersonas);
+        expect(everyone.length, fakePersonas.length);
+        final groups = demoGroups(everyone);
+        expect(groups[0].$2.map((a) => a.key).toList(), [
+          'musteri',
+          'onay',
+          'talep',
+        ]);
+        expect(groups[1].$2.map((a) => a.key).take(7).toList(), [
+          'sahip',
+          'satis',
+          'saha',
+          'finans',
+          'ikmal',
+          'muhasebe',
+          'sofor',
+        ]);
+        expect(
+          everyone.firstWhere((a) => a.key == 'talep').detail,
           'Talep eden (şirket içi onaya düşer)',
         );
       },

@@ -431,7 +431,11 @@ final Map<String, void Function(Object? parsed)> _serverChecks = {
     expect(m.customerUserRole, CustomerUserRole.requester);
     expect(m.customerUserRoleLabel, 'Talep eden');
     expect(p.rolePreset, RolePreset.customerRequester);
-    expect(p.isApprover, isFalse);
+    // Roller v5: müşteri her zaman "onaylayan" sayılır (Onaylar'da bilgi isteklerini yanıtlar); sekme yine
+    // sayfa yetkisiyle görünür. Bu örnekte alan yok: şirket içi onay açık (eski akış).
+    expect(p.isApprover, isTrue);
+    expect(m.companyApprovalsEnabled, isNull);
+    expect(p.companyApprovals, isTrue);
     final layout = buildNavLayout(p, const AppFeatures());
     expect(layout.center?.label, 'Sipariş ver');
     expect(layout.inBar(DestinationId.myOrders), isTrue);

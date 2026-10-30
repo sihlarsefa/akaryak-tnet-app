@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/permissions.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/routing/app_location.dart';
 import '../../core/routing/app_routes.dart';
@@ -60,13 +61,17 @@ class MoreSheetBody extends ConsumerWidget {
         if (groups[g]?.isNotEmpty ?? false) g,
     ];
     final name = access?.displayName ?? '';
+    // Rol adı sunucudan (panelle aynı); birim onaycısında " · onaycı" (roller v5).
     final role = customer
         ? (access?.customerUserRoleLabel ??
               (policy.customerRole.isUnknown
                   ? null
                   : policy.customerRole.label))
         : (access?.bayiRoleNames.isNotEmpty ?? false)
-        ? access!.bayiRoleNames.first
+        ? ApproverUnits.roleLine(
+            access!.bayiRoleNames.first,
+            policy.approverUnits,
+          )
         : policy.isPlatform
         ? 'Merkez'
         : null;

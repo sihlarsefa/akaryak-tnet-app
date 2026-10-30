@@ -33,7 +33,8 @@ Map<String, dynamic> _customer(
 ]) {
   final at = now ?? _now;
   return StatsFake.customer(
-    FakeWorld.seeded(now: at),
+    // Roller v5 öncesi akış: şirket içi onay bekleyen talep sayısı (awaitingCompanyApproval).
+    FakeWorld.seeded(now: at, companyApprovals: true),
     findFakePersona(persona)!,
     p,
     now: at,

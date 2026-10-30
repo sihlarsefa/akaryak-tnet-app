@@ -355,10 +355,12 @@ void registerFieldFormFakes(FakeServer s) {
       }
     } else {
       f['status'] = 1;
-      final eligible = switch (level) {
-        1 => const ['satis', 'mudur', 'sahip'],
-        2 => const ['mudur', 'finans', 'sahip'],
-        _ => const ['sahip'],
+      // Bandın yetkinliğini taşıyanlar; roller v5'te birim onaycıları süzer (bant 1 satış ve yönetici
+      // birimi onaycısı, bant 2–3 yönetici birimi onaycısı).
+      final (eligible, capability) = switch (level) {
+        1 => (const ['satis', 'mudur', 'sahip'], Caps.approveFieldManager),
+        2 => (const ['mudur', 'finans', 'sahip'], Caps.approveFieldSenior),
+        _ => (const ['sahip'], Caps.approveFieldException),
       };
       final a = state.addApproval(
         type: 1,
@@ -368,6 +370,7 @@ void registerFieldFormFakes(FakeServer s) {
         summary:
             '${f['customerTitle']} · ${Fmt.liters(f['totalLiters'] as num)} · ${band.str('label')}',
         eligible: eligible,
+        capability: capability,
       );
       f['_approvalId'] = a['id'];
       message = 'Form onaya gönderildi: ${band.str('label')}.';
@@ -600,8 +603,8 @@ JsonMap _trail(
   'level': level,
   'levelLabel': const [
     'Otomatik',
+    'Satış müdürü',
     'Bayi yöneticisi',
-    'Üst yönetici',
     'İstisna onayı',
   ][level.clamp(0, 3)],
   'decision': decision,
@@ -1091,7 +1094,7 @@ String _bandLabel(int level, bool reject) {
   if (reject) return 'Otomatik ret';
   return switch (level) {
     0 => 'Otomatik onay',
-    1 => 'Bayi yöneticisi onayı',
+    1 => 'Satış müdürü onayı',
     2 => 'Üst onay',
     _ => 'İstisna onayı',
   };
@@ -1110,12 +1113,12 @@ String _bandHint(
   if (unknown) return 'Tüpraş fiyatı yok; kâr doğrulanamadı → üst onay.';
   return switch (level) {
     0 => 'Form gönderilince doğrudan siparişe dönüşür.',
-    1 => 'Satış müdürü / bayi müdürü onaylar.',
+    1 => 'Satış müdürü ya da bayi yöneticisi onaylar.',
     2 =>
       outOfRange
-          ? 'Barem dışı koşul (vade / teminat) → üst onay (bayi müdürü, finans müdürü ya da merkez).'
-          : 'Üst onay: bayi müdürü, finans müdürü ya da merkez onaylar.',
-    _ => 'İstisna onayı: bayi sahibi ya da merkez onaylar.',
+          ? 'Barem dışı koşul (vade / teminat) → üst onay (bayi yöneticisi, finans birimi ya da merkez).'
+          : 'Üst onay: bayi yöneticisi, finans birimi ya da merkez onaylar.',
+    _ => 'İstisna onayı: bayi yöneticisi ya da merkez onaylar.',
   };
 }
 

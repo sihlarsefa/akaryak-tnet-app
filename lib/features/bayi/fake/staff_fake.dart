@@ -10,7 +10,9 @@ void registerBayiStaffFakes(FakeServer s) {
   s.get('stations/me/staff', (req) {
     final p = bayiUser(req);
     requireAny(p, const [(Pg.stationStaff, Perm.view)]);
-    return [for (final r in stationStaff(req.world, p.stationId!)) _dto(r)];
+    return [
+      for (final r in stationStaff(req.world, p.stationId!)) _dto(req.world, r),
+    ];
   });
 
   s.post('stations/me/staff/{userId}/active', (req) {
@@ -61,10 +63,18 @@ JsonMap _find(FakeWorld w, int stationId, String userId) {
   throw FakeResponse.notFound('Personel bulunamadı.');
 }
 
-JsonMap _dto(JsonMap r) {
+/// `StationStaffDto` (sunucunun aynası). Roller v5: rol adı panelin etiketi (pasif şablonda "(pasif)"),
+/// `isRetired`; görüntüleyici ataması geçişte "otomatik taşındı" işaretlidir (`isMigrated`; yerine geçen
+/// rol yok) ve personel "İncelenecek" görünür (`needsReview`); birim onaycısında `approverOf`.
+JsonMap _dto(FakeWorld w, JsonMap r) {
   final codes = (r['roleCodes'] as List).cast<String>();
   final hours = r['lastLoginHoursAgo'] as int?;
   final now = DateTime.now().toUtc();
+  bool retired(String code) => BayiRoleCodes.isPassive(code);
+  // Geçişte işaretlenen atama: görüntüleyici (yerine geçen yok; kişi rolünde kalır).
+  bool migrated(String code) => w.v5Station && code == BayiRoleCodes.viewer;
+  final review = codes.any((c) => migrated(c) && retired(c));
+  final persona = w.personaByUserId(r['userId'] as String?);
   return {
     'userId': r['userId'],
     'displayName': r['displayName'],
@@ -85,21 +95,39 @@ JsonMap _dto(JsonMap r) {
         {
           'userId': r['userId'],
           'stationId': 1,
-          'roleId': 100 + BayiRoleCodes.all.indexOf(codes[i]),
-          'roleName': BayiRoleCodes.name(codes[i]),
-          'templateCode': codes[i],
-          'isMigrated': false,
+          // Şablonsuz özel rol `role:{Id}` kodunu taşır: adı bayinin verdiği addır, şablon kodu yoktur.
+          'roleId':
+              _customRoleId(codes[i]) ??
+              100 + BayiRoleCodes.all.indexOf(codes[i]),
+          'roleName': _customRoleId(codes[i]) != null
+              ? (persona?.bayiRoleNames.elementAtOrNull(i) ?? codes[i])
+              : BayiRoleCodes.label(
+                  BayiRoleCodes.name(codes[i]),
+                  passive: retired(codes[i]),
+                ),
+          'templateCode': _customRoleId(codes[i]) != null ? null : codes[i],
+          'isMigrated': migrated(codes[i]),
           'assignedAt': now
               .subtract(const Duration(days: 90))
               .toIso8601String(),
           'roleIsActive': true,
           'userIsActive': r['isActive'],
+          'isRetired': retired(codes[i]),
+          'needsReview': migrated(codes[i]) && retired(codes[i]),
         },
     ],
     'hasBayiRoles': codes.isNotEmpty,
-    'hasMigratedRoles': false,
+    'hasMigratedRoles': codes.any(migrated),
+    'approverOf': persona == null
+        ? const <String>[]
+        : w.approverUnitsOf(persona),
+    'needsReview': review,
   };
 }
+
+/// Şablonsuz özel rolün kimliği (`role:42` → 42); şablon kodunda null.
+int? _customRoleId(String code) =>
+    code.startsWith('role:') ? int.tryParse(code.substring(5)) : null;
 
 /// Testler: şifre bağlantısı gönderilen kullanıcılar.
 List<String> fakePasswordResets(FakeWorld w) =>

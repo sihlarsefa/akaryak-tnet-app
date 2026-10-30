@@ -48,6 +48,18 @@ final _code = RegExp(r'\b(SIP|SVK|SSF|TLP)-');
 String _plain(String? s) => (s ?? '').replaceAll('\u00A0', ' ');
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talepler (9003) ve
+  // birim onaycısı olmayan bayi (müdür ve sahip de karar verir). Roller v5 dünyası
+  // test/app/roles_v5_test.dart içinde.
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+    FakeWorld.defaultV5Station = false;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+    FakeWorld.defaultV5Station = true;
+  });
+
   for (final key in ['musteri', 'onay']) {
     test('$key: ana sayfa sayısı = Onaylar rozeti = Bende (tek sayı)', () async {
       final c = await _signedIn(key);

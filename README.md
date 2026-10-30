@@ -21,31 +21,52 @@ Tanım verilmezse uygulama geliştirme ortamında **sahte API** ile açılır. C
 Profil → Geliştirici menüsünden tek dokunuşla geçilir. Alt menüde kısa adlar görünür (en fazla 10
 karakter; uzun basınca tam ad), kalanlar **Diğer** sayfasındadır.
 
+**Roller v5** (sahip kararı 30.10.2026; spec `work/akn-roles-v5.md` §7): giriş ekranında 9 kart vardır,
+her etkin rol ve merkez. Demo bayisi Roller v5'e geçmiştir: birim onaycıları **sahip** (yönetici
+birimi), **satis** (satış) ve **finans** (finans); finans onayı tek kademedir ("Finans birimi"). Demo
+carisinde şirket içi onay kapalıdır (tek müşteri rolü "Yönetici"; rol seçimi, eşikler ve Talepler yok).
+
 | Kullanıcı | Rol | Alt menü |
 |---|---|---|
-| `musteri` | Müşteri, şirket yöneticisi | Ana sayfa · Siparişler · **Sipariş ver** · Onaylar · Diğer |
-| `talep` | Müşteri, talep eden (eşik üstü şirket içi onaya düşer) | Ana sayfa · Siparişler · **Sipariş ver** · Teslimat · Diğer (Talepler rozetli) |
-| `onay` | Müşteri, onaylayan | Ana sayfa · Siparişler · **Sipariş ver** · Onaylar · Diğer |
-| `sahip` | Bayi sahibi (kendisine atanmış teslimatı var) | Ana sayfa · Onaylar · Teklifler · Siparişler · Diğer (Teslimatlarım, Ekip …) |
-| `mudur` | Bayi müdürü | Ana sayfa · Onaylar · Teklifler · Siparişler · Diğer |
-| `finans` | Finans müdürü | Ana sayfa · Onaylar · Finans · Tahsilat · Diğer |
-| `finansuzman` | Finans uzmanı (1.000.000 ₺ onay sınırı; üstünde "Tutar onay sınırınızı aşıyor") | Ana sayfa · Onaylar · Finans · Tahsilat · Diğer |
-| `muhasebe` | Muhasebe | Ana sayfa · Tahsilat · Finans · Siparişler · Diğer |
-| `satis` | Satış müdürü | Ana sayfa · Onaylar · Saha · Cariler · Diğer |
-| `saha` | Saha satış temsilcisi | Ana sayfa · Saha · **Saha formu** · Cariler · Diğer |
-| `siparis` | Sipariş masası | Ana sayfa · Teklifler · Siparişler · Sevkiyat · Diğer |
-| `sevkiyat` | Sevkiyat planlama | Ana sayfa · Sevkiyat · Siparişler · Cariler · Diğer |
+| `musteri` | Müşteri, Yönetici (tek rol: sipariş, teklif kararı, teslim kabulü, şirket kullanıcıları) | Ana sayfa · Siparişler · **Sipariş ver** · Onaylar · Diğer |
+| `sahip` | Bayi yöneticisi (ana hesap; yönetici birimi onaycısı; kendisine atanmış teslimatı var) | Ana sayfa · Onaylar · Teklifler · Siparişler · Diğer (Teslimatlar, Ekip …) |
+| `satis` | Satış müdürü (satış birimi onaycısı) | Ana sayfa · Onaylar · Saha · Cariler · Diğer |
+| `saha` | Satış temsilcisi | Ana sayfa · Saha · **Yeni form** · Cariler · Diğer |
+| `finans` | Finans birimi (finans birimi onaycısı; tek kademe, sınırsız) | Ana sayfa · Onaylar · Finans · Tahsilat · Diğer |
+| `ikmal` | İkmal birimi (teklif, sevkiyat planı ve şoför ataması, dolum kaydı) | Ana sayfa · Teklifler · Sevkiyat · Siparişler · Diğer |
+| `muhasebe` | Muhasebe birimi | Ana sayfa · Tahsilat · Finans · Siparişler · Diğer |
 | `sofor` | Şoför (yalnızca kendi teslimatları) | Teslimat · Bildirim · Asistan · Profil |
-| `depo` | Depo / dolum | Ana sayfa · Sevkiyat · Siparişler · Asistan · Diğer |
-| `izleyici` | Görüntüleyici | Ana sayfa · Siparişler · Sevkiyat · Cariler · Diğer |
-| `ozelrol` | Şablonsuz özel rol ("Bölge sorumlusu") | Ana sayfa · Siparişler · Sevkiyat · Cariler · Diğer (Onaylarım "Diğer"de) |
 | `merkez` | Merkez (şifre + SMS kodu) | Ana sayfa · Onaylar · Bildirim · Profil |
 
+Pasif rollerin personaları silinmez: kartları yoktur, formdan ("kullanıcı adı + demo") ve dev menüsünden
+("pasif") girilir, saklı oturumları açılır. Eski kodlarını ve eski akışlarını taşırlar.
+
+| Kullanıcı | Rol (pasif) | Alt menü |
+|---|---|---|
+| `talep` | Müşteri, Talep eden (eski akış: eşik üstü şirket içi onaya düşer) | Ana sayfa · Siparişler · **Sipariş ver** · Teslimat · Diğer (Talepler) |
+| `onay` | Müşteri, Onaylayan (eski akış) | Ana sayfa · Siparişler · **Sipariş ver** · Onaylar · Diğer |
+| `mudur` | Bayi müdürü (birimlerin onaycısı başkası: imza yok) | Ana sayfa · Teklifler · Siparişler · Sevkiyat · Diğer (Onaylar) |
+| `finansuzman` | Finans / kredi uzmanı (finans onaycısı başkası: imza yok) | Ana sayfa · Finans · Tahsilat · Siparişler · Diğer (Onaylar) |
+| `siparis` | Sipariş masası / operasyon | Ana sayfa · Teklifler · Siparişler · Sevkiyat · Diğer |
+| `sevkiyat` | Sevkiyat planlama | Ana sayfa · Sevkiyat · Siparişler · Cariler · Diğer |
+| `depo` | Depo / dolum | Ana sayfa · Sevkiyat · Siparişler · Asistan · Diğer |
+| `izleyici` | Görüntüleyici (Ekip'te "Görüntüleyici (pasif)" ve "İncelenecek") | Ana sayfa · Siparişler · Sevkiyat · Cariler · Diğer |
+| `ozelrol` | Şablonsuz özel rol ("Bölge sorumlusu") | Ana sayfa · Siparişler · Sevkiyat · Cariler · Diğer (Onaylarım "Diğer"de) |
+
 Alt menü `me/access` sayfa yetkilerinden, yetkinliklerden ve rol ön ayarından hesaplanır
-(`lib/app/destinations.dart`, spec A.2); rol adına göre karar verilmez. Onaylarım yalnızca onaylayan
-kullanıcılarda (`approve.*`, müşteride Onaylayan / Yönetici, merkez) ya da bekleyen onay rozeti
-varken ana sekmedir. Kendisine teslimat atanmış personelde (`assignedOpenShipments > 0`) Teslimatlarım
-görünür.
+(`lib/app/destinations.dart`, spec A.2); rol adına göre karar verilmez. İkmal birimi (`supply`) kendi ön
+ayarını kullanır ve sipariş masası ile sevkiyattan önce denenir. Onaylar yalnızca imza yetkinliğinde
+(`signingCapabilities`; alanı göndermeyen eski sunucuda `capabilities`) bir `approve.*` kodu olanlarda,
+müşteride ve merkezde ana sekmedir: birimin onaycısı başkasıysa o birimin kodu imzada sayılmaz, Onaylar
+"Diğer"e iner (ham yetkinlik ve sayfa erişimi sürer). Kendisine teslimat atanmış personelde
+(`assignedOpenShipments > 0`) Teslimatlarım görünür. Rol adları sunucudan gelir (pasif rolde "(pasif)");
+Ekip'te birim onaycısında "Onaycı · Finans", Profil'de "Finans birimi · onaycı" yazar.
+
+**Eski akışlar (testler):** sahte dünyanın iki anahtarı vardır. `FakeWorld.companyApprovals` (varsayılan
+kapalı) şirket içi onayı, 9003 / 9013 tohumlarını, talep bildirimini, eşikleri ve örnek talepleri açar;
+`FakeWorld.v5Station` (varsayılan açık) kapatılınca birim onaycıları kalkar ve 9006 iki kademeye döner.
+Eski akışı sınayan test dosyaları `setUpAll` içinde `FakeWorld.defaultCompanyApprovals = true` ya da
+`FakeWorld.defaultV5Station = false` yapar.
 
 ## Ortamlar
 

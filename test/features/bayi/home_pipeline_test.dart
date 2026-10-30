@@ -54,6 +54,8 @@ void main() {
 
   test('sıra sizde durakları rol ön ayarına göre', () {
     expect(pipelineYourMoves(RolePreset.owner), {'Finans', 'Teklif', 'Plan'});
+    // Roller v5 İkmal birimi: teklif ve sevkiyat planı.
+    expect(pipelineYourMoves(RolePreset.supply), {'Teklif', 'Plan'});
     expect(pipelineYourMoves(RolePreset.orderDesk), {'Teklif'});
     expect(pipelineYourMoves(RolePreset.finance), {'Finans'});
     expect(pipelineYourMoves(RolePreset.dispatch), {'Plan'});

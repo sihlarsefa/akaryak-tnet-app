@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/lock_settings.dart';
+import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/env/app_env.dart';
@@ -321,13 +322,17 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.aknText;
     final c = context.akn;
+    // Rol adları sunucudan (panelle aynı; müşteride `customerUserRoleLabel`); birim onaycısında
+    // " · onaycı" (roller v5: "Finans birimi · onaycı").
     final roles = <String>[
       ...access.bayiRoleNames,
-      if (access.persona == Persona.customer) access.customerUserRole.label,
+      if (access.persona == Persona.customer)
+        access.customerUserRoleLabel ?? access.customerUserRole.label,
       if (access.persona == Persona.platform) Persona.platform.label,
     ];
     final second = [
-      if (roles.isNotEmpty) roles.join(', '),
+      if (roles.isNotEmpty)
+        ApproverUnits.roleLine(roles.join(', '), access.approverUnits),
       ?access.organizationTitle,
     ].join(', ');
     final facts = <(IconData, String, String)>[

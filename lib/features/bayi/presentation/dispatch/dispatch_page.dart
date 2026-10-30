@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/models.dart';
 import '../../../../core/routing/app_location.dart';
@@ -47,8 +46,7 @@ class _DispatchPageState extends ConsumerState<DispatchPage> {
   String? _linked;
 
   _Segment _initialSegment() {
-    final access = ref.read(sessionControllerProvider).access;
-    final depot = access?.bayiRoleCodes.contains(BayiRoleCodes.depot) ?? false;
+    final depot = opensWithLoadings(ref.read(accessPolicyProvider));
     final g = ref.read(bayiGrantsProvider);
     if (!g.viewBoard) return _Segment.list;
     return depot ? _Segment.list : _Segment.board;

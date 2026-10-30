@@ -3,6 +3,7 @@
 // belirsiz sonuçta aynı Idempotency-Key, istenen türle ek bilgi yanıtı, cari görünümü, şirket içi
 // talep sonucu ve "Merkeze ilet".
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/approvals/copy.dart';
@@ -14,6 +15,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'a5_test_kit.dart';
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talep onayı
+  // (9003).
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+  });
+
   group('karar çubuğu yalnızca modes', () {
     testWidgets('saha formu kârlılık (satış müdürü): Onayla ve Reddet', (
       tester,

@@ -9,6 +9,7 @@ import 'dart:async';
 
 import 'package:akaryakitnet/app/router.dart';
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/approvals/api.dart';
 import 'package:akaryakitnet/features/approvals/presentation/approval_detail_page.dart';
@@ -88,6 +89,14 @@ ApprovalRow _row({
 );
 
 void main() {
+  // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talep kararı.
+  setUpAll(() {
+    FakeWorld.defaultCompanyApprovals = true;
+  });
+  tearDownAll(() {
+    FakeWorld.defaultCompanyApprovals = false;
+  });
+
   group('v4 B2 talep ayrıntısı → karar [QA SC-01]', () {
     testWidgets(
       'şirket yöneticisi: "Karar ver" talebin onay kaydını açar, uygulama bozulmaz',

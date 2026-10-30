@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/network/app_failure.dart';
 import '../../../../core/ui/ui.dart';
@@ -12,11 +13,16 @@ import '../../copy.dart';
 import '../../data/company.dart';
 import '../cm_widgets.dart';
 
+/// Eski akışın rolleri (şirket içi onay açıkken).
 const _roles = [
   CustomerUserRole.requester,
   CustomerUserRole.approver,
   CustomerUserRole.admin,
 ];
+
+/// Roller v5: şirket içi onay kapalıysa (tek müşteri rolü) rol seçimi yok; her kullanıcı Yönetici'dir
+/// (sunucu da eski rolleri 3'e çevirir).
+const _singleRole = CustomerUserRole.admin;
 
 /// Yeni şirket kullanıcısı (davet e-postası gönderilir).
 Future<void> showAddUserSheet(BuildContext context) => showAppSheet<void>(
@@ -59,6 +65,12 @@ class _UserFormState extends ConsumerState<_UserForm> {
   bool get _isNew => widget.user == null;
   bool get _self => widget.user?.isSelf ?? false;
 
+  /// Şirket içi onay açık mı (eski akış: rol seçimi var).
+  bool get _approvals => ref.read(accessPolicyProvider).companyApprovals;
+
+  /// Gönderilecek rol: onay kapalıyken tek rol.
+  CustomerUserRole get _sentRole => _approvals ? _role : _singleRole;
+
   @override
   void dispose() {
     _name.dispose();
@@ -77,7 +89,7 @@ class _UserFormState extends ConsumerState<_UserForm> {
           displayName: _name.text,
           email: _email.text,
           phone: _phone.text,
-          role: _role,
+          role: _sentRole,
         );
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -90,7 +102,7 @@ class _UserFormState extends ConsumerState<_UserForm> {
           widget.user!,
           displayName: _name.text,
           phone: _phone.text,
-          role: _role,
+          role: _sentRole,
         );
         if (!mounted) return;
         Navigator.of(context).pop();
@@ -106,6 +118,7 @@ class _UserFormState extends ConsumerState<_UserForm> {
   @override
   Widget build(BuildContext context) {
     final t = context.aknText;
+    final approvals = ref.watch(accessPolicyProvider).companyApprovals;
     return Form(
       key: _form,
       child: Column(
@@ -148,27 +161,29 @@ class _UserFormState extends ConsumerState<_UserForm> {
             keyboardType: TextInputType.phone,
             autofillHints: const [AutofillHints.telephoneNumber],
           ),
-          const SizedBox(height: 16),
-          Text('Şirket rolü', style: t.label),
-          if (_self)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Kendi rolünüzü değiştiremezsiniz; başka bir yönetici değiştirebilir.',
-                style: t.caption,
+          if (approvals) ...[
+            const SizedBox(height: 16),
+            Text('Şirket rolü', style: t.label),
+            if (_self)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Kendi rolünüzü değiştiremezsiniz; başka bir yönetici değiştirebilir.',
+                  style: t.caption,
+                ),
               ),
-            ),
-          const SizedBox(height: 8),
-          for (final r in _roles)
-            ChoiceCard(
-              title: r.label,
-              subtitle: companyRoleHint(r),
-              leadingIcon: r.statusStyle.icon,
-              selected: _role == r,
-              enabled: !_self,
-              margin: const EdgeInsets.only(bottom: 8),
-              onTap: _self ? null : () => setState(() => _role = r),
-            ),
+            const SizedBox(height: 8),
+            for (final r in _roles)
+              ChoiceCard(
+                title: r.label,
+                subtitle: companyRoleHint(r),
+                leadingIcon: r.statusStyle.icon,
+                selected: _role == r,
+                enabled: !_self,
+                margin: const EdgeInsets.only(bottom: 8),
+                onTap: _self ? null : () => setState(() => _role = r),
+              ),
+          ],
           const SizedBox(height: 8),
           AknButton(
             label: _isNew ? 'Ekle ve davet gönder' : 'Kaydet',
@@ -185,17 +200,22 @@ class _UserFormState extends ConsumerState<_UserForm> {
   }
 }
 
-/// Kullanıcı eylemleri: düzenle, bağlantıyı yeniden gönder, aktif / pasif (onaylı).
+/// Kullanıcı eylemleri: düzenle, bağlantıyı yeniden gönder, aktif / pasif (onaylı). Roller v5 (şirket
+/// içi onay kapalı): rol anılmaz; ana kullanıcıyı yalnızca merkez ya da kendisi pasifleştirir (düğme yok).
 Future<void> showUserActionsSheet(
   BuildContext context,
-  CompanyUser user,
-) => showAppSheet<void>(
+  CompanyUser user, {
+  bool companyApprovals = true,
+}) => showAppSheet<void>(
   context: context,
   title: user.displayName,
-  subtitle: '${user.displayRole}, ${user.email}',
+  subtitle: companyApprovals
+      ? '${user.displayRole}, ${user.email}'
+      : user.email,
   builder: (sheet) => Consumer(
     builder: (context, ref, _) {
       final ctrl = ref.read(companyUsersControllerProvider.notifier);
+      final approvals = companyApprovals;
       Future<void> run(Future<String> Function() action) async {
         Navigator.of(sheet).pop();
         try {
@@ -213,7 +233,9 @@ Future<void> showUserActionsSheet(
             leadingIcon: PhosphorIconsRegular.pencilSimple,
             titleStyle: cmRowTitle(context),
             padding: const EdgeInsets.symmetric(vertical: 10),
-            title: 'Bilgileri ve rolü düzenle',
+            title: approvals
+                ? 'Bilgileri ve rolü düzenle'
+                : 'Bilgileri düzenle',
             onTap: () {
               Navigator.of(sheet).pop();
               showEditUserSheet(context, user);
@@ -233,7 +255,7 @@ Future<void> showUserActionsSheet(
                 return 'Bağlantı ${user.email} adresine gönderildi.';
               }),
             ),
-          if (!user.isSelf)
+          if (!user.isSelf && !(user.isMainUser && user.isActive && !approvals))
             AknListTile(
               leadingIcon: user.isActive
                   ? PhosphorIconsRegular.userMinus

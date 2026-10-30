@@ -10,6 +10,10 @@ import 'cm_fake_support.dart';
 
 /// Şirket içi talepler (`customers/me/order-requests`), şirket kullanıcıları ve onay eşikleri
 /// (`customers/me/company-users*`), finans bilgisi (`customers/me/finance-info`).
+///
+/// Roller v5 (sunucunun aynası; dünyanın şirket içi onay anahtarı kapalıyken, `FakeWorld.companyApprovals`):
+/// tek müşteri rolü — eşikler "tanımsız" döner ve kaydedilemez, yeni / düzenlenen kullanıcı Yönetici olur,
+/// son aktif kullanıcı ve ana kullanıcı korunur, örnek talepler tohumlanmaz.
 void registerCmCompanyFakes(FakeServer s) {
   // ------------------------------------------------------------------ Talepler
   s.get('customers/me/order-requests', (req) {
@@ -120,7 +124,7 @@ void registerCmCompanyFakes(FakeServer s) {
       'displayName': name,
       'email': email,
       'phoneNumber': _phone(r.nonEmpty('phoneNumber')),
-      'role': _role(r.intOrNull('role')),
+      'role': _sentRole(req.world, r.intOrNull('role')),
       'isActive': true,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'lastLoginAt': null,
@@ -135,7 +139,7 @@ void registerCmCompanyFakes(FakeServer s) {
     req.requirePage(Pg.customerCompanyUsers, Perm.edit);
     final r = req.json;
     final row = _user(req, p, r.str('userId'));
-    final role = _role(r.intOrNull('role'));
+    final role = _sentRole(req.world, r.intOrNull('role'));
     if (row['userId'] == p.userId && role != row['role']) {
       throw FakeResponse.business(
         'Kendi şirket rolünüzü değiştiremezsiniz; başka bir yönetici değiştirebilir.',
@@ -157,7 +161,17 @@ void registerCmCompanyFakes(FakeServer s) {
     if (!active && row['userId'] == p.userId) {
       throw FakeResponse.business('Kendi hesabınızı pasifleştiremezsiniz.');
     }
-    if (!active && row['role'] == 3) _ensureAnotherAdmin(req.world, p, row);
+    if (!active && !req.world.companyApprovals) {
+      // Roller v5: ana kullanıcıyı yalnızca merkez pasifleştirir; son aktif kullanıcı korunur.
+      if (row['userId'] == _mainUserId) {
+        throw FakeResponse.business(
+          'Şirketin ana kullanıcısını yalnızca merkez pasifleştirebilir.',
+        );
+      }
+      _ensureAnotherActive(req.world, p, row);
+    } else if (!active && row['role'] == 3) {
+      _ensureAnotherAdmin(req.world, p, row);
+    }
     row['isActive'] = active;
     return {
       'message': active
@@ -187,6 +201,9 @@ void registerCmCompanyFakes(FakeServer s) {
   s.put('customers/me/company-users/approval-settings', (req) {
     final p = _manager(req);
     req.requirePage(Pg.customerCompanyUsers, Perm.edit);
+    if (!req.world.companyApprovals) {
+      throw FakeResponse.business('Şirket içi onay kaldırıldı.');
+    }
     final r = req.json;
     final litres = r.decOrNull('requireApprovalAboveLitres');
     final amount = r.decOrNull('requireApprovalAboveAmount');
@@ -244,6 +261,8 @@ List<JsonMap> _requests(FakeWorld w) {
   final list = w.bag<List<JsonMap>>(companyRequestsBag, () => <JsonMap>[]);
   w.bag<List<int>>('cm.orderRequests.seeded', () {
     final added = <int>[];
+    // Roller v5: örnek talepler yalnızca eski akışta (şirket içi onay açık).
+    if (!w.companyApprovals) return added;
     for (final r in _seedRequests(w)) {
       if (list.any((x) => x['id'] == r['id'])) continue;
       list.add(r);
@@ -554,6 +573,26 @@ JsonMap _user(FakeRequest req, FakePersona p, String userId) {
   return row;
 }
 
+/// Demo carisinin ana kullanıcısı (`Customer.UserId`).
+const _mainUserId = 'u-musteri';
+
+/// Roller v5: son aktif kullanıcı pasifleştirilemez (sunucu `CustomerCompanyRules.LastActiveUser`).
+void _ensureAnotherActive(FakeWorld w, FakePersona p, JsonMap row) {
+  final others = _users(w).where(
+    (u) =>
+        u['customerId'] == p.customerId &&
+        u['userId'] != row['userId'] &&
+        u['isActive'] == true,
+  );
+  if (others.isEmpty) {
+    throw FakeResponse.business('Şirketin en az bir aktif kullanıcısı olmalı.');
+  }
+}
+
+/// Gönderilen şirket rolü. Roller v5 (şirket içi onay kapalı): istekteki rol yok sayılır, herkes
+/// Yönetici (3) olur (eski sürümler yeni kullanıcıyı Talep eden gönderir).
+int _sentRole(FakeWorld w, int? role) => w.companyApprovals ? _role(role) : 3;
+
 void _ensureAnotherAdmin(FakeWorld w, FakePersona p, JsonMap row) {
   final others = _users(w).where(
     (u) =>
@@ -605,6 +644,7 @@ JsonMap _userDto(JsonMap u, FakePersona viewer) => {
     2 => 'Onaylayan',
     _ => 'Yönetici',
   },
+  'isMainUser': u['userId'] == _mainUserId,
   'isActive': u['isActive'],
   'isSelf': u['userId'] == viewer.userId,
   'createdAt': u['createdAt'],
@@ -627,7 +667,9 @@ Map<int, JsonMap> _thresholds(FakeWorld w) => w.bag<Map<int, JsonMap>>(
 );
 
 JsonMap _thresholdsDto(FakeWorld w, int customerId) {
-  final t = _thresholds(w)[customerId];
+  // Roller v5: şirket içi onay kapalıyken "tanımsız" (sunucu 200 döner; eski sürümler listeyle birlikte
+  // yükler).
+  final t = w.companyApprovals ? _thresholds(w)[customerId] : null;
   final litres = t?['litres'];
   final amount = t?['amount'];
   return {

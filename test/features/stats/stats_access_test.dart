@@ -31,8 +31,9 @@ void main() {
     // Müşteri yönetici ve onaylayan.
     'musteri': StatsScope.customer,
     'onay': StatsScope.customer,
-    // Deste yok: talep eden, operasyon ekranları, şoför, merkez.
+    // Deste yok: talep eden, operasyon ekranları (İkmal birimi dahil), şoför, merkez.
     'talep': StatsScope.none,
+    'ikmal': StatsScope.none,
     'siparis': StatsScope.none,
     'sevkiyat': StatsScope.none,
     'sofor': StatsScope.none,
@@ -61,6 +62,13 @@ void main() {
 
     test('sipariş masası rapor yetkisine rağmen desteyi görmez', () {
       final p = _policy('siparis');
+      expect(p.can('StationReports'), isTrue);
+      expect(statsScopeFor(p), StatsScope.none);
+    });
+
+    test('roller v5: İkmal birimi rapor yetkisine rağmen desteyi görmez', () {
+      final p = _policy('ikmal');
+      expect(p.rolePreset, RolePreset.supply);
       expect(p.can('StationReports'), isTrue);
       expect(statsScopeFor(p), StatsScope.none);
     });
