@@ -4,7 +4,7 @@ publish_to: 'none'
 
 # version: <ad>+<derleme>. Derleme numarası (iOS CFBundleVersion, Android versionCode) her mağaza
 # sürümünde artar; sunucudaki Mobile.MinBuild* / LatestBuild* ayarları bu sayıyla karşılaştırılır.
-version: 1.0.0+7
+version: 1.0.0+8
 
 environment:
   sdk: ^3.11.4
