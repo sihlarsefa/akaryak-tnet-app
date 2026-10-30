@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../../core/auth/auth_repository.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/push/push_providers.dart';
@@ -21,15 +20,34 @@ final pushPermissionProvider = FutureProvider.autoDispose<PushPermission>(
   (ref) => ref.watch(pushServiceProvider).permission(),
 );
 
-/// Bildirim ayarları (spec A.4 A8 "preferences per category"; tasarım v3): cihaz izni, kategori
-/// anahtarları (`PUT notifications/preferences`) simge karolu beyaz bir kartta (açık kategorinin karosu
-/// turuncuya döner), test bildirimi. Bölümler açılışta sırayla belirir.
+/// Telefonun bu uygulamaya ait ayarlar sayfasını açar (iOS: Ayarlar → AkaryakıtNet; konum
+/// sayfalarıyla aynı yardımcı). Testler ezer.
+final pushSettingsOpenerProvider = Provider<Future<bool> Function()>(
+  (ref) => Geolocator.openAppSettings,
+);
+
+/// "Anlık bildirimler" anahtarının görünen değeri: kullanıcı açık bıraktı ve telefon izin veriyor.
+/// İzin okunurken ([permission] null) kullanıcının seçimi gösterilir.
+bool pushSwitchValue(bool optIn, PushPermission? permission) =>
+    optIn && (permission == null || permission == PushPermission.granted);
+
+/// Bildirim ayarları (spec A.4 A8 "preferences per category"; tasarım v3): en üstte "Anlık bildirimler"
+/// ana anahtarı (sahip isteği 2026-10-30), kategori anahtarları (`PUT notifications/preferences`)
+/// simge karolu beyaz bir kartta (açık kategorinin karosu turuncuya döner; ana anahtar kapalıyken
+/// soluk ve kilitli), test bildirimi. Bölümler açılışta sırayla belirir.
 class NotificationSettingsPage extends ConsumerWidget {
   const NotificationSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(preferencesControllerProvider);
+    final possible = _pushPossible(ref);
+    final categoriesOn =
+        !possible ||
+        pushSwitchValue(
+          ref.watch(pushOptInProvider),
+          ref.watch(pushPermissionProvider).valueOrNull,
+        );
     // Tümü bir kez kurulur (kısa sayfa): açılıştaki sıralı giriş bir kez oynar, kaydırınca yeni bölüm
     // doğmaz.
     return AppScaffold(
@@ -59,15 +77,17 @@ class NotificationSettingsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SectionHeader(
+                  SectionHeader(
                     title: NotificationsCopy.categoriesTitle,
-                    subtitle: NotificationsCopy.categoriesHint,
+                    subtitle: categoriesOn
+                        ? NotificationsCopy.categoriesHint
+                        : NotificationsCopy.categoriesOffHint,
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: AknSpace.page,
                     ),
-                    child: _Categories(state: s),
+                    child: _Categories(state: s, enabled: categoriesOn),
                   ),
                 ],
               ),
@@ -92,10 +112,19 @@ class NotificationSettingsPage extends ConsumerWidget {
   }
 }
 
+/// Push bu telefonda mümkün mü: Firebase yapılandırılmış ve sunucu push gönderiyor.
+bool _pushPossible(WidgetRef ref) =>
+    ref.watch(firebaseAvailableProvider) &&
+    ref.watch(appConfigProvider.select((c) => c.features.push));
+
 class _Categories extends ConsumerWidget {
-  const _Categories({required this.state});
+  const _Categories({required this.state, required this.enabled});
 
   final PreferencesState state;
+
+  /// Ana anahtar açık (ya da push bu telefonda yok): kategoriler değiştirilebilir. Kapalıyken kart
+  /// soluklaşır ve anahtarlar kilitlenir; seçimler olduğu gibi kalır.
+  final bool enabled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -119,7 +148,7 @@ class _Categories extends ConsumerWidget {
       );
     }
     final c = context.akn;
-    return AknCard(
+    final card = AknCard(
       padding: EdgeInsets.zero,
       radius: 20,
       child: ClipRRect(
@@ -135,6 +164,7 @@ class _Categories extends ConsumerWidget {
               _PrefTile(
                 pref: s.items[i],
                 busy: s.saving.contains(s.items[i].category),
+                enabled: enabled,
                 onChanged: (v) async {
                   final f = await ctl.toggle(s.items[i].category, v);
                   if (f != null) {
@@ -151,6 +181,13 @@ class _Categories extends ConsumerWidget {
         ),
       ),
     );
+    // Ana anahtarla soluklaşma yumuşak (hareket azaltmada anında).
+    return AnimatedOpacity(
+      opacity: enabled ? 1 : 0.5,
+      duration: AknMotion.of(context, AknMotion.base),
+      curve: AknMotion.standard,
+      child: card,
+    );
   }
 }
 
@@ -159,10 +196,12 @@ class _PrefTile extends StatelessWidget {
     required this.pref,
     required this.busy,
     required this.onChanged,
+    this.enabled = true,
   });
 
   final NotificationPreference pref;
   final bool busy;
+  final bool enabled;
   final ValueChanged<bool> onChanged;
 
   @override
@@ -171,9 +210,10 @@ class _PrefTile extends StatelessWidget {
     final c = context.akn;
     final description = NotificationCategory.description(pref.category);
     final on = pref.pushEnabled;
+    final locked = busy || !enabled;
     return MergeSemantics(
       child: InkWell(
-        onTap: busy
+        onTap: locked
             ? null
             : () {
                 AknHaptics.selection();
@@ -227,7 +267,7 @@ class _PrefTile extends StatelessWidget {
               const SizedBox(width: 8),
               Switch(
                 value: pref.pushEnabled,
-                onChanged: busy ? null : onChanged,
+                onChanged: locked ? null : onChanged,
               ),
             ],
           ),
@@ -237,17 +277,14 @@ class _PrefTile extends StatelessWidget {
   }
 }
 
-/// Cihazın bildirim izni ve sunucunun push durumu.
+/// En üstteki kart: push bu telefonda mümkünse "Anlık bildirimler" ana anahtarı, değilse (Firebase
+/// yapılandırması yok ya da sunucu push göndermiyor) "Anlık bildirimler kapalı" bilgisi.
 class _DevicePushCard extends ConsumerWidget {
   const _DevicePushCard();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final firebase = ref.watch(firebaseAvailableProvider);
-    final serverPush = ref.watch(
-      appConfigProvider.select((c) => c.features.push),
-    );
-    if (!firebase || !serverPush) {
+    if (!_pushPossible(ref)) {
       return const AknBanner(
         tone: AknTone.info,
         icon: PhosphorIconsRegular.bellZ,
@@ -255,55 +292,196 @@ class _DevicePushCard extends ConsumerWidget {
         message: NotificationsCopy.pushOffMessage,
       );
     }
-    final permission = ref.watch(pushPermissionProvider).valueOrNull;
-    return switch (permission) {
-      PushPermission.granted => const AknBanner(
-        tone: AknTone.ok,
-        icon: PhosphorIconsRegular.bellRinging,
-        title: NotificationsCopy.pushOnTitle,
-        message: NotificationsCopy.pushOnMessage,
-      ),
-      PushPermission.notDetermined => AknBanner(
-        tone: AknTone.info,
-        icon: PhosphorIconsRegular.bell,
-        title: NotificationsCopy.pushAskTitle,
-        message: NotificationsCopy.pushAskMessage,
-        actionLabel: NotificationsCopy.pushAsk,
-        onAction: () => unawaited(_ask(ref)),
-      ),
-      PushPermission.denied => AknBanner(
-        tone: AknTone.warn,
-        icon: PhosphorIconsRegular.bellSlash,
-        title: NotificationsCopy.pushDeniedTitle,
-        message: NotificationsCopy.pushDeniedMessage,
-        actionLabel: NotificationsCopy.openSettings,
-        onAction: () => unawaited(_openSettings()),
-      ),
-      _ => const SizedBox.shrink(),
-    };
+    return const _PushSwitchCard();
+  }
+}
+
+/// "Anlık bildirimler — Bildirimler telefonuma gelsin" (sahip isteği 2026-10-30).
+///
+/// - Açmak: izin hiç sorulmadıysa sistem penceresi açılır; izin reddedilmişse telefon ayarlarına
+///   götüren kısa bir sayfa çıkar.
+/// - Kapatmak: cihaz kaydı `pushEnabled: false` gider; bu telefona push gelmez, bildirim kutusu
+///   çalışmaya devam eder.
+/// - Seçim cihazda saklanır ([pushOptInProvider]); telefon ayarlarından dönünce izin yeniden okunur.
+class _PushSwitchCard extends ConsumerStatefulWidget {
+  const _PushSwitchCard();
+
+  @override
+  ConsumerState<_PushSwitchCard> createState() => _PushSwitchCardState();
+}
+
+class _PushSwitchCardState extends ConsumerState<_PushSwitchCard> {
+  late final AppLifecycleListener _lifecycle;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: () => unawaited(_onResume()));
   }
 
-  static Future<void> _ask(WidgetRef ref) async {
-    final push = ref.read(pushServiceProvider);
-    final granted = await push.requestPermission();
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  /// Telefon ayarlarından dönüldü: izin yeniden okunur. İzin yeni verildiyse ve anahtar açıksa cihaz
+  /// kaydı tazelenir.
+  Future<void> _onResume() async {
+    if (!mounted) return;
+    final before = ref.read(pushPermissionProvider).valueOrNull;
     ref.invalidate(pushPermissionProvider);
-    if (!granted) return;
     try {
-      final token = await push.token();
-      await ref
-          .read(authRepositoryProvider)
-          .registerDevice(pushToken: token, pushEnabled: token != null);
+      final now = await ref.read(pushPermissionProvider.future);
+      if (!mounted) return;
+      if (before != PushPermission.granted &&
+          now == PushPermission.granted &&
+          ref.read(pushOptInProvider)) {
+        await ref.read(pushOptInProvider.notifier).syncDevice();
+      }
     } catch (e) {
-      AppLog.debug('Cihaz kaydı güncellenemedi: $e');
+      AppLog.debug('Bildirim izni okunamadı: $e');
     }
   }
 
-  static Future<void> _openSettings() async {
+  Future<void> _toggle(bool on) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ctl = ref.read(pushOptInProvider.notifier);
     try {
-      await Geolocator.openAppSettings();
+      if (!on) {
+        await ctl.turnOff();
+        return;
+      }
+      final permission = await ctl.turnOn();
+      ref.invalidate(pushPermissionProvider);
+      if (permission != PushPermission.denied || !mounted) return;
+      final open = await showConfirmSheet(
+        context,
+        title: NotificationsCopy.deniedSheetTitle,
+        message: NotificationsCopy.deniedSheetMessage,
+        confirmLabel: NotificationsCopy.openSettings,
+        cancelLabel: NotificationsCopy.notNow,
+        icon: PhosphorIconsRegular.bellSlash,
+      );
+      if (open) await _openSettings();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openSettings() async {
+    try {
+      await ref.read(pushSettingsOpenerProvider)();
     } catch (e) {
       AppLog.debug('Ayarlar açılamadı: $e');
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.aknText;
+    final c = context.akn;
+    final optIn = ref.watch(pushOptInProvider);
+    final permission = ref.watch(pushPermissionProvider).valueOrNull;
+    final on = pushSwitchValue(optIn, permission);
+    final hint = on
+        ? NotificationsCopy.masterOnHint
+        : !optIn
+        ? NotificationsCopy.masterOffHint
+        : permission == PushPermission.denied
+        ? NotificationsCopy.masterDeniedHint
+        : NotificationsCopy.masterAskHint;
+    final duration = AknMotion.of(context, AknMotion.base);
+    return AknCard(
+      padding: EdgeInsets.zero,
+      radius: 20,
+      child: ClipRRect(
+        borderRadius: AknRadius.card,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MergeSemantics(
+              child: InkWell(
+                onTap: _busy
+                    ? null
+                    : () {
+                        AknHaptics.selection();
+                        unawaited(_toggle(!on));
+                      },
+                splashFactory: NoSplash.splashFactory,
+                highlightColor: c.surfaceAlt,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Row(
+                    children: [
+                      // Açıkken karo yumuşak turuncu ve zil çalıyor; kapalıyken sessiz zil.
+                      ExcludeSemantics(
+                        child: AnimatedContainer(
+                          duration: duration,
+                          curve: AknMotion.standard,
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: on ? c.brandSoft : c.surfaceAlt,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(
+                            on
+                                ? PhosphorIconsRegular.bellRinging
+                                : PhosphorIconsRegular.bellSlash,
+                            size: 22,
+                            color: on ? c.brandInk : c.dim,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              NotificationsCopy.masterTitle,
+                              style: t.bodyStrong.copyWith(color: c.ink),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              NotificationsCopy.masterSubtitle,
+                              style: t.bodySmall.copyWith(color: c.dim),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Switch(value: on, onChanged: _busy ? null : _toggle),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Divider(height: 1, thickness: 1, color: c.lineSoft),
+            AknAnimatedSize(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                child: AnimatedSwitcher(
+                  duration: duration,
+                  child: Text(
+                    hint,
+                    key: ValueKey(hint),
+                    style: t.bodySmall.copyWith(color: c.dim),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -52,17 +52,27 @@ abstract final class NotificationsCopy {
   static const pushOffTitle = 'Anlık bildirimler kapalı';
   static const pushOffMessage =
       'Bildirimleriniz bu ekranda ve zil simgesinde görünür. Uygulama açıkken yenileri kendiliğinden gelir.';
-  static const pushOnTitle = 'Bildirimler açık';
-  static const pushOnMessage =
+
+  // "Anlık bildirimler" ana anahtarı (sahip isteği 2026-10-30).
+  static const masterTitle = 'Anlık bildirimler';
+  static const masterSubtitle = 'Bildirimler telefonuma gelsin';
+  static const masterOnHint =
       'Teklif, teslimat ve onay gelişmelerini anında öğrenirsiniz.';
-  static const pushAskTitle = 'Bildirimlere izin verin';
-  static const pushAskMessage =
-      'Teklifiniz hazır olduğunda, aracınız yola çıktığında ve onayınız beklendiğinde haber verelim.';
-  static const pushAsk = 'İzin ver';
-  static const pushDeniedTitle = 'Bildirim izni kapalı';
-  static const pushDeniedMessage =
-      'Telefonunuzun ayarlarından AkaryakıtNet için bildirimlere izin verebilirsiniz.';
+  static const masterOffHint =
+      'Bu telefona anlık bildirim gelmez. Bildirimleriniz bu ekranda ve zil simgesinde görünmeye devam eder.';
+  static const masterAskHint = 'Açtığınızda telefonunuz bildirim izni ister.';
+  static const masterDeniedHint =
+      'Telefonunuzun ayarlarında AkaryakıtNet bildirimleri kapalı.';
+  static const categoriesOffHint =
+      'Kategoriler, anlık bildirimler açıkken geçerlidir.';
+
+  /// İzin reddedilmişken anahtar açılınca çıkan sayfa.
+  static const deniedSheetTitle =
+      'Telefon ayarlarından bildirimlere izin verin';
+  static const deniedSheetMessage =
+      'Açılan sayfada "Bildirimler"e dokunun ve "Bildirimlere İzin Ver"i açın. Uygulamaya döndüğünüzde anahtar kendiliğinden açılır.';
   static const openSettings = 'Ayarları aç';
+  static const notNow = 'Vazgeç';
   static const testTitle = 'Deneme';
   static const testTile = 'Test bildirimi gönder';
   static const testHint =

@@ -200,7 +200,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
     FocusScope.of(context).unfocus();
     final container = ProviderScope.containerOf(context, listen: false);
-    final primer = pushPrimerPending(container);
     setState(() => _busy = true);
     try {
       final session = ref.read(sessionControllerProvider.notifier);
@@ -214,11 +213,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
       final signedIn = outcome is LoginSucceeded;
       if (signedIn) {
         unawaited(
-          afterInteractiveLogin(
-            container,
-            primerPending: primer,
-            savePassword: demoCode == null,
-          ),
+          afterInteractiveLogin(container, savePassword: demoCode == null),
         );
       }
       if (!mounted) return signedIn;
@@ -229,7 +224,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
           extra: CodePageArgs(
             challenge: outcome.challenge,
             purpose: CodePurpose.twoFactor,
-            primerPending: primer,
             savePassword: true,
           ),
         );
@@ -265,8 +259,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
     final phone = Validators.normalizePhone(digits)!;
     FocusScope.of(context).unfocus();
-    final container = ProviderScope.containerOf(context, listen: false);
-    final primer = pushPrimerPending(container);
     setState(() => _busy = true);
     try {
       final challenge = await ref
@@ -280,7 +272,6 @@ class _LoginPageState extends ConsumerState<LoginPage>
           challenge: challenge,
           purpose: CodePurpose.otpLogin,
           phone: phone,
-          primerPending: primer,
         ),
       );
     } on AppFailure catch (f) {

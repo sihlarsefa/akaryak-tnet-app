@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/push/push_permission_primer.dart';
 import '../../core/ui/ui.dart';
 import '../../features/auth/api.dart';
 import '../destinations.dart';
@@ -12,9 +11,9 @@ import 'shell_badges.dart';
 
 /// Sekmeli kabuk (spec A.2): `StatefulShellRoute.indexedStack` gövdesi + alt menü.
 /// Sekmeler durumunu korur; aynı sekmeye dokunmak köke döner; "Diğer" sayfası kalan hedefleri açar;
-/// ortadaki eylem (Sipariş ver / Saha formu) tam ekran sihirbazı açar. Girişten sonra bir kez: bildirim
-/// izni ön sayfası (ilk girişte) ya da isteğe bağlı güncelleme önerisi (aynı oturumda ikisi birden
-/// gösterilmez).
+/// ortadaki eylem (Sipariş ver / Saha formu) tam ekran sihirbazı açar. Açılışta bir kez isteğe bağlı
+/// güncelleme önerisi. Bildirim izni burada değil, uygulamanın ilk açılışında sorulur
+/// (`PushCoordinator`).
 ///
 /// Tasarım v3 "Akış": sekme içeriği yönlendiricinin `FadeThroughIndexedStack`'i ile geçer (yeni
 /// sekme 0,96 → 1 ölçekle belirir); alt menünün turuncu hapı seçilen sekmeye yaylanarak kayar.
@@ -51,8 +50,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   Future<void> _afterFirstFrame() async {
     if (!mounted) return;
-    final primerShown = await maybeShowPushPrimer(context, ref);
-    if (!mounted || primerShown) return;
     await maybeShowOptionalUpdate(context, ref);
   }
 

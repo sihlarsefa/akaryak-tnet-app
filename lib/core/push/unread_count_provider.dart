@@ -13,7 +13,8 @@ import 'push_providers.dart';
 /// Zil ve Onaylarım rozetleri (`GET notifications/unread-count`).
 ///
 /// Oturum açılınca okunur; push gelince, uygulama öne gelince ve ön plandayken düzenli yoklanır
-/// (push yoksa 60 sn, varsa 5 dk). Bildirimler ekranı okundu işaretleyince [refresh] çağırır.
+/// (push yoksa ya da Bildirim ayarlarında "Anlık bildirimler" kapalıysa 60 sn, açıksa 5 dk).
+/// Bildirimler ekranı okundu işaretleyince [refresh] çağırır.
 final unreadCountProvider =
     NotifierProvider<UnreadCountController, UnreadCount>(
       UnreadCountController.new,
@@ -48,6 +49,10 @@ class UnreadCountController extends Notifier<UnreadCount> {
       });
     }
     ref.listen(pushEventsProvider, (_, _) => unawaited(refresh()));
+    // Anlık bildirimler açılıp kapanınca yoklama aralığı hemen uyar.
+    ref.listen<bool>(pushOptInProvider, (_, _) {
+      if (ref.read(currentUserIdProvider) != null) _schedule();
+    });
     ref.onDispose(() {
       _disposed = true;
       _stop();
@@ -55,7 +60,8 @@ class UnreadCountController extends Notifier<UnreadCount> {
     return UnreadCount.zero;
   }
 
-  Duration get _interval => ref.read(firebaseAvailableProvider)
+  Duration get _interval =>
+      ref.read(firebaseAvailableProvider) && ref.read(pushOptInProvider)
       ? const Duration(minutes: 5)
       : const Duration(seconds: 60);
 

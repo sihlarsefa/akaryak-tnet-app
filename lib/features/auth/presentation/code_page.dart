@@ -32,7 +32,6 @@ class CodePageArgs {
     required this.challenge,
     required this.purpose,
     this.phone,
-    this.primerPending = false,
     this.savePassword = false,
   });
 
@@ -41,9 +40,6 @@ class CodePageArgs {
 
   /// Telefonla girişte numara (`90XXXXXXXXXX`), yeniden gönderim için.
   final String? phone;
-
-  /// Girişten önce okunan bildirim ön sayfası durumu (biyometrik öneri için).
-  final bool primerPending;
 
   /// 2FA: şifre girişin parçasıdır; parola yöneticisine kaydet denir.
   final bool savePassword;
@@ -140,13 +136,7 @@ class CodePage extends ConsumerWidget {
         .read(sessionControllerProvider.notifier)
         .verifyCode(challengeId, code);
     if (outcome is LoginSucceeded) {
-      unawaited(
-        afterInteractiveLogin(
-          container,
-          primerPending: a.primerPending,
-          savePassword: a.savePassword,
-        ),
-      );
+      unawaited(afterInteractiveLogin(container, savePassword: a.savePassword));
     } else {
       throw const UnknownFailure(
         'Doğrulama tamamlanamadı. Kodu yeniden girip tekrar deneyin.',

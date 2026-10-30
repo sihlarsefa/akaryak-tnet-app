@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/lock_settings.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/auth/session_state.dart';
-import '../../../core/push/push_providers.dart';
 import '../../../core/routing/nav_keys.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/ui/ui.dart';
@@ -43,30 +42,21 @@ class LoginPrefill extends Notifier<String?> {
   }
 }
 
-/// Bildirim ön sayfası bu oturumda gösterilecek mi (spec C.7: biyometrik öneri onunla aynı oturumda
-/// gösterilmez). Kabuk ön sayfayı girişten hemen sonra açtığı için giriş isteğinden önce okunur.
-bool pushPrimerPending(ProviderContainer container) =>
-    container.read(firebaseAvailableProvider) &&
-    !container.read(prefsStoreProvider).getBool(PrefKeys.pushPrimerShown);
-
 /// Etkileşimli giriş (şifre, 2FA, telefon kodu) başarıyla bitti.
 ///
 /// - Şifreyle girişte parola yöneticisine "kaydet" denir (`finishAutofillContext`).
-/// - Giriş sayısı artar; ikinci girişten itibaren, cihaz uygunsa ve bildirim ön sayfası bu oturumda
-///   gösterilmeyecekse, kabuk açıldıktan sonra bir kez biyometrik kilit önerilir.
+/// - Giriş sayısı artar; ikinci girişten itibaren, cihaz uygunsa, kabuk açıldıktan sonra bir kez
+///   biyometrik kilit önerilir. Bildirim izni girişten sonra değil uygulamanın ilk açılışında sorulur
+///   (`PushCoordinator`), bu yüzden öneri onunla aynı anda açılmaz (spec C.7).
 Future<void> afterInteractiveLogin(
   ProviderContainer container, {
-  required bool primerPending,
   bool savePassword = false,
 }) async {
   if (savePassword) TextInput.finishAutofillContext();
   final prefs = container.read(prefsStoreProvider);
   final count = (prefs.getInt(AuthPrefKeys.loginCount) ?? 0) + 1;
   await prefs.setInt(AuthPrefKeys.loginCount, count);
-  // Müşterilere bildirim ön sayfası girişte değil ilk siparişten sonra gösterilir (kabuk atlar).
-  final primerThisSession =
-      primerPending && !container.read(accessPolicyProvider).isCustomer;
-  if (count < 2 || primerThisSession) return;
+  if (count < 2) return;
   if (prefs.getBool(AuthPrefKeys.biometricOffered)) return;
   if (container.read(biometricLockProvider)) return;
   final support = await container

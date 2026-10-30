@@ -285,7 +285,9 @@ JsonMap fakeAppConfig() => {
     'assistant': true,
     'weather': true,
     'payments': true,
-    'push': false,
+    // Canlı sunucu gibi (FCM yapılandırılmış): demo oturumunda da Bildirim ayarlarında "Anlık
+    // bildirimler" anahtarı görünür. Sahte sunucu gerçek push göndermez; cihaz kaydı burada kalır.
+    'push': true,
     'deliveryPhotoRequired': true,
     'deliverySignatureRequired': true,
     'deliveryGpsRequired': false,

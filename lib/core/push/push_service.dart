@@ -162,8 +162,8 @@ class PushService {
   ///
   /// Android 13+ (API 33) çalışma zamanı izninde eklenti henüz sorulmamış izni de "reddedildi"
   /// bildirir (`checkSelfPermission` → 0). Uygulama izni bir kez sorduğunu saklar
-  /// ([PrefKeys.pushPermissionRequested]); hiç sormadıysa durum "belirlenmedi" sayılır ki ön sayfa
-  /// ve sistem penceresi açılabilsin. Android 12 ve öncesinde izin varsayılan açıktır; "kapalı"
+  /// ([PrefKeys.pushPermissionRequested]); hiç sormadıysa durum "belirlenmedi" sayılır ki sistem
+  /// penceresi açılabilsin. Android 12 ve öncesinde izin varsayılan açıktır; "kapalı"
   /// kullanıcının ayarlardan kapattığı anlamına gelir.
   Future<PushPermission> permission() async {
     if (!available) return PushPermission.unavailable;
@@ -193,9 +193,10 @@ class PushService {
     return sdk != null && sdk >= 33;
   }
 
-  /// Sistem izin penceresi (ön sayfadan sonra). Bir kez sorulur: FCM'in isteği Android 13+'ta
-  /// POST_NOTIFICATIONS penceresini açar; yerel bildirimler aynı izni kullandığından ikinci bir
-  /// istek (ve "İzin verme"den sonra aynı pencerenin yeniden çıkması) yoktur.
+  /// Sistem izin penceresi (ilk açılışta, Bildirim ayarları anahtarından ya da müşterinin ilk
+  /// siparişinden sonra). Bir kez sorulur: FCM'in isteği Android 13+'ta POST_NOTIFICATIONS
+  /// penceresini açar; yerel bildirimler aynı izni kullandığından ikinci bir istek (ve "İzin
+  /// verme"den sonra aynı pencerenin yeniden çıkması) yoktur.
   Future<bool> requestPermission() async {
     if (!available) return false;
     try {
@@ -207,6 +208,23 @@ class PushService {
       AppLog.warn('Bildirim izni istenemedi', error: e);
       return false;
     }
+  }
+
+  /// İlk açılış (sahip kararı 2026-10-30): bildirim izni hiç sorulmadıysa sistem penceresi ön sayfa
+  /// olmadan, herkese (müşteri dahil) hemen açılır. Bir kez bakılır ([PrefKeys.pushLaunchAsked]):
+  /// izin zaten verilmiş ya da reddedilmişse yalnızca not edilir; reddedilen izin için açılışta bir
+  /// daha sorulmaz (Bildirim ayarları → "Anlık bildirimler" telefon ayarlarına götürür). Firebase
+  /// yoksa hiçbir şey yapılmaz ve not da düşülmez. Döner: sistem penceresi açıldı mı.
+  Future<bool> requestAtFirstLaunch() async {
+    final prefs = _prefs;
+    if (!available || prefs == null) return false;
+    if (prefs.getBool(PrefKeys.pushLaunchAsked)) return false;
+    final current = await permission();
+    if (current == PushPermission.unavailable) return false;
+    await prefs.setBool(PrefKeys.pushLaunchAsked, true);
+    if (current != PushPermission.notDetermined) return false;
+    await requestPermission();
+    return true;
   }
 
   /// FCM belirteci. iOS'ta APNs belirteci gecikebilir; birkaç kez denenir (F2GO).

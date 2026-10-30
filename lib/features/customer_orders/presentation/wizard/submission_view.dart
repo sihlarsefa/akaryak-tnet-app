@@ -67,6 +67,8 @@ class _SubmissionViewState extends ConsumerState<SubmissionView> {
     });
   }
 
+  /// Yedek öneri: izin normalde uygulamanın ilk açılışında sorulur (`PushCoordinator`); izin hâlâ
+  /// belirlenmemişse (ör. açılış isteği yapılamadı) ilk siparişten sonra bir kez sorulur.
   Future<void> _maybePushPrimer() async {
     if (_primerShown) return;
     _primerShown = true;

@@ -13,11 +13,19 @@ abstract final class PrefKeys {
   /// Biyometrik kilit açık.
   static const biometricLock = 'akn.biometricLock';
 
-  /// Bildirim izni ön sayfası gösterildi.
+  /// Bildirim izni ön sayfası gösterildi (müşterinin ilk siparişinden sonraki yedek öneri).
   static const pushPrimerShown = 'akn.pushPrimerShown';
 
   /// Sistem bildirim izni bir kez soruldu (Android 13+ "sorulmadı" ile "reddedildi"yi ayırmaz).
   static const pushPermissionRequested = 'akn.pushPermissionRequested';
+
+  /// İlk açılıştaki bildirim izni denetimi yapıldı (izin hiç sorulmamışsa sistem penceresi açıldı;
+  /// izin zaten verilmiş ya da reddedilmişse yalnızca not edildi). Bir daha bakılmaz.
+  static const pushLaunchAsked = 'akn.pushLaunchAsked';
+
+  /// Bildirim ayarları → "Anlık bildirimler" ana anahtarı (varsayılan açık). Cihaza bağlıdır:
+  /// uygulama yeniden açıldığında, çıkışta ve yeniden girişte kalır.
+  static const pushOptIn = 'akn.pushOptIn';
 
   /// Son açılan sürüm (isteğe bağlı güncelleme "sonra hatırlat" için).
   static const lastSeenBuild = 'akn.lastSeenBuild';
