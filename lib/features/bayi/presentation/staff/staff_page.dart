@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/permissions.dart';
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/auth/set_password_sheet.dart';
 import '../../../../core/offline/connectivity.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
@@ -16,10 +17,11 @@ import '../../data/staff_models.dart';
 import '../widgets/bayi_widgets.dart';
 import '../widgets/paged_list_body.dart';
 
-/// Ekip (`/bayi/staff`, spec A.4; tasarım v3): rol çipleri, arama, ara, son giriş; aktif / pasif
-/// anahtarı ve "Şifre bağlantısı gönder" yalnızca `StationStaff:Duzenler` ile. Her personel beyaz bir
-/// kart; kartlar art arda yükselerek gelir (süzgeç değişince yeniden). Saha satış temsilcisi bu ekranı
-/// görmez.
+/// Ekip (`/bayi/staff`, spec A.4; tasarım v3): rol çipleri, kullanıcı adı, arama, ara, son giriş;
+/// aktif / pasif anahtarı, "Şifre bağlantısı gönder" ve "Şifre belirle" yalnızca
+/// `StationStaff:Duzenler` ile (sahip 2026-10-30: yönetici personelin şifresini doğrudan belirler,
+/// e-posta gerekmez). Her personel beyaz bir kart; kartlar art arda yükselerek gelir (süzgeç değişince
+/// yeniden). Saha satış temsilcisi bu ekranı görmez.
 class StaffPage extends ConsumerStatefulWidget {
   const StaffPage({super.key});
 
@@ -77,7 +79,7 @@ class _StaffPageState extends ConsumerState<StaffPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
                 child: SearchField(
-                  hint: 'Ad, e-posta, telefon ya da rol',
+                  hint: 'Ad, kullanıcı adı, e-posta ya da rol',
                   controller: _search,
                   onChanged: c.setQuery,
                 ),
@@ -149,9 +151,10 @@ class _StaffPageState extends ConsumerState<StaffPage> {
 }
 
 /// Ekip kartının içeriği (tasarım v3): baş harf yuvarlağı (pasifken soluk), ad ("Siz", "Pasif",
-/// "İncelenecek" çipleri), e-posta, roller Beton küçük haplarda (adı sunucudan; pasif rol "(pasif)"
-/// ekiyle), birim onaycısında "Onaycı · Finans" hapı, son giriş; arama düğmesi; yönetici için aktif /
-/// pasif anahtarı ve "Şifre bağlantısı gönder" (kart içinde ince çizginin altında). Roller v5:
+/// "İncelenecek" çipleri), kullanıcı adı, e-posta, roller Beton küçük haplarda (adı sunucudan; pasif
+/// rol "(pasif)" ekiyle), birim onaycısında "Onaycı · Finans" hapı, son giriş; arama düğmesi; yönetici
+/// için aktif / pasif anahtarı, "Şifre bağlantısı gönder" (e-postası varsa) ve başkasının kartında
+/// "Şifre belirle" (bayinin ana hesabında yok; kart içinde ince çizginin altında). Roller v5:
 /// "İncelenecek" (amber) rolü otomatik taşınan ve pasif kalan personeldedir (`needsReview`).
 class StaffRow extends ConsumerWidget {
   const StaffRow({
@@ -219,6 +222,14 @@ class StaffRow extends ConsumerWidget {
     }
   }
 
+  Future<void> _setPassword(BuildContext context, WidgetRef ref) =>
+      showSetPasswordSheet(
+        context,
+        name: member.displayName,
+        userName: member.userName,
+        save: (p) => ref.read(staffProvider.notifier).setPassword(member, p),
+      );
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.aknText;
@@ -226,6 +237,11 @@ class StaffRow extends ConsumerWidget {
     final m = member;
     final online = ref.watch(isOnlineProvider);
     final me = ref.watch(currentUserIdProvider) == m.userId;
+    final canSetPassword =
+        manage &&
+        ref
+            .watch(bayiGrantsProvider)
+            .setStaffPassword(self: me, mainAccount: m.isMainAccount);
     final login = m.lastLoginAt == null
         ? 'Henüz giriş yapmadı'
         : 'Son giriş ${TurkishText.lower(Fmt.relative(m.lastLoginAt))}';
@@ -288,7 +304,17 @@ class StaffRow extends ConsumerWidget {
                           ),
                       ],
                     ),
-                    Text(m.email, style: t.bodySmall.copyWith(color: c.dim)),
+                    if (m.userName != null)
+                      Text(
+                        m.userName!,
+                        semanticsLabel: 'Kullanıcı adı ${m.userName}',
+                        style: t.bodySmall.copyWith(
+                          color: c.ink,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    if (m.email.isNotEmpty)
+                      Text(m.email, style: t.bodySmall.copyWith(color: c.dim)),
                     if (roles.isNotEmpty || m.approverOf.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Wrap(
@@ -418,7 +444,7 @@ class StaffRow extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  if (m.isActive)
+                  if (m.isActive && m.email.isNotEmpty)
                     AknButton.ghost(
                       label: 'Şifre bağlantısı gönder',
                       icon: PhosphorIconsRegular.envelopeSimple,
@@ -426,6 +452,17 @@ class StaffRow extends ConsumerWidget {
                       onPressed: busy || !online
                           ? null
                           : () => unawaited(_sendLink(context, ref)),
+                    ),
+                  if (canSetPassword)
+                    AknButton.ghost(
+                      label: SetPasswordCopy.action,
+                      icon: PhosphorIconsRegular.password,
+                      size: AknButtonSize.small,
+                      semanticLabel:
+                          '${m.displayName}: ${SetPasswordCopy.action}',
+                      onPressed: busy || !online
+                          ? null
+                          : () => unawaited(_setPassword(context, ref)),
                     ),
                 ],
               ),

@@ -533,11 +533,7 @@ class _TypeTab extends StatelessWidget {
           '14/20 400',
           Text('Tuzla Şantiye, 22 Ekim Perşembe teslim', style: t.bodySmall),
         ),
-        spec(
-          'label',
-          '13/18 600',
-          Text('E-posta ya da kullanıcı adı', style: t.label),
-        ),
+        spec('label', '13/18 600', Text('Kullanıcı adı', style: t.label)),
         spec(
           'caption',
           '12/16 500',
@@ -1451,7 +1447,10 @@ class _ButtonsTabState extends State<_ButtonsTab> {
             AknButton(label: 'Giriş yap', onPressed: () {}),
           ],
         ),
-        const _H('Sürücü', '64 px, r18, 18/22 etiket, 64 px dokunma alanı.'),
+        const _H(
+          'Sürücü',
+          '48 px, r16, 16/20 etiket (standart boy), 48 px dokunma alanı.',
+        ),
         AknDriverScope(
           child: Row(
             children: [
@@ -1580,7 +1579,7 @@ class _FormsTabState extends State<_FormsTab> {
       children: [
         const _H('Alanlar', 'Etiket üstte, 52 px, beyaz zemin.'),
         const AknTextField(
-          label: 'E-posta ya da kullanıcı adı',
+          label: 'Kullanıcı adı',
           initialValue: 'selin.aydin@anadolulojistik.com.tr',
         ),
         _gap(14),

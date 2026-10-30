@@ -254,6 +254,15 @@ class BayiRepository {
   Future<void> sendPasswordReset(String userId) => api.post<void>(
     'stations/me/staff/${Uri.encodeComponent(userId)}/send-password-reset',
   );
+
+  /// "Şifre belirle" (sözleşme 2026-10-30): 204; sunucu kurallarına uymazsa 400 `validation`, bayinin
+  /// ana hesabına başkası denerse 403 (ileti sayfada gösterilir, genel 403 bildirimi çıkmaz).
+  Future<void> setStaffPassword(String userId, String newPassword) =>
+      api.post<void>(
+        'stations/me/staff/${Uri.encodeComponent(userId)}/password',
+        body: {'newPassword': newPassword},
+        quiet403: true,
+      );
 }
 
 /// Sevkiyat planı taslağı (`PlanShipmentRequest`): şoför hesabıyla ([driverUserId]) ya da yalnızca adla.

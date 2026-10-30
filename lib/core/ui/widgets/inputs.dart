@@ -142,7 +142,7 @@ class AknTextField extends StatelessWidget {
     final c = context.akn;
     final t = context.aknText;
     final borders = AknTheme.inputBorders(c, snap: AknMotion.reduced(context));
-    final height = context.driverMode?.buttonHeight ?? 52;
+    final height = context.driverMode?.fieldHeight ?? 52;
     final vertical = ((height - lineHeight) / 2).clamp(4.0, 24.0);
     final value = _valueStyle(context);
     Color iconColor(Set<WidgetState> s) => !enabled
@@ -1767,6 +1767,7 @@ class AknPasswordField extends StatefulWidget {
     this.controller,
     this.label = 'Şifre',
     this.hint,
+    this.helper,
     this.errorText,
     this.onChanged,
     this.onSubmitted,
@@ -1775,6 +1776,7 @@ class AknPasswordField extends StatefulWidget {
     this.autofillHints = const [AutofillHints.password],
     this.validator,
     this.enabled = true,
+    this.requiredMark = false,
     this.labelActionText,
     this.onLabelAction,
   });
@@ -1782,6 +1784,9 @@ class AknPasswordField extends StatefulWidget {
   final TextEditingController? controller;
   final String label;
   final String? hint;
+
+  /// Line under the field (e.g. the password rules).
+  final String? helper;
   final String? errorText;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -1790,6 +1795,9 @@ class AknPasswordField extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final FormFieldValidator<String>? validator;
   final bool enabled;
+
+  /// Appends " *" to the label.
+  final bool requiredMark;
   final String? labelActionText;
   final VoidCallback? onLabelAction;
 
@@ -1807,6 +1815,7 @@ class _AknPasswordFieldState extends State<AknPasswordField> {
       controller: w.controller,
       label: w.label,
       hint: w.hint,
+      helper: w.helper,
       errorText: w.errorText,
       onChanged: w.onChanged,
       onSubmitted: w.onSubmitted,
@@ -1815,6 +1824,7 @@ class _AknPasswordFieldState extends State<AknPasswordField> {
       autofillHints: w.autofillHints,
       validator: w.validator,
       enabled: w.enabled,
+      requiredMark: w.requiredMark,
       obscureText: !_revealed,
       keyboardType: TextInputType.visiblePassword,
       labelActionText: w.labelActionText,

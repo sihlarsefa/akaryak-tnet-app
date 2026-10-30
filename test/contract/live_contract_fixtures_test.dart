@@ -426,6 +426,10 @@ const Map<String, String> _knownMissing = {
   'staff: [].needsReview': 'roller v5: yeniden yakalanacak',
   'staff: [].bayiRoles[].isRetired': 'roller v5: yeniden yakalanacak',
   'company-users: [].isMainUser': 'roller v5: yeniden yakalanacak',
+  // Kullanıcı adıyla giriş (sözleşme 2026-10-30, sunucu ekliyor): yeniden yakalanınca silinir.
+  'company-users: [].userName': 'kullanıcı adı: yeniden yakalanacak',
+  'staff: [].userName': 'kullanıcı adı: yeniden yakalanacak',
+  'staff: [].isMainAccount': 'kullanıcı adı: yeniden yakalanacak',
 };
 
 /// Okuyucusu JSON tipiyle uyuşmayan alanlar (`okuyucu-anahtarı: yol.anahtar (okuyucu←tip)`).

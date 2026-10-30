@@ -231,14 +231,11 @@ void main() {
       await qaScrollTo(tester, find.widgetWithText(AknButton, 'Giriş yap'));
       await qaTap(tester, find.widgetWithText(AknButton, 'Giriş yap').first);
       await pumpSteps(tester, const Duration(milliseconds: 400));
-      if (find
-          .text('Kullanıcı adınızı ya da e-postanızı girin.')
-          .evaluate()
-          .isEmpty) {
+      if (find.text('Kullanıcı adınızı girin.').evaluate().isEmpty) {
         qa.add('boş giriş: kullanıcı adı hatası yok');
       }
       // Hatalı şifre.
-      await tester.enterText(qaField('E-posta ya da kullanıcı adı'), 'musteri');
+      await tester.enterText(qaField('Kullanıcı adı'), 'musteri');
       await tester.enterText(qaField('Şifre'), 'yanlis');
       await qaTap(tester, find.widgetWithText(AknButton, 'Giriş yap').first);
       await tester.runAsync(

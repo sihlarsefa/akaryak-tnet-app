@@ -20,7 +20,10 @@ abstract final class AuthCopy {
   static const modePassword = 'Şifre ile';
   static const modePhone = 'Numara ile';
   static const modeGroup = 'Giriş yöntemi';
-  static const userLabel = 'E-posta ya da kullanıcı adı';
+
+  /// Sahip 2026-10-30: giriş kullanıcı adı ve şifreyle (e-posta gerekmez). Alan e-postayı da
+  /// kabul eder; sunucu ikisini de tanır.
+  static const userLabel = 'Kullanıcı adı';
   static const passwordLabel = 'Şifre';
   static const showPassword = 'Şifreyi göster';
   static const hidePassword = 'Şifreyi gizle';
@@ -37,7 +40,7 @@ abstract final class AuthCopy {
       'Telefonla giriş, Profil bölümünde doğruladığınız numarayla çalışır.';
   static const sendCode = 'Kod gönder';
   static const sendingCode = 'Kod gönderiliyor';
-  static const userRequired = 'Kullanıcı adınızı ya da e-postanızı girin.';
+  static const userRequired = 'Kullanıcı adınızı girin.';
   static const passwordRequired = 'Şifrenizi girin.';
   static const demoTitle = 'Demo hesabı seçin';
   static const demoButton = 'Demo hesabı seç';
@@ -92,8 +95,7 @@ abstract final class AuthCopy {
   static const noAccountTitle = 'Hesabınız yok mu?';
   static const noAccountBody =
       'AkaryakıtNet hesapları bayiniz ya da şirketinizin yöneticisi tarafından açılır. '
-      'Hesabınız açılınca e-postanıza bir davet bağlantısı gelir; bağlantıdan şifrenizi '
-      'belirleyip giriş yapabilirsiniz.';
+      'Yöneticiniz size kullanıcı adınızı ve şifrenizi iletir; onlarla giriş yapabilirsiniz.';
   static const noAccountCustomer =
       'Müşteriyseniz çalıştığınız bayiden ya da şirketinizin AkaryakıtNet yöneticisinden isteyin.';
   static const noAccountBayi =

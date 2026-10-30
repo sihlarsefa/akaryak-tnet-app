@@ -885,20 +885,27 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
         ),
       ],
       const SizedBox(height: 16),
-      AknButton(
-        label: DriverCopy.photoTake,
-        icon: PhosphorIconsRegular.camera,
-        expand: true,
-        onPressed: model.photoCount < 20 ? () => unawaited(_takePhoto()) : null,
-      ),
-      const SizedBox(height: 8),
-      AknButton.secondary(
-        label: DriverCopy.photoPick,
-        icon: PhosphorIconsRegular.images,
-        expand: true,
-        onPressed: model.photoCount < 20
-            ? () => unawaited(_pickPhotos())
-            : null,
+      // Sahip 2026-10-30: kocaman tam genişlik düğmeler yerine doğal genişlikte, 48 dp iki düğme
+      // yan yana (sığmazsa alt alta). Bölgenin tek birincili alttaki "İleri"; "Ekle" kutusu da çeker.
+      Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        children: [
+          AknButton.secondary(
+            label: DriverCopy.photoTake,
+            icon: PhosphorIconsRegular.camera,
+            onPressed: model.photoCount < 20
+                ? () => unawaited(_takePhoto())
+                : null,
+          ),
+          AknButton.ghost(
+            label: DriverCopy.photoPick,
+            icon: PhosphorIconsRegular.images,
+            onPressed: model.photoCount < 20
+                ? () => unawaited(_pickPhotos())
+                : null,
+          ),
+        ],
       ),
     ];
   }
@@ -969,17 +976,20 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
           ),
         ),
         const SizedBox(height: 12),
-        AknButton.secondary(
-          label: DriverCopy.waiverBackToSignature,
-          icon: PhosphorIconsRegular.signature,
-          expand: true,
-          onPressed: model.clearWaiver,
-        ),
-        const SizedBox(height: 4),
-        AknButton.ghost(
-          label: DriverCopy.waiverChange,
-          expand: true,
-          onPressed: () => unawaited(_chooseWaiver()),
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          children: [
+            AknButton.secondary(
+              label: DriverCopy.waiverBackToSignature,
+              icon: PhosphorIconsRegular.signature,
+              onPressed: model.clearWaiver,
+            ),
+            AknButton.ghost(
+              label: DriverCopy.waiverChange,
+              onPressed: () => unawaited(_chooseWaiver()),
+            ),
+          ],
         ),
       ];
     }
@@ -1049,11 +1059,12 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
           borderColor: c.lineStrong,
         ),
       const SizedBox(height: 12),
-      AknButton.ghost(
-        label: DriverCopy.signatureCantGet,
-        icon: PhosphorIconsRegular.pencilSimpleSlash,
-        expand: true,
-        onPressed: () => unawaited(_chooseWaiver()),
+      Center(
+        child: AknButton.ghost(
+          label: DriverCopy.signatureCantGet,
+          icon: PhosphorIconsRegular.pencilSimpleSlash,
+          onPressed: () => unawaited(_chooseWaiver()),
+        ),
       ),
       if (_showErrors.contains(DeliverStep.signature) &&
           model.signatureError != null &&
@@ -1220,12 +1231,13 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
                 onConfirmed: _submit,
               ),
               if (!_largeText) ...[
-                const SizedBox(height: 8),
-                AknButton.ghost(
-                  label: DriverCopy.back,
-                  icon: PhosphorIconsRegular.arrowLeft,
-                  expand: true,
-                  onPressed: _back,
+                const SizedBox(height: 4),
+                Center(
+                  child: AknButton.ghost(
+                    label: DriverCopy.back,
+                    icon: PhosphorIconsRegular.arrowLeft,
+                    onPressed: _back,
+                  ),
                 ),
               ],
             ],
@@ -1240,18 +1252,22 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
     );
   }
 
-  /// İlk adımda solda "Planlananı yaz", sonrakilerde "Geri"; sağda birincil "İleri".
+  /// İlk adımda solda "Planlananı yaz", sonrakilerde "Geri": doğal genişlikte, çerçeveli; sağda
+  /// kalan yeri dolduran birincil "İleri". Hepsi uygulamanın standart 48 dp düğmesi (sahip
+  /// 2026-10-30: 64 px yarım ekran düğmeler gereksiz büyüktü). Yazı büyüyüp sol düğme yarım
+  /// genişliğe sığmazsa alt alta dizilir (İleri üstte, ikisi de tam genişlik).
   Widget _stepButtons(DeliverFlowModel model, DeliverStep step) {
-    final left = step.previous != null
+    final back = step.previous != null;
+    Widget left({required bool expand}) => back
         ? AknButton.secondary(
             label: DriverCopy.back,
             icon: PhosphorIconsRegular.arrowLeft,
-            expand: true,
+            expand: expand,
             onPressed: _back,
           )
         : AknButton.secondary(
             label: DriverCopy.fillPlanned,
-            expand: true,
+            expand: expand,
             onPressed: model.fillPlanned,
           );
     final right = AknButton(
@@ -1262,14 +1278,11 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
     return LayoutBuilder(
       builder: (context, box) {
         final half = (box.maxWidth - 10) / 2;
-        final leftLabel = step.previous != null
-            ? DriverCopy.back
-            : DriverCopy.fillPlanned;
         final side = AknButton.fitsOneLine(
           context,
-          leftLabel,
+          back ? DriverCopy.back : DriverCopy.fillPlanned,
           half,
-          icon: step.previous != null,
+          icon: back,
           bordered: true,
           size: AknButtonSize.large,
         );
@@ -1277,12 +1290,12 @@ class _DeliverFlowPageState extends ConsumerState<_DeliverFlowView> {
           return Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [right, const SizedBox(height: 8), left],
+            children: [right, const SizedBox(height: 8), left(expand: true)],
           );
         }
         return Row(
           children: [
-            Expanded(child: left),
+            left(expand: false),
             const SizedBox(width: 10),
             Expanded(child: right),
           ],

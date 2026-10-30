@@ -81,6 +81,24 @@ abstract final class Validators {
     return _email.hasMatch(v) ? null : 'Geçerli bir e-posta adresi girin.';
   }
 
+  static final _userName = RegExp(r'^[A-Za-z0-9._-]+$');
+
+  /// Kullanıcı adının karakter kuralı (sunucunun iletisi aynen).
+  static const userNameCharacters =
+      'Kullanıcı adında yalnızca İngilizce harf, rakam, nokta, alt çizgi ve tire olabilir.';
+
+  /// Kullanıcı adı (sunucuyla aynı, sahip 2026-10-30): kırpılır; 3–50 karakter; İngilizce harf, rakam,
+  /// `.`, `_`, `-` (Türkçe harf yok).
+  static String? userName(String? raw) {
+    final v = raw?.trim() ?? '';
+    if (v.isEmpty) return 'Kullanıcı adı zorunludur.';
+    if (!_userName.hasMatch(v)) return userNameCharacters;
+    if (v.length < 3 || v.length > 50) {
+      return 'Kullanıcı adı 3–50 karakter olmalı.';
+    }
+    return null;
+  }
+
   static final _plate = RegExp(r'^(0[1-9]|[1-7]\d|8[01])[A-Z]{1,3}\d{2,5}$');
 
   /// Türkiye plakası (01–81 il kodu + 1–3 harf + 2–5 rakam).

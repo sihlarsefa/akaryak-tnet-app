@@ -12,11 +12,13 @@ import 'typography.dart';
 ///
 /// * type one step larger: display 34/40, title 22/28, headline 20/26 (stop
 ///   name 24/30, [stopName]), body 17/24, bodySmall 15/20, label 15/20,
-///   button 18/22, navLabel 12/15, plateFigure 56/60, plateUnit 28, number
+///   button 16/20 (the standard), navLabel 12/15, plateFigure 56/60, plateUnit 28, number
 ///   28/32 (plate readouts 28/32 with 15/20 labels);
-/// * buttons 64 high, superellipse radius 18, icon 24; minimum touch target
-///   64; bottom-bar items 64 with 26 px icons; list rows at least 76 high;
-///   the TR plate badge 32 high;
+/// * buttons at the app's standard size (owner, 2026-10-30: the 64 px cab
+///   buttons were needlessly big): 48 high, superellipse radius 16, a 16/20
+///   label and 20 px icons, a 48 dp touch target; other touch targets
+///   (icon buttons, rows, chips) stay 64; bottom-bar items 64 with 26 px
+///   icons; list rows at least 76 high; the TR plate badge 32 high;
 /// * fields 64 high with 17/24 text (`AknTextField`; the money and litre
 ///   figures 26/32), chips 44 high in a 64 target, the segmented track 48.
 ///
@@ -32,9 +34,10 @@ import 'typography.dart';
 class AknDriverMode extends ThemeExtension<AknDriverMode> {
   const AknDriverMode({
     this.minTap = AknSpace.driverTap,
-    this.buttonHeight = 64,
-    this.buttonRadius = AknRadius.driver,
-    this.buttonIconSize = 24,
+    this.buttonHeight = 48,
+    this.buttonRadius = 16,
+    this.buttonIconSize = 20,
+    this.fieldHeight = 64,
     this.navItemHeight = 64,
     this.navIconSize = 26,
     this.rowMinHeight = 76,
@@ -47,14 +50,18 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
   /// Minimum touch target (64).
   final double minTap;
 
-  /// Every button (primary, secondary, ghost) is this high (64).
+  /// Every regular button (primary, secondary, ghost) is this high (48, the
+  /// app's standard; small buttons stay 40).
   final double buttonHeight;
 
-  /// Button corner radius (18).
+  /// Button corner radius (16, as everywhere else).
   final double buttonRadius;
 
-  /// Button icon size (24).
+  /// Button icon size (20).
   final double buttonIconSize;
+
+  /// Text field height (64: typing on a dashboard mount).
+  final double fieldHeight;
 
   /// Bottom-bar item height (64).
   final double navItemHeight;
@@ -99,7 +106,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       amountLarge: s(t.amountLarge, 30, 34),
       number: s(t.number, 28, 32),
       numberLarge: s(t.numberLarge, 36, 40),
-      button: s(t.button, 18, 22),
+      button: s(t.button, 16, 20),
       plateFigure: s(t.plateFigure, 56, 60),
       plateUnit: s(t.plateUnit, 28, 32),
       figureWord: s(t.figureWord, 22, 26),
@@ -113,8 +120,8 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       t.headline.copyWith(fontSize: 24, height: 30 / 24);
 
   /// [theme] in driver mode: the extension itself, the §3.4 text styles
-  /// (also as the Material text theme), 64 px superellipse buttons with
-  /// radius 18 ([buttonRadius]), an 18/22 w700 label and 24 px icons, 64 px
+  /// (also as the Material text theme), 48 px superellipse buttons with
+  /// radius 16 ([buttonRadius]), a 16/20 w700 label and 20 px icons, 64 px
   /// icon buttons, 64 px inputs, 76 px list rows, 44 px chips and 64 px
   /// navigation items (the active one w700 on its soft orange pill).
   /// Colours, shadows and motion stay those of the v3 theme. Idempotent.
@@ -143,7 +150,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
           ),
           iconSize: WidgetStatePropertyAll<double>(mode.buttonIconSize),
           padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
-            EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           ),
           shape: shape,
           backgroundBuilder: primary ? gradient : null,
@@ -252,6 +259,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
     double? buttonHeight,
     double? buttonRadius,
     double? buttonIconSize,
+    double? fieldHeight,
     double? navItemHeight,
     double? navIconSize,
     double? rowMinHeight,
@@ -261,6 +269,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
     buttonHeight: buttonHeight ?? this.buttonHeight,
     buttonRadius: buttonRadius ?? this.buttonRadius,
     buttonIconSize: buttonIconSize ?? this.buttonIconSize,
+    fieldHeight: fieldHeight ?? this.fieldHeight,
     navItemHeight: navItemHeight ?? this.navItemHeight,
     navIconSize: navIconSize ?? this.navIconSize,
     rowMinHeight: rowMinHeight ?? this.rowMinHeight,
@@ -276,6 +285,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       buttonHeight: l(buttonHeight, other.buttonHeight),
       buttonRadius: l(buttonRadius, other.buttonRadius),
       buttonIconSize: l(buttonIconSize, other.buttonIconSize),
+      fieldHeight: l(fieldHeight, other.fieldHeight),
       navItemHeight: l(navItemHeight, other.navItemHeight),
       navIconSize: l(navIconSize, other.navIconSize),
       rowMinHeight: l(rowMinHeight, other.rowMinHeight),
@@ -290,6 +300,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
       other.buttonHeight == buttonHeight &&
       other.buttonRadius == buttonRadius &&
       other.buttonIconSize == buttonIconSize &&
+      other.fieldHeight == fieldHeight &&
       other.navItemHeight == navItemHeight &&
       other.navIconSize == navIconSize &&
       other.rowMinHeight == rowMinHeight &&
@@ -301,6 +312,7 @@ class AknDriverMode extends ThemeExtension<AknDriverMode> {
     buttonHeight,
     buttonRadius,
     buttonIconSize,
+    fieldHeight,
     navItemHeight,
     navIconSize,
     rowMinHeight,

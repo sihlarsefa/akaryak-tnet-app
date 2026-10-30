@@ -1,5 +1,6 @@
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
+import '../../../core/network/fake/fake_credentials.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
@@ -99,39 +100,59 @@ void registerCmCompanyFakes(FakeServer s) {
     return [for (final u in users) _userDto(u, p)];
   });
 
+  // Sözleşme 2026-10-30 (sahip: kullanıcı adı + şifreyle giriş): `userName` zorunlu; `password` isteğe
+  // bağlı, e-posta boşsa zorunlu; e-posta isteğe bağlı. Şifre yoksa e-postaya davet gider.
   s.post('customers/me/company-users', (req) {
     final p = _manager(req);
     req.requirePage(Pg.customerCompanyUsers, Perm.create);
     final r = req.json;
     final name = _name(r.str('displayName'));
+    final userName = r.str('userName').trim();
     final email = r.str('email').trim();
-    if (email.isEmpty) throw FakeResponse.business('E-posta zorunludur.');
-    if (Validators.email(email) != null) {
-      throw FakeResponse.business('Geçerli bir e-posta adresi girin.');
-    }
+    final password = r.str('password');
     final users = _users(req.world);
-    if (users.any(
-      (u) =>
-          TurkishText.lower(u['email'] as String) == TurkishText.lower(email),
-    )) {
-      throw FakeResponse.business(
-        'Bu e-posta adresiyle kayıtlı bir kullanıcı zaten var.',
-      );
-    }
+    final errors = <String, List<String>>{
+      'userName': [
+        ?fakeUserNameError(userName),
+        if (userName.isNotEmpty &&
+            fakeUserNameTaken(userName, users.map((u) => u['userName'])))
+          'Bu kullanıcı adı alınmış; başka bir ad seçin.',
+      ],
+      'email': [
+        if (email.isNotEmpty && Validators.email(email) != null)
+          'Geçerli bir e-posta adresi girin.',
+        if (email.isNotEmpty &&
+            users.any(
+              (u) =>
+                  TurkishText.lower(u['email'] as String) ==
+                  TurkishText.lower(email),
+            ))
+          'Bu e-posta adresiyle kayıtlı bir kullanıcı zaten var.',
+      ],
+      'password': [
+        if (password.isEmpty && email.isEmpty)
+          'E-posta girilmezse şifre zorunludur.',
+        if (password.isNotEmpty) ...fakePasswordErrors(password),
+      ],
+    }..removeWhere((_, v) => v.isEmpty);
+    if (errors.isNotEmpty) throw FakeResponse.validation(errors);
+    final invite = password.isEmpty;
     final row = <String, dynamic>{
       'userId': 'u-cm-${req.world.nextId('cm.user', start: 10)}',
       'customerId': p.customerId,
       'displayName': name,
+      'userName': userName,
       'email': email,
       'phoneNumber': _phone(r.nonEmpty('phoneNumber')),
       'role': _sentRole(req.world, r.intOrNull('role')),
       'isActive': true,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
       'lastLoginAt': null,
-      'invitationPending': true,
+      'invitationPending': invite,
+      'password': invite ? null : password,
     };
     users.add(row);
-    return {..._userDto(row, p), 'invitationQueued': true};
+    return {..._userDto(row, p), 'invitationQueued': invite};
   });
 
   s.put('customers/me/company-users', (req) {
@@ -180,6 +201,37 @@ void registerCmCompanyFakes(FakeServer s) {
     };
   });
 
+  // "Şifre belirle" (sözleşme 2026-10-30): kullanıcıları yönetebilen herkes; şirketin ana kullanıcısının
+  // şifresini yalnızca kendisi. 204; kurallara uymayan şifre 400 `validation` (`newPassword`).
+  s.post('customers/me/company-users/{userId}/password', (req) {
+    final p = _manager(req);
+    req.requirePage(Pg.customerCompanyUsers, Perm.edit);
+    final userId = req.params['userId']!;
+    final row = _users(req.world)
+        .where((u) => u['userId'] == userId && u['customerId'] == p.customerId)
+        .firstOrNull;
+    if (row == null) throw FakeResponse.notFound('Kullanıcı bulunamadı.');
+    if (userId == _mainUserId && userId != p.userId) {
+      throw FakeResponse.forbidden(
+        'Şirketin ana kullanıcısının şifresini yalnızca kendisi değiştirebilir.',
+      );
+    }
+    final next = req.json.str('newPassword');
+    final errors = next.isEmpty
+        ? const ['Yeni şifre zorunludur.']
+        : fakePasswordErrors(next);
+    if (errors.isNotEmpty) {
+      throw FakeResponse.validation({'newPassword': errors});
+    }
+    row
+      ..['password'] = next
+      ..['invitationPending'] = false;
+    // Demo: personanın yeni şifresiyle giriş de kabul edilir (`demo` geçerli kalır).
+    final persona = findFakePersona(userId);
+    if (persona != null) s.auth.changedPasswords[persona.key] = next;
+    return FakeResponse.noContent();
+  });
+
   s.post('customers/me/company-users/{userId}/password-link', (req) {
     final p = _manager(req);
     req.requirePage(Pg.customerCompanyUsers, Perm.edit);
@@ -187,6 +239,11 @@ void registerCmCompanyFakes(FakeServer s) {
     if (row['isActive'] != true) {
       throw FakeResponse.business(
         'Pasif kullanıcıya şifre bağlantısı gönderilemez; önce aktifleştirin.',
+      );
+    }
+    if ((row['email'] as String? ?? '').isEmpty) {
+      throw FakeResponse.business(
+        'Kullanıcının e-postası yok; "Şifre belirle" ile şifresini siz verin.',
       );
     }
     return FakeResponse.noContent();
@@ -498,6 +555,7 @@ List<JsonMap> _users(FakeWorld w) =>
       JsonMap u(
         String id,
         String name,
+        String userName,
         String email,
         String? phone,
         int role, {
@@ -509,6 +567,7 @@ List<JsonMap> _users(FakeWorld w) =>
         'userId': id,
         'customerId': 101,
         'displayName': name,
+        'userName': userName,
         'email': email,
         'phoneNumber': phone,
         'role': role,
@@ -521,6 +580,7 @@ List<JsonMap> _users(FakeWorld w) =>
         u(
           'u-musteri',
           'Selin Aydın',
+          'musteri',
           'musteri@demo.akaryakitnet.local',
           '05320000101',
           3,
@@ -530,6 +590,7 @@ List<JsonMap> _users(FakeWorld w) =>
         u(
           'u-onay',
           'Elif Demir',
+          'onay',
           'onay@demo.akaryakitnet.local',
           '05320000103',
           2,
@@ -538,6 +599,7 @@ List<JsonMap> _users(FakeWorld w) =>
         u(
           'u-talep',
           'Burak Yılmaz',
+          'talep',
           'talep@demo.akaryakitnet.local',
           '05320000102',
           1,
@@ -546,6 +608,7 @@ List<JsonMap> _users(FakeWorld w) =>
         u(
           'u-cm-1',
           'Hakan Öz',
+          'hakan.oz',
           'hakan.oz@anadolulojistik.example',
           null,
           1,
@@ -555,6 +618,7 @@ List<JsonMap> _users(FakeWorld w) =>
         u(
           'u-cm-2',
           'Merve Kılıç',
+          'merve.kilic',
           'merve.kilic@anadolulojistik.example',
           '05330000000',
           1,
@@ -636,6 +700,7 @@ int _role(int? role) {
 JsonMap _userDto(JsonMap u, FakePersona viewer) => {
   'userId': u['userId'],
   'displayName': u['displayName'],
+  'userName': u['userName'],
   'email': u['email'],
   'phoneNumber': u['phoneNumber'],
   'role': u['role'],

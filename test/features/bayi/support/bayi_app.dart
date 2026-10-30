@@ -57,6 +57,7 @@ class BayiTestApp {
     Size size = const Size(420, 2600),
     void Function(BayiHarness h)? setup,
     Map<String, Object> prefs = const {'akn.onboardingDone': true},
+    List<Override> overrides = const [],
   }) async {
     tester.view.physicalSize = size * tester.view.devicePixelRatio;
     addTearDown(tester.view.resetPhysicalSize);
@@ -68,6 +69,7 @@ class BayiTestApp {
     final c = h.container(
       extra: [
         isOnlineProvider.overrideWith((ref) => ref.watch(testOnlineProvider)),
+        ...overrides,
       ],
     );
     await tester.runAsync(() => BayiHarness.login(c, persona));

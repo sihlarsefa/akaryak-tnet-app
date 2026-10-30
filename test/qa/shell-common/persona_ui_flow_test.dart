@@ -88,11 +88,8 @@ void main() {
           }
         } else {
           // Giriş formu.
-          await qaScrollTo(tester, qaField('E-posta ya da kullanıcı adı'));
-          await tester.enterText(
-            qaField('E-posta ya da kullanıcı adı'),
-            persona.key,
-          );
+          await qaScrollTo(tester, qaField('Kullanıcı adı'));
+          await tester.enterText(qaField('Kullanıcı adı'), persona.key);
           await tester.enterText(qaField('Şifre'), 'demo');
           final login = find.widgetWithText(AknButton, 'Giriş yap');
           await qaScrollTo(tester, login);

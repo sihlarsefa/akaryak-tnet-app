@@ -68,7 +68,7 @@ Future<ProviderContainer> _launch(
 
 /// Canlı formdan giriş denemesi.
 Future<void> _liveLogin(WidgetTester tester, String user) async {
-  await tester.enterText(_field('E-posta ya da kullanıcı adı'), user);
+  await tester.enterText(_field('Kullanıcı adı'), user);
   await tester.enterText(_field('Şifre'), 'gizli-sifre');
   await tapVisible(tester, find.text('Giriş yap'));
   await pumpFor(tester, const Duration(milliseconds: 600));
@@ -99,7 +99,7 @@ void main() {
       expect(find.text('Hoş geldiniz'), findsOneWidget);
       expect(find.text('Demo hesaplarıyla girin'), findsOneWidget);
       expect(find.text('Kendi hesabınızla girin'), findsOneWidget);
-      expect(_field('E-posta ya da kullanıcı adı'), findsOneWidget);
+      expect(_field('Kullanıcı adı'), findsOneWidget);
       expect(_field('Şifre'), findsOneWidget);
       expect(find.text('Giriş yap'), findsOneWidget);
       final cards = tester

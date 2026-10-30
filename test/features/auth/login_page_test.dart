@@ -37,11 +37,7 @@ void main() {
     expect(find.text('Kendi hesabınızla girin'), findsOneWidget);
     expect(find.text('Giriş yapın'), findsNothing);
     _expectAbove(tester, 'Demo hesaplarıyla girin', 'Kendi hesabınızla girin');
-    _expectAbove(
-      tester,
-      'Kendi hesabınızla girin',
-      'E-posta ya da kullanıcı adı',
-    );
+    _expectAbove(tester, 'Kendi hesabınızla girin', 'Kullanıcı adı');
   });
 
   a11yMatrix('giriş (canlı derleme: demo yok)', (tester, scale, b) async {
@@ -105,15 +101,36 @@ void main() {
     expect(find.text('Tekrar dene (15:00)'), findsOneWidget);
   });
 
+  testWidgets(
+    'sahip 2026-10-30: etiket "Kullanıcı adı" (e-posta gerekmez); alan e-postayı da kabul eder; '
+    'demo kartları yerinde',
+    (tester) async {
+      setPhoneSize(tester);
+      final c = await pumpAuthRoute(tester, '/login');
+      expect(find.text('Kullanıcı adı'), findsOneWidget);
+      expect(find.text('E-posta ya da kullanıcı adı'), findsNothing);
+      // Her TestFlight derlemesinde demo kartları (sahip kuralı).
+      expect(find.text('Demo hesaplarıyla girin'), findsOneWidget);
+      expect(find.byType(DemoPersonaCard), findsWidgets);
+      // Mevcut mantık: e-postayla da girilir.
+      await tester.enterText(
+        _field('Kullanıcı adı'),
+        'musteri@demo.akaryakitnet.local',
+      );
+      await tester.enterText(_field('Şifre'), 'demo');
+      await tapVisible(tester, find.text('Giriş yap'));
+      await pumpUntil(tester, () => isSignedIn(c));
+      expect(c.read(sessionControllerProvider).access!.userName, 'musteri');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('boş alanlar: alan hataları, istek gitmez', (tester) async {
     setPhoneSize(tester);
     await pumpAuthRoute(tester, '/login');
     await tapVisible(tester, find.text('Giriş yap'));
     await tester.pump();
-    expect(
-      find.text('Kullanıcı adınızı ya da e-postanızı girin.'),
-      findsOneWidget,
-    );
+    expect(find.text('Kullanıcı adınızı girin.'), findsOneWidget);
     expect(find.text('Şifrenizi girin.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
@@ -123,7 +140,7 @@ void main() {
   ) async {
     setPhoneSize(tester);
     await pumpAuthRoute(tester, '/login');
-    await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'musteri');
+    await tester.enterText(_field('Kullanıcı adı'), 'musteri');
     await tester.enterText(_field('Şifre'), 'yanlis');
     await tapVisible(tester, find.text('Giriş yap'));
     await pumpFor(tester, const Duration(milliseconds: 500));
@@ -167,7 +184,7 @@ void main() {
   ) async {
     setPhoneSize(tester, const Size(390, 844));
     await pumpAuthRoute(tester, '/login');
-    await tapVisible(tester, _field('E-posta ya da kullanıcı adı'));
+    await tapVisible(tester, _field('Kullanıcı adı'));
     await tester.pump();
     // Klavye: 336 dp.
     tester.view.viewInsets = const FakeViewPadding(bottom: 336);
@@ -182,7 +199,7 @@ void main() {
     expect(button.bottom, lessThanOrEqualTo(844 - 336 + 0.5));
     expect(button.top, greaterThanOrEqualTo(0));
     // Odaktaki alan da görünür kalır.
-    final field = tester.getRect(_field('E-posta ya da kullanıcı adı'));
+    final field = tester.getRect(_field('Kullanıcı adı'));
     expect(field.top, greaterThanOrEqualTo(0));
     await tester.pumpWidget(const SizedBox());
   });
@@ -213,10 +230,7 @@ void main() {
         overrides: clockAndLinks(clock: clock),
       );
       for (var i = 0; i < 5; i++) {
-        await tester.enterText(
-          _field('E-posta ya da kullanıcı adı'),
-          'musteri',
-        );
+        await tester.enterText(_field('Kullanıcı adı'), 'musteri');
         await tester.enterText(_field('Şifre'), 'yanlis');
         await tapVisible(tester, find.text('Giriş yap'));
         await pumpFor(tester, const Duration(milliseconds: 300));
@@ -354,10 +368,7 @@ void main() {
       ],
     );
     expect(
-      tester
-          .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
-          .controller!
-          .text,
+      tester.widget<TextField>(_field('Kullanıcı adı')).controller!.text,
       'musteri',
     );
     await tester.pumpWidget(const SizedBox());
@@ -484,10 +495,7 @@ void main() {
       expect(c.read(sessionControllerProvider).access!.userName, 'musteri');
       // Form alanları doldurulmaz (parola yöneticisi demo hesabını kaydetmez).
       expect(
-        tester
-            .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
-            .controller!
-            .text,
+        tester.widget<TextField>(_field('Kullanıcı adı')).controller!.text,
         isEmpty,
       );
       await tester.pumpWidget(const SizedBox());
@@ -515,7 +523,7 @@ void main() {
     ) async {
       setPhoneSize(tester);
       await pumpAuthRoute(tester, '/login');
-      await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'merkez');
+      await tester.enterText(_field('Kullanıcı adı'), 'merkez');
       await tester.enterText(_field('Şifre'), 'demo');
       await tapVisible(tester, find.text('Giriş yap'));
       await pumpFor(tester, const Duration(milliseconds: 800));
@@ -576,7 +584,7 @@ void main() {
         setPhoneSize(tester);
         final c = await pumpAuthRoute(tester, '/login');
         expect(find.text('Burak Yılmaz'), findsNothing);
-        await tester.enterText(_field('E-posta ya da kullanıcı adı'), 'talep');
+        await tester.enterText(_field('Kullanıcı adı'), 'talep');
         await tester.enterText(_field('Şifre'), 'demo');
         await tapVisible(tester, find.text('Giriş yap'));
         await pumpUntil(tester, () => isSignedIn(c));

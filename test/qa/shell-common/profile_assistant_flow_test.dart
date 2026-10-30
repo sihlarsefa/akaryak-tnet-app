@@ -77,7 +77,7 @@ void main() {
         qa.add('şifre değişti: giriş ekranında açıklama yok');
       }
       // Yeni şifreyle giriş.
-      await tester.enterText(qaField('E-posta ya da kullanıcı adı'), 'musteri');
+      await tester.enterText(qaField('Kullanıcı adı'), 'musteri');
       // Sahte kipte şifre hep `demo` (QA SC-04: yeni şifre kabul edilmiyor; düşük önem).
       await tester.enterText(qaField('Şifre'), 'demo');
       await qaTap(tester, find.widgetWithText(AknButton, 'Giriş yap').first);
@@ -118,8 +118,8 @@ void main() {
       await qaTap(tester, find.widgetWithText(AknButton, 'Şifreyi değiştir'));
       await _waitFor(tester, () => app.session is SessionUnauthenticated);
       await pumpSteps(tester, const Duration(seconds: 1));
-      await qaScrollTo(tester, qaField('E-posta ya da kullanıcı adı'));
-      await tester.enterText(qaField('E-posta ya da kullanıcı adı'), 'musteri');
+      await qaScrollTo(tester, qaField('Kullanıcı adı'));
+      await tester.enterText(qaField('Kullanıcı adı'), 'musteri');
       await tester.enterText(qaField('Şifre'), 'Yeni12345');
       final login = find.widgetWithText(AknButton, 'Giriş yap');
       await qaScrollTo(tester, login);

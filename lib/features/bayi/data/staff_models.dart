@@ -51,6 +51,7 @@ class StaffMember {
   const StaffMember({
     required this.userId,
     required this.displayName,
+    this.userName,
     this.email = '',
     this.phoneNumber,
     this.isActive = true,
@@ -62,11 +63,14 @@ class StaffMember {
     this.roles = const [],
     this.approverOf = const [],
     this.needsReview = false,
+    this.isMainAccount = false,
   });
 
   factory StaffMember.fromJson(JsonReader r) => StaffMember(
     userId: r.str('userId'),
-    displayName: r.nonEmpty('displayName') ?? r.str('email'),
+    displayName:
+        r.nonEmpty('displayName') ?? r.nonEmpty('userName') ?? r.str('email'),
+    userName: r.nonEmpty('userName'),
     email: r.str('email'),
     phoneNumber: r.nonEmpty('phoneNumber'),
     isActive: r.boolean('isActive', true),
@@ -78,10 +82,14 @@ class StaffMember {
     roles: List.unmodifiable(r.list('bayiRoles', StaffRole.fromJson)),
     approverOf: List.unmodifiable(r.strings('approverOf')),
     needsReview: r.boolean('needsReview'),
+    isMainAccount: r.boolean('isMainAccount'),
   );
 
   final String userId;
   final String displayName;
+
+  /// Giriş adı (sahip 2026-10-30: kullanıcı adı + şifreyle giriş; e-posta isteğe bağlı).
+  final String? userName;
   final String email;
   final String? phoneNumber;
   final bool isActive;
@@ -97,6 +105,9 @@ class StaffMember {
 
   /// Roller v5: rolü otomatik taşındı ve pasif, gözden geçirilmeli ("İncelenecek" çipi).
   final bool needsReview;
+
+  /// Bayinin ana hesabı (`Station.UserId`; alan yoksa false). Şifresini yalnızca kendisi değiştirir.
+  final bool isMainAccount;
 
   /// Onaycı çiplerinin metni ("Onaycı · Finans").
   List<String> get approverLabels => [
@@ -122,6 +133,7 @@ class StaffMember {
   StaffMember copyWith({bool? isActive}) => StaffMember(
     userId: userId,
     displayName: displayName,
+    userName: userName,
     email: email,
     phoneNumber: phoneNumber,
     isActive: isActive ?? this.isActive,
@@ -133,5 +145,6 @@ class StaffMember {
     roles: roles,
     approverOf: approverOf,
     needsReview: needsReview,
+    isMainAccount: isMainAccount,
   );
 }

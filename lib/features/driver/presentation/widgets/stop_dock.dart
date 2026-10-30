@@ -4,7 +4,8 @@ import '../../../../core/ui/ui.dart';
 import '../../copy.dart';
 import 'entrance.dart';
 
-/// Sıradaki durağın eylem rafı (tasarım v3; ekranın altına yapışık buzlu rafta): iki 64 px düğme —
+/// Sıradaki durağın eylem rafı (tasarım v3; ekranın altına yapışık buzlu rafta): iki 48 px düğme
+/// (uygulamanın standart boyu; sahip 2026-10-30: 64 px düğmeler gereksiz büyüktü) —
 /// birincil turuncu degrade ve sıcak parıltı, ikincil beyaz çerçeveli. Birincil olan tırı izler
 /// (§7.11): noktaya uzaktayken "Yol tarifi", 300 m içinde (ya da konum bilinmiyorsa) "Teslim et".
 /// Yerler sabittir — solda "Yol tarifi", sağda iş düğmesi ("Teslim et", planlıysa "Yola çık") —

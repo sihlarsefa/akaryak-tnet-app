@@ -36,8 +36,9 @@ enum AknButtonVariant {
 }
 
 /// Heights: small 40 (r12, 15 px label), medium 48, large 52 (the default);
-/// every size keeps a 48 dp touch target. Driver mode makes every button 64
-/// (r18, 18/22 label).
+/// every size keeps a 48 dp touch target. Driver mode makes the medium and
+/// large buttons its `buttonHeight` (48, r16; owner 2026-10-30: the old 64 px
+/// cab buttons were needlessly big); small stays 40.
 enum AknButtonSize { small, medium, large }
 
 /// The AkaryakıtNet button (design v3 §4 Buttons, §5 Press): a superellipse
@@ -200,10 +201,11 @@ class AknButton extends StatefulWidget {
   static double _tightPadding(AknButtonSize size) =>
       size == AknButtonSize.small ? 6 : 8;
 
-  /// Icon size: 20 (small 18; driver mode 24).
+  /// Icon size: 20 (small 18; driver mode its `buttonIconSize`, 20).
   static double _iconSizeOf(BuildContext context, AknButtonSize size) =>
-      context.driverMode?.buttonIconSize ??
-      (size == AknButtonSize.small ? 18.0 : 20.0);
+      size == AknButtonSize.small
+      ? 18.0
+      : (context.driverMode?.buttonIconSize ?? 20.0);
 
   /// Icon + gap beside the label.
   static double _iconSpaceOf(BuildContext context, AknButtonSize size) =>
@@ -230,7 +232,7 @@ class AknButton extends StatefulWidget {
   }
 
   /// The label style as rendered (inherited style, bold-text setting): the
-  /// `button` style 16/20 w700 (driver mode 18/22), 15 px when small. Every
+  /// `button` style 16/20 w700 (driver mode too), 15 px when small. Every
   /// variant shares it; [primary] is kept for API stability.
   static TextStyle labelStyle(
     BuildContext context,
@@ -238,8 +240,7 @@ class AknButton extends StatefulWidget {
     bool primary = false,
   }) {
     final button = context.aknText.button;
-    final driver = context.isDriverMode;
-    final base = size == AknButtonSize.small && !driver
+    final base = size == AknButtonSize.small
         ? button.copyWith(fontSize: 15, height: 20 / 15)
         : button;
     var style = DefaultTextStyle.of(
@@ -354,7 +355,9 @@ class _AknButtonState extends State<AknButton> {
       !_success;
 
   double _height(AknDriverMode? driver) {
-    if (driver != null) return driver.buttonHeight;
+    if (driver != null && widget.size != AknButtonSize.small) {
+      return driver.buttonHeight;
+    }
     return switch (widget.size) {
       AknButtonSize.small => 40,
       AknButtonSize.medium => 48,
@@ -363,7 +366,9 @@ class _AknButtonState extends State<AknButton> {
   }
 
   double _radius(AknDriverMode? driver) {
-    if (driver != null) return driver.buttonRadius;
+    if (driver != null && widget.size != AknButtonSize.small) {
+      return driver.buttonRadius;
+    }
     return widget.size == AknButtonSize.small
         ? AknRadius.sm
         : AknRadius.button.topLeft.x;
@@ -614,7 +619,9 @@ class _AknButtonState extends State<AknButton> {
             child: surface(null, _LabelFit.natural),
           );
 
-    final minTap = driver?.minTap ?? AknSpace.minTap;
+    // 48 dp in driver mode too: the button is its own target (a 48 px key
+    // must not reserve 64 px of the dock).
+    final minTap = math.max(AknSpace.minTap, height);
     return Semantics(
       button: true,
       enabled: enabled,

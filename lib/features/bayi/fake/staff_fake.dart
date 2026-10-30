@@ -1,11 +1,13 @@
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
+import '../../../core/network/fake/fake_credentials.dart';
+import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
 import 'fake_support.dart';
 import 'seed.dart';
 
-/// Ekip: `stations/me/staff` (+ aktif / pasif, şifre bağlantısı).
+/// Ekip: `stations/me/staff` (+ aktif / pasif, şifre bağlantısı, şifre belirle).
 void registerBayiStaffFakes(FakeServer s) {
   s.get('stations/me/staff', (req) {
     final p = bayiUser(req);
@@ -25,7 +27,7 @@ void registerBayiStaffFakes(FakeServer s) {
     if (!active && userId == p.userId) {
       throw FakeResponse.business('Kendi hesabınızı pasifleştiremezsiniz.');
     }
-    if (!active && userId == 'u-sahip') {
+    if (!active && userId == fakeBayiMainAccount) {
       throw FakeResponse.business('Bayi sahibi pasifleştirilemez.');
     }
     w.bag<Map<String, bool>>(
@@ -54,6 +56,33 @@ void registerBayiStaffFakes(FakeServer s) {
         .add(row['userId'] as String);
     return {'message': 'Şifre belirleme bağlantısı gönderildi.'};
   });
+
+  // "Şifre belirle" (sözleşme 2026-10-30): personeli düzenleyebilen herkes; bayinin ana hesabının
+  // şifresini yalnızca kendisi. 204; kurallara uymayan şifre 400 `validation` (`newPassword`).
+  s.post('stations/me/staff/{userId}/password', (req) {
+    final p = bayiUser(req);
+    requireAny(p, const [(Pg.stationStaff, Perm.edit)]);
+    final w = req.world;
+    final userId = req.params['userId']!;
+    _find(w, p.stationId!, userId);
+    if (userId == fakeBayiMainAccount && userId != p.userId) {
+      throw FakeResponse.forbidden(
+        'Bayinin ana hesabının şifresini yalnızca kendisi değiştirebilir.',
+      );
+    }
+    final next = req.json.str('newPassword');
+    final errors = next.isEmpty
+        ? const ['Yeni şifre zorunludur.']
+        : fakePasswordErrors(next);
+    if (errors.isNotEmpty) {
+      throw FakeResponse.validation({'newPassword': errors});
+    }
+    w.bag<Map<String, String>>(BayiBags.passwordsSet, () => {})[userId] = next;
+    // Demo: personanın yeni şifresiyle giriş de kabul edilir (`demo` geçerli kalır).
+    final persona = findFakePersona(userId);
+    if (persona != null) s.auth.changedPasswords[persona.key] = next;
+    return FakeResponse.noContent();
+  });
 }
 
 JsonMap _find(FakeWorld w, int stationId, String userId) {
@@ -78,8 +107,10 @@ JsonMap _dto(FakeWorld w, JsonMap r) {
   return {
     'userId': r['userId'],
     'displayName': r['displayName'],
+    'userName': r['userName'],
     'email': r['email'],
     'phoneNumber': r['phoneNumber'],
+    'isMainAccount': r['isMainAccount'] == true,
     'isActive': r['isActive'],
     'isFieldSales': r['isFieldSales'],
     'permissionGroupId': null,
@@ -132,3 +163,7 @@ int? _customRoleId(String code) =>
 /// Testler: şifre bağlantısı gönderilen kullanıcılar.
 List<String> fakePasswordResets(FakeWorld w) =>
     w.bag<List<String>>(BayiBags.passwordResets, () => []);
+
+/// Testler: "Şifre belirle" ile şifresi verilen kullanıcılar (kullanıcı → şifre).
+Map<String, String> fakePasswordsSet(FakeWorld w) =>
+    w.bag<Map<String, String>>(BayiBags.passwordsSet, () => {});

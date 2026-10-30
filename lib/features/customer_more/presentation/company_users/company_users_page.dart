@@ -180,8 +180,9 @@ class _ThresholdsCard extends StatelessWidget {
   }
 }
 
-/// Kullanıcı satırı (tasarım v3 §4, grup kartının içinde): baş harfli avatar, ad ("(siz)"), e-posta /
-/// telefon, sağda rol; davet / pasif lambası ve son giriş. Yönetici dokununca eylemler açılır.
+/// Kullanıcı satırı (tasarım v3 §4, grup kartının içinde): baş harfli avatar, ad ("(siz)"), altında
+/// kullanıcı adı (girişte kullanılır), e-posta / telefon, sağda rol; davet / pasif lambası ve son giriş.
+/// Yönetici dokununca eylemler açılır ("Şifre belirle" dahil).
 class UserCard extends ConsumerWidget {
   const UserCard({super.key, required this.user});
 
@@ -203,6 +204,7 @@ class UserCard extends ConsumerWidget {
         : (u.isMainUser ? mainUserLabel : null);
     final canManage = policy.cmCompanyUserEdit;
     final contact = [
+      ?u.userName,
       if (u.email.isNotEmpty) u.email,
       if (u.phoneNumber != null) Fmt.phone(u.phoneNumber),
     ].join('\n');
@@ -244,7 +246,8 @@ class UserCard extends ConsumerWidget {
         ?meta,
         if (u.invitationPending) 'davet bekliyor',
         if (!u.isActive) 'pasif',
-        u.email,
+        if (u.userName != null) 'kullanıcı adı ${u.userName}',
+        if (u.email.isNotEmpty) u.email,
         last,
       ].join(', '),
     );

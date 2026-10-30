@@ -565,6 +565,7 @@ void main() {
           'customers/me/company-users',
           body: {
             'displayName': 'Yeni Kişi',
+            'userName': 'yeni.kisi',
             'email': 'yeni.kisi@anadolulojistik.example',
             'role': 1,
           },

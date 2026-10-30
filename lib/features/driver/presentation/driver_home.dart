@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,8 +39,8 @@ import 'widgets/tip_card.dart';
 
 /// Şoför ana sayfası "Teslimatlar" (tasarım v4 §5 11; spec A.4 A7). Yalnızca şoför olanlarda alt
 /// menünün kökü; kendisi teslim eden bayi personeli için `/driver` ile açılır (geri düğmesiyle).
-/// Sınıf adı ve kurucu imzası sabittir (M0a). Sürücü kipinde çizilir (§6.30: yazı bir basamak büyük,
-/// 64 px düğmeler).
+/// Sınıf adı ve kurucu imzası sabittir (M0a). Sürücü kipinde çizilir (§6.30: yazı bir basamak büyük;
+/// düğmeler uygulamanın standart 48 px boyunda, sahip 2026-10-30).
 ///
 /// - Turuncu başlık bandı (sahip kararı G): "Teslimatlar", "Bugün 28 Ekim · 41 DMR 101".
 /// - Sıradaki durak **kahraman kart olarak bandın üstüne yükselir** (ekranın tek plakası): itirazlı
@@ -1379,8 +1378,9 @@ class _NextStopWeather extends ConsumerWidget {
 
 /// Düzeltme bekleyen teslimat (tasarım v4 §5 11, A13): durak plakasının ÜSTÜNDE, bandın üzerinde
 /// kendi kısa şeridi — beyaz kart (r16), tehlike simgesi ve "Müşteri itiraz etti · 1 teslimatı
-/// düzeltin" (tehlike rengi 700, en çok 2 satır; yalnızca " · "da kırılır), sağda ok. Dokunma
-/// hedefi kadar yüksek (sürücü kipinde 64), daha fazla değil: plaka rıhtıma yapışmaz. Müşteri adı
+/// düzeltin" (tehlike rengi 700, 15/20, en çok 2 satır; yalnızca " · "da kırılır), sağda ok. Kart
+/// standart 48 dp dokunma hedefi kadar yüksek (sahip 2026-10-30: sürücüde de gereksiz büyük
+/// değil), altında 8 dp boşluk; daha fazla değil: plaka rıhtıma yapışmaz. Müşteri adı
 /// ekran okuyucu metninde ve aşağıdaki "Düzeltme bekleyen" kartında; dokununca ayrıntı açılır
 /// (birden çoksa Bugün listesi gösterilir). Basınca hafifçe içe çöker.
 class _DisputeRow extends StatelessWidget {
@@ -1411,10 +1411,10 @@ class _DisputeRow extends StatelessWidget {
 
     final danger = c.tone(AknTone.danger);
     const radius = BorderRadius.all(Radius.circular(16));
-    // Dokunma hedefi = kart + altındaki 8 dp boşluk (sürücü kipinde 56 + 8 = 64): şerit hedef kadar
-    // yer kaplar, fazlasını değil — plaka rıhtımdan ≥ 12 dp yukarıda biter (A13).
+    // Kart = standart 48 dp dokunma hedefi; altında 8 dp boşluk: şerit hedef kadar yer kaplar,
+    // fazlasını değil — plaka rıhtımdan ≥ 12 dp yukarıda biter (A13).
     const gap = 8.0;
-    final card = math.max(AknSpace.minTap, context.minTap - gap);
+    const card = AknSpace.minTap;
     final large = MediaQuery.textScalerOf(context).scale(10) >= 13;
     // Kısa kalsın: büyük yazıda en çok 1,6× (durak ve plaka ilk ekranda kalır).
     return MediaQuery.withClampedTextScaling(
@@ -1447,14 +1447,14 @@ class _DisputeRow extends StatelessWidget {
                     splashFactory: NoSplash.splashFactory,
                     highlightColor: c.surfaceAlt,
                     child: ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: card),
+                      constraints: const BoxConstraints(minHeight: card),
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 5, 10, 5),
+                        padding: const EdgeInsets.fromLTRB(14, 4, 10, 4),
                         child: Row(
                           children: [
                             Icon(
                               PhosphorIconsRegular.warningOctagon,
-                              size: 22,
+                              size: 20,
                               color: danger.fg,
                             ),
                             const SizedBox(width: 10),
@@ -1466,6 +1466,7 @@ class _DisputeRow extends StatelessWidget {
                                 title,
                                 maxLines: large ? null : 2,
                                 style: t.bodyStrong.copyWith(
+                                  fontSize: 15,
                                   height: 20 / 15,
                                   color: danger.fg,
                                   fontWeight: FontWeight.w700,

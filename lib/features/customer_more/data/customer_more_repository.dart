@@ -400,9 +400,13 @@ class CustomerMoreRepository {
     parse: (j) => JsonReader.parseList(j, CompanyUser.fromJson),
   );
 
+  /// Yeni şirket kullanıcısı. Kullanıcı adı zorunlu; şifre verilirse kullanıcı hemen girer, verilmezse
+  /// e-postaya davet bağlantısı gider (e-posta o zaman zorunlu). Boş e-posta / şifre gönderilmez.
   Future<CompanyUser> createCompanyUser({
     required String displayName,
-    required String email,
+    required String userName,
+    String? email,
+    String? password,
     String? phoneNumber,
     required CustomerUserRole role,
   }) => api.post(
@@ -410,12 +414,22 @@ class CustomerMoreRepository {
     body: {
       'customerId': 0,
       'displayName': displayName.trim(),
-      'email': email.trim(),
+      'userName': userName.trim(),
+      'email': ?_clean(email),
+      'password': ?((password ?? '').isEmpty ? null : password),
       'phoneNumber': _clean(phoneNumber),
       'role': role.code,
     },
     parse: (j) => CompanyUser.fromJson(JsonReader.of(j)),
   );
+
+  /// Yöneticinin belirlediği yeni şifre (204; sunucu kurallarına uymazsa 400 `validation`).
+  Future<void> setCompanyUserPassword(String userId, String newPassword) =>
+      api.post<void>(
+        'customers/me/company-users/${Uri.encodeComponent(userId)}/password',
+        body: {'newPassword': newPassword},
+        quiet403: true,
+      );
 
   Future<CompanyUser> updateCompanyUser({
     required String userId,

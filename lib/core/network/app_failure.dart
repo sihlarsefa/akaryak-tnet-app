@@ -262,6 +262,26 @@ final class ValidationFailure extends AppFailure {
     }
     return null;
   }
+
+  /// Alanın tüm hataları alt alta (tekrarsız; anahtar büyük/küçük harf duyarsız); yoksa null.
+  String? errorsFor(String field) {
+    final f = field.asciiLower;
+    final lines = <String>{
+      for (final e in fieldErrors.entries)
+        if (e.key.asciiLower == f) ...e.value,
+    };
+    return lines.isEmpty ? null : lines.join('\n');
+  }
+
+  /// [fields] dışındaki alanların hataları alt alta (tekrarsız); yoksa null.
+  String? errorsExcept(Iterable<String> fields) {
+    final skip = {for (final f in fields) f.asciiLower};
+    final lines = <String>{
+      for (final e in fieldErrors.entries)
+        if (!skip.contains(e.key.asciiLower)) ...e.value,
+    };
+    return lines.isEmpty ? null : lines.join('\n');
+  }
 }
 
 /// 400 `business_rule` (ServiceException): sunucunun Türkçe mesajı.

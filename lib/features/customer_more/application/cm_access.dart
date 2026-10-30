@@ -1,6 +1,7 @@
 import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/enums.dart';
+import '../data/company.dart';
 
 /// A3 düğme kuralları (spec A.1 tablosu; sunucu ayrıca denetler). Rol adına değil sayfa yetkilerine bakılır.
 extension CmAccess on AccessPolicy {
@@ -39,6 +40,11 @@ extension CmAccess on AccessPolicy {
       cmCompanyUsers && can(Pg.customerCompanyUsers, Perm.create);
   bool get cmCompanyUserEdit =>
       cmCompanyUsers && can(Pg.customerCompanyUsers, Perm.edit);
+
+  /// "Şifre belirle" (sahip 2026-10-30): kullanıcıları yönetebilen herkes; şirketin ana kullanıcısının
+  /// şifresini yalnızca kendisi belirler (sunucu da denetler).
+  bool cmCanSetPassword(CompanyUser user) =>
+      cmCompanyUserEdit && (!user.isMainUser || user.isSelf);
 
   // Finans bilgisi
   bool get cmFinanceInfo =>

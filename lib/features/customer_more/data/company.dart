@@ -9,6 +9,7 @@ class CompanyUser {
   const CompanyUser({
     required this.userId,
     required this.displayName,
+    this.userName,
     this.email = '',
     this.phoneNumber,
     required this.role,
@@ -24,7 +25,9 @@ class CompanyUser {
 
   factory CompanyUser.fromJson(JsonReader r) => CompanyUser(
     userId: r.str('userId'),
-    displayName: r.nonEmpty('displayName') ?? r.str('email'),
+    displayName:
+        r.nonEmpty('displayName') ?? r.nonEmpty('userName') ?? r.str('email'),
+    userName: r.nonEmpty('userName'),
     email: r.str('email'),
     phoneNumber: r.nonEmpty('phoneNumber'),
     role: CustomerUserRole.fromCode(r.intOrNull('role')),
@@ -40,6 +43,9 @@ class CompanyUser {
 
   final String userId;
   final String displayName;
+
+  /// Giriş adı (sahip 2026-10-30: kullanıcı adı + şifreyle giriş; e-posta isteğe bağlı).
+  final String? userName;
   final String email;
   final String? phoneNumber;
   final CustomerUserRole role;

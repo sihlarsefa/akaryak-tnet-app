@@ -84,17 +84,18 @@ void main() {
     final strip = tester.getRect(title);
     final plateTop = tester.getTopLeft(find.byType(DriverStopPlate)).dy;
     expect(strip.bottom, lessThan(plateTop));
-    // Şerit dokunma hedefi kadar yer kaplar, fazlasını değil (kart + altındaki boşluk = sürücü
-    // kipinde 64): plaka 390×844'te rıhtımın ≥ 12 dp üstünde biter (A13; gerçek yazı tipiyle
-    // yakalamada 16 dp).
+    // Şerit dokunma hedefi kadar yer kaplar, fazlasını değil (sahip 2026-10-30: kart standart 48 dp
+    // hedef + altındaki 8 dp boşluk, sürücüde de 64 değil): plaka 390×844'te rıhtımın ≥ 12 dp
+    // üstünde biter (A13).
     final stripBox = tester.getRect(
       find.ancestor(of: title, matching: find.byType(GestureDetector)).last,
     );
-    final minTap = AknDriverMode.minTapOf(
-      tester.element(find.byType(DriverStopPlate)),
+    const stripHeight = AknSpace.minTap + 8;
+    expect(stripBox.height, moreOrLessEquals(stripHeight, epsilon: 0.5));
+    expect(
+      plateTop - stripBox.top,
+      moreOrLessEquals(stripHeight, epsilon: 0.5),
     );
-    expect(stripBox.height, moreOrLessEquals(minTap, epsilon: 0.5));
-    expect(plateTop - stripBox.top, moreOrLessEquals(minTap, epsilon: 0.5));
     // Sıra şoförde: "Müşteri itiraz etti · 1 teslimatı düzeltin" (edilgen "düzeltme bekliyor"
     // değil; v4 B16) ve müşteri adı ekran okuyucu metninde.
     expect(

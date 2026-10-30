@@ -126,13 +126,17 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
 
   Future<CompanyUser> add({
     required String displayName,
-    required String email,
+    required String userName,
+    String? email,
+    String? password,
     String? phone,
     required CustomerUserRole role,
   }) async {
     final u = await _repo.createCompanyUser(
       displayName: displayName,
+      userName: userName,
       email: email,
+      password: password,
       phoneNumber: phone,
       role: role,
     );
@@ -166,6 +170,10 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
 
   Future<void> sendLink(CompanyUser user) =>
       _repo.sendPasswordLink(user.userId);
+
+  /// "Şifre belirle": yöneticinin verdiği yeni şifre (sunucu kuralları; hata olduğu gibi döner).
+  Future<void> setPassword(CompanyUser user, String newPassword) =>
+      _repo.setCompanyUserPassword(user.userId, newPassword);
 
   Future<ApprovalThresholds> saveThresholds({
     double? aboveLitres,

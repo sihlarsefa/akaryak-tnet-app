@@ -54,7 +54,7 @@ Future<void> _typeLogin(
   String user,
   String password,
 ) async {
-  await tester.enterText(_field('E-posta ya da kullanıcı adı'), user);
+  await tester.enterText(_field('Kullanıcı adı'), user);
   await tester.enterText(_field('Şifre'), password);
   await tapVisible(tester, find.text('Giriş yap'));
   await pumpFor(tester, const Duration(seconds: 1));
@@ -207,10 +207,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        tester
-            .widget<TextField>(_field('E-posta ya da kullanıcı adı'))
-            .controller!
-            .text,
+        tester.widget<TextField>(_field('Kullanıcı adı')).controller!.text,
         'musteri',
       );
       expect(c.read(biometricLockProvider), isTrue);

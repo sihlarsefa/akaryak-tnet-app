@@ -1,5 +1,7 @@
 // Driver mode (design v3, from v2 §6.30 and §3.4): type one step larger (the hero figure 56/60,
-// tabular figures kept), 64 px superellipse buttons (r18) and targets, 76 px rows, 64 px bar items;
+// tabular figures kept), buttons at the app's standard 48 px (r16, 16/20 label, 20 px icons; owner
+// 2026-10-30: the 64 px cab buttons were needlessly big), 64 px other targets, 76 px rows, 64 px
+// bar items and 64 px fields;
 // idempotent; cab night keeps the dark tokens (the primary's orange gradient with a white label).
 import 'package:akaryakitnet/core/ui/driver_mode.dart';
 import 'package:akaryakitnet/core/ui/theme.dart';
@@ -44,7 +46,7 @@ void main() {
       size('label', d.label, 15, 20);
       size('caption', d.caption, 13, 18);
       size('captionStrong', d.captionStrong, 13, 18);
-      size('button', d.button, 18, 22);
+      size('button', d.button, 16, 20);
       size('navLabel', d.navLabel, 12, 15);
       size('amount', d.amount, 20, 26);
       size('amountLarge', d.amountLarge, 30, 34);
@@ -82,12 +84,11 @@ void main() {
       ('light', AknTheme.light(), AknColors.light),
       ('dark (cab night)', AknTheme.dark(), AknColors.dark),
     ]) {
-      test('$name: 64 px buttons with radius 18 and an 18/22 label', () {
+      test('$name: 48 px buttons with radius 16 and a 16/20 label', () {
         final dt = AknDriverMode.theme(theme);
         expect(dt.extension<AknDriverMode>(), AknDriverMode.standard);
-        const shape = RoundedSuperellipseBorder(
-          borderRadius: AknRadius.buttonDriver,
-        );
+        const shape = RoundedSuperellipseBorder(borderRadius: AknRadius.button);
+        // The slide-to-confirm track keeps the driver radius.
         expect(
           AknRadius.buttonDriver,
           const BorderRadius.all(Radius.circular(18)),
@@ -98,13 +99,13 @@ void main() {
           dt.outlinedButtonTheme.style!,
           dt.textButtonTheme.style!,
         ]) {
-          expect(style.minimumSize!.resolve(_none)!.height, 64);
+          expect(style.minimumSize!.resolve(_none)!.height, 48);
           expect(style.shape!.resolve(_none), shape);
           final label = style.textStyle!.resolve(_none)!;
-          expect(label.fontSize, 18);
-          expect(label.height! * 18, closeTo(22, 1e-9));
+          expect(label.fontSize, 16);
+          expect(label.height! * 16, closeTo(20, 1e-9));
           expect(label.fontWeight, FontWeight.w700);
-          expect(style.iconSize!.resolve(_none), 24);
+          expect(style.iconSize!.resolve(_none), 20);
         }
         // The primary's gradient follows the driver radius; the others stay
         // plain.
@@ -158,8 +159,12 @@ void main() {
       const a = AknDriverMode.standard;
       final b = a.copyWith(minTap: 72);
       expect(b.minTap, 72);
-      expect(b.buttonHeight, 64);
-      expect(a.buttonRadius, 18);
+      expect(b.buttonHeight, 48);
+      expect(a.buttonRadius, 16);
+      expect(a.buttonIconSize, 20);
+      expect(a.fieldHeight, 64);
+      expect(a.copyWith(fieldHeight: 56).fieldHeight, 56);
+      expect(a.lerp(a.copyWith(fieldHeight: 56), 0.5).fieldHeight, 60);
       expect(a.lerp(b, 0.5).minTap, 68);
       expect(a.lerp(null, 0.5), a);
       expect(a.copyWith(), a);

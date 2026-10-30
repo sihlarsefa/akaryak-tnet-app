@@ -52,6 +52,7 @@ class StaffState {
           if (!passFilter) return false;
           if (q.isEmpty) return true;
           return TurkishText.matches(m.displayName, q) ||
+              TurkishText.matches(m.userName, q) ||
               TurkishText.matches(m.email, q) ||
               TurkishText.matches(m.phoneNumber, q) ||
               m.roleLabels.any((r) => TurkishText.matches(r, q));
@@ -164,6 +165,16 @@ class StaffController extends Notifier<StaffState> {
     _setBusy(m.userId, true);
     try {
       await _repo.sendPasswordReset(m.userId);
+    } finally {
+      _setBusy(m.userId, false);
+    }
+  }
+
+  /// "Şifre belirle": yöneticinin verdiği yeni şifre (hata olduğu gibi döner; sayfa gösterir).
+  Future<void> setPassword(StaffMember m, String newPassword) async {
+    _setBusy(m.userId, true);
+    try {
+      await _repo.setStaffPassword(m.userId, newPassword);
     } finally {
       _setBusy(m.userId, false);
     }

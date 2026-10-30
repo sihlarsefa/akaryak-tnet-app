@@ -113,8 +113,14 @@ class BayiGrants {
   /// Ekip: `StationStaff:Görür`, saha satış hiçbir zaman (spec A.2).
   bool get viewStaff => !isFieldSales && _can(Pg.stationStaff);
 
-  /// Aktif/pasif ve "Şifre bağlantısı gönder": `StationStaff:Duzenler`.
+  /// Aktif/pasif, "Şifre bağlantısı gönder" ve "Şifre belirle": `StationStaff:Duzenler`.
   bool get manageStaff => viewStaff && _can(Pg.stationStaff, Perm.edit);
+
+  /// "Şifre belirle" (sahip 2026-10-30): personeli düzenleyebilen herkes, başkasının hesabında (kendi
+  /// şifresini Profil'den değiştirir). Bayinin ana hesabının (`isMainAccount`) şifresini yalnızca
+  /// kendisi değiştirir: başkasının kartında düğme yok (sunucu yine de 403 döner; ileti sayfada).
+  bool setStaffPassword({required bool self, bool mainAccount = false}) =>
+      manageStaff && !self && !mainAccount;
 
   // ------------------------------------------------------------------ Durum lambası
 

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/session_controller.dart';
+import '../../../../core/auth/set_password_sheet.dart';
 import '../../../../core/models/enums.dart';
 import '../../../../core/network/app_failure.dart';
 import '../../../../core/ui/ui.dart';
 import '../../../../core/utils/format.dart';
 import '../../../../core/utils/tr_number.dart';
 import '../../../../core/utils/validators.dart';
+import '../../application/cm_access.dart';
 import '../../application/company_controller.dart';
 import '../../copy.dart';
 import '../../data/company.dart';
@@ -24,11 +26,12 @@ const _roles = [
 /// (sunucu da eski rolleri 3'e çevirir).
 const _singleRole = CustomerUserRole.admin;
 
-/// Yeni şirket kullanıcısı (davet e-postası gönderilir).
+/// Yeni şirket kullanıcısı (sahip 2026-10-30): kullanıcı adı ve şifreyle hemen giriş yapar; e-posta
+/// isteğe bağlıdır. Şifre boş, e-posta doluysa eski akış: e-postaya şifre belirleme bağlantısı gider.
 Future<void> showAddUserSheet(BuildContext context) => showAppSheet<void>(
   context: context,
   title: 'Kullanıcı ekle',
-  subtitle: 'Şifre belirleme bağlantısı e-posta adresine gönderilir.',
+  subtitle: 'Kullanıcı adı ve şifreyle giriş yapar; e-posta gerekmez.',
   builder: (_) => const _UserForm(),
 );
 
@@ -37,9 +40,13 @@ Future<void> showEditUserSheet(BuildContext context, CompanyUser user) =>
     showAppSheet<void>(
       context: context,
       title: 'Kullanıcıyı düzenle',
-      subtitle: user.email,
+      subtitle: _who(user),
       builder: (_) => _UserForm(user: user),
     );
+
+/// Sayfa alt başlığındaki kimlik: e-posta, yoksa kullanıcı adı.
+String? _who(CompanyUser user) =>
+    user.email.isNotEmpty ? user.email : user.userName;
 
 class _UserForm extends ConsumerStatefulWidget {
   const _UserForm({this.user});
@@ -55,6 +62,10 @@ class _UserFormState extends ConsumerState<_UserForm> {
     text: widget.user?.displayName ?? '',
   );
   late final _email = TextEditingController(text: widget.user?.email ?? '');
+  late final _userName = TextEditingController(
+    text: widget.user?.userName ?? '',
+  );
+  final _password = TextEditingController();
   late final _phone = TextEditingController(
     text: widget.user?.phoneNumber ?? '',
   );
@@ -62,7 +73,28 @@ class _UserFormState extends ConsumerState<_UserForm> {
   final _form = GlobalKey<FormState>();
   String? _error;
 
+  /// Sunucunun alan hataları (400 `validation`: `errors.userName`, `errors.password` …): ilgili alanın
+  /// altında gösterilir; alan değişince silinir.
+  Map<String, String> _fieldErrors = const {};
+
   bool get _isNew => widget.user == null;
+
+  bool get _hasUserName => (widget.user?.userName ?? '').isNotEmpty;
+
+  /// Formda görünen alanların sunucu anahtarları (diğer hatalar üstteki bantta).
+  List<String> get _shownFields => [
+    'displayName',
+    if (_isNew || _hasUserName) 'userName',
+    if (_isNew) 'password',
+    'phoneNumber',
+    if (_isNew || _email.text.isNotEmpty) 'email',
+  ];
+
+  void _clearError(String field) {
+    if (!_fieldErrors.containsKey(field)) return;
+    setState(() => _fieldErrors = {..._fieldErrors}..remove(field));
+  }
+
   bool get _self => widget.user?.isSelf ?? false;
 
   /// Şirket içi onay açık mı (eski akış: rol seçimi var).
@@ -75,26 +107,37 @@ class _UserFormState extends ConsumerState<_UserForm> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _userName.dispose();
+    _password.dispose();
     _phone.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    setState(() => _error = null);
+    setState(() {
+      _error = null;
+      _fieldErrors = const {};
+    });
     if (!(_form.currentState?.validate() ?? false)) return;
     final ctrl = ref.read(companyUsersControllerProvider.notifier);
     try {
       if (_isNew) {
+        final userName = _userName.text.trim();
+        final invite = _password.text.isEmpty;
         final u = await ctrl.add(
           displayName: _name.text,
+          userName: userName,
           email: _email.text,
+          password: _password.text,
           phone: _phone.text,
           role: _sentRole,
         );
         if (!mounted) return;
         Navigator.of(context).pop();
         AppToast.success(
-          'Kullanıcı eklendi; şifre belirleme bağlantısı ${u.email} adresine gönderildi.',
+          invite
+              ? 'Kullanıcı eklendi; şifre belirleme bağlantısı ${u.email} adresine gönderildi.'
+              : 'Kullanıcı eklendi. Kullanıcı adı: ${u.userName ?? userName}. Şifreyi kendisine iletin.',
           context: context,
         );
       } else {
@@ -109,9 +152,21 @@ class _UserFormState extends ConsumerState<_UserForm> {
         AppToast.success('Kullanıcı güncellendi.', context: context);
       }
     } catch (e) {
-      // Hata formda gösterilir (düğme yalnızca bekleme durumunu yönetir).
+      // Hata formda gösterilir (düğme yalnızca bekleme durumunu yönetir): doğrulama hataları alanın
+      // altında, alanı olmayanlar ve diğer hatalar üstteki bantta.
       final f = AppFailure.from(e);
-      if (mounted) setState(() => _error = failureText(f));
+      if (!mounted) return;
+      setState(() {
+        if (f is ValidationFailure) {
+          final shown = _shownFields;
+          _fieldErrors = {for (final k in shown) k: ?f.errorsFor(k)};
+          _error =
+              f.errorsExcept(shown) ??
+              (_fieldErrors.isEmpty ? failureText(f) : null);
+        } else {
+          _error = failureText(f);
+        }
+      });
     }
   }
 
@@ -136,23 +191,52 @@ class _UserFormState extends ConsumerState<_UserForm> {
             textCapitalization: TextCapitalization.words,
             autofillHints: const [AutofillHints.name],
             textInputAction: TextInputAction.next,
+            errorText: _fieldErrors['displayName'],
+            onChanged: (_) => _clearError('displayName'),
             validator: (v) =>
                 (v ?? '').trim().isEmpty ? 'Ad soyad zorunludur.' : null,
           ),
-          const SizedBox(height: 12),
-          AknTextField(
-            controller: _email,
-            label: 'E-posta',
-            requiredMark: _isNew,
-            enabled: _isNew,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            textInputAction: TextInputAction.next,
-            helper: _isNew
-                ? 'Şifre belirleme bağlantısı bu adrese gönderilir.'
-                : 'E-posta adresi değiştirilemez.',
-            validator: _isNew ? (v) => Validators.email(v) : null,
-          ),
+          if (_isNew) ...[
+            const SizedBox(height: 12),
+            AknTextField(
+              controller: _userName,
+              label: 'Kullanıcı adı',
+              requiredMark: true,
+              maxLength: 50,
+              // ASCII klavye: kullanıcı adı girişte yazılır (Türkçe karakter yok).
+              keyboardType: TextInputType.visiblePassword,
+              autofillHints: const [AutofillHints.newUsername],
+              textInputAction: TextInputAction.next,
+              helper:
+                  'Girişte kullanılır: İngilizce harf, rakam, nokta, alt çizgi, tire (3–50 karakter).',
+              errorText: _fieldErrors['userName'],
+              onChanged: (_) => _clearError('userName'),
+              validator: Validators.userName,
+            ),
+            const SizedBox(height: 12),
+            AknPasswordField(
+              controller: _password,
+              label: 'Şifre',
+              autofillHints: const [AutofillHints.newPassword],
+              textInputAction: TextInputAction.next,
+              errorText: _fieldErrors['password'],
+              onChanged: (_) => _clearError('password'),
+              helper:
+                  '${SetPasswordCopy.rules} Boş bırakırsanız e-postaya şifre belirleme bağlantısı gider.',
+              validator: (v) => (v ?? '').isEmpty && _email.text.trim().isEmpty
+                  ? 'Şifre belirleyin ya da e-posta girin.'
+                  : null,
+            ),
+          ] else if ((widget.user?.userName ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AknTextField(
+              controller: _userName,
+              label: 'Kullanıcı adı',
+              enabled: false,
+              helper: 'Kullanıcı adı değiştirilemez.',
+              errorText: _fieldErrors['userName'],
+            ),
+          ],
           const SizedBox(height: 12),
           AknTextField(
             controller: _phone,
@@ -160,7 +244,28 @@ class _UserFormState extends ConsumerState<_UserForm> {
             maxLength: 20,
             keyboardType: TextInputType.phone,
             autofillHints: const [AutofillHints.telephoneNumber],
+            errorText: _fieldErrors['phoneNumber'],
+            onChanged: (_) => _clearError('phoneNumber'),
           ),
+          if (_isNew || _email.text.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AknTextField(
+              controller: _email,
+              label: _isNew ? 'E-posta (isteğe bağlı)' : 'E-posta',
+              enabled: _isNew,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              textInputAction: TextInputAction.done,
+              helper: _isNew
+                  ? 'Şifre boşsa davet bağlantısı bu adrese gönderilir.'
+                  : 'E-posta adresi değiştirilemez.',
+              errorText: _fieldErrors['email'],
+              onChanged: (_) => _clearError('email'),
+              validator: _isNew
+                  ? (v) => Validators.email(v, required: false)
+                  : null,
+            ),
+          ],
           if (approvals) ...[
             const SizedBox(height: 16),
             Text('Şirket rolü', style: t.label),
@@ -186,9 +291,9 @@ class _UserFormState extends ConsumerState<_UserForm> {
           ],
           const SizedBox(height: 8),
           AknButton(
-            label: _isNew ? 'Ekle ve davet gönder' : 'Kaydet',
+            label: _isNew ? 'Kullanıcıyı ekle' : 'Kaydet',
             icon: _isNew
-                ? PhosphorIconsRegular.paperPlaneRight
+                ? PhosphorIconsRegular.userPlus
                 : PhosphorIconsRegular.check,
             expand: true,
             showSuccess: false,
@@ -200,8 +305,10 @@ class _UserFormState extends ConsumerState<_UserForm> {
   }
 }
 
-/// Kullanıcı eylemleri: düzenle, bağlantıyı yeniden gönder, aktif / pasif (onaylı). Roller v5 (şirket
-/// içi onay kapalı): rol anılmaz; ana kullanıcıyı yalnızca merkez ya da kendisi pasifleştirir (düğme yok).
+/// Kullanıcı eylemleri: düzenle, şifre belirle, bağlantıyı yeniden gönder (e-postası varsa), aktif /
+/// pasif (onaylı). Roller v5 (şirket içi onay kapalı): rol anılmaz; ana kullanıcıyı yalnızca merkez ya da
+/// kendisi pasifleştirir (düğme yok). "Şifre belirle": kullanıcıları yönetebilen herkes; ana kullanıcının
+/// şifresini yalnızca kendisi ([CmAccess.cmCanSetPassword]).
 Future<void> showUserActionsSheet(
   BuildContext context,
   CompanyUser user, {
@@ -210,11 +317,12 @@ Future<void> showUserActionsSheet(
   context: context,
   title: user.displayName,
   subtitle: companyApprovals
-      ? '${user.displayRole}, ${user.email}'
-      : user.email,
+      ? [user.displayRole, ?_who(user)].join(', ')
+      : _who(user),
   builder: (sheet) => Consumer(
     builder: (context, ref, _) {
       final ctrl = ref.read(companyUsersControllerProvider.notifier);
+      final policy = ref.watch(accessPolicyProvider);
       final approvals = companyApprovals;
       Future<void> run(Future<String> Function() action) async {
         Navigator.of(sheet).pop();
@@ -241,7 +349,24 @@ Future<void> showUserActionsSheet(
               showEditUserSheet(context, user);
             },
           ),
-          if (user.isActive)
+          if (policy.cmCanSetPassword(user))
+            AknListTile(
+              leadingIcon: PhosphorIconsRegular.password,
+              titleStyle: cmRowTitle(context),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              title: SetPasswordCopy.action,
+              subtitle: SetPasswordCopy.actionHint,
+              onTap: () {
+                Navigator.of(sheet).pop();
+                showSetPasswordSheet(
+                  context,
+                  name: user.displayName,
+                  userName: user.userName,
+                  save: (p) => ctrl.setPassword(user, p),
+                );
+              },
+            ),
+          if (user.isActive && user.email.isNotEmpty)
             AknListTile(
               leadingIcon: PhosphorIconsRegular.envelopeSimpleOpen,
               titleStyle: cmRowTitle(context),

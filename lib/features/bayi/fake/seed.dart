@@ -19,14 +19,19 @@ abstract final class BayiBags {
   static const deskConflicts = 'bayi.deskConflicts';
   static const deskErrors = 'bayi.deskErrors';
   static const passwordResets = 'bayi.passwordResets';
+  static const passwordsSet = 'bayi.passwordsSet';
   static const reportedBy = 'bayi.reportedBy';
 }
+
+/// Demo bayisinin ana hesabı (`Station.UserId`): sahip. Ekip satırında `isMainAccount`.
+const fakeBayiMainAccount = 'u-sahip';
 
 /// Sahte ek şoför ve personel (girişi olmayan hesaplar; plan / atama / Ekip ekranı için).
 const fakeExtraStaff = <JsonMap>[
   {
     'userId': 'u-sofor2',
     'displayName': 'Mustafa Er',
+    'userName': 'mustafa.er',
     'email': 'mustafa.er@demo.akaryakitnet.local',
     'phoneNumber': '5320000212',
     'role': 'driver',
@@ -36,6 +41,7 @@ const fakeExtraStaff = <JsonMap>[
   {
     'userId': 'u-sofor3',
     'displayName': 'Serdar Çınar',
+    'userName': 'serdar.cinar',
     'email': 'serdar.cinar@demo.akaryakitnet.local',
     'phoneNumber': '5320000213',
     'role': 'driver',
@@ -45,6 +51,7 @@ const fakeExtraStaff = <JsonMap>[
   {
     'userId': 'u-eski',
     'displayName': 'Kerem Balcı',
+    'userName': 'kerem.balci',
     'email': 'kerem.balci@demo.akaryakitnet.local',
     'phoneNumber': '5320000214',
     'role': 'viewer',
@@ -414,8 +421,10 @@ List<JsonMap> stationStaff(FakeWorld w, int stationId) {
     out.add({
       'userId': p.userId,
       'displayName': p.displayName,
+      'userName': p.userName,
       'email': p.email,
       'phoneNumber': p.phone,
+      'isMainAccount': p.userId == fakeBayiMainAccount,
       'isActive': overrides[p.userId] ?? true,
       'isFieldSales': p.roles.contains('FieldSales'),
       'roleCodes': p.bayiRoleCodes,
@@ -427,6 +436,7 @@ List<JsonMap> stationStaff(FakeWorld w, int stationId) {
       out.add({
         ...e,
         'isActive': overrides[e['userId']] ?? e['isActive'],
+        'isMainAccount': false,
         'isFieldSales': false,
         'roleCodes': [e['role']],
       });

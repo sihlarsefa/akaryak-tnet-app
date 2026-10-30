@@ -443,11 +443,14 @@ class _DisputeBox extends StatelessWidget {
           ),
           if (onCorrect != null) ...[
             const SizedBox(height: 10),
-            AknButton.secondary(
-              label: DriverCopy.actionFix,
-              icon: PhosphorIconsRegular.notePencil,
-              expand: true,
-              onPressed: onCorrect,
+            // Doğal genişlikte, 48 dp (sahip 2026-10-30: kart boyu düğme gereksiz büyüktü).
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AknButton.secondary(
+                label: DriverCopy.actionFix,
+                icon: PhosphorIconsRegular.notePencil,
+                onPressed: onCorrect,
+              ),
             ),
           ],
         ],
