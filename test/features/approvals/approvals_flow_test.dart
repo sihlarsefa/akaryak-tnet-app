@@ -71,10 +71,25 @@ void main() {
     );
 
     testWidgets('karar veremeyene decisionHint, çubuk yok', (tester) async {
-      await pumpA5(tester, persona: 'finans', location: '/approvals/9010');
-      expect(find.text('Limit talepleri merkezde onaylanır.'), findsOneWidget);
+      // Sahip kararı 02.11.2026: limit talebine bayi karar verir; merkez yalnızca izler.
+      await pumpA5(tester, persona: 'merkez', location: '/approvals/9010');
+      expect(
+        find.text('Bu talebe bayi karar verir; merkez yalnızca izler.'),
+        findsOneWidget,
+      );
       expect(find.text('Onayla'), findsNothing);
       expect(find.text('Reddet'), findsNothing);
+      await finish(tester);
+    });
+
+    testWidgets('limit talebi (finans birimi): Onayla ve Reddet', (
+      tester,
+    ) async {
+      await pumpA5(tester, persona: 'finans', location: '/approvals/9010');
+      expect(find.text('Onayla'), findsOneWidget);
+      expect(find.text('Reddet'), findsOneWidget);
+      expect(find.text('Diğer'), findsNothing);
+      expect(find.textContaining('erkez'), findsNothing);
       await finish(tester);
     });
   });

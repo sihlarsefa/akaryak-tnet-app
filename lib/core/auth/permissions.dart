@@ -220,7 +220,8 @@ abstract final class ApproverUnits {
     _ => unit,
   };
 
-  /// Birimin imza yetkinlikleri (sunucu `CapabilitiesOf`).
+  /// Birimin imza yetkinlikleri (sunucu `CapabilitiesOf`). Finans birimi limit talebini de onaylar
+  /// (sahip kararı 02.11.2026).
   static List<String> capabilitiesOf(String unit) => switch (unit) {
     management => const [
       Caps.approveFieldSenior,
@@ -232,6 +233,7 @@ abstract final class ApproverUnits {
       Caps.approveFinanceOrder,
       Caps.approveFinanceOnboarding,
       Caps.approveFinanceLead,
+      Caps.approveFinanceLimit,
     ],
     _ => const [],
   };
@@ -241,8 +243,8 @@ abstract final class ApproverUnits {
   static String roleLine(String role, List<String> units) =>
       units.isEmpty ? role : '$role · onaycı';
 
-  /// Yetkinliğin birimi (sunucu `UnitOf`); merkez (`approve.limit.hq`, `approve.hq`), cari
-  /// (`approve.company.order`) ve onay dışı kodlarda null.
+  /// Yetkinliğin birimi (sunucu `UnitOf`); merkez (eski `approve.limit.hq`, `approve.hq`), cari
+  /// (`approve.company.order`) ve onay dışı kodlarda null. `approve.finance.limit` finans birimindedir.
   static String? unitOf(String? capability) {
     for (final u in all) {
       if (capabilitiesOf(u).contains(capability)) return u;
@@ -259,7 +261,14 @@ abstract final class Caps {
   static const approveFinanceOrder = 'approve.finance.order';
   static const approveFinanceOnboarding = 'approve.finance.onboarding';
   static const approveFinanceLead = 'approve.finance.lead';
+
+  /// Limit talebi onayı (sahip kararı 02.11.2026 "limiti de aynı şekilde"): limit talebine bayinin Finans
+  /// birimi karar verir, merkez yalnızca izler. Finans biriminin kodudur ([ApproverUnits.finance]).
+  static const approveFinanceLimit = 'approve.finance.limit';
   static const approveOrderExecutive = 'approve.order.executive';
+
+  /// Eski merkez limit onayı: 02.11.2026'dan beri yalnızca geçmiş adımlarda görülür (karar
+  /// [approveFinanceLimit] ile bayide).
   static const approveLimitHq = 'approve.limit.hq';
   static const approveCompanyOrder = 'approve.company.order';
   static const approveHq = 'approve.hq';
@@ -295,6 +304,7 @@ abstract final class Caps {
     approveFinanceOrder,
     approveFinanceOnboarding, //
     approveFinanceLead,
+    approveFinanceLimit,
     approveOrderExecutive,
     approveLimitHq,
     approveCompanyOrder,
@@ -322,6 +332,7 @@ abstract final class Caps {
     approveFinanceOrder,
     approveFinanceOnboarding, //
     approveFinanceLead,
+    approveFinanceLimit,
     approveOrderExecutive,
     financeRiskReportPull,
     financeProfileEdit,

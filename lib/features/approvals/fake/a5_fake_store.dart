@@ -1026,7 +1026,11 @@ class A5FakeStore {
       existsElsewhere: true,
     );
 
-    // ---- 9010 Limit talebi (merkez onaylar) ----
+    // ---- 9010 Limit talebi (bayinin Finans birimi onaylar; sahip kararı 02.11.2026) ----
+    // "Limiti de aynı şekilde": limit talebine bayi karar verir, merkez yalnızca izler (sunucu
+    // `ApprovalTypes.IsBayiDecided`). Tek kademe "Finans birimi" (approve.finance.limit); Roller v5'te
+    // birimin onaycısı (finans) imzalar, talep eden (sahip) imzalamaz. Bayi sahtesinin bekleyen talebi
+    // (Marmara İnşaat, `bayi.limitRequests`) bu kayda bağlıdır: karar talebe ve cari limitine geçer.
     world.approvals.add(
       _approvalRecord(
         id: 9010,
@@ -1036,14 +1040,14 @@ class A5FakeStore {
         subjectId: 4001,
         subjectNumber: 'LMT-00041',
         title: 'Limit talebi',
-        summary: 'Marmara İnşaat · aylık limit 1.000.000 ₺ yerine 1.500.000 ₺',
+        summary: 'Yeni şantiye; aylık tüketim 35.000 L',
         amount: 1500000,
         customerId: 102,
         requestedByUserId: 'u-sahip',
         requestedByName: 'Mehmet Demir',
         createdAt: _h(-30),
         dueAt: _h(18),
-        eligible: const ['merkez'],
+        eligible: const ['finans', 'sahip'],
       ),
     );
     approvalExtras[9010] = A5ApprovalExtra(
@@ -1052,23 +1056,36 @@ class A5FakeStore {
         _step(
           90101,
           1,
-          'Merkez limit onayı',
-          Caps.approveLimitHq,
+          'Finans birimi',
+          Caps.approveFinanceLimit,
           status: 1,
           dueAt: _h(18),
-          eligible: const ['merkez'],
+          eligible: const ['finans', 'sahip'],
         ),
       ],
       events: [event(ApprovalEventKind.created, userKey: 'sahip', at: _h(-30))],
-      headline: 'LMT-00041 · Marmara İnşaat Taahhüt Ltd. Şti.',
-      subline: 'Aylık limit artışı',
+      // Sunucu `LimitChangeSummaryBuilder`: cari · bayi, alt satır, satırlar ve bağlantılar.
+      headline:
+          'Marmara İnşaat Taahhüt Ltd. Şti. · ${world.stationTitle(1) ?? 'Bayi'}',
+      subline: 'Limit değişikliği talebi · bayi Finans birimi onayı',
       facts: [
-        _fact('Mevcut limit', '${Fmt.money(1000000)} · aylık'),
-        _fact('Talep edilen limit', '${Fmt.money(1500000)} · aylık', 'warn'),
-        _fact('Kullanım', '%94', 'warn'),
+        _fact('Cari', 'Marmara İnşaat Taahhüt Ltd. Şti.'),
+        _fact('Mevcut limit', 'Aylık ${Fmt.moneyWhole(1000000)}'),
+        _fact('Talep edilen limit', 'Aylık ${Fmt.moneyWhole(1500000)}', 'info'),
+        _fact(
+          'Geçerli dönem kullanımı',
+          '${Fmt.moneyWhole(940000)} / ${Fmt.moneyWhole(1000000)} · %94 · Aylık',
+          'warn',
+        ),
         _fact('Gerekçe', 'Yeni şantiye; aylık tüketim 35.000 L'),
+        _fact('Talep eden', 'Mehmet Demir'),
+        _fact('Durum', 'Bekliyor'),
       ],
-      links: const {'customerId': 102, 'limitRequestId': 4001},
+      links: const {
+        'customerId': 102,
+        'stationCustomerId': 502,
+        'limitRequestId': 4001,
+      },
     );
 
     // ---- 9011 Karar verilmiş: sipariş finans onaylandı (finans, 2 gün önce) ----
@@ -1329,6 +1346,12 @@ class A5FakeStore {
       type == ApprovalType.customerOnboarding.code ||
       type == ApprovalType.leadFinance.code;
 
+  /// Bayide karara bağlanan türler (sunucu `ApprovalTypes.IsBayiDecided`; sahip kararı 02.11.2026):
+  /// limit talebi ve yeni cari onayı. Merkez karar vermez, yalnızca izler.
+  static bool isBayiDecided(int type) =>
+      type == ApprovalType.limitChange.code ||
+      type == ApprovalType.customerOnboarding.code;
+
   static bool isCustomerAddressed(int type) =>
       type == ApprovalType.orderFinance.code ||
       type == ApprovalType.customerOnboarding.code;
@@ -1361,6 +1384,10 @@ class A5FakeStore {
       a['type'] != ApprovalType.companyOrderRequest.code;
 
   bool _eligible(FakePersona p, JsonMap a) {
+    // Limit talebi ve yeni cari onayında merkez karar vermez (yükseltilse de; sunucu `Check`).
+    if (p.persona == Persona.platform && isBayiDecided(a['type'] as int)) {
+      return false;
+    }
     if (_listed(p, a)) return world.signsStep(p, _stepCapability(a));
     return p.persona == Persona.platform && a['escalated'] == true;
   }
@@ -1516,14 +1543,16 @@ class A5FakeStore {
           ? 'Sizden ek bilgi istendi; istenen bilgiyi ya da belgeyi ekleyip yanıtlayın.'
           : 'Talep ek bilgi bekliyor; yanıt gelince karar verilebilir.';
     }
+    // Sahip kararı 02.11.2026: merkez limit talebini ve yeni cari onayını izler, kararı bayi verir
+    // (sunucu `ApprovalDecisionHints.BayiDecides`).
+    if (p.persona == Persona.platform && isBayiDecided(type)) {
+      return 'Bu talebe bayi karar verir; merkez yalnızca izler.';
+    }
     if (a['requestedByUserId'] == p.userId) {
       return 'Kendi talebinizi onaylayamazsınız.';
     }
     if (x.deciders.contains(p.userId)) {
       return 'Bu talepte bir kademeyi zaten onayladınız; sonraki kademeyi başka biri onaylamalı.';
-    }
-    if (type == ApprovalType.limitChange.code) {
-      return 'Limit talepleri merkezde onaylanır.';
     }
     if (type == ApprovalType.companyOrderRequest.code) {
       return 'Sipariş talebini şirketinizin onaylayanı ya da yöneticisi onaylar.';

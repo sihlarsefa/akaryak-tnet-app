@@ -393,6 +393,8 @@ void _seedNotes(FakeWorld w) {
   ];
 }
 
+/// Marmara İnşaat'ın bekleyen limit talebi: Onaylar'daki yansıması A5 deposunun 9010'udur (aynı talep
+/// eden, tutar, gerekçe ve an); 9010'a verilen karar talebe ve cari limitine geçer.
 void _seedLimitRequests(FakeWorld w) {
   final list = w.bag<List<JsonMap>>(BayiBags.limitRequests, () => []);
   list.add({
@@ -402,8 +404,10 @@ void _seedLimitRequests(FakeWorld w) {
     'requestedLimitType': 'Tutar',
     'requestedLimitPeriod': 'Aylık',
     'requestedLimitAmount': 1500000.0,
-    'reason': 'Kış sezonu şantiye tüketimi artıyor.',
+    'reason': 'Yeni şantiye; aylık tüketim 35.000 L',
     'status': 0,
+    'requestedByUserId': fakeBayiMainAccount,
+    'approvalId': 9010,
     'createdAt': _h(-30).toIso8601String(),
   });
 }

@@ -214,8 +214,8 @@ class BayiActions {
   Future<void> deleteNote(int customerId, int noteId) =>
       _repo.deleteNote(customerId, noteId);
 
-  /// Limit değişikliği talebi (merkez onayına). Belirsiz sonuçta kart okunur: bekleyen talep görülürse
-  /// başarı sayılır.
+  /// Limit değişikliği talebi (bayinin Finans birimi onayına; merkeze gitmez). Belirsiz sonuçta kart
+  /// okunur: bekleyen talep görülürse başarı sayılır.
   Future<BayiOutcome> requestLimit(
     int customerId,
     LimitRequestDraft draft,

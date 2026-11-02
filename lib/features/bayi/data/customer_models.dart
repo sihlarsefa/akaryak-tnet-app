@@ -373,7 +373,7 @@ class SummaryFinanceCard {
   final bool isGrandfathered;
 }
 
-/// Bekleyen limit talebi (merkez onayında).
+/// Bekleyen limit talebi (bayinin Finans birimi onayında).
 @immutable
 class SummaryLimitRequest {
   const SummaryLimitRequest({

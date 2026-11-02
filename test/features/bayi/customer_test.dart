@@ -28,7 +28,7 @@ void main() {
       );
       expect(find.text('Marmara İnşaat Taahhüt Ltd. Şti.'), findsWidgets);
       expect(
-        find.text('Bekleyen limit talebi, merkez onayında'),
+        find.text('Bekleyen limit talebi, Finans birimi onayında'),
         findsOneWidget,
       );
       expect(
@@ -67,7 +67,10 @@ void main() {
         persona: 'sahip',
         location: '/customers/101',
       );
-      expect(find.text('Bekleyen limit talebi, merkez onayında'), findsNothing);
+      expect(
+        find.text('Bekleyen limit talebi, Finans birimi onayında'),
+        findsNothing,
+      );
       await scrollTap(tester, find.text('Limit talebi'));
       expect(find.text('Talebi gönder'), findsOneWidget);
       expect(find.text('Mevcut limit'), findsOneWidget);
@@ -105,7 +108,7 @@ void main() {
       expect(s.pendingLimitRequest!.period, 'Aylık');
       expect(s.pendingLimitRequest!.limitType, 'Tutar');
       expect(
-        find.text('Bekleyen limit talebi, merkez onayında'),
+        find.text('Bekleyen limit talebi, Finans birimi onayında'),
         findsOneWidget,
       );
       expect(find.text('Limit talebi'), findsNothing);

@@ -687,7 +687,14 @@ void main() {
     );
 
     test('merkez: "Onayınızı bekleyen n talep"', () async {
-      final c = await _signedIn('merkez');
+      // Sahip kararı 02.11.2026: limit talebine (9010) bayi karar verir, merkez izler; merkezin kararını
+      // bekleyen iş merkeze iletilen ön kayıttır (9009, VKN başka bayide kayıtlı: "Merkeze ilet").
+      final world = FakeWorld.seeded();
+      A5FakeStore.of(world);
+      world.approval(9009)!
+        ..['eligibleUserIds'] = ['u-merkez']
+        ..['escalated'] = true;
+      final c = await _signedIn('merkez', world: world);
       c.listen(platformTasksProvider, (_, _) {});
       await _until(() => c.read(unreadCountProvider).approvals > 0);
       final n = c.read(unreadCountProvider).approvals;

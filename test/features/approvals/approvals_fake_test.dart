@@ -98,18 +98,48 @@ void main() {
     });
 
     test('karar veremeyene neden (decisionHint) gelir, modlar boş', () {
-      final limit = detail('finans', 9010);
-      expect(limit.modes, isEmpty);
-      expect(limit.decisionHint, 'Limit talepleri merkezde onaylanır.');
       final own = detail('saha', 9002);
       expect(own.modes, isEmpty);
       expect(own.decisionHint, 'Kendi talebinizi onaylayamazsınız.');
-      // Merkez limit talebini onaylar.
-      expect(detail('merkez', 9010).modes, [
-        ApprovalDecision.approve,
-        ApprovalDecision.reject,
-      ]);
+      // Sahip kararı 02.11.2026: limit talebine ve yeni cari onayına bayi karar verir; merkez izler.
+      const bayiDecides = 'Bu talebe bayi karar verir; merkez yalnızca izler.';
+      for (final id in [9010, 9007]) {
+        final hq = detail('merkez', id);
+        expect(hq.modes, isEmpty, reason: '$id');
+        expect(hq.decisionHint, bayiDecides, reason: '$id');
+      }
+      expect(detail('sahip', 9010).decisionHint, own.decisionHint);
+      expect(
+        detail('mudur', 9010).decisionHint,
+        'Bu kademede karar verme yetkiniz yok.',
+      );
     });
+
+    test(
+      'limit talebi bayinin Finans biriminde: Onayla / Reddet, merkez yok',
+      () {
+        final d = detail('finans', 9010);
+        expect(d.modes, [ApprovalDecision.approve, ApprovalDecision.reject]);
+        expect(d.decisionHint, isNull);
+        expect(d.steps.single.name, 'Finans birimi');
+        expect(d.steps.single.capabilityCode, 'approve.finance.limit');
+        expect(
+          d.summary.subline,
+          'Limit değişikliği talebi · bayi Finans birimi onayı',
+        );
+        expect(
+          d.summary.facts.map((f) => f.label),
+          containsAll([
+            'Cari',
+            'Mevcut limit',
+            'Talep edilen limit',
+            'Geçerli dönem kullanımı',
+            'Gerekçe',
+          ]),
+        );
+        expect(d.summary.links.stationCustomerId, 502);
+      },
+    );
 
     test('maliyet satırları yalnızca karar verebilene', () {
       expect(

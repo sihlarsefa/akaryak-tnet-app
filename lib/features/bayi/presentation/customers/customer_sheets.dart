@@ -11,8 +11,8 @@ import '../../application/customers_controller.dart';
 import '../../data/customer_models.dart';
 import '../widgets/bayi_widgets.dart';
 
-/// Limit değişikliği talebi (`CreateLimitChangeRequest`: periyot, tür, tutar, gerekçe). Merkez onayına
-/// gider; talep sonuçlanana kadar yeni talep açılamaz. Gönderilirse true.
+/// Limit değişikliği talebi (`CreateLimitChangeRequest`: periyot, tür, tutar, gerekçe). Bayinin Finans
+/// birimi onaylar (merkeze gitmez); talep sonuçlanana kadar yeni talep açılamaz. Gönderilirse true.
 Future<bool> showLimitRequestSheet(
   BuildContext context,
   CustomerSummary s,
@@ -76,7 +76,7 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
       if (!mounted) return;
       AknHaptics.success();
       AppToast.success(
-        'Limit talebi merkez onayına gönderildi.',
+        'Limit talebi Finans birimi onayına gönderildi.',
         context: context,
       );
       Navigator.of(context).pop(true);
@@ -178,7 +178,7 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Talep merkez onayına gider; sonuç bildirim olarak gelir.',
+            'Talep Finans birimi onayına gider; sonuç bildirim olarak gelir.',
             style: t.bodySmall,
           ),
           const SizedBox(height: 20),

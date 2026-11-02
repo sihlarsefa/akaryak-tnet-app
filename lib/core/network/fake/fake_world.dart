@@ -249,11 +249,13 @@ class FakeWorld {
   }
 
   /// Onay talebinin şu anki kademesinin yetkinliği: kaydın `_capability` alanı, yoksa türünden (saha
-  /// formu kârlılığı yönetici bandı, finans türleri). Merkez ve şirket içi talep süzülmez.
+  /// formu kârlılığı yönetici bandı, finans türleri; limit talebi bayinin Finans biriminde — sahip
+  /// kararı 02.11.2026). Merkez ve şirket içi talep süzülmez.
   static String? approvalCapability(JsonMap a) =>
       a['_capability'] as String? ??
       switch (a['type']) {
         1 => Caps.approveFieldManager,
+        2 => Caps.approveFinanceLimit,
         4 || 5 => Caps.approveFinanceOrder,
         6 => Caps.approveFinanceOnboarding,
         7 => Caps.approveFinanceLead,

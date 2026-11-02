@@ -461,7 +461,7 @@ class _LimitPlate extends ConsumerWidget {
             top: 12,
             tone: AknTone.info,
             icon: PhosphorIconsRegular.hourglassHigh,
-            title: 'Bekleyen limit talebi, merkez onayında',
+            title: 'Bekleyen limit talebi, Finans birimi onayında',
             message: [
               if (pending.period != null) pending.period!,
               if (pending.amount != null)

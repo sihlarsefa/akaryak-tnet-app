@@ -303,6 +303,10 @@ abstract final class FakeRoleTemplates {
     '${Pg.hoApprovals}:${Perm.view}',
   };
 
+  /// Şablonların yetkinlikleri (sunucu `BayiRoleTemplates`). Limit talebi onayı
+  /// (`approve.finance.limit`, sahip kararı 02.11.2026) etkin Finans birimi ve Bayi yöneticisi
+  /// şablonlarındadır; pasif şablonların (Bayi müdürü, Finans / kredi uzmanı) dondurulmuş yetkileri
+  /// sunucudaki gibi değişmez.
   static final Map<String, Map<String, double?>> capabilities = {
     BayiRoleCodes.owner: {
       for (final c in Caps.bayiAssignable)
@@ -322,6 +326,7 @@ abstract final class FakeRoleTemplates {
       Caps.approveFinanceOrder: null,
       Caps.approveFinanceOnboarding: null,
       Caps.approveFinanceLead: null, //
+      Caps.approveFinanceLimit: null,
       Caps.approveFieldSenior: null,
       Caps.financeRiskReportPull: null,
       Caps.financeProfileEdit: null,

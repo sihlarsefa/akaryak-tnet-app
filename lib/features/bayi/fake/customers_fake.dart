@@ -1,20 +1,28 @@
 import '../../../core/auth/permissions.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/json.dart';
+import '../../../core/models/me_access.dart';
 import '../../../core/network/fake/fake_personas.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
+import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
+import '../../../core/utils/turkish_text.dart';
+import '../../approvals/fake/a5_fake_store.dart'
+    show A5ApprovalExtra, A5FakeStore, ApprovalEventKind;
 import '../../field/fake/field_fake_state.dart' show FieldFakeState;
 import 'fake_support.dart';
 import 'order_support.dart';
 import 'seed.dart';
 
-/// Cariler: `bayi/customers` (+ summary), görüşme notları, limit talepleri.
+/// Cariler: `bayi/customers` (+ summary), görüşme notları, limit talepleri. Limit talebi bayinin
+/// Finans birimi onayına bir yansıma açar ([openLimitApproval]); Onaylar'daki karar talebe ve cari
+/// limitine geçer ([_syncLimitDecisions]).
 void registerBayiCustomerFakes(FakeServer s) {
   s.get('bayi/customers', (req) {
     final p = bayiUser(req);
     final w = req.world;
+    _syncLimitDecisions(w);
     final links = _scope(w, p);
     final q = req.query('q')?.trim() ?? '';
     final rows = [
@@ -27,6 +35,8 @@ void registerBayiCustomerFakes(FakeServer s) {
   s.get('bayi/customers/{customerId}/summary', (req) {
     final p = bayiUser(req);
     final w = req.world;
+    // Limit kararları kart okunmadan önce: onaylanan limit ve kalkan bekleyen talep aynı yanıtta.
+    _syncLimitDecisions(w);
     final customerId = req.intParam('customerId');
     final full = p.can(Pg.stationCustomers);
     final links = _scope(w, p);
@@ -144,7 +154,7 @@ void registerBayiCustomerFakes(FakeServer s) {
     }
     if (_pending(w, link) != null) {
       throw FakeResponse.business(
-        'Bu cari için merkezde bekleyen bir limit talebi var; sonuçlanmasını bekleyin.',
+        'Bu cari için onay bekleyen bir limit talebi var; sonuçlanmasını bekleyin.',
       );
     }
     final same =
@@ -168,8 +178,199 @@ void registerBayiCustomerFakes(FakeServer s) {
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
     w.bag<List<JsonMap>>(BayiBags.limitRequests, () => []).add(row);
+    // Sahip kararı 02.11.2026: talep bayinin Finans birimi onayına düşer (Onaylar; merkez izler).
+    row['approvalId'] = openLimitApproval(w, p, link, row);
     return _limitDto(w, link, row);
   });
+}
+
+/// Limit talebinin onay yansımasını açar (sunucu `LimitRequestApprovalSource.OpenCommand` ve
+/// `LimitChangeSummaryBuilder`; sahip kararı 02.11.2026 "limiti de aynı şekilde": karar bayide, merkez
+/// yalnızca izler). Tek kademe "Finans birimi" (`approve.finance.limit`, eşik yok); uygunlar bayide bu
+/// yetkinliği taşıyanlar (Finans birimi, Bayi yöneticisi). Roller v5'te birimin onaycısı imzalar, talep
+/// eden imzalamaz (A5 kuralı). İmzalayabilenlere "Onayınız bekleniyor" bildirimi gider. Onay talebinin
+/// kimliği döner; [request] limit talebi satırıdır (`bayi.limitRequests`).
+int openLimitApproval(
+  FakeWorld w,
+  FakePersona requester,
+  JsonMap link,
+  JsonMap request,
+) {
+  // A5 deposu önce kurulur: yeni kimlik onun sabit kimliklerinin (9005–9013) ötesindedir.
+  final store = A5FakeStore.of(w);
+  final id = w.nextId('approval', start: 9001);
+  final now = DateTime.now().toUtc();
+  final due = now.add(const Duration(hours: 24));
+  final stationId = link['stationId'] as int;
+  final customerId = link['customerId'] as int;
+  final customer = w.customerTitle(customerId) ?? 'Cari';
+  final station = w.stationTitle(stationId) ?? 'Bayi';
+  final eligible = [
+    for (final p in fakePersonas)
+      if (p.persona == Persona.bayi &&
+          p.stationId == stationId &&
+          p.capabilities.containsKey(Caps.approveFinanceLimit))
+        p.userId,
+  ];
+  final litre = request['requestedLimitType'] == 'Litre';
+  final amount = (request['requestedLimitAmount'] as num?)?.toDouble();
+  final current = _limitText(
+    link['limitType'] as String?,
+    link['limitPeriod'] as String?,
+    (link['limitAmount'] as num?)?.toDouble(),
+  );
+  final requested = _limitText(
+    request['requestedLimitType'] as String?,
+    request['requestedLimitPeriod'] as String?,
+    amount,
+  );
+  final reason = request['reason'] as String?;
+  final usage = _usageFact(link);
+  JsonMap fact(String label, String value, [String tone = 'neutral']) => {
+    'label': label,
+    'value': value,
+    'tone': tone,
+  };
+  w.approvals.add({
+    'id': id,
+    'type': ApprovalType.limitChange.code,
+    'status': ApprovalStatus.pending.code,
+    'isMirror': true,
+    'stationId': stationId,
+    'stationTitle': station,
+    'customerId': customerId,
+    'customerTitle': customer,
+    'subjectType': 'LimitChangeRequest',
+    'subjectId': request['id'],
+    'subjectNumber': '#${request['id']}',
+    'title': 'Limit değişikliği: $current → $requested',
+    'summary': reason,
+    'amount': litre ? null : amount,
+    'liters': litre ? amount : null,
+    'requestedByUserId': requester.userId,
+    'requestedByName': requester.displayName,
+    'createdAt': FakeWorld.utc(now),
+    'dueAt': FakeWorld.utc(due),
+    'slaState': ApprovalSlaState.onTime.code,
+    'currentLevelNo': 1,
+    'levelCount': 1,
+    'eligibleUserIds': eligible,
+  });
+  store.approvalExtras[id] = A5ApprovalExtra(
+    token: store.newToken(),
+    steps: [
+      {
+        'id': id * 10 + 1,
+        'levelNo': 1,
+        'name': 'Finans birimi',
+        'capabilityCode': Caps.approveFinanceLimit,
+        'minAmount': null,
+        'status': 1,
+        'dueAt': FakeWorld.utc(due),
+        'decidedByUserId': null,
+        'decidedByName': null,
+        'decidedAt': null,
+        'note': null,
+        'eligible': eligible,
+      },
+    ],
+    events: [
+      store.event(ApprovalEventKind.created, userKey: requester.key, at: now),
+    ],
+    headline: '$customer · $station',
+    subline: 'Limit değişikliği talebi · bayi Finans birimi onayı',
+    facts: [
+      fact('Cari', customer),
+      fact('Bayi', station),
+      fact('Mevcut limit', current),
+      fact('Talep edilen limit', requested, 'info'),
+      ?usage,
+      if (reason != null && reason.isNotEmpty) fact('Gerekçe', reason),
+      fact('Talep eden', requester.displayName),
+      fact('Talep tarihi', Fmt.dateTime(now)),
+      fact('Durum', 'Bekliyor'),
+    ],
+    links: {
+      'customerId': customerId,
+      'stationCustomerId': link['id'],
+      'limitRequestId': request['id'],
+    },
+  );
+  notify(
+    w,
+    userIds: w.signingUserIds(eligible, Caps.approveFinanceLimit),
+    actorId: requester.userId,
+    category: 'approvals',
+    eventCode: 'approval.pending',
+    title: 'Onayınız bekleniyor',
+    body:
+        'Limit talebi · ${TurkishText.shortCompany(customer)}. Karar vermek için dokunun.',
+    route: '/approvals/$id',
+    severity: 2,
+    entityType: 'ApprovalRequest',
+    entityId: id,
+  );
+  return id;
+}
+
+/// Onaylar'da verilen limit kararını talebe ve cari bağlantısına yansıtır (sunucuda karar eski servisi
+/// çalıştırır: `LimitChangeRequestService` onayda limiti bağlantıya uygular, talep sonuçlanır). Sahte
+/// kipte cari ya da bekleyen talep okunurken eşitlenir (ön kayıtların `_syncLeadsFromApprovals`
+/// yöntemi). Yansıması olmayan ya da hâlâ açık talepler değişmez.
+void _syncLimitDecisions(FakeWorld w) {
+  for (final r in w.bag<List<JsonMap>>(BayiBags.limitRequests, () => [])) {
+    if (r['status'] != 0) continue;
+    final status = w.approval(r['approvalId'] as int?)?['status'];
+    final approved = status == ApprovalStatus.approved.code;
+    if (!approved && status != ApprovalStatus.rejected.code) continue;
+    r['status'] = approved ? 1 : 2;
+    r['decidedAt'] = DateTime.now().toUtc().toIso8601String();
+    if (!approved) continue;
+    final link = w.link(r['stationId'] as int, r['customerId'] as int);
+    if (link == null) continue;
+    final period = r['requestedLimitPeriod'] as String?;
+    final unlimited = period == 'Limitsiz';
+    link
+      ..['limitPeriod'] = period
+      ..['limitType'] = unlimited ? null : r['requestedLimitType']
+      ..['limitAmount'] = unlimited ? null : r['requestedLimitAmount'];
+  }
+}
+
+/// Limit metni (sunucu `SummarySupport.LimitText`): "Aylık 1.000.000 ₺", "Aylık 300.000 L", "Limitsiz".
+String _limitText(String? type, String? period, double? amount) {
+  if (period == 'Limitsiz') return 'Limitsiz';
+  if (amount == null) {
+    return period == null || period.trim().isEmpty ? 'Tanımsız' : period;
+  }
+  final value = type == 'Litre' ? Fmt.liters(amount) : Fmt.moneyWhole(amount);
+  return [?period, value].join(' ');
+}
+
+/// "Geçerli dönem kullanımı" satırı (sunucu: kullanılan / limit · %oran · dönem; ton kullanımdan).
+JsonMap? _usageFact(JsonMap link) {
+  final limit = (link['limitAmount'] as num?)?.toDouble();
+  if (limit == null || limit <= 0 || link['limitPeriod'] == 'Limitsiz') {
+    return null;
+  }
+  final used = (link['used'] as num?)?.toDouble() ?? 0;
+  final litre = link['limitType'] == 'Litre';
+  String amount(double v) => litre ? Fmt.liters(v) : Fmt.moneyWhole(v);
+  final pct = (used / limit * 100).round();
+  final period = link['limitPeriod'] as String?;
+  return {
+    'label': 'Geçerli dönem kullanımı',
+    'value': [
+      '${amount(used)} / ${amount(limit)}',
+      '%$pct',
+      ?period,
+    ].join(' · '),
+    'tone': pct >= 100
+        ? 'danger'
+        : pct >= 80
+        ? 'warn'
+        : 'ok',
+  };
 }
 
 /// Kullanıcının gördüğü bağlantılar: StationCustomers Görür → bayinin tümü; saha satış → portföy.
@@ -259,15 +460,19 @@ List<JsonMap> _notes(FakeWorld w, FakePersona p, int customerId) {
   ];
 }
 
-JsonMap? _pending(FakeWorld w, JsonMap link) => w
-    .bag<List<JsonMap>>(BayiBags.limitRequests, () => [])
-    .where(
-      (r) =>
-          r['stationId'] == link['stationId'] &&
-          r['customerId'] == link['customerId'] &&
-          r['status'] == 0,
-    )
-    .firstOrNull;
+/// Bağlantının bekleyen limit talebi (önce Onaylar'daki kararlar eşitlenir: sonuçlanan talep beklemez).
+JsonMap? _pending(FakeWorld w, JsonMap link) {
+  _syncLimitDecisions(w);
+  return w
+      .bag<List<JsonMap>>(BayiBags.limitRequests, () => [])
+      .where(
+        (r) =>
+            r['stationId'] == link['stationId'] &&
+            r['customerId'] == link['customerId'] &&
+            r['status'] == 0,
+      )
+      .firstOrNull;
+}
 
 JsonMap _limitDto(FakeWorld w, JsonMap link, JsonMap r) => {
   'id': r['id'],
@@ -284,7 +489,7 @@ JsonMap _limitDto(FakeWorld w, JsonMap link, JsonMap r) => {
   'requestedLimitAmount': r['requestedLimitAmount'],
   'reason': r['reason'],
   'status': r['status'],
-  'statusText': 'Merkez onayında',
+  'statusText': 'Bekliyor',
   'requestedByUserId': r['requestedByUserId'],
   'requestedByDisplay': staffName(r['requestedByUserId'] as String?) ?? '',
   'createdAt': r['createdAt'],
