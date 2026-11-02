@@ -10,6 +10,7 @@
 /// A3'ün "Talepler" sahteleri aynı torbayı kullanmalıdır, bkz. contract-changes.md A5).
 library;
 
+import 'dart:convert';
 import 'dart:math';
 
 import '../../../core/auth/permissions.dart';
@@ -420,6 +421,24 @@ class A5FakeStore {
     final a9001 = byId[9001];
     if (a9001 != null) {
       final orderNo = financeOrder['orderNumber'] as String;
+      // Gerekçeler finans kapısının sırası ve biçimiyle (sunucu `OrderFinanceGate`): bağlantı limiti
+      // 1.000.000 ₺, kullanılan 940.000 ₺ (Finans kartıyla aynı) → bu sipariş limiti aşar; çek vadeli
+      // yöntemdir; kart koşullu onaylıdır.
+      final link = world.link(1, 102);
+      final limit = (link?['limitAmount'] as num?)?.toDouble() ?? 0;
+      final used = (link?['used'] as num?)?.toDouble() ?? 0;
+      final estimated = (financeOrder['estimatedAmount'] as num).toDouble();
+      final overrun = used + estimated - limit;
+      final reasons = [
+        if (overrun > 0) 'Limit aşımı ${Fmt.number(overrun.round())} TL',
+        'Vadeli yöntem (Çek, 60 gün)',
+        'Koşullu onaylı cari',
+      ].join(' · ');
+      financeOrder['financeReasons'] = reasons;
+      // Satırın özeti sunucunun biçimiyle (`OrderFinanceGate.OrderCommand`).
+      a9001['summary'] =
+          '${world.customerTitle(102)} · Motorin · ${Fmt.number(25000)} L · Çek 60 gün · '
+          'tahmini ${Fmt.number(estimated, minFraction: 2, maxFraction: 2)} TL · Gerekçe: $reasons';
       approvalExtras[9001] = A5ApprovalExtra(
         token: newToken(),
         steps: [
@@ -438,7 +457,7 @@ class A5FakeStore {
             ApprovalEventKind.created,
             userName: 'Sistem',
             at: _h(-3),
-            note: 'Vadeli yöntem (60 gün); limit aşımı 120.000 TL',
+            note: reasons,
           ),
           event(ApprovalEventKind.viewed, userKey: 'mudur', at: _h(-2)),
         ],
@@ -447,31 +466,8 @@ class A5FakeStore {
         headline: '$orderNo · Marmara İnşaat Taahhüt Ltd. Şti.',
         subline:
             'Motorin · 25.000 L · teslim ${Fmt.date(TrTime.parseLocal(financeOrder['requestedDeliveryDate'] as String?))}',
-        facts: [
-          _fact('Sipariş no', orderNo),
-          _fact('Ürün', 'Motorin'),
-          _fact('Miktar', Fmt.liters(25000)),
-          _fact(
-            'Teslim',
-            Fmt.date(
-              TrTime.parseLocal(
-                financeOrder['requestedDeliveryDate'] as String?,
-              ),
-            ),
-          ),
-          _fact('Teslimat noktası', 'İzmit Şantiye'),
-          _fact(
-            'Tahmini tutar',
-            Fmt.money(financeOrder['estimatedAmount'] as num),
-          ),
-          _fact('Ödeme', 'Çek · 60 gün · bekliyor'),
-          _fact('Finans durumu', 'Finans onayında', 'warn'),
-          _fact('Gerekçe', 'Vadeli yöntem (60 gün)', 'warn'),
-          _fact('Gerekçe', 'Limit aşımı 120.000 TL', 'danger'),
-          _fact('Risk sınıfı', 'C', 'warn'),
-          _fact('Limit kullanımı', '940.000 ₺ / 1.000.000 ₺ (%94)', 'warn'),
-          _fact('Gecikmiş bakiye', '120.000 ₺', 'danger'),
-        ],
+        // Bayi / merkez özeti siparişten, bağlantı limitinden ve finans kartından kurulur
+        // ([_orderFinanceSummary]); cari görünümünün satırları burada.
         customerFacts: [
           _fact('Sipariş no', orderNo),
           _fact('Bayi', world.stationTitle(1) ?? 'Bayi'),
@@ -479,10 +475,6 @@ class A5FakeStore {
           _fact('Miktar', Fmt.liters(25000)),
           _fact('Ödeme', 'Çek · 60 gün'),
         ],
-        warnings: const [
-          'Çek görseli yüklenmedi. Bu ödeme yönteminde belge zorunlu; onaydan önce "Ek bilgi iste" ile isteyin (İstenen belge: Çek görseli).',
-        ],
-        band: const {'key': 'risk-c', 'label': 'Risk sınıfı C', 'tone': 'warn'},
         links: {
           'orderId': financeOrder['id'],
           'customerId': 102,
@@ -689,7 +681,7 @@ class A5FakeStore {
       paymentMethodCode: 'CEK',
       paymentTermDays: 45,
       financeStatus: OrderFinanceStatus.infoRequested.code,
-      financeReasons: 'Vadeli yöntem (45 gün) · Çek görseli eksik',
+      financeReasons: 'Vadeli yöntem (Çek, 45 gün)',
       createdByUserId: 'u-musteri',
     );
     infoOrder['financeApprovalRequestId'] = 9005;
@@ -704,7 +696,10 @@ class A5FakeStore {
         subjectId: infoOrderId,
         subjectNumber: infoNo,
         title: 'Sipariş finans onayı',
-        summary: 'Çek · 45 gün vade · çek görseli bekleniyor',
+        summary:
+            '${world.customerTitle(101)} · Motorin · ${Fmt.number(12000)} L · Çek 45 gün · '
+            'tahmini ${Fmt.number(infoOrder['estimatedAmount'] as double, minFraction: 2, maxFraction: 2)} TL · '
+            'Gerekçe: Vadeli yöntem (Çek, 45 gün)',
         amount: infoOrder['estimatedAmount'] as double,
         liters: 12000,
         customerId: 101,
@@ -734,7 +729,7 @@ class A5FakeStore {
                 ApprovalEventKind.created,
                 userName: 'Sistem',
                 at: _h(-6),
-                note: 'Vadeli yöntem (45 gün)',
+                note: 'Vadeli yöntem (Çek, 45 gün)',
               ),
               event(
                 ApprovalEventKind.infoRequested,
@@ -748,21 +743,6 @@ class A5FakeStore {
             form: const {'method': 'CEK', 'term': 45},
             headline: '$infoNo · Anadolu Lojistik A.Ş.',
             subline: 'Motorin · 12.000 L · Çek 45 gün',
-            facts: [
-              _fact('Sipariş no', infoNo),
-              _fact('Ürün', 'Motorin'),
-              _fact('Miktar', Fmt.liters(12000)),
-              _fact('Teslimat noktası', 'Pendik Lojistik Merkezi'),
-              _fact(
-                'Tahmini tutar',
-                Fmt.money(infoOrder['estimatedAmount'] as num),
-              ),
-              _fact('Ödeme', 'Çek · 45 gün · bekliyor'),
-              _fact('Finans durumu', 'Ek bilgi istendi', 'info'),
-              _fact('Gerekçe', 'Vadeli yöntem (45 gün)', 'warn'),
-              _fact('Risk sınıfı', 'B', 'info'),
-              _fact('Limit kullanımı', '1.180.000 ₺ / 2.500.000 ₺ (%47)', 'ok'),
-            ],
             customerFacts: [
               _fact('Sipariş no', infoNo),
               _fact('Bayi', world.stationTitle(1) ?? 'Bayi'),
@@ -775,11 +755,6 @@ class A5FakeStore {
               ),
               _fact('Ödeme', 'Çek · 45 gün'),
             ],
-            band: const {
-              'key': 'risk-b',
-              'label': 'Risk sınıfı B',
-              'tone': 'info',
-            },
             links: {
               'orderId': infoOrderId,
               'customerId': 101,
@@ -1830,6 +1805,15 @@ class A5FakeStore {
         },
       };
     }
+    // Sipariş finansı (bayi / merkez): sunucunun `OrderFinanceSummaryBuilder` aynası — satırlar
+    // anahtarlı, `summary.finance` dolu; sipariş, bağlantı limiti ve finans kartından her istekte
+    // yeniden kurulur (karardan sonra da güncel).
+    final order = a['type'] == ApprovalType.orderFinance.code
+        ? _subjectOrder(a)
+        : null;
+    if (order != null && order['financeApprovalRequestId'] == a['id']) {
+      return _orderFinanceSummary(p, a, x, order);
+    }
     final facts = [
       ...x.facts,
       // Marj satırları yalnızca bu formun kararını verebilene.
@@ -1845,6 +1829,503 @@ class A5FakeStore {
       'warnings': x.warnings,
       'band': x.band,
       'links': x.links,
+    };
+  }
+
+  JsonMap _key(
+    String label,
+    String value,
+    String key, [
+    String tone = 'neutral',
+  ]) => {'label': label, 'value': value, 'tone': tone, 'key': key};
+
+  /// Sunucu `ApprovalText.ReasonTone`: limit aşımı tehlike, vadeli uyarı, diğerleri bilgi.
+  static String _reasonTone(String r) => r.startsWith('Limit aşımı')
+      ? 'danger'
+      : (r.startsWith('Vadeli') ? 'warn' : 'info');
+
+  /// Sunucu `ApprovalFinanceReasonKinds.Of`.
+  static String _reasonKind(String r) {
+    bool s(String p) => r.startsWith(p);
+    if (s('Limit aşımı')) return 'limitOverrun';
+    if (s('Vadeli yöntem') || s('Finans onaylı yöntem') || s('Vadeli satış')) {
+      return 'paymentMethod';
+    }
+    if (s('Tutar eşiği') || s('Tutar bilinmiyor')) return 'amountThreshold';
+    if (s('İlk ') && r.contains(' sipariş')) return 'firstOrders';
+    if (s('Yüksek risk')) return 'highRisk';
+    if (s('Tüm siparişler')) return 'allOrders';
+    if (s('Koşullu onaylı cari') || s('Finans kartı askıda')) {
+      return 'cardStatus';
+    }
+    if (s('Finans önceden onaylı')) return 'preApproved';
+    return 'other';
+  }
+
+  static const _riskShort = {1: 'A', 2: 'B', 3: 'C', 4: 'D'};
+
+  static String _riskTone(int? risk) => switch (risk) {
+    1 => 'ok',
+    2 => 'info',
+    3 => 'warn',
+    4 => 'danger',
+    _ => 'neutral',
+  };
+
+  /// `summary` (bayi / merkez) — sipariş finansı.
+  JsonMap _orderFinanceSummary(
+    FakePersona p,
+    JsonMap a,
+    A5ApprovalExtra x,
+    JsonMap order,
+  ) {
+    final platform = p.persona == Persona.platform;
+    final orderId = order['id'] as int;
+    final stationId = order['stationId'] as int;
+    final customerId = order['customerId'] as int;
+    final link = world.link(stationId, customerId);
+    final linkId = link?['id'] as int?;
+    final card = linkId == null ? null : financeCards[linkId];
+    final orderNo = order['orderNumber'] as String;
+    final liters = (order['quantityLiters'] as num).toDouble();
+    JsonMap? quote;
+    for (final q in ((order['quotes'] as List?) ?? const []).cast<JsonMap>()) {
+      if (q['isSelected'] == true) quote = q;
+    }
+    final quoted = (quote?['totalAmountTry'] as num?)?.toDouble();
+    final estimated = (order['estimatedAmount'] as num?)?.toDouble();
+    final method = order['paymentMethodCode'] as String?;
+    final methodName = method == null
+        ? 'Belirtilmemiş'
+        : (FakeWorld.paymentMethodNames[method] ?? method);
+    final deferred = _methodTerms[method]?.$3 ?? false;
+    final term = order['paymentTermDays'] as int?;
+    final due = TrTime.parseLocal(order['paymentDueDate'] as String?);
+    final payStatus = (order['paymentStatus'] as int?) ?? 0;
+    final delivery = TrTime.parseLocal(
+      order['requestedDeliveryDate'] as String?,
+    );
+    final reasons = [
+      for (final r in ((order['financeReasons'] as String?) ?? '').split(' · '))
+        if (r.trim().isNotEmpty) r.trim(),
+    ];
+    // Sipariş anında istenen belge (sunucu `OrderTimeDocument`): çek / senet zorunlu, dekont isteğe bağlı.
+    final (int? docKind, bool docRequired) = switch (method) {
+      'CEK' => (AttachmentKind.chequeImage.code, true),
+      'SENET' => (AttachmentKind.promissoryNoteImage.code, true),
+      'HAVALE' => (AttachmentKind.transferReceipt.code, false),
+      _ => (null, false),
+    };
+    final hasDoc =
+        docKind != null &&
+        world.attachments.any(
+          (att) =>
+              att['isActive'] == true &&
+              att['kind'] == docKind &&
+              ((att['ownerType'] == AttachmentOwnerType.approvalRequest.code &&
+                      att['ownerId'] == a['id']) ||
+                  (att['ownerType'] == AttachmentOwnerType.order.code &&
+                      att['ownerId'] == orderId)),
+        );
+    final docMissing =
+        docRequired && (payStatus == 0 || payStatus == 1) && !hasDoc;
+    final financeStatus = (order['financeStatus'] as int?) ?? 0;
+    final financeLabel = OrderFinanceStatus.fromCode(financeStatus).label;
+    final financeTone = switch (financeStatus) {
+      2 || 3 => 'ok',
+      4 => 'info',
+      5 => 'danger',
+      _ => 'warn',
+    };
+    String paymentLine() => [
+      methodName,
+      if ((term ?? 0) > 0) '$term gün',
+      if (due != null) 'vade ${Fmt.date(due)}',
+      PaymentStatus.fromCode(payStatus).label,
+    ].join(' · ');
+
+    final facts = <JsonMap>[
+      _key('Sipariş no', orderNo, 'order.number'),
+      if (platform)
+        _key('Bayi', world.stationTitle(stationId) ?? 'Bayi', 'order.station'),
+      _key(
+        'Ürün',
+        (order['productName'] as String?) ?? 'Ürün',
+        'order.product',
+      ),
+      _key('Miktar', Fmt.liters(liters), 'order.quantity'),
+      if (delivery != null)
+        _key('Teslim', Fmt.date(delivery), 'order.deliveryDate'),
+      _key(
+        'Teslimat noktası',
+        (order['deliveryPointName'] as String?) ?? Fmt.dash,
+        'order.deliveryPoint',
+      ),
+      if (quoted != null)
+        _key('Teklif tutarı', Fmt.money(quoted), 'order.quoteAmount'),
+      if (estimated != null)
+        _key('Tahmini tutar', Fmt.money(estimated), 'order.estimatedAmount'),
+      _key('Ödeme', paymentLine(), 'payment.line'),
+      _key('Finans durumu', financeLabel, 'finance.status', financeTone),
+      for (final r in reasons)
+        _key('Gerekçe', r, 'finance.reason', _reasonTone(r)),
+    ];
+    final warnings = <String>[
+      if (docMissing && docKind != null)
+        '${AttachmentKind.fromCode(docKind).label} yüklenmedi. Bu ödeme yönteminde belge zorunlu; onaydan önce "Ek bilgi iste" ile isteyin (İstenen belge: ${AttachmentKind.fromCode(docKind).label}).',
+    ];
+
+    JsonMap? finance;
+    JsonMap? band;
+    final review = <String, Object?>{
+      'financeStatus': financeStatus,
+      'financeStatusLabel': financeLabel,
+      'amountIsEstimate': quoted == null,
+      'estimatedAmount': estimated,
+      'quotedAmount': quoted,
+      'reasons': [
+        for (final r in reasons)
+          {'text': r, 'kind': _reasonKind(r), 'tone': _reasonTone(r)},
+      ],
+      'payment': {
+        'methodCode': method,
+        'methodName': methodName,
+        'isDeferred': deferred,
+        'termDays': term,
+        'dueDate': due == null ? null : TrTime.isoDate(due),
+        'installments': order['paymentInstallments'],
+        'status': payStatus,
+        'statusLabel': PaymentStatus.fromCode(payStatus).label,
+        'documentKind': docKind,
+        'documentLabel': docKind == null
+            ? null
+            : AttachmentKind.fromCode(docKind).label,
+        'documentRequired': docRequired,
+        'documentMissing': docMissing,
+      },
+      'limit': null,
+      'profile': null,
+      'riskReport': null,
+      'history': null,
+      'paymentGroup': const <JsonMap>[],
+    };
+    if (link != null && card != null) {
+      final risk = (link['riskClass'] as int?) ?? 0;
+      final status = (link['financeStatus'] as int?) ?? 1;
+      final limitAmount = (link['limitAmount'] as num?)?.toDouble();
+      final limitType = link['limitType'] as String?;
+      final litre = limitType == 'Litre';
+      final used = (link['used'] as num?)?.toDouble() ?? 0;
+      final thisOrder = litre ? liters : (quoted ?? estimated ?? 0);
+      final total = used + thisOrder;
+      final hasLimit = limitAmount != null && limitAmount > 0;
+      final unit = litre ? 'L' : 'TL';
+      double money(num v) => v.toDouble();
+      final unpriced = litre
+          ? 0.0
+          : world.orders
+                .where(
+                  (o) =>
+                      o['id'] != orderId &&
+                      o['stationId'] == stationId &&
+                      o['customerId'] == customerId &&
+                      (o['status'] == 1 || o['status'] == 5) &&
+                      ((o['quotes'] as List?) ?? const []).isEmpty,
+                )
+                .fold<double>(
+                  0,
+                  (sum, o) => sum + ((o['estimatedAmount'] as num?) ?? 0),
+                );
+      final collaterals = ((card['collaterals'] as List?) ?? const [])
+          .cast<JsonMap>()
+          .where((c) => c['status'] == 1)
+          .toList();
+      final review0 = TrTime.parseLocal(card['nextReviewDate'] as String?);
+      final reviewLate =
+          review0 != null && TrTime.dayDiff(TrTime.todayStart(), review0) < 0;
+      final reports = ((card['riskReports'] as List?) ?? const [])
+          .cast<JsonMap>();
+      final report = reports.isEmpty ? null : reports.first;
+      final overdue = (card['overdueAmount'] as num?)?.toDouble();
+      final allowed = ((card['allowedMethodCodes'] as List?) ?? const [])
+          .cast<String>();
+      final maxTerm = card['maxTermDays'] as int?;
+      final suggested = (card['suggestedCollateralRatioPercent'] as num?)
+          ?.toDouble();
+      final ratio = (card['collateralRatioPercent'] as num?)?.toDouble() ?? 0;
+      final bounced = card['hasBouncedCheque'] == true;
+      final protested = card['hasProtestedNote'] == true;
+      final statusLabel = FinanceProfileStatus.fromCode(status).label;
+      // Kart satırları (sunucu `FinanceSnapshotLoader.AppendFacts`).
+      facts.addAll([
+        _key('Cari finans durumu', statusLabel, 'card.status', switch (status) {
+          1 => 'ok',
+          2 => 'info',
+          0 || 3 => 'warn',
+          _ => 'danger',
+        }),
+        _key(
+          'Risk sınıfı',
+          RiskClass.fromCode(risk).label,
+          'card.riskClass',
+          _riskTone(risk),
+        ),
+        _key(
+          'Limit kullanımı',
+          hasLimit
+              ? '${litre ? Fmt.liters(used) : Fmt.moneyWhole(used)} / ${litre ? Fmt.liters(limitAmount) : Fmt.moneyWhole(limitAmount)} (%${(used / limitAmount * 100).round()})'
+              : 'Limit yok',
+          'card.limitUsage',
+          !hasLimit
+              ? 'neutral'
+              : (used / limitAmount >= 1
+                    ? 'danger'
+                    : (used / limitAmount >= 0.8 ? 'warn' : 'ok')),
+        ),
+        _key(
+          'Onaylanan limit',
+          Fmt.money(card['approvedLimitAmount'] as num?),
+          'card.approvedLimit',
+        ),
+        _key(
+          'Teminat oranı',
+          suggested != null && suggested != ratio
+              ? '${Fmt.percent(ratio)} (öneri ${Fmt.percent(suggested)})'
+              : Fmt.percent(ratio),
+          'card.collateralRatio',
+        ),
+        _key(
+          'Gecikmiş',
+          Fmt.money(overdue ?? 0),
+          'card.overdue',
+          (overdue ?? 0) > 0 ? 'danger' : 'neutral',
+        ),
+        _key(
+          'İzinli yöntemler',
+          allowed.isEmpty
+              ? 'Bayide açık tümü'
+              : allowed
+                    .map((c) => FakeWorld.paymentMethodNames[c] ?? c)
+                    .join(', '),
+          'card.allowedMethods',
+        ),
+        _key(
+          'En uzun vade',
+          maxTerm == null ? 'Sınır yok' : '$maxTerm gün',
+          'card.maxTerm',
+        ),
+        _key(
+          'Gözden geçirme',
+          Fmt.date(review0),
+          'card.review',
+          reviewLate ? 'danger' : 'neutral',
+        ),
+        _key(
+          'Geçerli teminat',
+          '${collaterals.length} adet',
+          'card.collaterals',
+        ),
+        if (card['isStrategicPricing'] == true)
+          _key('Fiyatlama', 'Stratejik müşteri', 'card.pricing', 'info'),
+        _key(
+          'Son risk raporu',
+          report == null
+              ? 'Çekilmedi'
+              : [
+                  'Sınıf ${_riskShort[report['suggestedRiskClass']] ?? '-'}',
+                  'skor ${report['score']}',
+                  if (((report['bouncedChequeCount'] as int?) ?? 0) > 0)
+                    'karşılıksız çek ${report['bouncedChequeCount']}',
+                  Fmt.date(TrTime.parseUtc(report['requestedAt'] as String?)),
+                ].join(' · '),
+          'card.riskReport',
+          report == null
+              ? 'neutral'
+              : _riskTone(report['suggestedRiskClass'] as int?),
+        ),
+      ]);
+      if (reviewLate) {
+        warnings.add('Finans kartının gözden geçirme tarihi geçti.');
+      }
+      if (bounced) warnings.add('Karşılıksız çek kaydı var.');
+      if (protested) warnings.add('Protestolu senet kaydı var.');
+      band = {
+        'key': 'risk-${(_riskShort[risk] ?? '-').asciiLower}',
+        'label': 'Risk ${_riskShort[risk] ?? '-'}',
+        'tone': _riskTone(risk),
+      };
+
+      // Geçmiş (bu sipariş hariç; reddedilen ve süresi dolanlar sayılmaz).
+      final others = world.orders
+          .where(
+            (o) =>
+                o['id'] != orderId &&
+                o['stationId'] == stationId &&
+                o['customerId'] == customerId &&
+                o['status'] != OrderStatus.rejected.code &&
+                o['status'] != OrderStatus.expired.code,
+          )
+          .toList();
+      JsonMap? last;
+      for (final o in others) {
+        final at = TrTime.parseLocal(o['createdAt'] as String?);
+        final lastAt = TrTime.parseLocal(last?['createdAt'] as String?);
+        if (at != null && (lastAt == null || at.isAfter(lastAt))) last = o;
+      }
+      final today = TrTime.todayStart();
+      var overdueCount = 0;
+      var overdueAmount = 0.0;
+      int? maxOverdueDays;
+      for (final o in others) {
+        final d = TrTime.parseLocal(o['paymentDueDate'] as String?);
+        final ps = (o['paymentStatus'] as int?) ?? 0;
+        if (d == null || (ps != 1 && ps != 2)) continue;
+        final late = TrTime.dayDiff(d, today);
+        if (late <= 0) continue;
+        overdueCount++;
+        JsonMap? q;
+        for (final x in ((o['quotes'] as List?) ?? const []).cast<JsonMap>()) {
+          if (x['isSelected'] == true) q = x;
+        }
+        overdueAmount +=
+            ((q?['totalAmountTry'] ?? o['estimatedAmount']) as num?)
+                ?.toDouble() ??
+            0;
+        if (maxOverdueDays == null || late > maxOverdueDays) {
+          maxOverdueDays = late;
+        }
+      }
+      final group = order['paymentGroupKey'] as String?;
+      final lastAt = TrTime.parseLocal(last?['createdAt'] as String?);
+      review
+        ..['limit'] = {
+          'hasLimit': hasLimit,
+          'type': limitType,
+          'period': link['limitPeriod'],
+          'unit': unit,
+          'limitAmount': limitAmount,
+          'usedByOthers': used,
+          'thisOrder': thisOrder,
+          'unpricedOthers': unpriced,
+          'available': hasLimit ? max(0.0, limitAmount - used) : null,
+          'availableAfter': hasLimit ? max(0.0, limitAmount - total) : null,
+          'usagePercentAfter': hasLimit
+              ? min(999, (total / limitAmount * 100).round())
+              : null,
+          'wouldExceed': hasLimit && total > limitAmount,
+          'overrunAmount': hasLimit && total > limitAmount
+              ? money(total - limitAmount)
+              : 0.0,
+          'invalidReason': null,
+        }
+        ..['profile'] = {
+          'status': status,
+          'statusLabel': statusLabel,
+          'hasCard': true,
+          'isGrandfathered': false,
+          'canOrder': status == 1 || status == 2,
+          'blockReason': status == 1 || status == 2
+              ? null
+              : 'Cari finans kartı onaylı değil.',
+          'riskClass': risk,
+          'riskLabel': RiskClass.fromCode(risk).label,
+          'approvedLimitAmount': card['approvedLimitAmount'],
+          'openBalance': card['openBalance'],
+          'overdueAmount': overdue,
+          'collateralRatioPercent': ratio,
+          'suggestedCollateralRatioPercent': suggested,
+          'activeCollateralCount': collaterals.length,
+          'activeCollateralAmount': collaterals.fold<double>(
+            0,
+            (sum, c) => sum + ((c['amount'] as num?) ?? 0),
+          ),
+          'maxTermDays': maxTerm,
+          'allowedMethodCodes': allowed,
+          'nextReviewDate': review0 == null ? null : TrTime.isoDate(review0),
+          'reviewOverdue': reviewLate,
+          'hasBouncedCheque': bounced,
+          'hasProtestedNote': protested,
+          'isStrategicPricing': card['isStrategicPricing'] == true,
+        }
+        ..['riskReport'] = report == null
+            ? null
+            : {
+                'id': report['id'],
+                'success': report['success'] ?? true,
+                'score': report['score'],
+                'riskClass': report['suggestedRiskClass'],
+                'bouncedChequeCount': report['bouncedChequeCount'],
+                'protestedNoteCount': report['protestedNoteCount'],
+                'overdueAmount': report['overdueAmount'],
+                'overdueCount': report['overdueCount'],
+                'requestedAt': report['requestedAt'],
+                'providerLabel': report['provider'],
+                'isMock': false,
+                'errorMessage': report['errorMessage'],
+              }
+        ..['history'] = {
+          'orderCount': others.length,
+          'completedCount': others
+              .where((o) => o['status'] == OrderStatus.completed.code)
+              .length,
+          'lastOrderAt': lastAt == null ? null : FakeWorld.local(lastAt),
+          'lastOrderNumber': last?['orderNumber'],
+          'openFinanceCount': others
+              .where((o) => o['financeStatus'] == 1 || o['financeStatus'] == 4)
+              .length,
+          'financeRejectedCount': world.orders
+              .where(
+                (o) =>
+                    o['id'] != orderId &&
+                    o['stationId'] == stationId &&
+                    o['customerId'] == customerId &&
+                    o['financeStatus'] == 5,
+              )
+              .length,
+          'overdueCount': overdueCount,
+          'overdueAmount': overdueAmount,
+          'maxOverdueDays': maxOverdueDays,
+          'bouncedCount': others.where((o) => o['paymentStatus'] == 4).length,
+        }
+        ..['paymentGroup'] = group == null
+            ? const <JsonMap>[]
+            : [
+                for (final o in world.orders)
+                  if (o['id'] != orderId && o['paymentGroupKey'] == group)
+                    {
+                      'orderId': o['id'],
+                      'orderNumber': o['orderNumber'],
+                      'productName': o['productName'],
+                      'quantityLiters': o['quantityLiters'],
+                      'amount': o['estimatedAmount'],
+                      'financeStatus': o['financeStatus'] ?? 0,
+                      'financeLabel': OrderFinanceStatus.fromCode(
+                        (o['financeStatus'] as int?) ?? 0,
+                      ).label,
+                      'approvalRequestId': o['financeApprovalRequestId'],
+                    },
+              ];
+    }
+    finance = review;
+    return {
+      'headline': '$orderNo · ${order['customerTitle'] ?? a['customerTitle']}',
+      'subline': [
+        (order['productName'] as String?) ?? 'Ürün',
+        Fmt.liters(liters),
+        if (delivery != null) 'teslim ${Fmt.date(delivery)}',
+      ].join(' · '),
+      'amount': quoted ?? estimated ?? a['amount'],
+      'liters': liters,
+      'facts': facts,
+      'lines': const <JsonMap>[],
+      'warnings': warnings,
+      'band': band,
+      'links': {
+        'orderId': orderId,
+        'customerId': customerId,
+        'stationCustomerId': linkId,
+      },
+      'finance': finance,
     };
   }
 
@@ -2147,11 +2628,14 @@ class A5FakeStore {
         ? note
         : '$note · İstenen belge: ${AttachmentKind.fromCode(requiredKind).label}';
     x.events.add(event(kind, userKey: p.key, at: now, note: eventNote));
-    if (conditions.isNotEmpty) {
-      x.events.last['note'] = [
-        ?note,
-        'Koşullar: ${conditions.entries.map((e) => '${e.key}=${e.value}').join(', ')}',
-      ].join(' · ');
+    // Koşullu onayın olay notu koşul JSON'udur; yalnızca not verildiyse {"text": not} (sunucu
+    // `ApprovalEngine.DecideNativeAsync`).
+    if (decision == ApprovalDecision.conditionalApprove.code) {
+      x.events.last['note'] = jsonEncode(
+        conditions.isNotEmpty
+            ? {for (final e in conditions.entries) e.key: '${e.value}'}
+            : {'text': note},
+      );
     }
     x.deciders.add(p.userId);
     x.token = newToken();

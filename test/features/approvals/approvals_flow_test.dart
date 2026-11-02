@@ -37,16 +37,35 @@ void main() {
       await finish(tester);
     });
 
+    // Finans birimi (G4): panelde olduğu gibi dört karar da rıhtımda; tek seçenekli "Diğer" yok.
+    testWidgets('sipariş finansı (finans): dört karar da rıhtımda', (
+      tester,
+    ) async {
+      await pumpA5(tester, persona: 'finans', location: '/approvals/9001');
+      expect(find.text('Onayla'), findsOneWidget);
+      expect(find.text('Koşullu onayla'), findsOneWidget);
+      expect(find.text('Ek bilgi iste'), findsOneWidget);
+      expect(find.text('Reddet'), findsOneWidget);
+      expect(find.text('Diğer'), findsNothing);
+      await finish(tester);
+    });
+
     testWidgets(
-      'sipariş finansı (finans): dört karar; ikisi "Diğer kararlar"da',
+      'sipariş finansı, büyük yazı: iki ikincil "Diğer kararlar"da (tek seçenekli değil)',
       (tester) async {
-        await pumpA5(tester, persona: 'finans', location: '/approvals/9001');
+        await pumpA5(
+          tester,
+          persona: 'finans',
+          location: '/approvals/9001',
+          textScale: 1.5,
+          size: const Size(390, 844),
+        );
         expect(find.text('Onayla'), findsOneWidget);
         expect(find.text('Reddet'), findsOneWidget);
         await tapText(tester, 'Diğer');
         expect(find.text('Diğer kararlar'), findsOneWidget);
-        expect(find.text('Ek bilgi iste'), findsOneWidget);
-        expect(find.text('Koşullu onayla'), findsOneWidget);
+        expect(inSheet(find.text('Ek bilgi iste')), findsOneWidget);
+        expect(inSheet(find.text('Koşullu onayla')), findsOneWidget);
         await finish(tester);
       },
     );
@@ -124,7 +143,12 @@ void main() {
     await tapText(tester, 'Ek bilgi iste');
     await tapText(tester, 'Ek bilgi iste', last: true);
     expect(find.text('Ne istediğinizi yazın.'), findsOneWidget);
-    await tapText(tester, 'Çek görseli');
+    // Çek görseli eksik (zorunlu belge): tür önceden seçili gelir (G12).
+    final chips = tester.widget<FilterChips<AttachmentKind>>(
+      find.byWidgetPredicate((w) => w is FilterChips<AttachmentKind>),
+    );
+    expect(chips.selected, {AttachmentKind.chequeImage});
+    expect(chips.options.first.value, AttachmentKind.chequeImage);
     await typeInto(tester, 'Ne istiyorsunuz', 'Çek görselini yükleyin.');
     await tapText(tester, 'Ek bilgi iste', last: true);
     final body = app.log.last('POST', 'approvals/9001/decide')!.data as Map;
@@ -145,7 +169,7 @@ void main() {
         persona: 'finans',
         location: '/approvals/$id',
       );
-      await tapText(tester, 'Diğer');
+      // Finans türlerinde koşullu onay rıhtımda (G4).
       await tapText(tester, 'Koşullu onayla');
       expect(find.text('Koşullu onayla'), findsWidgets);
       await fill();
@@ -196,7 +220,6 @@ void main() {
         persona: 'finans',
         location: '/approvals/9001',
       );
-      await tapText(tester, 'Diğer');
       await tapText(tester, 'Koşullu onayla');
       await tapText(tester, 'Koşullu onayla', last: true);
       expect(

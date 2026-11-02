@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart';
 import '../../../core/models/attachment.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/json.dart';
+import 'finance_review_models.dart';
+
+export 'finance_review_models.dart';
 
 /// Onaylarım sekmeleri (`scope`).
 enum ApprovalScope {
@@ -321,22 +324,35 @@ class ApprovalEvent {
   }
 }
 
-/// Özet satırı (etiket – değer; değer sunucuda Türkçe biçimlenmiştir).
+/// Özet satırı (etiket – değer; değer sunucuda Türkçe biçimlenmiştir). [key] değişmez makine
+/// anahtarıdır ([FactKeys]; sipariş finansı ve finans kartı satırlarında; eski sunucuda null).
 @immutable
-class SummaryFact {
-  const SummaryFact({required this.label, required this.value, this.tone});
+class SummaryFact implements FactView {
+  const SummaryFact({
+    required this.label,
+    required this.value,
+    this.tone,
+    this.key,
+  });
 
   factory SummaryFact.fromJson(JsonReader r) => SummaryFact(
     label: r.str('label'),
     value: r.str('value'),
     tone: r.nonEmpty('tone'),
+    key: r.nonEmpty('key'),
   );
 
+  @override
   final String label;
+  @override
   final String value;
 
   /// ok / warn / danger / info / neutral / brand.
+  @override
   final String? tone;
+
+  @override
+  final String? key;
 }
 
 /// Özet kalemi.
@@ -424,6 +440,7 @@ class ApprovalSummary {
     this.warnings = const [],
     this.band,
     this.links = const SummaryLinks(),
+    this.finance,
   });
 
   factory ApprovalSummary.fromJson(JsonReader r) => ApprovalSummary(
@@ -440,6 +457,9 @@ class ApprovalSummary {
         ? null
         : SummaryBand.fromJson(r.obj('band')),
     links: SummaryLinks.fromJson(r.obj('links')),
+    finance: r.objOrNull('finance') == null
+        ? null
+        : OrderFinanceReview.fromJson(r.obj('finance')),
   );
 
   final String headline;
@@ -451,6 +471,10 @@ class ApprovalSummary {
   final List<String> warnings;
   final SummaryBand? band;
   final SummaryLinks links;
+
+  /// Sipariş finans incelemesi (`summary.finance`; tür 4, bayi / merkez görünümü). Eski sunucu ve cari
+  /// görünümü: null.
+  final OrderFinanceReview? finance;
 }
 
 /// Bekleyen ek bilgi isteği (`ApprovalInfoRequestDto`).
@@ -777,6 +801,13 @@ class ApprovalDetail {
   bool get isConditionallyApproved =>
       status == ApprovalStatus.approved &&
       events.any((e) => e.eventType == ApprovalEventType.conditionallyApproved);
+
+  /// Sipariş finansının bayi / merkez incelemesi: sunucunun yapılandırılmış bloğu, yoksa (eski
+  /// sunucu) özet satırlarından kurulan yedek. Diğer türlerde ve cari görünümünde null.
+  OrderFinanceReview? get financeReview {
+    if (type != ApprovalType.orderFinance || customerView) return null;
+    return summary.finance ?? OrderFinanceReview.fromFacts(summary.facts);
+  }
 
   /// Ek bilgi isteği cariye yöneltilen türler (sipariş finansı, yeni cari; web `IsCustomerAddressed`).
   bool get isCustomerAddressed =>

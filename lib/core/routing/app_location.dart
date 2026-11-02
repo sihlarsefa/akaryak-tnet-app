@@ -30,6 +30,22 @@ bool isShellLocation(GoRouter router, String location) {
   }
 }
 
+/// Yığında bu sayfanın hemen altındaki konumun yolu [path] mi (ör. onay talebinden açılan sipariş:
+/// "Finans kararını ver" aynı talebi ikinci kez itmez, ona geri döner).
+bool isPreviousLocation(GoRouter router, String path) {
+  try {
+    final ms = router.routerDelegate.currentConfiguration.matches;
+    if (ms.length < 2) return false;
+    final prev = ms[ms.length - 2];
+    final loc = prev is ImperativeRouteMatch
+        ? prev.matches.uri.path
+        : prev.matchedLocation;
+    return (Uri.tryParse(loc)?.path ?? loc) == path;
+  } on Object {
+    return false;
+  }
+}
+
 extension AppLocationContext on BuildContext {
   /// [openAppLocation] bu bağlamın yönlendiricisiyle.
   void openAppLocation(String location) =>

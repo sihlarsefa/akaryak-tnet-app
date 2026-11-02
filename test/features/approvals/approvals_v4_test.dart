@@ -291,9 +291,23 @@ void main() {
           .widgetList<AknLedgerGroup>(find.byType(AknLedgerGroup))
           .map((g) => g.title)
           .toList();
-      expect(titles, contains(ApprovalsCopy.groupArrivedToday));
+      // Hangi gün grubunun çıktığı saate bağlıdır (tohumlar saatler önce açılır; gece yarısından
+      // sonra hepsi "Dün gelenler"): en az bir "… gelenler" grubu, eski "Bugün" / "Dün" yok; gelenler
+      // en eski önce (Daha önce → Dün → Bugün, G7).
+      const arrived = [
+        ApprovalsCopy.groupArrivedEarlier,
+        ApprovalsCopy.groupArrivedYesterday,
+        ApprovalsCopy.groupArrivedToday,
+      ];
+      final shown = titles.where(arrived.contains).toList();
+      expect(shown, isNotEmpty);
+      expect(shown, [
+        for (final t in arrived)
+          if (shown.contains(t)) t,
+      ]);
       expect(titles, isNot(contains(ApprovalsCopy.groupToday)));
       expect(titles, isNot(contains(ApprovalsCopy.groupYesterday)));
+      expect(titles, isNot(contains(ApprovalsCopy.groupEarlier)));
       await finish(tester);
     });
 

@@ -282,6 +282,11 @@ class _EventRow extends StatelessWidget {
     final e = event;
     final file = e.attachmentPublicId;
     final large = isLargeText(context);
+    // Koşullu onayın notu sunucuda koşul JSON'udur ({"methodCode":"HAVALE","termDays":"30"}): okunur
+    // biçimde (G24).
+    final note = e.eventType == ApprovalEventType.conditionallyApproved
+        ? (ApprovalsCopy.conditionsText(e.note) ?? e.note)
+        : e.note;
     final when = TurkishText.lower(Fmt.relative(e.occurredAt));
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -313,10 +318,10 @@ class _EventRow extends StatelessWidget {
                 if (large) Text(when, style: t.caption.copyWith(color: c.dim)),
                 if (e.actorText != null)
                   Text(e.actorText!, style: t.bodySmall.copyWith(color: c.dim)),
-                if (e.note != null) ...[
+                if (note != null) ...[
                   const SizedBox(height: 2),
                   Text(
-                    TurkishText.commaList(e.note!),
+                    TurkishText.commaList(note),
                     style: t.bodySmall.copyWith(color: c.ink),
                   ),
                 ],
@@ -359,7 +364,7 @@ class _EventRow extends StatelessWidget {
     final label = [
       e.displayLabel,
       ?e.actorText,
-      ?e.note,
+      ?note,
       ?e.attachmentFileName,
       Fmt.relative(e.occurredAt),
     ].join(', ');

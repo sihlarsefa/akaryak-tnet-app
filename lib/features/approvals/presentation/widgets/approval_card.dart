@@ -117,6 +117,36 @@ String? rowAmount(ApprovalRow row) {
   return row.liters == null ? null : Fmt.liters(row.liters);
 }
 
+/// Sipariş finansı satırının sunucu özetinden okunanlar (`OrderFinanceGate.OrderCommand` biçimi:
+/// "Cari · Ürün · 25.000 L · Çek 60 gün · tahmini 1.052.500,00 TL · Gerekçe: Limit aşımı … · …"):
+/// ödeme parçası, gerekçeler ve tutarın tahmin olup olmadığı. Biçim tanınmazsa boş.
+({String? payment, List<FinanceReason> reasons, bool estimate})
+orderFinanceRowFacts(String? summary) {
+  final parts = [
+    for (final p in (summary ?? '').split(' · '))
+      if (p.trim().isNotEmpty) p.trim(),
+  ];
+  final gi = parts.indexWhere((p) => p.startsWith('Gerekçe: '));
+  final reasons = gi < 0
+      ? const <FinanceReason>[]
+      : [
+          for (final r in [
+            parts[gi].substring('Gerekçe: '.length),
+            ...parts.sublist(gi + 1),
+          ])
+            if (r.trim().isNotEmpty) FinanceReason.fromText(r),
+        ];
+  final head = gi < 0 ? parts : parts.sublist(0, gi);
+  final estimate = head.any((p) => p.startsWith('tahmini '));
+  final li = head.indexWhere((p) => RegExp(r'^[\d.,]+\s*L$').hasMatch(p));
+  String? payment;
+  if (li >= 0 && li + 1 < head.length) {
+    final next = head[li + 1];
+    if (!next.startsWith('tahmini ') && !next.contains('₺')) payment = next;
+  }
+  return (payment: payment, reasons: reasons, estimate: estimate);
+}
+
 /// Satırın nasıl göründüğü (Onaylar listesinin bağlamı).
 enum ApprovalRowMode {
   /// Bende: karar bekleyen (tür · koşullar, sağda geri sayım / gecikme / zaman).
@@ -238,6 +268,11 @@ class ApprovalRowTile extends StatelessWidget {
         row.status == ApprovalStatus.infoRequested &&
         row.type != ApprovalType.companyOrderRequest;
 
+    // Sipariş finansı (bayi): satır ödemeyi ve istisna gerekçeleri söyler (G5) — rutin sipariş
+    // ("Tüm siparişler finans onayından geçer") ile limit aşımı açmadan ayrılır.
+    final finance = row.type == ApprovalType.orderFinance && !customerSide
+        ? orderFinanceRowFacts(row.summary)
+        : null;
     final String subtitle;
     // Bende'de koşullar yalnızca satıra sığarsa yazılır (yarım söz kalmaz); yoksa yalnızca tür.
     String? terms;
@@ -257,7 +292,9 @@ class ApprovalRowTile extends StatelessWidget {
               ].join(' · ');
       case ApprovalRowMode.decide when !customerSide:
         subtitle = type;
-        terms = _termsOf(who.rest);
+        terms = finance?.payment != null
+            ? _lowerFirst(finance!.payment!)
+            : _termsOf(who.rest);
       case _ when customerSide:
         final outcome = ApprovalsCopy.customerOutcome(
           row.type,
@@ -315,9 +352,30 @@ class ApprovalRowTile extends StatelessWidget {
     }
 
     final next = replyMine || customerReply ? ApprovalsCopy.replyNext : null;
-    final amount = rowAmount(row);
+    final raw = rowAmount(row);
+    // Teklif öncesi tutar tahmindir (G3): "≈ 1.052.500 ₺".
+    final amount =
+        raw != null && row.amount != null && (finance?.estimate ?? false)
+        ? '≈ $raw'
+        : raw;
     final full = terms == null ? subtitle : '$subtitle · $terms';
-    final semantic = [who.title, full, ?amount, ?spokenMeta, ?next].join(', ');
+    final exceptions = mode == ApprovalRowMode.decide && finance != null
+        ? [
+            for (final r in finance.reasons)
+              if (!r.kind.isRoutine && !r.kind.isPayment) r,
+          ]
+        : const <FinanceReason>[];
+    final semantic = [
+      who.title,
+      full,
+      ?amount,
+      for (final r in exceptions) r.text,
+      ?spokenMeta,
+      ?next,
+    ].join(', ');
+    final Widget? status = exceptions.isEmpty
+        ? null
+        : _ExceptionsLine(reasons: exceptions);
 
     Widget tile(String line) => AknListTile(
       leadingIcon: AknStatus.approvalType(row.type).icon,
@@ -326,6 +384,7 @@ class ApprovalRowTile extends StatelessWidget {
       amount: amount,
       metaWidget: meta,
       next: next,
+      status: status,
       semanticLabel: semantic,
       onTap: onTap,
     );
@@ -363,6 +422,61 @@ class ApprovalRowTile extends StatelessWidget {
         final fits = width(full, t.bodySmall) <= room;
         return tile(fits ? full : subtitle);
       },
+    );
+  }
+}
+
+/// Sipariş finansı satırının istisna satırı: limit aşımı kırmızı ve önünde "!" (renk tek başına
+/// söylemez), diğerleri (yüksek risk, koşullu cari, ilk N sipariş, tutar eşiği) mürekkeple; tek satır.
+class _ExceptionsLine extends StatelessWidget {
+  const _ExceptionsLine({required this.reasons});
+
+  final List<FinanceReason> reasons;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    final base = t.bodySmall.copyWith(fontWeight: FontWeight.w600);
+    final danger = reasons.any((r) => r.kind == FinanceReasonKind.limitOverrun);
+    return ExcludeSemantics(
+      child: Text.rich(
+        TextSpan(
+          children: [
+            if (danger)
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 4),
+                  child: Icon(
+                    PhosphorIconsFill.warningCircle,
+                    size: MediaQuery.textScalerOf(
+                      context,
+                    ).scale(14).clamp(14.0, 26.0),
+                    color: c.danger.fg,
+                  ),
+                ),
+              ),
+            for (var i = 0; i < reasons.length; i++) ...[
+              if (i > 0)
+                TextSpan(
+                  text: ' · ',
+                  style: base.copyWith(color: c.dim),
+                ),
+              TextSpan(
+                text: reasons[i].text,
+                style: base.copyWith(
+                  color: reasons[i].kind == FinanceReasonKind.limitOverrun
+                      ? c.danger.fg
+                      : c.ink,
+                ),
+              ),
+            ],
+          ],
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 }

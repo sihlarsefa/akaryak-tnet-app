@@ -14,6 +14,63 @@ import '../../shared/uploads.dart';
 UploadTarget replyTarget(int approvalId) =>
     UploadTarget(AttachmentOwnerType.approvalRequest, approvalId);
 
+/// Onaylayanın eklediği belge (G8; panelin "Talep belgeleri"): başka yoldan (e-posta, WhatsApp)
+/// gelen çek görseli ya da belge talebe eklenir — sahip onay talebi (7), sunucu karar verebilene ve
+/// talep edene izin verir. Yükleme satırları ve "… ekle"; yüklenince [onUploaded] (sayfa yenilenir).
+class ApproverUploadBox extends ConsumerWidget {
+  const ApproverUploadBox({
+    super.key,
+    required this.approvalId,
+    required this.kind,
+    this.onUploaded,
+  });
+
+  final int approvalId;
+  final AttachmentKind kind;
+  final VoidCallback? onUploaded;
+
+  String get _label => kind.isUnknown || kind == AttachmentKind.other
+      ? 'Belge ekle'
+      : '${kind.label} ekle';
+
+  Future<void> _add(BuildContext context, WidgetRef ref) async {
+    final file = await ref.read(a5FileSourceProvider).pick(context, kind);
+    if (file == null) return;
+    final added = await ref
+        .read(uploadsProvider(replyTarget(approvalId)).notifier)
+        .add(file, kind);
+    if (added == null || !context.mounted) return;
+    AknHaptics.success();
+    AppToast.success(
+      '${kind.isUnknown ? 'Belge' : kind.label} eklendi.',
+      context: context,
+    );
+    onUploaded?.call();
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        UploadTiles(target: replyTarget(approvalId)),
+        const SizedBox(height: 8),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: AknButton.secondary(
+            key: ValueKey('approver-upload-${kind.code}'),
+            label: _label,
+            icon: PhosphorIconsRegular.cameraPlus,
+            size: AknButtonSize.small,
+            onPressed: () => unawaited(_add(context, ref)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// İstenen belge bu oturumda ya da önceden eklendi mi.
 bool requiredKindSatisfied(ApprovalDetail d, List<UploadItem> uploads) {
   final info = d.infoRequest;
@@ -186,9 +243,12 @@ class InfoReplyCard extends ConsumerWidget {
 /// "Ek bilgi bekleniyor" (onaylayan tarafı; tasarım v3 beyaz kart, kum saati kuyusu): kim istedi,
 /// ne istendi; "Bilgi alındı" ya da ret.
 class InfoWaitingCard extends StatelessWidget {
-  const InfoWaitingCard({super.key, required this.detail});
+  const InfoWaitingCard({super.key, required this.detail, this.onNext});
 
   final ApprovalDetail detail;
+
+  /// Sıra müşteride: Bende'deki sıradaki talebi açar (G6); yoksa null.
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -259,6 +319,17 @@ class InfoWaitingCard extends StatelessWidget {
             'Bilgi ya da belge size başka yoldan ulaştıysa "Bilgi alındı" ile talebi incelemeye alın; yanıt gelmeyecekse gerekçe yazıp reddedin.',
             style: t.bodySmall.copyWith(color: c.dim),
           ),
+          if (onNext != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: AknInlineLink(
+                key: const ValueKey('info-waiting-next'),
+                label: 'Sıradaki talep',
+                onTap: onNext!,
+              ),
+            ),
+          ],
         ],
       ),
     );

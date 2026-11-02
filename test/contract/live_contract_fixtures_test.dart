@@ -428,6 +428,12 @@ const Map<String, String> _knownMissing = {
   'company-users: [].userName': 'kullanıcı adı: yeniden yakalanacak',
   'staff: [].userName': 'kullanıcı adı: yeniden yakalanacak',
   'staff: [].isMainAccount': 'kullanıcı adı: yeniden yakalanacak',
+  // Finans birimi incelemesi (sunucu 2026-11-02, yalnızca ekleme: ApprovalSummaryFactDto.Key,
+  // ApprovalSummaryDto.Finance). Sandbox yeni sunucuyla yeniden yakalanınca silinir; yapılandırılmış blok
+  // `test/contract/samples/approval_detail_finance_review.json` (sunucunun gerçek çıktısı) ile okunur.
+  'approval-detail: .summary.facts[].key':
+      'finans incelemesi: yeniden yakalanacak',
+  'approval-detail: .summary.finance': 'finans incelemesi: yeniden yakalanacak',
 };
 
 /// Okuyucusu JSON tipiyle uyuşmayan alanlar (`okuyucu-anahtarı: yol.anahtar (okuyucu←tip)`).

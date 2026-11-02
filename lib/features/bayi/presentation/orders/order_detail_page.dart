@@ -117,8 +117,16 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
         AknButton(
           key: const ValueKey('order-finance-decide'),
           label: BayiCopy.financeDecide,
-          onPressed: () =>
-              GoRouter.of(context).push(AppRoutes.approval(financeRequestId)),
+          onPressed: () {
+            final router = GoRouter.of(context);
+            final target = AppRoutes.approval(financeRequestId);
+            // Talepten açılan sipariş: talebe geri dönülür, ikinci kez itilmez (G11).
+            if (isPreviousLocation(router, target) && router.canPop()) {
+              router.pop();
+            } else {
+              unawaited(router.push<Object?>(target));
+            }
+          },
         ),
       if (actions.contains(_OrderAction.quote))
         AknButton(

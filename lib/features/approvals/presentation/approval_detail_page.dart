@@ -18,15 +18,18 @@ import '../application/approval_detail_controller.dart';
 import '../application/approvals_providers.dart';
 import '../copy.dart';
 import '../data/approval_models.dart';
+import '../data/approvals_repository.dart';
 import '../shared/attachment_grid.dart';
 import '../shared/failure_view.dart';
 import '../shared/layout.dart';
 import '../shared/uploads.dart';
+import 'approvals_page.dart' show nextBendeRow;
 import 'widgets/approval_card.dart';
 import 'widgets/approval_timelines.dart';
 import 'widgets/company_request_outcome.dart';
 import 'widgets/decision_bar.dart';
 import 'widgets/decision_sheets.dart';
+import 'widgets/finance_review.dart';
 import 'widgets/info_cards.dart';
 import 'widgets/summary_sections.dart';
 
@@ -81,6 +84,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       context,
       approvalId: widget.id,
       decision: m,
+      type: ref.read(approvalDetailProvider(widget.id)).detail?.type,
     );
     if (message != null && mounted) {
       AppToast.success(message, context: context);
@@ -88,21 +92,31 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
   }
 
   Future<void> _resume() async {
+    final d = ref.read(approvalDetailProvider(widget.id)).detail;
+    final kind = d?.infoRequest?.uploadKind ?? AttachmentKind.other;
     final message = await showNoteActionSheet(
       context,
       title: 'Bilgi alındı',
       subtitle: 'Talep yeniden incelemeye alınır.',
       message:
-          'İstenen bilgi ya da belge size başka yoldan (e-posta, telefon) ulaştıysa kısaca not edin.',
+          'İstenen bilgi ya da belge size başka yoldan (e-posta, telefon) ulaştıysa kısaca not edin; belgeyi buradan ekleyebilirsiniz.',
       noteLabel: 'Not (isteğe bağlı)',
       noteHint: 'Ör. Vergi levhası e-postayla geldi.',
       buttonLabel: 'İncelemeye al',
       icon: PhosphorIconsRegular.check,
       run: (note) => _ctrl.provideInfo(note: note, resume: true),
       onReload: _ctrl.refresh,
+      // G8: başka yoldan gelen belge talebe eklenir (panelin "Talep belgeleri").
+      extra: ApproverUploadBox(approvalId: widget.id, kind: kind),
     );
-    if (message != null && mounted) {
+    if (!mounted) return;
+    if (message != null) {
       AppToast.success(message, context: context);
+    } else if (ref
+        .read(uploadsProvider(replyTarget(widget.id)))
+        .any((u) => u.phase == UploadPhase.done)) {
+      // Vazgeçildi ama belge eklendi: Belgeler'de görünsün.
+      unawaited(_ctrl.refresh());
     }
   }
 
@@ -238,10 +252,12 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
               ),
             );
     }
+    // Finans kararında koşullu onay ve ek bilgi panelde olduğu gibi rıhtımda (v4 G4): koşullu onay önce
+    // (olumludan olumsuza), "Reddet" en sağda.
     final others = [
       for (final m in const [
-        ApprovalDecision.requestInfo,
         ApprovalDecision.conditionalApprove,
+        ApprovalDecision.requestInfo,
       ])
         if (d.can(m)) m,
     ];
@@ -264,42 +280,46 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       return DecisionBar(detail: d, onDecision: _decide);
     }
     final moreForward = forward != null && d.can(ApprovalDecision.approve);
-    final secondaries = <AknButton>[];
-    // Büyük yazıda satıra en çok iki ikincil sığar: diğer kararlar "Diğer"de.
-    if (others.isNotEmpty && !isLargeText(context)) {
-      final m = others.removeAt(0);
-      secondaries.add(
-        AknButton.ghost(
-          label: d.modeLabel(m),
-          onPressed: () => unawaited(_decide(m)),
-        ),
-      );
-    }
-    if (others.isNotEmpty || moreForward) {
-      final rest = [...others];
-      secondaries.add(
+    // Satırdaki ikinciller ("Reddet" dışında): normal yazıda iki, büyük yazıda bir. Fazlası "Diğer"de;
+    // "Diğer" hiçbir zaman tek seçenekli olmaz (tek fazlalık satıra yazılır).
+    final extras = <Object>[...others, if (moreForward) _forwardKey];
+    final budget = isLargeText(context) ? 1 : 2;
+    final inline = extras.length <= budget
+        ? extras
+        : extras.take(budget - 1).toList();
+    final rest = extras.skip(inline.length).toList();
+    AknButton ghostFor(Object e) => e is ApprovalDecision
+        ? AknButton.ghost(
+            label: d.modeLabel(e),
+            onPressed: () => unawaited(_decide(e)),
+          )
+        : AknButton.ghost(label: 'Merkeze ilet', onPressed: forward);
+    final secondaries = <AknButton>[
+      for (final e in inline) ghostFor(e),
+      if (rest.isNotEmpty)
         AknButton.ghost(
           label: 'Diğer',
           semanticLabel: [
             'Diğer kararlar',
-            ...rest.map(d.modeLabel),
-            if (moreForward) 'Merkeze ilet',
+            for (final e in rest)
+              e is ApprovalDecision ? d.modeLabel(e) : 'Merkeze ilet',
           ].join(', '),
           onPressed: () => unawaited(
             showMoreDecisions(
               context,
               detail: d,
-              modes: rest,
+              modes: [...rest.whereType<ApprovalDecision>()],
               onDecision: _decide,
-              onForward: moreForward ? forward : null,
+              onForward: rest.contains(_forwardKey) ? forward : null,
             ),
           ),
         ),
-      );
-    }
-    if (d.can(ApprovalDecision.reject)) secondaries.add(reject());
+      if (d.can(ApprovalDecision.reject)) reject(),
+    ];
     return ActionBar.decision(primary: primary, secondaries: secondaries);
   }
+
+  static const _forwardKey = 'forward';
 
   /// Çevrimdışı (spec C.4a): açıklamalı, kapalı çubuk.
   Widget? _offlineBar(ApprovalDetail d, int? forwardLeadId) {
@@ -452,13 +472,33 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
         ? _decisionDock(d, canForward ? leadId : null)
         : _offlineBar(d, canForward ? leadId : null);
 
-    final readouts = plateReadoutsFor(d);
+    // Sipariş finansı (bayi / merkez): karar olguları bölümlere ayrılır, plakada ödeme · limit ·
+    // gecikmiş okunur (G1); diğer türlerde sunucu özetinin düz listesi.
+    final review = d.financeReview;
+    final readouts = review != null
+        ? financePlateReadouts(d, review)
+        : plateReadoutsFor(d);
     final usedFacts = {for (final r in readouts) r.label};
-    final facts = [
-      for (final f in d.summary.facts)
-        if (!usedFacts.contains(f.label)) f,
-    ];
+    final facts = review != null
+        ? const <SummaryFact>[]
+        : [
+            for (final f in d.summary.facts)
+              if (!usedFacts.contains(f.label)) f,
+          ];
     final replying = d.canProvideInfo && d.infoRequest != null;
+    // Sıra müşteride (ek bilgi istendi): onaylayan Bende'deki sıradaki talebe geçebilir (G6).
+    final waitingNext =
+        d.canResumeInfo &&
+            d.infoRequest != null &&
+            !d.customerView &&
+            !policy.isCustomer &&
+            policy.isApprover
+        ? nextBendeRow(
+            ref.watch(approvalsListProvider(const ApprovalsQuery())).items,
+            except: d.id,
+            me: ref.watch(currentUserIdProvider),
+          )
+        : null;
     // `?focus=request`: talebin bloğu — yanıt beklenen ek bilgi kartı, yoksa talebin plakası.
     Widget focusable(Widget child, {required bool target}) => target
         ? AknFocusFlash(
@@ -489,12 +529,20 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
       else if (d.canResumeInfo && d.infoRequest != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-          child: InfoWaitingCard(detail: d),
+          child: InfoWaitingCard(
+            detail: d,
+            onNext: waitingNext == null
+                ? null
+                : () => context.pushReplacement(
+                    AppRoutes.approval(waitingNext.id),
+                  ),
+          ),
         ),
       focusable(
         target: !replying,
-        _ApprovalPlate(detail: d, readouts: readouts),
+        _ApprovalPlate(detail: d, readouts: readouts, review: review),
       ),
+      if (review != null) OrderLinkRow(detail: d),
       if (d.modes.isEmpty && d.decisionHint != null && !d.canProvideInfo)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -522,8 +570,18 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
             message: 'Talep merkez onayına iletildi.',
           ),
         ),
-      WarningBanners(warnings: d.summary.warnings),
-      if (facts.isNotEmpty)
+      WarningBanners(
+        warnings: review == null
+            ? d.summary.warnings
+            : financeWarnings(d, review),
+      ),
+      if (review != null)
+        FinanceReviewSections(
+          detail: d,
+          review: review,
+          onDocumentUploaded: () => unawaited(_ctrl.refresh()),
+        )
+      else if (facts.isNotEmpty)
         DetailSection(
           title: 'Özet',
           child: FactsCard(facts: facts),
@@ -539,7 +597,7 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
           title: 'Talep satırları',
           child: LinesCard(lines: d.summary.lines),
         ),
-      RelatedLinksCard(detail: d),
+      RelatedLinksCard(detail: d, skipOrder: review != null),
       if (d.attachments.isNotEmpty)
         DetailSection(
           title: 'Belgeler',
@@ -697,8 +755,18 @@ class _Header extends StatelessWidget {
     ].join(' · ');
     final subline = d.summary.subline;
     // Şimdiki adım tek cümle (v4 §3.2 emir kipi): karar verebilene "Karar verin", yanıt verecek
-    // olana "Bilgi gönderin"; onaylayan yanıt beklerken "Yanıt bekleniyor"; diğerlerine lamba.
-    final (sentence, yourMove) = d.modes.isNotEmpty
+    // olana "Bilgi gönderin"; onaylayan yanıt beklerken "Yanıt bekleniyor" (cariye yöneltilen türde
+    // "Müşteriden yanıt bekleniyor") — ek bilgi beklenirken sunucu yine ret modu verir, ama sıra
+    // izleyende değildir: önce bekleme cümlesi, geri sayım nötr (G2). Diğerlerine lamba.
+    final waiting = d.canResumeInfo && d.status == ApprovalStatus.infoRequested;
+    final (sentence, yourMove) = waiting
+        ? (
+            d.isCustomerAddressed
+                ? ApprovalsCopy.waitingCustomer
+                : ApprovalsCopy.groupWaiting,
+            false,
+          )
+        : d.modes.isNotEmpty
         ? (ApprovalsCopy.decideNext, true)
         : d.canProvideInfo
         ? (ApprovalsCopy.replyNext, true)
@@ -819,13 +887,29 @@ List<ApprovalReadout> plateReadoutsFor(ApprovalDetail d) {
 /// şirket onayı: tahmini tutar), risk bandı siyah çipte, okumalar. Tutar da litre de yoksa plaka
 /// yok.
 class _ApprovalPlate extends StatelessWidget {
-  const _ApprovalPlate({required this.detail, required this.readouts});
+  const _ApprovalPlate({
+    required this.detail,
+    required this.readouts,
+    this.review,
+  });
 
   final ApprovalDetail detail;
   final List<ApprovalReadout> readouts;
 
+  /// Sipariş finansının incelemesi: teklif öncesi tutar "Tahmini tutar" (G3), limit aşımı ve
+  /// sipariş engeli plakanın satırında.
+  final OrderFinanceReview? review;
+
+  String get _plateTitle {
+    final r = review;
+    if (r == null) return _title(detail.type);
+    if (r.isQuoted) return ApprovalsCopy.quotedAmount;
+    if (r.amountIsEstimate) return ApprovalsCopy.estimatedAmount;
+    return ApprovalsCopy.orderAmount;
+  }
+
   static String _title(ApprovalType t) => switch (t) {
-    ApprovalType.orderFinance => 'Sipariş tutarı',
+    ApprovalType.orderFinance => ApprovalsCopy.orderAmount,
     ApprovalType.fieldFormFinance ||
     ApprovalType.fieldOrderProfit => 'Form tutarı',
     ApprovalType.limitChange ||
@@ -854,25 +938,71 @@ class _ApprovalPlate extends StatelessWidget {
           ? null
           : fixed.substring(comma);
       unit = '₺';
-      spoken = '${_title(d.type)} ${Fmt.money(amount)}';
+      spoken = '$_plateTitle ${Fmt.money(amount)}';
     } else {
       value = Fmt.number(liters, maxFraction: 3);
       decimals = null;
       unit = 'L';
       spoken = 'Miktar ${Fmt.liters(liters)}';
     }
+    final t = context.aknText;
+    final c = context.akn;
+    final r = review;
+    // Plakanın sorun satırı (finans kartının plakası gibi: kırmızı "!" ve kalın söz): limit aşımı ve
+    // carinin sipariş engeli; açık talepte.
+    final problems = r == null || !d.isOpen
+        ? const <String>[]
+        : [
+            ?r.limitOverrun?.text,
+            if (r.card != null && !r.card!.canOrder)
+              r.card!.blockReason ?? 'Cari sipariş veremez',
+          ];
+    final spokenAll = [
+      spoken,
+      if (r != null)
+        for (final x in readouts) [x.label, x.value, ?x.unit].join(' '),
+      ...problems,
+    ].join(', ');
+    final Widget? delta = band == null && problems.isEmpty
+        ? null
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (band != null) _BandChip(label: band.label),
+              for (final p in problems) ...[
+                if (band != null || p != problems.first)
+                  const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const PlateBang(),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        p,
+                        style: t.bodySmall.copyWith(
+                          color: c.ink,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          );
     return AknPlate(
       margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-      semanticLabel: spoken,
+      semanticLabel: spokenAll,
       // v4: simge kutusu yok; zaman başlıktaki şimdiki adım satırında (bir kez).
-      head: PlateHead(title: amount == null ? 'Miktar' : _title(d.type)),
+      head: PlateHead(title: amount == null ? 'Miktar' : _plateTitle),
       figure: PlateFigure(
         value: value,
         decimals: decimals,
         unit: unit,
         semanticLabel: spoken,
       ),
-      delta: band == null ? null : _BandChip(label: band.label),
+      delta: delta,
       below: readouts.isEmpty
           ? null
           // Okumalar en çok 1,5× (sütunlar korunur, değer sığmazsa küçülür).
@@ -934,7 +1064,10 @@ String whenStamp(DateTime? at) {
 
 /// Sonuçlanmış talebin kararı (cari görünümünde yalnızca ret gerekçesi). Talep sonuçlandıysa —
 /// çoğu kez başkası karar verdiği için (aynı bildirim iki onaylayana gider) — sayfa çıkmaz sokak
-/// olmaz: bantta görev kutusundaki sıradaki işe "Sıradaki işiniz" bağlantısı (v4 §3.5.3, B12).
+/// olmaz: onaylayana Bende'deki sıradaki talep ("Sıradaki talep", G6; aynı sayfa yerine açılır),
+/// yoksa görev kutusundaki sıradaki iş ("Sıradaki işiniz", v4 §3.5.3, B12). Koşullu onayda koşullar
+/// okunur biçimde (G24); sipariş finansında kararın sipariş için anlamı ("Sipariş teklif aşamasına
+/// geçti.").
 class _DecisionOutcomeBanner extends ConsumerWidget {
   const _DecisionOutcomeBanner({required this.detail});
 
@@ -943,7 +1076,18 @@ class _DecisionOutcomeBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final d = detail;
-    final next = d.status.isOpen
+    final closed = !d.status.isOpen;
+    final policy = ref.watch(accessPolicyProvider);
+    final approver =
+        closed && !d.customerView && !policy.isCustomer && policy.isApprover;
+    final nextRow = approver
+        ? nextBendeRow(
+            ref.watch(approvalsListProvider(const ApprovalsQuery())).items,
+            except: d.id,
+            me: ref.watch(currentUserIdProvider),
+          )
+        : null;
+    final next = !closed || nextRow != null
         ? null
         : ref.watch(taskInboxProvider).next(except: AppRoutes.approval(d.id));
     final when = d.decidedAt == null ? null : Fmt.dateTime(d.decidedAt);
@@ -959,20 +1103,42 @@ class _DecisionOutcomeBanner extends ConsumerWidget {
       _ => (AknTone.neutral, ''),
     };
     if (title.isEmpty) return const SizedBox.shrink();
+    String? conditions;
+    if (!d.customerView && d.isConditionallyApproved) {
+      for (final e in d.events.reversed) {
+        if (e.eventType == ApprovalEventType.conditionallyApproved) {
+          conditions = ApprovalsCopy.conditionsText(e.note);
+          break;
+        }
+      }
+    }
     final note = d.customerView && d.status != ApprovalStatus.rejected
         ? (d.isConditionallyApproved
               ? ApprovalsCopy.conditionalText(d.type)
               : null)
         : d.decisionNote;
-    final message = [if (meta.isNotEmpty) meta, ?note].join('\n');
+    final consequence = d.customerView
+        ? null
+        : ApprovalsCopy.financeOutcome(d.type, d.status);
+    final message = [
+      if (meta.isNotEmpty) meta,
+      ?conditions,
+      if (note != null && note != conditions) note,
+      ?consequence,
+    ].join('\n');
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: AknBanner(
+        key: const ValueKey('approval-outcome'),
         tone: tone,
         title: title,
         message: message.isEmpty ? title : message,
-        actionLabel: next == null ? null : nextTaskLabel,
-        onAction: next == null
+        actionLabel: nextRow != null
+            ? ApprovalsCopy.nextRequest
+            : (next == null ? null : nextTaskLabel),
+        onAction: nextRow != null
+            ? () => context.pushReplacement(AppRoutes.approval(nextRow.id))
+            : next == null
             ? null
             : () => context.openAppLocation(next.location),
       ),

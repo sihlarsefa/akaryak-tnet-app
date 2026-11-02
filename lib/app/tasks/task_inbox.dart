@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show IconData, VoidCallback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/auth/access_policy.dart' show RolePreset;
 import '../../core/auth/permissions.dart';
 import '../../core/auth/session_controller.dart';
 import '../../core/models/models.dart';
@@ -827,12 +828,22 @@ final bayiTaskQueuesProvider = Provider.autoDispose<TaskInbox>((ref) {
   final data = state.data;
   final badge = ref.watch(unreadCountProvider.select((u) => u.approvals));
   final counts = ref.watch(bayiOrderCountsProvider).valueOrNull;
+  // Onaylayanın Bende'si (sayfa 1): onay satırı kaçının sipariş finansı olduğunu söyler (G17).
+  final bende = policy.isApprover && policy.can(Pg.stationApprovals)
+      ? ref.watch(approvalsListProvider(const ApprovalsQuery()))
+      : null;
   if (data == null) return TaskInbox(loading: state.loading);
   final canPlan = policy.can(Pg.stationShipmentBoard, Perm.edit);
   return TaskInbox(
     items: buildBayiTasks(
       data: data,
       approvalsBadge: policy.isApprover ? badge : 0,
+      bende: bende != null && bende.hasData && !bende.hasMore
+          ? bende.items
+          : null,
+      // Bugünün Tüpraş fiyatı fiyatı düzenleyenin işidir; Finans birimi fiyatı yalnızca görür (G22;
+      // `me/access` fiyat sayfasını göndermediği için şablondan).
+      canEnterPrices: policy.rolePreset != RolePreset.finance,
       toPlan: counts?.of(BayiOrderSegment.toPlan) ?? 0,
       // Quoting is the create grant, not seeing the desk (v4 round 2): a
       // viewer or finance never gets a quote task, nor "Sıradaki işiniz" on
@@ -853,10 +864,12 @@ final bayiTaskQueuesProvider = Provider.autoDispose<TaskInbox>((ref) {
 List<TaskItem> buildBayiTasks({
   required BayiHomeData data,
   int approvalsBadge = 0,
+  List<ApprovalRow>? bende,
   int toPlan = 0,
   bool canQuote = true,
   bool canPlan = true,
   bool canResolve = true,
+  bool canEnterPrices = true,
   DateTime? now,
 }) {
   final at = now ?? TrTime.now();
@@ -921,19 +934,36 @@ List<TaskItem> buildBayiTasks({
   }
 
   // Approvals: the count IS the Onaylar badge. The overdue clause is the
-  // subline, so the one-line row title is never cut ("… · 1'i g…").
+  // subline, so the one-line row title is never cut ("… · 1'i g…"). With
+  // the whole Bende at hand ([bende]), the row says how many are order
+  // finance (every order passes finance, 2e379cb): all of them → "Finans
+  // onayınızı bekleyen N sipariş", opening Onaylar filtered to order finance;
+  // some → the clause "2'si sipariş finansı" (G17). The count stays the badge.
   if (approvalsBadge > 0) {
     final overdue = data.approvals?.overdue ?? 0;
+    final finance = bende == null
+        ? 0
+        : bende.where((r) => r.type == ApprovalType.orderFinance).length;
+    final allFinance = finance > 0 && finance >= approvalsBadge;
+    final clauses = [
+      if (!allFinance && finance > 0)
+        "$finance'${_si(finance)} sipariş finansı",
+      if (overdue > 0) "$overdue'${_si(overdue)} gecikti",
+    ];
     items.add(
       TaskItem(
         id: 'approvals',
         kind: TaskKind.approvals,
-        title: 'Kararınızı bekleyen $approvalsBadge talep',
-        subtitle: overdue > 0 ? "$overdue'${_si(overdue)} gecikti" : null,
+        title: allFinance
+            ? 'Finans onayınızı bekleyen $approvalsBadge sipariş'
+            : 'Kararınızı bekleyen $approvalsBadge talep',
+        subtitle: clauses.isEmpty ? null : clauses.join(' · '),
         tone: overdue > 0 ? TaskTone.danger : TaskTone.yourMove,
-        route: AppRoutes.approvals,
+        route: allFinance
+            ? '${AppRoutes.approvals}?type=${ApprovalType.orderFinance.code}'
+            : AppRoutes.approvals,
         actionKind: TaskActionKind.openQueue,
-        actionLabel: 'Talepleri incele',
+        actionLabel: allFinance ? 'Siparişleri incele' : 'Talepleri incele',
         count: approvalsBadge,
         overdue: overdue,
       ),
@@ -1030,7 +1060,7 @@ List<TaskItem> buildBayiTasks({
       ),
     );
   }
-  if (data.setup?.tuprasMissingToday ?? false) {
+  if (canEnterPrices && (data.setup?.tuprasMissingToday ?? false)) {
     items.add(
       const TaskItem(
         id: 'tupras-today',

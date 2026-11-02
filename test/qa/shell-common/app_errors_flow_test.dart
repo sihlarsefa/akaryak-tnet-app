@@ -14,6 +14,8 @@ import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/offline/connectivity.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
+import 'package:akaryakitnet/features/approvals/api.dart'
+    show approvalsListProvider;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +46,11 @@ void main() {
         final target = layout.bar.length > 1
             ? layout.bar[1].path
             : '/notifications';
+        // Onaylayan bayinin ana sayfası Bende'yi önceden yükler (sipariş finansı görev satırı, 2026-11-02):
+        // Onaylar sekmesi o zaman taze yükleme değildir; kesintideki taze yükleme için liste sıfırlanır.
+        if (target == '/approvals') {
+          app.container.invalidate(approvalsListProvider);
+        }
         router.go(target);
         await pumpSteps(tester, const Duration(milliseconds: 1500));
         await settleIo(tester);

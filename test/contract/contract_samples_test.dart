@@ -70,6 +70,10 @@ final Map<String, void Function(Object? json)> _parsers = {
       expect(bayi.ShipmentDetail.fromJson(j).id, greaterThan(0)),
   'approval_detail_condition': (j) =>
       expect(ApprovalDetail.fromJson(j).row.id, greaterThan(0)),
+  // Sunucunun gerçek çıktısı (FinanceMobileTests, AKN_FINANCE_MOBILE_SAMPLE; 2026-11-02): sipariş
+  // finansı + `summary.finance` + satır anahtarları.
+  'approval_detail_finance_review': (j) =>
+      expect(ApprovalDetail.fromJson(j).summary.finance, isNotNull),
   'driver_shipment_detail': (j) =>
       expect(DriverShipmentDetail.fromJson(j).row.id, greaterThan(0)),
   'bayi_quote_desk': (j) => expect(DeskPage.fromJson(j), isNotNull),

@@ -16,15 +16,17 @@ import '../../shared/layout.dart';
 import 'condition_form_view.dart';
 import 'decision_bar.dart' show decisionIcon;
 
-/// Karar sayfasını açar; başarıda sunucu mesajını döndürür (vazgeçilirse null).
+/// Karar sayfasını açar; başarıda sunucu mesajını döndürür (vazgeçilirse null). [type] verilirse alt
+/// başlık kararın sonucunu söyler (sipariş finansı: "Sipariş kapanır, ayrılan limit serbest kalır").
 Future<String?> showDecisionSheet(
   BuildContext context, {
   required int approvalId,
   required ApprovalDecision decision,
+  ApprovalType? type,
 }) => showAppSheet<String>(
   context: context,
   title: _title(decision),
-  subtitle: _subtitle(decision),
+  subtitle: ApprovalsCopy.decisionSubtitle(decision, type: type),
   builder: (_) => DecisionSheet(approvalId: approvalId, decision: decision),
 );
 
@@ -34,15 +36,6 @@ String _title(ApprovalDecision d) => switch (d) {
   ApprovalDecision.requestInfo => 'Ek bilgi iste',
   ApprovalDecision.reject => 'Talebi reddet',
   ApprovalDecision.unknown => 'Karar ver',
-};
-
-String? _subtitle(ApprovalDecision d) => switch (d) {
-  ApprovalDecision.approve => 'Karar kaydı geri alınamaz.',
-  ApprovalDecision.conditionalApprove =>
-    'Yalnızca değiştirmek istediğiniz koşulları doldurun.',
-  ApprovalDecision.requestInfo => 'Talep eden yanıtlayana kadar talep bekler.',
-  ApprovalDecision.reject => 'Gerekçe talep edene iletilir.',
-  ApprovalDecision.unknown => null,
 };
 
 /// Karar sayfası gövdesi (tasarım v3 §4 sayfa): kararın tonunda simgeli özet, not, (koşullu onayda)
@@ -75,6 +68,15 @@ class _DecisionSheetState extends ConsumerState<DecisionSheet> {
   int _shakes = 0;
 
   ApprovalDecision get _d => widget.decision;
+
+  @override
+  void initState() {
+    super.initState();
+    // Sipariş finansında zorunlu ödeme belgesi eksikse "Ek bilgi iste" o belgeyle açılır (G12).
+    if (_d == ApprovalDecision.requestInfo) {
+      _kind = suggestedInfoKind(_detail);
+    }
+  }
 
   @override
   void dispose() {
@@ -213,6 +215,8 @@ class _DecisionSheetState extends ConsumerState<DecisionSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _Recap(detail: d, decision: _d),
+        if (_d != ApprovalDecision.requestInfo)
+          ?_FinanceRecap.maybe(d, decision: _d),
         if (d.onBehalfOfName != null) ...[
           const SizedBox(height: 12),
           AknBanner(
@@ -288,7 +292,7 @@ class _DecisionSheetState extends ConsumerState<DecisionSheet> {
           FilterChips<AttachmentKind>(
             padding: EdgeInsets.zero,
             options: [
-              for (final k in ApprovalsCopy.requestableKinds)
+              for (final k in ApprovalsCopy.requestableKindsFor(d.type))
                 FilterOption(
                   value: k,
                   label: k.label,
@@ -406,6 +410,8 @@ class _DecisionSheetState extends ConsumerState<DecisionSheet> {
   };
 
   String? _noteHint() => switch (_d) {
+    ApprovalDecision.requestInfo when _kind != null =>
+      'Ör. ${_kind!.label} okunur ve eksiksiz olsun.',
     ApprovalDecision.requestInfo => 'Ör. Çek görselinin arka yüzünü yükleyin.',
     ApprovalDecision.reject => 'Neden reddettiğinizi açıkça yazın.',
     ApprovalDecision.conditionalApprove =>
@@ -429,9 +435,9 @@ class _Recap extends StatelessWidget {
     final d = detail;
     final amount = d.summary.amount ?? d.row.amount;
     final liters = d.summary.liters ?? d.row.liters;
-    final headline = d.summary.headline.isNotEmpty
-        ? d.summary.headline
-        : (d.row.subjectNumber ?? d.row.title);
+    // İnsan adı başlıkta, kod kendi satırında (kod satır ortasında bölünmez; G19a).
+    final names = recapNames(d);
+    final estimate = d.financeReview?.amountIsEstimate ?? false;
     final c = context.akn;
     final tone = switch (decision) {
       ApprovalDecision.approve => AknTone.ok,
@@ -441,7 +447,9 @@ class _Recap extends StatelessWidget {
     };
     final figure = amount != null || liters != null
         ? Text(
-            amount != null ? Fmt.money(amount) : Fmt.liters(liters),
+            amount != null
+                ? (estimate ? '≈ ${Fmt.money(amount)}' : Fmt.money(amount))
+                : Fmt.liters(liters),
             style: t.amount.copyWith(color: c.ink),
             maxLines: 1,
             softWrap: false,
@@ -451,14 +459,28 @@ class _Recap extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          headline.replaceAll(' · ', ', '),
+          names.title,
           style: t.bodyStrong.copyWith(
             color: c.ink,
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 2),
-        Text(d.row.displayTypeLabel, style: t.label.copyWith(color: c.dim)),
+        Text(
+          ApprovalsCopy.typeName(d.type),
+          style: t.label.copyWith(color: c.dim),
+        ),
+        if (names.code != null)
+          Text(
+            names.code!,
+            style: t.caption.copyWith(
+              color: c.dim,
+              fontFeatures: AknNumerals.tabular,
+            ),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.fade,
+          ),
       ],
     );
     // QA BO-04: tutar başlığın yanında esnemiyordu (2,0× ve 11+ haneli tutarda taşma). Büyük
@@ -611,6 +633,7 @@ Future<String?> showNoteActionSheet(
   required IconData icon,
   required Future<ActionOutcome> Function(String note) run,
   Future<void> Function()? onReload,
+  Widget? extra,
 }) => showAppSheet<String>(
   context: context,
   title: title,
@@ -623,6 +646,7 @@ Future<String?> showNoteActionSheet(
     icon: icon,
     run: run,
     onReload: onReload,
+    extra: extra,
   ),
 );
 
@@ -635,7 +659,11 @@ class _NoteActionSheet extends ConsumerStatefulWidget {
     this.message,
     this.noteHint,
     this.onReload,
+    this.extra,
   });
+
+  /// Notun üstünde ek içerik (ör. onaylayanın belge eklemesi).
+  final Widget? extra;
 
   final String? message;
   final String noteLabel;
@@ -695,6 +723,10 @@ class _NoteActionSheetState extends ConsumerState<_NoteActionSheet> {
         if (widget.message != null)
           Text(widget.message!, style: t.body.copyWith(color: context.akn.dim)),
         _ProblemSlot(outcome: problem, onReload: _reload, onRetry: _submit),
+        if (widget.extra != null) ...[
+          const SizedBox(height: 12),
+          widget.extra!,
+        ],
         const SizedBox(height: 16),
         AknTextField(
           controller: _note,
@@ -726,4 +758,111 @@ class _NoteActionSheetState extends ConsumerState<_NoteActionSheet> {
       ],
     );
   }
+}
+
+/// Karar sayfasının özeti için talebin insan adı ve kodu (ayrıntı başlığıyla aynı kural: kod olmayan
+/// başlık parçaları, yoksa karşı taraf).
+({String title, String? code}) recapNames(ApprovalDetail d) {
+  bool isCode(String p) =>
+      RegExp(r'^[A-ZÇĞİÖŞÜ]{2,5}-[\d-]+$').hasMatch(p) ||
+      RegExp(r'#\d+').hasMatch(p);
+  final parts = [
+    for (final p in d.summary.headline.split(' · '))
+      if (p.trim().isNotEmpty) p.trim(),
+  ];
+  final human = [
+    for (final p in parts)
+      if (!isCode(p)) p,
+  ].join(', ');
+  final code =
+      d.row.subjectNumber ??
+      [
+        for (final p in parts)
+          if (isCode(p)) p,
+      ].firstOrNull;
+  final title = human.isNotEmpty
+      ? human
+      : (d.row.customerTitle ?? d.row.requestedByName ?? d.row.title);
+  return (title: title.isEmpty ? ApprovalsCopy.detailTitle : title, code: code);
+}
+
+/// "Ek bilgi iste"de önceden seçili belge (G12): sipariş finansında zorunlu ödeme belgesi eksikse
+/// o tür (yapılandırılmış ödeme bilgisi; eski sunucuda uyarının "İstenen belge: …" sözünden).
+AttachmentKind? suggestedInfoKind(ApprovalDetail? d) {
+  if (d == null || d.type != ApprovalType.orderFinance || d.customerView) {
+    return null;
+  }
+  final p = d.financeReview?.payment;
+  if (p != null && p.documentMissing && p.documentKind != null) {
+    return p.documentKind!.isUnknown ? null : p.documentKind;
+  }
+  for (final w in d.summary.warnings) {
+    final m = RegExp(r'İstenen belge: ([^)]+)\)').firstMatch(w);
+    if (m == null) continue;
+    final label = m[1]!.trim();
+    for (final k in ApprovalsCopy.requestableKinds) {
+      if (k.label == label) return k;
+    }
+  }
+  return null;
+}
+
+/// Sipariş finansında karar anının olguları (onay, koşullu onay, ret): ödeme ve bu siparişle limit;
+/// gecikmiş varsa o. Kullanıcı neyi onayladığını sayfadan çıkmadan görür.
+class _FinanceRecap extends StatelessWidget {
+  const _FinanceRecap({required this.rows});
+
+  final List<FactRow> rows;
+
+  static Widget? maybe(ApprovalDetail d, {required ApprovalDecision decision}) {
+    final r = d.financeReview;
+    if (r == null) return null;
+    final p = r.payment;
+    final l = r.limit;
+    final rows = <FactRow>[
+      if (p.methodName.trim().isNotEmpty)
+        FactRow(
+          label: 'Ödeme',
+          value: p.line != null && p.methodCode == null
+              ? p.line!.replaceAll(' · ', ', ')
+              : ApprovalsCopy.paymentLine(p),
+        ),
+      if (l != null && l.hasLimit && l.ratio != null)
+        FactRow(
+          label: l.includesThisOrder
+              ? ApprovalsCopy.usageAfter
+              : ApprovalsCopy.usageNow,
+          value: [
+            Fmt.percent(l.ratio! * 100, maxFraction: 0),
+            if (l.wouldExceed && l.overrunAmount > 0)
+              '${l.isLiters ? Fmt.liters(l.overrunAmount.round()) : Fmt.moneyWhole(l.overrunAmount)} aşım',
+          ].join(', '),
+          tone: l.wouldExceed
+              ? AknTone.danger
+              : ((l.ratio ?? 0) >= 0.8 ? AknTone.warn : null),
+        ),
+      if ((r.card?.overdueAmount ?? 0) > 0)
+        FactRow(
+          label: 'Gecikmiş',
+          value: Fmt.moneyWhole(r.card!.overdueAmount),
+          tone: AknTone.danger,
+        ),
+    ];
+    if (rows.isEmpty) return null;
+    return _FinanceRecap(rows: rows);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < rows.length; i++) ...[
+          if (i > 0) const AknLedgerDivider(indent: 0),
+          rows[i],
+        ],
+      ],
+    ),
+  );
 }

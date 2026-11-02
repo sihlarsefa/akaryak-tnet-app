@@ -1,0 +1,490 @@
+{
+  "id": 1,
+  "type": 4,
+  "typeLabel": "Sipariş finans",
+  "status": 0,
+  "statusLabel": "Bekliyor",
+  "isMirror": false,
+  "stationId": 1,
+  "stationTitle": "Merkez Petrol",
+  "customerId": 1,
+  "customerTitle": "Acar Nakliyat",
+  "subjectType": "Order",
+  "subjectId": 6,
+  "subjectNumber": "AYN-20261102-000001",
+  "title": "Sipariş finans onayı · AYN-20261102-000001",
+  "summaryText": "Acar Nakliyat · Motorin · 2.000 L · Çek 60 gün · tahmini 80.000,00 TL · Gerekçe: Limit aşımı 10.000 TL · Vadeli yöntem (Çek, 60 gün) · Yüksek risk (C)",
+  "amount": 80000.0,
+  "liters": 2000.0,
+  "requestedByUserId": "1bee35c5-b6fa-4b21-8309-506485a4dbfc",
+  "requestedByName": "Cari Yönetici",
+  "createdAt": "2026-11-02T05:38:18.277296+00:00",
+  "dueAt": "2026-11-02T09:38:18.277296+00:00",
+  "slaState": 1,
+  "currentLevelNo": 1,
+  "levelCount": 1,
+  "canDecide": true,
+  "concurrencyToken": "15623458-c9bf-4871-b345-43b2c76353ed",
+  "contextJson": "{\"reasons\":\"Limit a\\u015F\\u0131m\\u0131 10.000 TL \\u00B7 Vadeli y\\u00F6ntem (\\u00C7ek, 60 g\\u00FCn) \\u00B7 Y\\u00FCksek risk (C)\",\"limitOverrun\":true,\"method\":\"CEK\",\"termDays\":60,\"dueDate\":\"2027-01-02\",\"estimatedAmount\":80000,\"source\":\"Customer\"}",
+  "decidedAt": null,
+  "decidedByUserId": null,
+  "decidedByName": null,
+  "decisionNote": null,
+  "steps": [
+    {
+      "id": 1,
+      "levelNo": 1,
+      "name": "Finans uzmanı",
+      "capabilityCode": "approve.finance.order",
+      "minAmount": 0.0,
+      "status": 1,
+      "statusLabel": "Karar bekliyor",
+      "dueAt": "2026-11-02T09:38:18.277296",
+      "remindedAt": null,
+      "escalatedAt": null,
+      "decidedByUserId": null,
+      "decidedByName": null,
+      "onBehalfOfUserId": null,
+      "onBehalfOfName": null,
+      "decidedAt": null,
+      "note": null
+    }
+  ],
+  "events": [
+    {
+      "id": 1,
+      "eventType": 1,
+      "label": "Oluşturuldu",
+      "stepId": null,
+      "userId": "1bee35c5-b6fa-4b21-8309-506485a4dbfc",
+      "userName": "Cari Yönetici",
+      "onBehalfOfUserId": null,
+      "onBehalfOfName": null,
+      "attachmentPublicId": null,
+      "attachmentFileName": null,
+      "note": null,
+      "occurredAt": "2026-11-02T05:38:18.277296"
+    }
+  ],
+  "attachments": [],
+  "modes": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "modeLabels": [
+    "Onayla",
+    "Koşullu onayla",
+    "Ek bilgi iste",
+    "Reddet"
+  ],
+  "onBehalfOfUserId": null,
+  "onBehalfOfName": null,
+  "canProvideInfo": false,
+  "canResumeInfo": false,
+  "summary": {
+    "headline": "AYN-20261102-000001 · Acar Nakliyat",
+    "subline": "Motorin · 2.000\u00A0L · teslim 03.11.2026",
+    "amount": 80000.0,
+    "liters": 2000.0,
+    "facts": [
+      {
+        "label": "Sipariş no",
+        "value": "AYN-20261102-000001",
+        "tone": "neutral",
+        "key": "order.number"
+      },
+      {
+        "label": "Ürün",
+        "value": "Motorin",
+        "tone": "neutral",
+        "key": "order.product"
+      },
+      {
+        "label": "Miktar",
+        "value": "2.000\u00A0L",
+        "tone": "neutral",
+        "key": "order.quantity"
+      },
+      {
+        "label": "Teslim",
+        "value": "03.11.2026",
+        "tone": "neutral",
+        "key": "order.deliveryDate"
+      },
+      {
+        "label": "Teslimat noktası",
+        "value": "Depo",
+        "tone": "neutral",
+        "key": "order.deliveryPoint"
+      },
+      {
+        "label": "Tahmini tutar",
+        "value": "80.000,00\u00A0₺",
+        "tone": "neutral",
+        "key": "order.estimatedAmount"
+      },
+      {
+        "label": "Ödeme",
+        "value": "Çek · 60 gün · vade 02.01.2027 · Bekliyor",
+        "tone": "neutral",
+        "key": "payment.line"
+      },
+      {
+        "label": "Finans durumu",
+        "value": "Finans onayında",
+        "tone": "warn",
+        "key": "finance.status"
+      },
+      {
+        "label": "Gerekçe",
+        "value": "Limit aşımı 10.000 TL",
+        "tone": "danger",
+        "key": "finance.reason"
+      },
+      {
+        "label": "Gerekçe",
+        "value": "Vadeli yöntem (Çek, 60 gün)",
+        "tone": "warn",
+        "key": "finance.reason"
+      },
+      {
+        "label": "Gerekçe",
+        "value": "Yüksek risk (C)",
+        "tone": "info",
+        "key": "finance.reason"
+      },
+      {
+        "label": "Cari finans durumu",
+        "value": "Onaylı",
+        "tone": "ok",
+        "key": "card.status"
+      },
+      {
+        "label": "Risk sınıfı",
+        "value": "C",
+        "tone": "warn",
+        "key": "card.riskClass"
+      },
+      {
+        "label": "Limit kullanımı",
+        "value": "30.000\u00A0₺ / 100.000\u00A0₺ (%30)",
+        "tone": "ok",
+        "key": "card.limitUsage"
+      },
+      {
+        "label": "Onaylanan limit",
+        "value": "150.000,00\u00A0₺",
+        "tone": "neutral",
+        "key": "card.approvedLimit"
+      },
+      {
+        "label": "Teminat oranı",
+        "value": "%10 (öneri %100)",
+        "tone": "neutral",
+        "key": "card.collateralRatio"
+      },
+      {
+        "label": "Gecikmiş",
+        "value": "5.000,00\u00A0₺",
+        "tone": "danger",
+        "key": "card.overdue"
+      },
+      {
+        "label": "İzinli yöntemler",
+        "value": "Çek, Havale, Nakit",
+        "tone": "neutral",
+        "key": "card.allowedMethods"
+      },
+      {
+        "label": "En uzun vade",
+        "value": "90 gün",
+        "tone": "neutral",
+        "key": "card.maxTerm"
+      },
+      {
+        "label": "Gözden geçirme",
+        "value": "01.11.2026",
+        "tone": "danger",
+        "key": "card.review"
+      },
+      {
+        "label": "Geçerli teminat",
+        "value": "1 adet",
+        "tone": "neutral",
+        "key": "card.collaterals"
+      },
+      {
+        "label": "Son risk raporu",
+        "value": "Sınıf C · skor 640 · karşılıksız çek 1 · 30.10.2026",
+        "tone": "warn",
+        "key": "card.riskReport"
+      }
+    ],
+    "lines": [],
+    "warnings": [
+      "Çek görseli yüklenmedi. Bu ödeme yönteminde belge zorunlu; onaydan önce \"Ek bilgi iste\" ile isteyin (İstenen belge: Çek görseli).",
+      "Finans kartının gözden geçirme tarihi geçti.",
+      "Karşılıksız çek kaydı var."
+    ],
+    "band": {
+      "key": "risk-c",
+      "label": "Risk C",
+      "tone": "warn"
+    },
+    "links": {
+      "orderId": 6,
+      "fieldOrderId": null,
+      "leadId": null,
+      "customerId": 1,
+      "stationCustomerId": 1,
+      "limitRequestId": null,
+      "companyRequestId": null
+    },
+    "finance": {
+      "financeStatus": 1,
+      "financeStatusLabel": "Finans onayında",
+      "amountIsEstimate": true,
+      "estimatedAmount": 80000.0,
+      "quotedAmount": null,
+      "reasons": [
+        {
+          "text": "Limit aşımı 10.000 TL",
+          "kind": "limitOverrun",
+          "tone": "danger"
+        },
+        {
+          "text": "Vadeli yöntem (Çek, 60 gün)",
+          "kind": "paymentMethod",
+          "tone": "warn"
+        },
+        {
+          "text": "Yüksek risk (C)",
+          "kind": "highRisk",
+          "tone": "info"
+        }
+      ],
+      "payment": {
+        "methodCode": "CEK",
+        "methodName": "Çek",
+        "isDeferred": true,
+        "termDays": 60,
+        "dueDate": "2027-01-02",
+        "installments": null,
+        "status": 1,
+        "statusLabel": "Bekliyor",
+        "documentKind": 1,
+        "documentLabel": "Çek görseli",
+        "documentRequired": true,
+        "documentMissing": true
+      },
+      "limit": {
+        "hasLimit": true,
+        "type": "Tutar",
+        "period": "Aylık",
+        "unit": "TL",
+        "limitAmount": 100000.0,
+        "usedByOthers": 30000.0,
+        "thisOrder": 80000.0,
+        "unpricedOthers": 40000.0,
+        "available": 70000.0,
+        "availableAfter": 0,
+        "usagePercentAfter": 110,
+        "wouldExceed": true,
+        "overrunAmount": 10000.0,
+        "invalidReason": null
+      },
+      "profile": {
+        "status": 1,
+        "statusLabel": "Onaylı",
+        "hasCard": true,
+        "isGrandfathered": true,
+        "canOrder": true,
+        "blockReason": null,
+        "riskClass": 3,
+        "riskLabel": "C",
+        "approvedLimitAmount": 150000.0,
+        "openBalance": 20000.0,
+        "overdueAmount": 5000.0,
+        "collateralRatioPercent": 10.0,
+        "suggestedCollateralRatioPercent": 100,
+        "activeCollateralCount": 1,
+        "activeCollateralAmount": 50000.0,
+        "maxTermDays": 90,
+        "allowedMethodCodes": [
+          "CEK",
+          "HAVALE",
+          "NAKIT"
+        ],
+        "nextReviewDate": "2026-11-01",
+        "reviewOverdue": true,
+        "hasBouncedCheque": true,
+        "hasProtestedNote": false,
+        "isStrategicPricing": false
+      },
+      "riskReport": {
+        "id": 1,
+        "success": true,
+        "score": 640,
+        "riskClass": 3,
+        "bouncedChequeCount": 1,
+        "protestedNoteCount": null,
+        "overdueAmount": 12500.0,
+        "overdueCount": 2,
+        "requestedAt": "2026-10-30T05:38:18.271783+00:00",
+        "providerLabel": "Bank",
+        "isMock": false,
+        "errorMessage": null
+      },
+      "history": {
+        "orderCount": 5,
+        "completedCount": 2,
+        "lastOrderAt": "2026-11-02T08:38:18.285282+03:00",
+        "lastOrderNumber": "AYN-20261102-000002",
+        "openFinanceCount": 2,
+        "financeRejectedCount": 1,
+        "overdueCount": 1,
+        "overdueAmount": 30000.0,
+        "maxOverdueDays": 5,
+        "bouncedCount": 1
+      },
+      "paymentGroup": [
+        {
+          "orderId": 7,
+          "orderNumber": "AYN-20261102-000002",
+          "productName": "Motorin",
+          "quantityLiters": 500.0,
+          "amount": 20000.0,
+          "financeStatus": 1,
+          "financeLabel": "Finans onayında",
+          "approvalRequestId": 2
+        }
+      ]
+    }
+  },
+  "customerView": false,
+  "infoRequest": null,
+  "conditionForm": {
+    "fields": [
+      {
+        "key": "methodCode",
+        "label": "Ödeme yöntemi",
+        "type": "method",
+        "required": false,
+        "min": null,
+        "max": null,
+        "current": "CEK",
+        "currentLabel": "Çek",
+        "suggestion": null,
+        "suggestionLabel": null,
+        "hint": "Boş bırakılırsa yöntem değişmez."
+      },
+      {
+        "key": "termDays",
+        "label": "Vade (gün)",
+        "type": "int",
+        "required": false,
+        "min": 0,
+        "max": 365,
+        "current": "60",
+        "currentLabel": "60 gün",
+        "suggestion": null,
+        "suggestionLabel": null,
+        "hint": "İzin verilen vade: DBS 1–90 gün · Çek 1–180 gün · Senet 1–180 gün · Açık hesap (cari vadeli) 7–90 gün · Teminat mektubu karşılığı 1–90 gün · Nakit (peşin) / Havale / EFT (peşin) / Kredi / banka kartı (POS) vadesiz."
+      }
+    ],
+    "methodOptions": [
+      {
+        "code": "NAKIT",
+        "name": "Nakit (peşin)",
+        "isDeferred": false,
+        "minTermDays": 0,
+        "maxTermDays": 0
+      },
+      {
+        "code": "HAVALE",
+        "name": "Havale / EFT (peşin)",
+        "isDeferred": false,
+        "minTermDays": 0,
+        "maxTermDays": 0
+      },
+      {
+        "code": "KART",
+        "name": "Kredi / banka kartı (POS)",
+        "isDeferred": false,
+        "minTermDays": 0,
+        "maxTermDays": 0
+      },
+      {
+        "code": "DBS",
+        "name": "DBS",
+        "isDeferred": true,
+        "minTermDays": 1,
+        "maxTermDays": 90
+      },
+      {
+        "code": "CEK",
+        "name": "Çek",
+        "isDeferred": true,
+        "minTermDays": 1,
+        "maxTermDays": 180
+      },
+      {
+        "code": "SENET",
+        "name": "Senet",
+        "isDeferred": true,
+        "minTermDays": 1,
+        "maxTermDays": 180
+      },
+      {
+        "code": "ACIK_HESAP",
+        "name": "Açık hesap (cari vadeli)",
+        "isDeferred": true,
+        "minTermDays": 7,
+        "maxTermDays": 90
+      },
+      {
+        "code": "TEMINAT",
+        "name": "Teminat mektubu karşılığı",
+        "isDeferred": true,
+        "minTermDays": 1,
+        "maxTermDays": 90
+      }
+    ],
+    "periodOptions": [
+      {
+        "code": "Aylık",
+        "label": "Aylık"
+      },
+      {
+        "code": "Haftalık",
+        "label": "Haftalık"
+      },
+      {
+        "code": "Günlük",
+        "label": "Günlük"
+      }
+    ],
+    "riskClassOptions": [
+      {
+        "code": "1",
+        "label": "A (düşük risk)"
+      },
+      {
+        "code": "2",
+        "label": "B"
+      },
+      {
+        "code": "3",
+        "label": "C"
+      },
+      {
+        "code": "4",
+        "label": "D (yüksek risk)"
+      }
+    ],
+    "hint": "Boş bırakılan alan değişmez. Yöntem / vade değişirse müşteriye bildirilir ve sipariş geçmişine yazılır."
+  },
+  "decisionHint": null
+}

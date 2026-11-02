@@ -264,19 +264,31 @@ List<RelatedLink> relatedLinks(ApprovalDetail d, AccessPolicy p) {
   return out;
 }
 
-/// "İlgili kayıtlar" kartı.
+/// "İlgili kayıtlar" kartı. [skipOrder]: "Siparişi aç" sayfanın üstünde (sipariş finansı, plakanın
+/// altında); burada tekrarlanmaz.
 class RelatedLinksCard extends ConsumerWidget {
-  const RelatedLinksCard({super.key, required this.detail});
+  const RelatedLinksCard({
+    super.key,
+    required this.detail,
+    this.skipOrder = false,
+  });
 
   final ApprovalDetail detail;
+  final bool skipOrder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final policy = ref.watch(accessPolicyProvider);
     final features = ref.watch(appConfigProvider).features;
+    final orderId = detail.summary.links.orderId;
+    final orderRoutes = orderId == null
+        ? const <String>{}
+        : {AppRoutes.order(orderId), AppRoutes.bayiOrder(orderId)};
     final links = [
       for (final l in relatedLinks(detail, policy))
-        if (RouteAccess.isAllowed(l.route, policy, features)) l,
+        if (RouteAccess.isAllowed(l.route, policy, features) &&
+            !(skipOrder && orderRoutes.contains(l.route)))
+          l,
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return DetailSection(

@@ -331,49 +331,36 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
           onTap: () => context.push(AppRoutes.approval(row.id)),
         );
       },
-      empty: _empty(context),
+      empty: _empty(context, policy),
     );
   }
 
-  /// Bende (bayi, merkez): Gecikmiş → Bugün → Dün → Daha önce → Yanıt bekleniyor.
+  /// Bende (bayi, merkez): Gecikmiş → Süresi yaklaşan → Daha önce / Dün / Bugün gelenler (en eski
+  /// önce) → Yanıt bekleniyor ([bendePartition]).
   List<A5ListGroup<ApprovalRow>> _bendeGroups(
     List<ApprovalRow> rows,
     bool Function(ApprovalRow) waiting,
   ) {
-    final late = <ApprovalRow>[];
-    final rest = <ApprovalRow>[];
-    final wait = <ApprovalRow>[];
-    final now = TrTime.now();
-    for (final r in rows) {
-      if (waiting(r)) {
-        wait.add(r);
-      } else if (r.status.isOpen &&
-          (r.slaState == ApprovalSlaState.overdue ||
-              (r.dueAt != null && !r.dueAt!.isAfter(now)))) {
-        late.add(r);
-      } else {
-        rest.add(r);
-      }
-    }
-    // Gecikenler en eskisi önce (v4 §3.4 sıralama).
-    late.sort(
-      (a, b) => (a.dueAt ?? a.createdAt ?? now).compareTo(
-        b.dueAt ?? b.createdAt ?? now,
-      ),
-    );
+    final p = bendePartition(rows, waiting: waiting);
     return [
       A5ListGroup(
         id: 'overdue',
         title: ApprovalsCopy.groupOverdue,
-        count: late.length,
+        count: p.late.length,
         tone: AknTone.danger,
-        items: late,
+        items: p.late,
       ),
-      ..._dayGroups(rest, arrivals: true),
+      A5ListGroup(
+        id: 'soon',
+        title: ApprovalsCopy.groupDueSoon,
+        count: p.soon.length,
+        items: p.soon,
+      ),
+      ..._dayGroups(p.rest, arrivals: true).reversed,
       A5ListGroup(
         id: 'waiting',
         title: ApprovalsCopy.groupWaiting,
-        items: wait,
+        items: p.wait,
       ),
     ];
   }
@@ -427,8 +414,21 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
     ];
   }
 
-  Widget _empty(BuildContext context) {
+  Widget _empty(BuildContext context, AccessPolicy policy) {
     final q = _query;
+    // Ana sayfanın Finans durağından süzülü gelindi (`?type=4`): finans birimine göre boş durum.
+    if (q.scope == ApprovalScope.toMe &&
+        q.type == ApprovalType.orderFinance &&
+        q.search.trim().isEmpty &&
+        !_all) {
+      return EmptyState(
+        title: ApprovalsCopy.financeEmptyTitle,
+        message: ApprovalsCopy.financeEmptyMessage,
+        illustration: AknIllustration.done,
+        actionLabel: ApprovalsCopy.showAllTypes,
+        onAction: () => setState(() => _type = null),
+      );
+    }
     if (q.isFiltered) {
       return EmptyState.compact(
         title: ApprovalsCopy.noResultTitle(q.search),
@@ -443,15 +443,25 @@ class _ApprovalsPageState extends ConsumerState<ApprovalsPage> {
       );
     }
     final scope = q.scope;
+    // Onaylayanın boş Bende'si: kararları (ve müşteriden yanıt bekleyenler) Kararlarım'da (G18).
+    final approver =
+        !policy.isCustomer &&
+        policy.isApprover &&
+        _scopes(policy).contains(ApprovalScope.decidedByMe);
+    final toMe = scope == ApprovalScope.toMe;
     return EmptyState(
       title: ApprovalsCopy.emptyTitle(scope),
-      message: ApprovalsCopy.emptyMessage(scope),
-      illustration: scope == ApprovalScope.toMe
-          ? AknIllustration.done
-          : AknIllustration.approvals,
-      actionLabel: scope == ApprovalScope.toMe ? ApprovalsCopy.showMine : null,
-      onAction: scope == ApprovalScope.toMe
-          ? () => _setScope(ApprovalScope.mine)
+      message: toMe && approver
+          ? ApprovalsCopy.approverEmptyMessage
+          : ApprovalsCopy.emptyMessage(scope),
+      illustration: toMe ? AknIllustration.done : AknIllustration.approvals,
+      actionLabel: toMe
+          ? (approver ? ApprovalsCopy.showDecided : ApprovalsCopy.showMine)
+          : null,
+      onAction: toMe
+          ? () => _setScope(
+              approver ? ApprovalScope.decidedByMe : ApprovalScope.mine,
+            )
           : null,
     );
   }
@@ -689,4 +699,81 @@ class _ApprovalFiltersState extends State<_ApprovalFilters> {
       ],
     );
   }
+}
+
+/// Bende'nin bölümleri (v4 §3.4, G7): gecikmişler (en eski son tarih önce), süresi yaklaşanlar
+/// (sunucunun SLA durumu "süresi doluyor"; son tarihe göre), kalanlar (sunucunun sırası: son tarih)
+/// ve başkasının yanıtını bekleyenler ([waiting]).
+({
+  List<ApprovalRow> late,
+  List<ApprovalRow> soon,
+  List<ApprovalRow> rest,
+  List<ApprovalRow> wait,
+})
+bendePartition(
+  List<ApprovalRow> rows, {
+  required bool Function(ApprovalRow) waiting,
+  DateTime? now,
+}) {
+  final late = <ApprovalRow>[];
+  final soon = <ApprovalRow>[];
+  final rest = <ApprovalRow>[];
+  final wait = <ApprovalRow>[];
+  final at = now ?? TrTime.now();
+  for (final r in rows) {
+    if (waiting(r)) {
+      wait.add(r);
+    } else if (r.status.isOpen &&
+        (r.slaState == ApprovalSlaState.overdue ||
+            (r.dueAt != null && !r.dueAt!.isAfter(at)))) {
+      late.add(r);
+    } else if (r.status.isOpen && r.slaState == ApprovalSlaState.dueSoon) {
+      soon.add(r);
+    } else {
+      rest.add(r);
+    }
+  }
+  int byDue(ApprovalRow a, ApprovalRow b) =>
+      (a.dueAt ?? a.createdAt ?? at).compareTo(b.dueAt ?? b.createdAt ?? at);
+  // Gecikenler en eskisi önce (v4 §3.4 sıralama); yaklaşanlar son tarihe göre.
+  late.sort(byDue);
+  soon.sort(byDue);
+  return (late: late, soon: soon, rest: rest, wait: wait);
+}
+
+/// Bende'nin karar sırası (sayfanın gruplarıyla aynı): gecikmiş → süresi yaklaşan → en eski gelen
+/// önce; başkasının yanıtını bekleyenler hariç.
+List<ApprovalRow> bendeQueue(List<ApprovalRow> rows, {String? me}) {
+  bool waiting(ApprovalRow r) =>
+      r.status == ApprovalStatus.infoRequested &&
+      (me == null || r.requestedByUserId != me);
+  final p = bendePartition(rows, waiting: waiting);
+  final now = TrTime.now();
+  final today = <ApprovalRow>[];
+  final yesterday = <ApprovalRow>[];
+  final earlier = <ApprovalRow>[];
+  for (final r in p.rest) {
+    final at = r.createdAt;
+    final diff = at == null ? -99 : TrTime.dayDiff(now, at);
+    (diff >= 0
+            ? today
+            : diff == -1
+            ? yesterday
+            : earlier)
+        .add(r);
+  }
+  return [...p.late, ...p.soon, ...earlier, ...yesterday, ...today];
+}
+
+/// Karar verildikten sonra açılacak sıradaki talep (G6): Bende'nin sırasında [except] dışındaki ilk
+/// karar verilebilir talep; yoksa null.
+ApprovalRow? nextBendeRow(
+  List<ApprovalRow> rows, {
+  required int except,
+  String? me,
+}) {
+  for (final r in bendeQueue(rows, me: me)) {
+    if (r.id != except && r.status.isOpen && r.canDecide) return r;
+  }
+  return null;
 }
