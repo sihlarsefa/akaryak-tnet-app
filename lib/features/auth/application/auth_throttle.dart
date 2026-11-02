@@ -10,9 +10,6 @@ enum ThrottleScope {
 
   /// Telefonla giriş kodu (`otp-send` hız sınırı).
   otp,
-
-  /// Telefon doğrulama kodu (`me/phone/verify-start`).
-  phoneVerify,
 }
 
 /// Sunucunun 429 ile istediği bekleme (spec B.2 `Retry-After`).

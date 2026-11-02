@@ -25,8 +25,8 @@ typedef CodeResender = Future<OtpChallenge> Function(OtpChallenge current);
 /// 6 kutulu kod girişi (spec A.4 A1 "Code screen"): iOS tek seferlik kod önerisi
 /// (`AutofillHints.oneTimeCode`), Android SMS onay penceresi (SMS User Consent), yapıştırma (uzun basma
 /// menüsü ya da otomatik doldurma; rakam dışı karakterler atılır), altıncı hanede otomatik doğrulama,
-/// geri sayımlı "Yeniden gönder" ve kodun geçerlilik süresi. 2FA, telefonla giriş ve telefon doğrulama
-/// aynı bileşeni kullanır.
+/// geri sayımlı "Yeniden gönder" ve kodun geçerlilik süresi. 2FA ve telefonla giriş aynı bileşeni
+/// kullanır.
 class CodeEntry extends ConsumerStatefulWidget {
   const CodeEntry({
     super.key,
@@ -51,7 +51,7 @@ class CodeEntry extends ConsumerStatefulWidget {
   final VoidCallback? onRestart;
   final bool autofocus;
 
-  /// "Kodu girin" başlığı ve kodun gittiği numara (telefon doğrulamada sayfa kendi başlığını çizer).
+  /// "Kodu girin" başlığı ve kodun gittiği numara (kapalıysa sayfa kendi başlığını çizer).
   final bool showHeader;
 
   /// Başlığın üstündeki 40 px logo karosu.

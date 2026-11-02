@@ -34,8 +34,8 @@ import 'support_sheet.dart';
 import 'widgets/settings_widgets.dart';
 
 /// Profil ve ayarlar (spec A.4 A8; tasarım v3): sıcak "üye kartı" baş (halkalı avatar, ad, rol, e-posta ve
-/// telefon), simge karolu beyaz grup kartları — güvenlik (biyometrik kilit, şifre, profil, telefonla
-/// giriş, aktif oturumlar), bildirim tercihleri, tema, destek, yasal metinler, gizlilik (asistan onayı),
+/// telefon), simge karolu beyaz grup kartları — güvenlik (biyometrik kilit, şifre, profil, aktif
+/// oturumlar), bildirim tercihleri, tema, destek, yasal metinler, gizlilik (asistan onayı),
 /// bekleyen işlemler, hakkında — çıkış ve hesabımı sil. Bölümler açılışta sırayla belirir.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -47,7 +47,6 @@ class ProfilePage extends ConsumerWidget {
     final env = ref.watch(appEnvProvider);
     final assistantOn = ref.watch(assistantEnabledProvider);
     final legal = ref.watch(legalUrisProvider);
-    final isPlatform = access?.persona == Persona.platform;
     final gate = features.assistant ? ref.watch(assistantGateProvider) : null;
     final showConsent =
         gate != null && gate is! GateDisabled && gate is! GateError;
@@ -102,8 +101,6 @@ class ProfilePage extends ConsumerWidget {
                         subtitle: ProfileCopy.editProfile,
                         onTap: () => context.push(ProfilePaths.edit),
                       ),
-                      if (features.otpLogin && !isPlatform)
-                        const _PhoneLoginTile(),
                       SettingsTile(
                         icon: PhosphorIconsRegular.devices,
                         title: ProfileCopy.sessions,
@@ -563,39 +560,6 @@ class _BiometricTile extends ConsumerWidget {
           : ProfileCopy.biometricUnavailable,
       value: on && available,
       onChanged: available ? (v) => unawaited(_toggle(ref, v)) : null,
-    );
-  }
-}
-
-/// "Telefonla giriş" (A1 `/profile/phone`): doğrulama durumu çipi.
-class _PhoneLoginTile extends ConsumerWidget {
-  const _PhoneLoginTile();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final status = ref.watch(phoneStatusProvider).valueOrNull;
-    final verified = status?.verified ?? false;
-    return SettingsTile(
-      icon: PhosphorIconsRegular.deviceMobile,
-      title: verified ? ProfileCopy.phoneLogin : ProfileCopy.phoneLoginEnable,
-      subtitle: status == null
-          ? null
-          : !status.hasPhone
-          ? ProfileCopy.phoneMissing
-          : verified
-          ? ProfileCopy.phoneVerified
-          : ProfileCopy.phoneNotVerified,
-      trailing: status == null
-          ? null
-          : AknLamp(
-              label: verified ? ProfileCopy.phoneOn : ProfileCopy.phoneOff,
-              tone: verified ? AknTone.ok : AknTone.neutral,
-              size: AknLampSize.small,
-            ),
-      onTap: () async {
-        await context.push(AuthRoutes.phone);
-        if (context.mounted) ref.invalidate(phoneStatusProvider);
-      },
     );
   }
 }

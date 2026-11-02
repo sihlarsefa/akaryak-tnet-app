@@ -2,6 +2,7 @@ import '../../core/models/json.dart';
 import '../../core/models/me_access.dart';
 import '../../core/network/fake/fake_auth.dart' show FakeDeviceSession;
 import '../../core/network/fake/fake_personas.dart';
+import '../../core/network/fake/fake_phones.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/network/fake/fake_world.dart';
 import '../../core/utils/validators.dart';
@@ -22,7 +23,8 @@ class ProfileFakeControls {
 }
 
 /// Profil sahte uçları (sahibi A8). Çekirdek sahtelerin üzerine:
-/// - `GET|PUT me/profile` (`UserProfileDto`; telefon değişince mevcut şifre ve oturumların kapanması),
+/// - `GET|PUT me/profile` (`UserProfileDto`; telefon değişince mevcut şifre ve oturumların kapanması;
+///   numara telefonla girebilen başka bir hesapta da kayıtlıysa kayıt yine başarılı, `warnings` dolu),
 /// - `POST me/change-password` (400'de `AccountOperationResult`; başarıda tüm oturumlar kapanır),
 /// - `POST me/deletion-request {reason, password}` → 202 `{requestId, scheduledFor, message}` (şifre,
 ///   son şirket yöneticisi / bayi sahibi / merkez kuralları),
@@ -31,8 +33,7 @@ class ProfileFakeControls {
 void registerProfileFakes(FakeServer s) {
   final ctl = ProfileFakeControls.of(s);
 
-  Map<String, JsonMap> edits(FakeWorld w) =>
-      w.bag<Map<String, JsonMap>>('profile.edits', () => {});
+  Map<String, JsonMap> edits(FakeWorld w) => FakePhones.edits(w);
 
   JsonMap profileJson(FakeWorld w, FakePersona p) {
     final e = edits(w)[p.key] ?? const {};
@@ -72,12 +73,14 @@ void registerProfileFakes(FakeServer s) {
   FakeResponse failed(List<String> errors) => FakeResponse(400, {
     'succeeded': false,
     'errors': errors,
+    'warnings': <String>[],
     'invalidToken': false,
   });
 
-  JsonMap ok() => {
+  JsonMap ok([List<String> warnings = const []]) => {
     'succeeded': true,
     'errors': <String>[],
+    'warnings': warnings,
     'invalidToken': false,
   };
 
@@ -111,7 +114,11 @@ void registerProfileFakes(FakeServer s) {
     ctl.profileUpdates++;
     edits(req.world)[p.key] = {'displayName': name, 'phoneNumber': rawPhone};
     if (changed) s.auth.revokeAll(p.key);
-    return ok();
+    // Kayıt yine başarılı; numara telefonla girebilen başka bir hesapta da varsa uyarı (sunucu 2026-11).
+    return ok([
+      if (FakePhones.sharedWithOther(req.world, rawPhone, exceptKey: p.key))
+        FakePhones.sharedMessage,
+    ]);
   });
 
   s.post('me/change-password', (req) {

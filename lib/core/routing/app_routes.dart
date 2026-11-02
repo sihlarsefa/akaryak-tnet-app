@@ -15,9 +15,6 @@ abstract final class AppRoutes {
   static const assistant = '/assistant';
   static const profile = '/profile';
 
-  /// Telefon doğrulama (Profil > Güvenlik "Telefonla girişi etkinleştir").
-  static const profilePhone = '/profile/phone';
-
   /// İstatistikler (yönetici destesi kitlesi: bayi yöneticileri, saha temsilcisi, müşteri
   /// yönetici / onaylayan). `?period=month|lastMonth|quarter|year`.
   static const stats = '/stats';

@@ -2,7 +2,7 @@
 //
 // - Şifre değiştir (başarı) → giriş ekranı + "Güvenlik bilgileriniz değişti" → yeniden giriş.
 // - Hesabımı sil → onay → "Talebiniz alındı" → "Tamam" → giriş ekranı + "Hesabınız kapatıldı."
-// - Telefonla giriş: Profil satırı → doğrulama sayfası açılır, geri dönülür.
+// - Telefon: ayrı doğrulama yok (2026-11) — Profil'de "Telefonla giriş" satırı yok, numara üye kartında.
 // - Asistan: aydınlatma → "Kabul ediyorum" → soru gönderilir → yanıt gelir.
 // - /stats: kitlede olan her persona için sayfa açılır, hata yok.
 import 'dart:async';
@@ -210,45 +210,39 @@ void main() {
     }
   });
 
-  testWidgets('telefonla giriş satırı → doğrulama sayfası → geri (sahip)', (
-    tester,
-  ) async {
-    final qa = QaProblems('profile_phone');
-    try {
-      final app = await launchQa(tester);
-      await qaSignIn(tester, app, 'sahip');
-      await _openProfile(tester, app);
-      final row = find.textContaining('Telefonla giriş');
+  testWidgets(
+    'telefon doğrulama yok: Profil\'de "Telefonla giriş" satırı yok (sahip)',
+    (tester) async {
+      final qa = QaProblems('profile_phone');
       try {
-        await qaScrollTo(tester, row);
-      } catch (_) {}
-      if (row.evaluate().isEmpty) {
-        qa.add('Profil: telefonla giriş satırı yok');
-      } else {
-        await qaTap(tester, row.first);
-        await pumpSteps(tester, const Duration(milliseconds: 1200));
-        await settleIo(tester);
-        qa.check(tester, 'telefon doğrulama');
-        if (app.location != '/profile/phone') {
-          qa.add('telefonla giriş satırı açmadı: ${app.location}');
+        final app = await launchQa(tester);
+        await qaSignIn(tester, app, 'sahip');
+        await _openProfile(tester, app);
+        final sessions = find.text('Aktif oturumlar');
+        try {
+          await qaScrollTo(tester, sessions);
+        } catch (_) {}
+        if (sessions.evaluate().isEmpty) {
+          qa.add('Profil: güvenlik grubu (Aktif oturumlar) yok');
         }
-        app.container.read(routerProvider).pop();
-        await pumpSteps(tester, const Duration(milliseconds: 800));
-        if (app.location != '/profile') {
-          qa.add('telefon doğrulamadan geri: ${app.location}');
+        if (find.textContaining('Telefonla giriş').evaluate().isNotEmpty) {
+          qa.add('Profil: kaldırılan "Telefonla giriş" satırı hâlâ var');
         }
+        if (find.text('0532 *** ** 01').evaluate().isEmpty) {
+          qa.add('Profil: üye kartında cep telefonu yok');
+        }
+        qa.check(tester, 'telefon');
+        await tester.pumpWidget(const SizedBox());
+      } catch (e, st) {
+        qa.add(
+          'beklenmeyen: ${e.toString().split('\n').take(8).join(' ')} @ '
+          '${st.toString().split('\n').where((l) => l.contains('shell-common')).take(3).join(' | ')}',
+        );
+      } finally {
+        qa.finish();
       }
-      qa.check(tester, 'telefon');
-      await tester.pumpWidget(const SizedBox());
-    } catch (e, st) {
-      qa.add(
-        'beklenmeyen: ${e.toString().split('\n').take(8).join(' ')} @ '
-        '${st.toString().split('\n').where((l) => l.contains('shell-common')).take(3).join(' | ')}',
-      );
-    } finally {
-      qa.finish();
-    }
-  });
+    },
+  );
 
   for (final key in const ['musteri', 'sahip', 'sofor']) {
     testWidgets('asistan: aydınlatma → kabul → soru → yanıt ($key)', (

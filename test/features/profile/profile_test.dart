@@ -1,17 +1,19 @@
-// Profil ve ayarlar (spec A.4 A8): tema, biyometrik kilit, yasal bağlantılar, telefonla giriş, asistan
-// onayını geri alma, bekleme uyarılı çıkış ("Şimdi gönder" / "Yine de çık"), aktif oturumlar, şifre
-// değiştir, profil düzenle, hesabımı sil, erişilebilirlik (C.7).
+// Profil ve ayarlar (spec A.4 A8): tema, biyometrik kilit, yasal bağlantılar, telefon (2026-11: ayrı
+// doğrulama yok), asistan onayını geri alma, bekleme uyarılı çıkış ("Şimdi gönder" / "Yine de çık"),
+// aktif oturumlar, şifre değiştir, profil düzenle (sunucu uyarısı), hesabımı sil, erişilebilirlik (C.7).
 import 'package:akaryakitnet/core/auth/lock_settings.dart';
+import 'package:akaryakitnet/core/network/fake/fake_phones.dart';
 import 'package:akaryakitnet/core/offline/outbox_op.dart';
 import 'package:akaryakitnet/core/offline/outbox_providers.dart';
 import 'package:akaryakitnet/core/offline/outbox_runner.dart';
 import 'package:akaryakitnet/core/storage/prefs_store.dart';
+import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/assistant/api.dart';
 import 'package:akaryakitnet/features/auth/api.dart';
+import 'package:akaryakitnet/features/profile/copy.dart';
 import 'package:akaryakitnet/features/profile/data/profile_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'a8_kit.dart';
 
@@ -189,18 +191,21 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('telefonla giriş: durum çipi ve A1 doğrulama sayfası', (
-    tester,
-  ) async {
-    setPhoneSize(tester, _tall);
-    await pumpA8(tester, '/profile');
-    expect(find.text('Telefonla girişi etkinleştir'), findsOneWidget);
-    expect(find.text('Kapalı'), findsOneWidget);
-    await tester.tap(find.text('Telefonla girişi etkinleştir'));
-    await pumpFor(tester, const Duration(milliseconds: 800));
-    expect(find.text('Telefon doğrulama'), findsWidgets);
-    await finish(tester);
-  });
+  testWidgets(
+    'telefon doğrulama yok (2026-11): "Telefonla giriş" satırı yok, numara üye kartında',
+    (tester) async {
+      setPhoneSize(tester, _tall);
+      await pumpA8(tester, '/profile');
+      expect(find.textContaining('Telefonla giriş'), findsNothing);
+      expect(find.textContaining('doğrula'), findsNothing);
+      expect(find.text('Cep telefonu'), findsOneWidget);
+      expect(find.text('0532 *** ** 01'), findsOneWidget);
+      // Güvenlik grubu: kilit, şifre, profil bilgileri, oturumlar.
+      expect(find.text('Profil bilgileri'), findsOneWidget);
+      expect(find.text('Aktif oturumlar'), findsOneWidget);
+      await finish(tester);
+    },
+  );
 
   testWidgets('gizlilik: asistan onayı geri alınır', (tester) async {
     setPhoneSize(tester, _tall);
@@ -458,6 +463,71 @@ void main() {
     },
   );
 
+  testWidgets('profil bilgileri: telefon notunda yeniden doğrulama yok', (
+    tester,
+  ) async {
+    setPhoneSize(tester, _tall);
+    await pumpA8(tester, '/profile/edit');
+    await tester.enterText(find.byType(TextField).at(1), '0533 444 55 66');
+    await pumpFor(tester, const Duration(milliseconds: 400));
+    expect(find.text(ProfileCopy.phoneChangeNote), findsOneWidget);
+    expect(
+      ProfileCopy.phoneChangeNote,
+      'Telefon değişince tüm cihazlarda oturumunuz kapanır.',
+    );
+    expect(find.textContaining('doğrula'), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets(
+    'profil bilgileri: numara telefonla girebilen başka bir hesapta da kayıtlı → '
+    'kayıt geçer, sunucunun uyarısı uyarı bildirimiyle',
+    (tester) async {
+      setPhoneSize(tester, _tall);
+      final h = await A8Harness.create();
+      final c = await pumpA8(tester, '/profile/edit', harness: h);
+      // Saha temsilcisinin (etkin bayi personeli) numarası.
+      await tester.enterText(find.byType(TextField).at(1), '0532 000 02 06');
+      await pumpFor(tester, const Duration(milliseconds: 400));
+      await tester.enterText(find.byType(TextField).at(2), 'demo');
+      await tester.tap(find.text('Kaydet'));
+      await pumpFor(tester, const Duration(milliseconds: 1000));
+      expect(h.profile.profileUpdates, 1);
+      expect(find.text(FakePhones.sharedMessage), findsOneWidget);
+      expect(find.text(ProfileCopy.savedTitle), findsOneWidget);
+      expect(find.text(ProfileCopy.saved), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+          (w) => w is AknBanner && w.tone == AknTone.danger,
+        ),
+        findsNothing,
+        reason: 'hata bandı yok',
+      );
+      // Telefon değişti: kayıt geçerli, tüm oturumlar kapanır.
+      expect(isSignedIn(c), isFalse);
+      expect(
+        signOutMessage(c),
+        'Güvenlik bilgileriniz değişti; yeniden giriş yapın.',
+      );
+      await finish(tester);
+    },
+  );
+
+  testWidgets('profil bilgileri: uyarısız kayıt → başarı bildirimi', (
+    tester,
+  ) async {
+    setPhoneSize(tester, _tall);
+    final h = await A8Harness.create();
+    await pumpA8(tester, '/profile/edit', harness: h);
+    await tester.enterText(find.byType(TextField).first, 'Selin Aydın Kaya');
+    await tester.tap(find.text('Kaydet'));
+    await pumpFor(tester, const Duration(milliseconds: 800));
+    expect(h.profile.profileUpdates, 1);
+    expect(find.text(ProfileCopy.saved), findsOneWidget);
+    expect(find.text(FakePhones.sharedMessage), findsNothing);
+    await finish(tester);
+  });
+
   // ------------------------------------------------------------------ Hesabımı sil
   testWidgets('hesabımı sil: şifre ve onay zorunlu', (tester) async {
     setPhoneSize(tester, _tall);
@@ -567,6 +637,15 @@ void main() {
     });
     expect(op.succeeded, isFalse);
     expect(op.errors.single, 'Mevcut şifre hatalı.');
+    expect(op.warnings, isEmpty, reason: 'eski sunucu `warnings` göndermez');
     expect(AccountOperationResult.matches({'title': 'x'}), isFalse);
+    final warned = AccountOperationResult.fromJson({
+      'succeeded': true,
+      'errors': <String>[],
+      'warnings': [FakePhones.sharedMessage],
+      'invalidToken': false,
+    });
+    expect(warned.succeeded, isTrue);
+    expect(warned.warnings.single, FakePhones.sharedMessage);
   });
 }

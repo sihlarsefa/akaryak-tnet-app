@@ -16,8 +16,9 @@ class ProfileRepository {
       _api.get('me/profile', parse: UserProfile.fromJson, quiet403: true);
 
   /// Ad soyad ve telefon. Telefon değişiyorsa [currentPassword] zorunludur. Sunucu reddederse Türkçe
-  /// mesajla [BusinessFailure].
-  Future<void> updateProfile({
+  /// mesajla [BusinessFailure]; başarıda sonuç `warnings` taşıyabilir (ör. numara başka bir hesapta da
+  /// kayıtlı; kayıt yine geçerlidir).
+  Future<AccountOperationResult> updateProfile({
     required String displayName,
     String? phoneNumber,
     String? currentPassword,
@@ -52,7 +53,8 @@ class ProfileRepository {
   /// Eski uçlar 400'de `AccountOperationResult {succeeded:false, errors[]}` döner (ProblemDetails değil);
   /// ortak hata eşlemesi bu gövdeyi okuyamadığı için 400 burada yanıt olarak alınır ve mesajları
   /// [BusinessFailure] olur. 401/403/5xx ve ağ hataları ortak yoldan geçer (belirteç yenileme dahil).
-  Future<void> _accountOperation(
+  /// Başarıda sonuç döner (gövde bu biçimde değilse uyarısız başarı).
+  Future<AccountOperationResult> _accountOperation(
     String path,
     Map<String, Object?> body, {
     bool put = false,
@@ -79,14 +81,16 @@ class ProfileRepository {
       }
       throw AppFailure.fromResponse(400, data);
     }
-    if (AccountOperationResult.matches(data)) {
-      final r = AccountOperationResult.fromJson(data);
-      if (!r.succeeded) {
-        throw BusinessFailure(
-          r.errors.isEmpty ? 'İşlem tamamlanamadı.' : r.errors.join(' '),
-        );
-      }
+    if (!AccountOperationResult.matches(data)) {
+      return const AccountOperationResult(succeeded: true);
     }
+    final r = AccountOperationResult.fromJson(data);
+    if (!r.succeeded) {
+      throw BusinessFailure(
+        r.errors.isEmpty ? 'İşlem tamamlanamadı.' : r.errors.join(' '),
+      );
+    }
+    return r;
   }
 }
 

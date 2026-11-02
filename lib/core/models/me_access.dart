@@ -185,7 +185,8 @@ class MeAccess {
   /// "Teslimatlarım" şoför rolü olmayan personelde de görünür (spec A.2).
   final int assignedOpenShipments;
 
-  /// Profildeki cep telefonu SMS ile doğrulandı (telefonla giriş için gerekli).
+  /// Hesapta geçerli bir cep telefonu numarası kayıtlı. Sunucu 2026-11'den beri ayrı SMS doğrulaması
+  /// yoktur; alan eski sürümler için gelir, uygulama telefonla giriş için buna bakmaz.
   final bool phoneVerified;
 
   /// Cari kullanıcısında şirket rolünün Türkçe adı ("Talep eden", "Onaylayan", "Yönetici").

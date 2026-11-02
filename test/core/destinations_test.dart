@@ -683,7 +683,7 @@ void main() {
     test('merkez yalnızca Onaylarım, Bildirimler, Profil açar', () {
       final p = _policy('merkez');
       expect(RouteAccess.isAllowed('/approvals/9001', p, noAssistant), isTrue);
-      expect(RouteAccess.isAllowed('/profile/phone', p, noAssistant), isTrue);
+      expect(RouteAccess.isAllowed('/profile/edit', p, noAssistant), isTrue);
       expect(RouteAccess.isAllowed('/orders/1', p, noAssistant), isFalse);
       expect(RouteAccess.isAllowed('/bayi/orders/1', p, noAssistant), isFalse);
     });

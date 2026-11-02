@@ -13,7 +13,7 @@ import '../../copy.dart';
 /// başlar (açık simgeler). Altındaki beyaz sayfa ([LoginSheet]) bandın son [sheetOverlap] pikseline biner;
 /// bant o kısmı da boyar, böylece sayfanın yuvarlak köşelerinin arkası hep turuncudur.
 ///
-/// Kod, kilit, güncelleme ve telefon doğrulama ekranları beyaz sayfalardır ([AuthPageHeader]).
+/// Kod, kilit ve güncelleme ekranları beyaz sayfalardır ([AuthPageHeader]).
 class AuthHeader extends StatelessWidget {
   const AuthHeader({super.key, this.compact = false});
 
@@ -556,7 +556,7 @@ class _AuthPopState extends State<AuthPop> with SingleTickerProviderStateMixin {
   );
 }
 
-/// Beyaz kimlik sayfalarının başı (tasarım v3: kod, telefon doğrulama): solda 48 px logo karosu (altında
+/// Beyaz kimlik sayfalarının başı (tasarım v3: kod ekranı): solda 48 px logo karosu (altında
 /// sıcak bir gölgeyle yükselmiş, açılışta "pop" ile gelir), altında `display` başlık (28/34 800) ve tek cümle (`body` dim).
 /// Başlık ve cümle sırayla yukarı kayarak belirir. Bant yok.
 class AuthPageHeader extends StatelessWidget {

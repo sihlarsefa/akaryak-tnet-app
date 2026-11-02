@@ -8,6 +8,7 @@ import 'package:akaryakitnet/core/auth/permissions.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/models/enums.dart';
 import 'package:akaryakitnet/core/models/me_access.dart';
+import 'package:akaryakitnet/core/network/fake/fake_phones.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
 import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
@@ -321,6 +322,73 @@ void main() {
         () => [],
       );
       expect(users.where((u) => u['displayName'] == 'Deniz Ak'), isEmpty);
+      await finish(tester);
+    },
+  );
+
+  // Sunucu 2026-11: numara telefonla girebilen başka bir hesapta kayıtlıysa şirket kullanıcısı kaydı 400
+  // `validation` (`phoneNumber`) ile reddedilir; ileti Telefon alanının altında görünür.
+  Finder sharedPhoneError() => find.descendant(
+    of: _fieldBox('Telefon (isteğe bağlı)'),
+    matching: find.text(FakePhones.sharedMessage),
+  );
+
+  testWidgets(
+    'ekle: numara başka bir uygun hesapta → errors.phoneNumber Telefon alanının altında',
+    (tester) async {
+      final env = (await tester.runAsync(CmEnv.create))!;
+      addTearDown(env.dispose);
+      await pumpCmApp(tester, env, location: '/company/users');
+      await pumpFor(tester, const Duration(seconds: 1));
+      await tester.tap(find.text('Kullanıcı ekle'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      await tester.enterText(fieldLabeled('Ad soyad *'), 'Deniz Ak');
+      await tester.enterText(fieldLabeled('Kullanıcı adı *'), 'deniz.ak');
+      await tester.enterText(fieldLabeled('Şifre'), 'Guclu123');
+      // Saha temsilcisinin (etkin bayi personeli) numarası.
+      await tester.enterText(
+        fieldLabeled('Telefon (isteğe bağlı)'),
+        '0532 000 02 06',
+      );
+      await tester.tap(find.text('Kullanıcıyı ekle'));
+      await pumpFor(tester, const Duration(seconds: 1));
+      expect(sharedPhoneError(), findsOneWidget);
+      expect(find.byType(AknBanner), findsNothing);
+      final users = env.world.bag<List<Map<String, dynamic>>>(
+        'cm.companyUsers',
+        () => [],
+      );
+      expect(users.where((u) => u['displayName'] == 'Deniz Ak'), isEmpty);
+      await finish(tester);
+    },
+  );
+
+  testWidgets(
+    'düzenle: numara başka bir uygun hesapta → errors.phoneNumber; satır değişmez',
+    (tester) async {
+      final env = (await tester.runAsync(CmEnv.create))!;
+      addTearDown(env.dispose);
+      await pumpCmApp(tester, env, location: '/company/users');
+      await pumpFor(tester, const Duration(seconds: 1));
+      await tester.tap(find.text('Elif Demir'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      await tester.tap(find.text('Bilgileri düzenle'));
+      await pumpFor(tester, const Duration(milliseconds: 600));
+      await tester.enterText(
+        fieldLabeled('Telefon (isteğe bağlı)'),
+        '0532 000 02 06',
+      );
+      await tester.tap(find.widgetWithText(AknButton, 'Kaydet'));
+      await pumpFor(tester, const Duration(seconds: 1));
+      expect(sharedPhoneError(), findsOneWidget);
+      final users = env.world.bag<List<Map<String, dynamic>>>(
+        'cm.companyUsers',
+        () => [],
+      );
+      expect(
+        users.firstWhere((u) => u['userId'] == 'u-onay')['phoneNumber'],
+        '05320000103',
+      );
       await finish(tester);
     },
   );

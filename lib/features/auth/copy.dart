@@ -37,7 +37,7 @@ abstract final class AuthCopy {
   static const phoneLabel = 'Cep telefonu';
   static const phoneHint = '5XX XXX XX XX';
   static const phoneHelper =
-      'Telefonla giriş, Profil bölümünde doğruladığınız numarayla çalışır.';
+      'Hesabınızda kayıtlı cep telefonu numaranızı yazın; SMS ile gelen kodla girin.';
   static const sendCode = 'Kod gönder';
   static const sendingCode = 'Kod gönderiliyor';
   static const userRequired = 'Kullanıcı adınızı girin.';
@@ -139,40 +139,13 @@ abstract final class AuthCopy {
   static const twoFactorNote =
       'Hesabınızda iki adımlı doğrulama açık. Numaranız değiştiyse yöneticinize başvurun.';
   static const otpNote =
-      'Kod gelmediyse numaranın Profil bölümünde doğrulanmış olduğundan emin olun.';
+      'Kod gelmediyse numaranın hesabınızda kayıtlı olduğundan emin olun; değilse bayinize ya da '
+      'şirket yöneticinize ekletin.';
   static const missingChallenge = 'Kod isteği bulunamadı';
   static const missingChallengeBody =
       'Kod isteğinin süresi doldu. Girişe dönüp yeniden giriş yapın.';
   static const backToLogin = 'Girişe dön';
   static const restart = 'Baştan başla';
-
-  // ------------------------------------------------------------------ Telefon doğrulama
-  static const phoneTitle = 'Telefon doğrulama';
-  static const phoneIntroTitle = 'Telefonla giriş';
-  static const phoneIntroBody =
-      'Cep telefonunuzu SMS ile doğrulayın; sonraki girişlerde şifre yerine telefonunuza '
-      'gelen tek kullanımlık kodu kullanabilirsiniz.';
-  static const phoneNumberLabel = 'Cep telefonu';
-  static const phoneVerified = 'Doğrulandı';
-  static const phoneNotVerified = 'Doğrulanmadı';
-  static const phoneVerifiedBody =
-      'Bu numarayla giriş ekranında "$modePhone" seçeneğini kullanabilirsiniz.';
-  static const phoneChangeNote =
-      'Numaranız değişirse telefonla giriş kapanır; yeni numarayı yeniden doğrulamanız gerekir.';
-  static const sendVerification = 'Doğrulama kodu gönder';
-  static const reverify = 'Yeniden doğrula';
-  static const noPhoneTitle = 'Profilinizde cep telefonu yok';
-  static const noPhoneBody =
-      'Önce Profil bölümünden cep telefonunuzu ekleyin, sonra buradan doğrulayın.';
-  static const otpOffNote =
-      'Telefonla giriş şu an kapalı. Numaranızı yine de doğrulayabilirsiniz; özellik açılınca hazır olur.';
-  static const platformNote =
-      'Merkez hesapları telefonla giriş yapamaz; girişte şifre ve SMS kodu kullanılır.';
-  static const phoneDoneTitle = 'Telefonunuz doğrulandı';
-  static const phoneDoneBody =
-      'Artık giriş ekranında "$modePhone" seçeneğiyle giriş yapabilirsiniz.';
-  static const done = 'Tamam';
-  static const statusLoadFailed = 'Telefon bilgileriniz yüklenemedi.';
 
   // ------------------------------------------------------------------ Güncelleme ve sunucu durumu
   static const forcedTitle = 'Güncelleme gerekli';

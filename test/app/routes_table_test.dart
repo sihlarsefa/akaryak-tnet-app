@@ -65,7 +65,6 @@ void main() {
       AppRoutes.notifications,
       AppRoutes.assistant,
       AppRoutes.profile,
-      AppRoutes.profilePhone,
       AppRoutes.orders,
       AppRoutes.orderNew,
       AppRoutes.order(12),

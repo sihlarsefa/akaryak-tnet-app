@@ -9,6 +9,7 @@ import '../../utils/turkish_text.dart';
 import '../../utils/validators.dart';
 import 'fake_auth.dart';
 import 'fake_personas.dart';
+import 'fake_phones.dart';
 import 'fake_server.dart';
 import 'fake_world.dart';
 
@@ -52,17 +53,14 @@ void registerCoreFakes(FakeServer s) {
         'phone': ['Geçerli bir cep telefonu girin (5XX XXX XX XX).'],
       });
     }
-    FakePersona? match;
-    for (final p in fakePersonas) {
-      if ('90${p.phone}' == phone && p.persona != Persona.platform) match = p;
-    }
+    // Kod hesabında bu numara kayıtlı tek uygun hesaba gider (merkez, demo / tohum, pasif hariç).
+    final match = FakePhones.otpTarget(s.world, phone);
     final deviceId = JsonReader(r.map('device')).str('deviceId', 'fake-device');
     final c = s.auth.createChallenge(match, purpose: 2, deviceId: deviceId);
     // Eşleşme olmasa da aynı biçim (numara ifşa edilmez).
-    final ten = phone.substring(2);
     return {
       'challengeId': c.id,
-      'maskedPhone': '0${ten.substring(0, 3)} *** ** ${ten.substring(8)}',
+      'maskedPhone': FakePhones.mask(phone),
       'expiresInSeconds': 300,
       'resendInSeconds': 60,
     };

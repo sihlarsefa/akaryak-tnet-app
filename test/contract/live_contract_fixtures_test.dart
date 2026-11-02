@@ -29,7 +29,6 @@ import 'package:akaryakitnet/core/models/unread_count.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
 import 'package:akaryakitnet/features/approvals/data/approval_models.dart';
 import 'package:akaryakitnet/features/assistant/data/assistant_models.dart';
-import 'package:akaryakitnet/features/auth/data/auth_api.dart';
 import 'package:akaryakitnet/features/bayi/data/customer_models.dart';
 import 'package:akaryakitnet/features/bayi/data/desk_models.dart';
 import 'package:akaryakitnet/features/bayi/data/dispatch_models.dart' as bayi;
@@ -87,7 +86,7 @@ List<T> _list<T>(Object? j, T Function(JsonReader r) item) =>
 final Map<String, _Parse> _parsers = {
   // Çekirdek
   'app-config': (j) => AppConfig.fromJson(j),
-  'me-access': (j) => [MeAccess.fromJson(j), PhoneStatus.fromAccessJson(j)],
+  'me-access': (j) => MeAccess.fromJson(j),
   'me-profile': (j) => UserProfile.fromJson(j),
   'auth-sessions': (j) => _list(j, SessionInfo.fromJson),
   'auth-login': (j) => AuthResult.fromJson(j),
@@ -95,7 +94,6 @@ final Map<String, _Parse> _parsers = {
   'auth-verify': (j) => AuthResult.fromJson(j),
   'auth-otp-send': (j) => OtpChallenge.fromJson(JsonReader.of(j)),
   'auth-challenge-resend': (j) => OtpChallenge.fromJson(JsonReader.of(j)),
-  'phone-verify-start': (j) => OtpChallenge.fromJson(JsonReader.of(j)),
   'notifications-unread-count': (j) => UnreadCount.fromJson(j),
   'notifications': (j) => _paged(j, UserNotification.fromJson),
   'notifications-preferences': (j) => _list(j, NotificationPreference.fromJson),

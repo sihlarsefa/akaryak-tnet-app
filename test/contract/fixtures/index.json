@@ -2565,17 +2565,6 @@
    "capturedAt": "2026-10-28T19:39:53Z"
   },
   {
-   "name": "phone-verify-start",
-   "method": "POST",
-   "endpoint": "me/phone/verify-start",
-   "url": "me/phone/verify-start",
-   "user": "musteri.demo",
-   "persona": "customer",
-   "status": 200,
-   "note": "",
-   "capturedAt": "2026-10-28T19:51:34Z"
-  },
-  {
    "name": "place-order.finance-pending",
    "method": "POST",
    "endpoint": "orders/place",

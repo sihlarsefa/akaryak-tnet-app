@@ -1,8 +1,12 @@
 // A1 sahte uçları gerçek istemci yığınıyla (Dio + ara katmanlar + sahte adaptör): kilitlenme, kod yeniden
-// gönderimi, OTP sınırı, telefon doğrulama ve app/config anahtarları.
+// gönderimi, OTP sınırı, telefonla girişin hedefi (ayrı telefon doğrulaması yok, 2026-11: hesapta kayıtlı
+// numara; merkez, demo / tohum, pasif ve paylaşılan numara hariç) ve app/config anahtarları.
+import 'package:akaryakitnet/core/auth/auth_repository.dart';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
+import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
+import 'package:akaryakitnet/core/network/fake/fake_phones.dart';
 import 'package:akaryakitnet/features/auth/application/server_gate_controller.dart';
 import 'package:akaryakitnet/features/auth/auth_fake.dart';
 import 'package:akaryakitnet/features/auth/data/auth_api.dart';
@@ -116,22 +120,100 @@ void main() {
   });
 
   test(
-    'telefon doğrulama: kod hatalıysa iş kuralı, doğruysa doğrulanır',
+    'telefon doğrulama uçları yok (2026-11): me/phone/verify-start ve me/phone/verify → 404',
     () async {
-      await session().loginWithPassword('musteri', 'demo');
-      final api = c.read(authApiProvider);
-      expect((await api.phoneStatus()).verified, isFalse);
-      expect((await api.phoneStatus()).phoneMasked, isNotNull);
+      for (final path in const ['me/phone/verify-start', 'me/phone/verify']) {
+        final r = await h.server.handle(
+          method: 'POST',
+          path: path,
+          uri: Uri.parse('http://fake.test/$path'),
+          body: const <String, Object?>{},
+        );
+        expect(r.status, 404, reason: path);
+      }
+    },
+  );
 
-      final ch = await api.startPhoneVerification();
-      expect(ch.maskedPhone, contains('***'));
+  test(
+    'telefonla giriş: doğrulama yapılmamış personanın hesabındaki numarasına kod gider; '
+    'me/access.phoneVerified = numara kayıtlı',
+    () async {
+      final ch = await session().sendOtp('0532 000 02 06');
+      expect(ch.maskedPhone, '0532 *** ** 06');
+      expect(ctl.otpSmsTo, ['saha']);
+      final out = await session().verifyCode(ch.challengeId, '123456');
+      expect((out as LoginSucceeded).access.userName, 'saha');
+      expect(out.access.phoneVerified, isTrue);
+      expect(out.access.phoneMasked, '0532 *** ** 06');
+
+      // Numara hesaptan silinince: phoneVerified false, maske yok.
+      FakePhones.edits(h.server.world)['saha'] = {
+        'displayName': 'Deniz Koç',
+        'phoneNumber': null,
+      };
+      final access = await c.read(authRepositoryProvider).meAccess();
+      expect(access.phoneVerified, isFalse);
+      expect(access.phoneMasked, isNull);
+    },
+  );
+
+  test(
+    'merkez, demo / tohum ve pasif hesaba SMS gitmez (yanıt aynı: kod gönderildi)',
+    () async {
+      FakePhones.seedAccounts(h.server.world).add('sofor');
+      for (final (phone, who) in const [
+        ('905320000301', 'merkez'),
+        ('905320000209', 'demo / tohum hesabı (sofor)'),
+        ('905320000102', 'pasif (talep)'),
+        ('905320000202', 'pasif (mudur)'),
+      ]) {
+        final ch = await session().sendOtp(phone);
+        expect(ch.challengeId, isNotEmpty, reason: who);
+        expect(ch.maskedPhone, contains('***'), reason: who);
+        expect(ch.expiresInSeconds, 300, reason: who);
+        await expectLater(
+          session().verifyCode(ch.challengeId, '123456'),
+          throwsA(isA<BusinessFailure>()),
+          reason: who,
+        );
+      }
+      expect(ctl.otpSmsTo, isEmpty);
+      expect(ctl.otpSends, 4);
+      // Yalnızca işaretlenen hesap demo / tohum sayılır; diğer etkin personalar uygundur.
+      expect(
+        FakePhones.eligible(h.server.world, findFakePersona('musteri')!),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'aynı numara iki uygun hesapta: SMS gitmez; biri uygun değilse kod uygun olana gider',
+    () async {
+      final edits = FakePhones.edits(h.server.world);
+      edits['saha'] = {
+        'displayName': 'Deniz Koç',
+        'phoneNumber': '0532 000 01 01',
+      };
+      final shared = await session().sendOtp('905320000101');
+      expect(shared.maskedPhone, '0532 *** ** 01');
+      expect(ctl.otpSmsTo, isEmpty);
       await expectLater(
-        api.verifyPhone(ch.challengeId, '000000'),
+        session().verifyCode(shared.challengeId, '123456'),
         throwsA(isA<BusinessFailure>()),
       );
-      await api.verifyPhone(ch.challengeId, '123456');
-      expect((await api.phoneStatus()).verified, isTrue);
-      expect(ctl.verifiedPhones, contains('musteri'));
+
+      // Numarayı paylaşan pasif hesap (talep) sayılmaz.
+      edits
+        ..remove('saha')
+        ..['talep'] = {
+          'displayName': 'Burak Yılmaz',
+          'phoneNumber': '0532 000 01 01',
+        };
+      final single = await session().sendOtp('905320000101');
+      expect(ctl.otpSmsTo, ['musteri']);
+      final out = await session().verifyCode(single.challengeId, '123456');
+      expect((out as LoginSucceeded).access.userName, 'musteri');
     },
   );
 

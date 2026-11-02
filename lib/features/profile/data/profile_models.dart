@@ -57,12 +57,14 @@ class UserProfile {
   final bool twoFactorRequired;
 }
 
-/// `me/profile` PUT ve `me/change-password` sonucu (`AccountOperationResult`): hata mesajları Türkçe.
+/// `me/profile` PUT ve `me/change-password` sonucu (`AccountOperationResult`): hata ve uyarı mesajları
+/// Türkçe.
 @immutable
 class AccountOperationResult {
   const AccountOperationResult({
     required this.succeeded,
     this.errors = const [],
+    this.warnings = const [],
   });
 
   factory AccountOperationResult.fromJson(Object? json) {
@@ -70,11 +72,16 @@ class AccountOperationResult {
     return AccountOperationResult(
       succeeded: r.boolean('succeeded'),
       errors: List.unmodifiable(r.strings('errors')),
+      warnings: List.unmodifiable(r.strings('warnings')),
     );
   }
 
   final bool succeeded;
   final List<String> errors;
+
+  /// İşlem başarılı ama kullanıcı bilmeli (normalde boş; eski sunucu göndermez). Ör. `PUT me/profile`:
+  /// numara telefonla girebilen başka bir hesapta da kayıtlı.
+  final List<String> warnings;
 
   /// Gövde bu biçimde mi (`succeeded` alanı var).
   static bool matches(Object? json) => JsonReader.of(json).has('succeeded');

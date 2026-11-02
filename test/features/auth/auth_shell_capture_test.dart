@@ -6,7 +6,6 @@
 // 390×844 dp ekran 2× piksel PNG olarak yazılır (tahtadaki `screen-*.png` ile aynı ölçü); yazılar
 // gerçek Mona Sans ve Material simgeleriyle çizilir (`flutter_test_config.dart`). Altın karşılaştırma
 // değildir; gözle tahtayla karşılaştırmak içindir.
-import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -167,25 +166,6 @@ void main() {
       await _end(tester);
     }, skip: skip);
   }
-
-  testWidgets('telefon doğrulama', (tester) async {
-    _phone(tester);
-    final c = await pumpAuthRoute(tester, '/home');
-    await signIn(tester, c, 'musteri');
-    unawaited(
-      GoRouter.of(
-        tester.element(find.text('ANA SAYFA')),
-      ).push(AuthRoutes.phone),
-    );
-    await pumpFor(tester, const Duration(seconds: 1));
-    await _shot(tester, '02-telefon-dogrulama');
-    await tapVisible(tester, find.text(AuthCopy.sendVerification));
-    await pumpFor(tester, const Duration(seconds: 1));
-    FocusManager.instance.primaryFocus?.unfocus();
-    await tester.pump();
-    await _shot(tester, '02-telefon-dogrulama-kod');
-    await _end(tester);
-  }, skip: skip);
 
   // ------------------------------------------------------------------ A8: bildirimler, asistan, profil
   for (final (tag, scale, b) in _variants) {

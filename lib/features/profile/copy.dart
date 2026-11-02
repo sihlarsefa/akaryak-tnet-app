@@ -26,14 +26,6 @@ abstract final class ProfileCopy {
   static const biometricOn = 'Uygulama kilidi açıldı.';
   static const changePassword = 'Şifre değiştir';
   static const changePasswordHint = 'Değişince tüm cihazlarda yeniden giriş';
-  static const phoneLogin = 'Telefonla giriş';
-  static const phoneLoginEnable = 'Telefonla girişi etkinleştir';
-  static const phoneVerified =
-      'Telefonunuz doğrulandı; SMS koduyla girebilirsiniz.';
-  static const phoneNotVerified = 'Telefonunuzu doğrulayıp SMS koduyla girin.';
-  static const phoneMissing = 'Profilinize cep telefonu ekleyin.';
-  static const phoneOn = 'Açık';
-  static const phoneOff = 'Kapalı';
   static const sessions = 'Aktif oturumlar';
   static const sessionsHint = 'Hesabınızın açık olduğu cihazlar';
 
@@ -131,13 +123,16 @@ abstract final class ProfileCopy {
   static const currentPassword = 'Mevcut şifre';
   static const currentPasswordRequired = 'Mevcut şifrenizi girin.';
   static const phoneChangeNote =
-      'Telefon değişince tüm cihazlarda oturumunuz kapanır ve telefonla giriş için numaranızı yeniden doğrulamanız gerekir.';
+      'Telefon değişince tüm cihazlarda oturumunuz kapanır.';
   static const save = 'Kaydet';
   static const leaveTitle = 'Girdiğiniz bilgiler kaydedilmedi';
   static const leaveMessage = 'Değişiklikler kaybolacak.';
   static const leave = 'Çık';
   static const stay = 'Devam et';
   static const saved = 'Bilgileriniz güncellendi.';
+
+  /// Kayıt uyarıyla döndüğünde uyarı bildiriminin başlığı (metin sunucunun uyarısı).
+  static const savedTitle = 'Bilgileriniz güncellendi';
   static const profileLoadFailed = 'Profil bilgileri yüklenemedi';
   static const role = 'Rol';
   static const organization = 'Bağlı olduğu yer';

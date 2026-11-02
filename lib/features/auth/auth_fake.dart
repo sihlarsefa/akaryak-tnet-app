@@ -1,8 +1,8 @@
 import '../../core/models/json.dart';
-import '../../core/models/me_access.dart';
 import '../../core/network/fake/core_fakes.dart';
 import '../../core/network/fake/fake_auth.dart';
 import '../../core/network/fake/fake_personas.dart';
+import '../../core/network/fake/fake_phones.dart';
 import '../../core/network/fake/fake_server.dart';
 import '../../core/utils/turkish_text.dart';
 import '../../core/utils/validators.dart';
@@ -40,13 +40,13 @@ class AuthFakeControls {
   /// Saat (testler ezer).
   DateTime Function() now = () => DateTime.now().toUtc();
 
-  /// Telefonu doğrulanmış personalar (`me/access.phoneVerified`).
-  final Set<String> verifiedPhones = {};
-
   /// Sayaçlar (testler).
   int otpSends = 0;
   int resends = 0;
-  int phoneVerifyStarts = 0;
+
+  /// Telefonla giriş kodunun SMS ile gittiği personalar (gönderim sırasıyla; testler). Numara uygun bir
+  /// hesapta değilse ya da birden çok uygun hesapta ise SMS gitmez, liste büyümez.
+  final List<String> otpSmsTo = [];
 
   final Map<String, int> _failures = {};
   final Map<String, DateTime> _lockedUntil = {};
@@ -63,9 +63,12 @@ class AuthFakeControls {
 
 /// Kimlik sahte uçları (sahibi A1). Çekirdek sahtelerin (`core_fakes.dart`, M0a) üzerine:
 /// - `auth/login`: 5 hatalı şifrede 15 dk kilit (429 `rate_limited` + `Retry-After`),
-/// - `auth/otp/send`: telefon başına 10 dakikada 3 kod,
+/// - `auth/otp/send`: telefon başına 10 dakikada 3 kod; kod hesabında bu numara kayıtlı uygun hesaba
+///   gider ([FakePhones]: merkez, demo / tohum ve pasif hesap hariç; numara iki uygun hesaptaysa SMS
+///   gitmez). Ayrı telefon doğrulaması yok (2026-11; `me/phone/verify*` uçları kaldırıldı),
 /// - `auth/challenge/resend`: 60 sn bekleme, yeni kod,
-/// - `me/phone/verify-start` + `me/phone/verify`, `me/access.phoneVerified`,
+/// - `me/access`: `phoneMasked` hesaptaki numaradan; `phoneVerified` = geçerli bir cep numarası kayıtlı
+///   (yalnızca eski sürümler için),
 /// - `app/config`: `maintenance`, `contractVersion`, `apiBuild` (+ eski API için 404).
 /// Kod her zaman `123456`, şifre `demo` (çekirdek sahte kimlik).
 void registerAuthFakes(FakeServer s) {
@@ -97,7 +100,7 @@ void registerAuthFakes(FakeServer s) {
     return secs < 60 ? '$secs saniye' : '${(secs / 60).ceil()} dakika';
   }
 
-  /// Telefon başına gönderim sınırı (otp/send, me/phone/verify-start).
+  /// Telefon başına gönderim sınırı (otp/send).
   void takeSend(String phone) {
     final now = ctl.now();
     final list = ctl._sendsByPhone.putIfAbsent(phone, () => [])
@@ -174,18 +177,12 @@ void registerAuthFakes(FakeServer s) {
     }
     takeSend(phone);
     ctl.otpSends++;
-    FakePersona? match;
-    for (final p in fakePersonas) {
-      if ('90${p.phone}' == phone && p.persona != Persona.platform) match = p;
-    }
+    final match = FakePhones.otpTarget(s.world, phone);
+    if (match != null) ctl.otpSmsTo.add(match.key);
     final deviceId = JsonReader(r.map('device')).str('deviceId', 'fake-device');
     final c = s.auth.createChallenge(match, purpose: 2, deviceId: deviceId);
     // Eşleşme olmasa da aynı biçim (numara ifşa edilmez).
-    final ten = phone.substring(2);
-    return challengeJson(
-      c,
-      '0${ten.substring(0, 3)} *** ** ${ten.substring(8)}',
-    );
+    return challengeJson(c, FakePhones.mask(phone));
   }, anonymous: true);
 
   // ------------------------------------------------------------------ Kodu yeniden gönder
@@ -214,41 +211,15 @@ void registerAuthFakes(FakeServer s) {
     return challengeJson(next, ctl._masked[id] ?? p?.phoneMasked ?? '');
   }, anonymous: true);
 
-  // ------------------------------------------------------------------ Telefon doğrulama
-  s.post('me/phone/verify-start', (req) {
-    final p = req.requireUser();
-    takeSend('90${p.phone}');
-    ctl.phoneVerifyStarts++;
-    final c = s.auth.createChallenge(
-      p,
-      purpose: 3,
-      deviceId: req.header('x-device-id') ?? 'fake-device',
-    );
-    return challengeJson(c, p.phoneMasked);
-  });
-
-  s.post('me/phone/verify', (req) {
-    final p = req.requireUser();
-    final id = req.json.str('challengeId');
-    final c = s.auth.challenges[id];
-    if (c == null || c.purpose != 3 || c.personaKey != p.key) {
-      throw FakeResponse.business(
-        'Doğrulama süresi doldu. Girişe dönüp baştan başlayın.',
-      );
-    }
-    final result = s.auth.verify(id, req.json.str('code'));
-    if (result.persona == null) {
-      throw FakeResponse.business(result.error ?? 'Kod hatalı.');
-    }
-    ctl.verifiedPhones.add(p.key);
-    return FakeResponse.noContent();
-  });
-
+  // ------------------------------------------------------------------ Erişim
   s.get('me/access', (req) {
     final p = req.requireUser();
+    final phone = FakePhones.of(req.world, p);
     return {
       ...s.world.meAccess(p),
-      'phoneVerified': ctl.verifiedPhones.contains(p.key),
+      'phoneMasked': phone == null ? null : FakePhones.mask(phone),
+      // Sunucu 2026-11: "geçerli bir cep numarası kayıtlı" (ayrı doğrulama yok; eski sürümler için).
+      'phoneVerified': phone != null,
     };
   });
 

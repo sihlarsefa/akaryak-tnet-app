@@ -2,6 +2,7 @@ import '../../../core/auth/permissions.dart';
 import '../../../core/models/json.dart';
 import '../../../core/network/fake/fake_credentials.dart';
 import '../../../core/network/fake/fake_personas.dart';
+import '../../../core/network/fake/fake_phones.dart';
 import '../../../core/network/fake/fake_server.dart';
 import '../../../core/network/fake/fake_world.dart';
 import '../../../core/utils/tr_time.dart';
@@ -134,6 +135,11 @@ void registerCmCompanyFakes(FakeServer s) {
           'E-posta girilmezse şifre zorunludur.',
         if (password.isNotEmpty) ...fakePasswordErrors(password),
       ],
+      // Sunucu 2026-11: numara telefonla girebilen başka bir hesapta kayıtlıysa kayıt reddedilir.
+      'phoneNumber': [
+        if (FakePhones.sharedWithOther(req.world, r.nonEmpty('phoneNumber')))
+          FakePhones.sharedMessage,
+      ],
     }..removeWhere((_, v) => v.isEmpty);
     if (errors.isNotEmpty) throw FakeResponse.validation(errors);
     final invite = password.isEmpty;
@@ -167,9 +173,16 @@ void registerCmCompanyFakes(FakeServer s) {
       );
     }
     if (row['role'] == 3 && role != 3) _ensureAnotherAdmin(req.world, p, row);
+    final phone = _phone(r.nonEmpty('phoneNumber'));
+    final self = findFakePersona(row['userId'] as String?)?.key;
+    if (FakePhones.sharedWithOther(req.world, phone, exceptKey: self)) {
+      throw FakeResponse.validation({
+        'phoneNumber': [FakePhones.sharedMessage],
+      });
+    }
     row
       ..['displayName'] = _name(r.str('displayName'))
-      ..['phoneNumber'] = _phone(r.nonEmpty('phoneNumber'))
+      ..['phoneNumber'] = phone
       ..['role'] = role;
     return _userDto(row, p);
   });

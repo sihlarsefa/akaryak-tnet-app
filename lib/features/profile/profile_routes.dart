@@ -11,7 +11,6 @@ import 'presentation/sessions_page.dart';
 
 /// Profil rotaları (sahibi A8). `/profile` derin bağlantı sözleşmesidir (spec C.4); merkez ve
 /// şoför kullanıcılarda alt menü sekmesidir. Alt sayfalar alt menünün üstünde tam ekran açılır.
-/// Telefon doğrulama (`/profile/phone`) A1'in rotasıdır.
 List<RouteBase> profileRoutes() => [
   GoRoute(
     path: AppRoutes.profile,

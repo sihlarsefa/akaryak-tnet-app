@@ -189,7 +189,7 @@ String? signOutMessage(ProviderContainer c) {
   return s is SessionUnauthenticated ? s.message : null;
 }
 
-/// A8 rotalarını (bildirimler, asistan, profil) + A1 telefon doğrulama + birkaç yer tutucu ile açılan
+/// A8 rotalarını (bildirimler, asistan, profil) + A1 kimlik rotaları + birkaç yer tutucu ile açılan
 /// uygulama. Önce [persona] ile giriş yapılır, sonra [location] açılır.
 Future<ProviderContainer> pumpA8(
   WidgetTester tester,

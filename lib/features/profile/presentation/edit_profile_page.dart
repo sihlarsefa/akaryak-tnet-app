@@ -21,7 +21,8 @@ final userProfileProvider = FutureProvider.autoDispose<UserProfile>(
 /// Profil bilgileri (spec A.4 A8 `me/profile`; tasarım v3): ad soyad ve cep telefonu, altında
 /// değiştirilemeyen bilgiler (e-posta, rol, bağlı olduğu yer) simge karolu beyaz kartta; bölümler sırayla
 /// belirir. Telefon değişirse uyarı ve mevcut şifre alanı yumuşakça açılır; kayıttan sonra sunucu tüm
-/// oturumları kapatır ("Güvenlik bilgileriniz değişti").
+/// oturumları kapatır ("Güvenlik bilgileriniz değişti"). Sunucu kayıtla birlikte uyarı gönderirse (numara
+/// başka bir hesapta da kayıtlı) başarı bildirimi yerine uyarı bildirimi çıkar.
 class EditProfilePage extends ConsumerStatefulWidget {
   const EditProfilePage({super.key});
 
@@ -92,8 +93,9 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
     final phone = _phone.text.trim().isEmpty
         ? null
         : Fmt.phone(_phone.text.trim());
+    final AccountOperationResult result;
     try {
-      await ref
+      result = await ref
           .read(profileRepositoryProvider)
           .updateProfile(
             displayName: _name.text.trim(),
@@ -117,7 +119,13 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
       return;
     }
     if (!mounted) return;
-    AppToast.success(ProfileCopy.saved);
+    // Kayıt geçerli; sunucunun uyarısı (ör. numara başka bir hesapta da kayıtlı) başarı yerine gösterilir.
+    final warning = result.warnings.firstOrNull;
+    if (warning == null) {
+      AppToast.success(ProfileCopy.saved);
+    } else {
+      AppToast.warning(warning, title: ProfileCopy.savedTitle);
+    }
     final session = ref.read(sessionControllerProvider.notifier);
     if (phoneChanged) {
       // Sunucu güvenlik damgasını yeniledi: bu oturum da kapandı.
