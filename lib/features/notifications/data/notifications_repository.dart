@@ -24,8 +24,21 @@ class NotificationsRepository {
       'pageSize': pageSize,
       if (unreadOnly) 'unreadOnly': true,
     },
-    parse: (j) => PagedResult.fromJson(j, UserNotification.fromJson),
+    parse: parsePage,
   );
+
+  /// `PagedResult<UserNotificationDto>`. Okunamayan satır atlanır ve günlüğe yazılır; listenin geri
+  /// kalanı gösterilir ([UserNotification.listFrom]). Sayfa bilgileri sunucunun yazdığı gibidir.
+  static PagedResult<UserNotification> parsePage(Object? json) {
+    final meta = PagedResult<Object?>.fromJson(json, (_) => null);
+    return PagedResult(
+      items: List.unmodifiable(UserNotification.listFrom(json)),
+      totalCount: meta.totalCount,
+      pageNumber: meta.pageNumber,
+      pageSize: meta.pageSize,
+      totalPages: meta.totalPages,
+    );
+  }
 
   Future<void> markRead(int id) => _api.post<void>('notifications/$id/read');
 

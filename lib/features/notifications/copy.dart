@@ -40,6 +40,20 @@ abstract final class NotificationsCopy {
       'Bu ekran için kayıtlı veri yok. Bağlantı gelince otomatik yenilenir.';
   static const errorTitle = 'Bildirimler yüklenemedi';
 
+  /// Geçici hata (zaman aşımı, sunucu, 429) ve kayıtlı liste yok: hata durumunun başlığı ("şu an";
+  /// altında ne yapılacağı ve "Tekrar dene"). Kalıcı hatada [errorTitle].
+  static const retryTitle = 'Bildirimler şu an yenilenemedi';
+
+  /// İstek iptal edildiyse (oturum yenilendi, ekran değişti) metin.
+  static const retryMessage = 'Birkaç saniye sonra tekrar deneyin.';
+
+  /// Sunucu geçici olarak yanıt veremedi (5xx; sunucu açıklama yazmadıysa).
+  static const serverRetry =
+      'Sunucuda geçici bir sorun var. Birkaç dakika sonra tekrar deneyin.';
+
+  /// Liste gösterilirken yenileme başarısız: listenin üstündeki not (liste kalır).
+  static const staleNote = 'Liste şu an yenilenemedi.';
+
   // ------------------------------------------------------------------ Ayarlar
   static const settingsTitle = 'Bildirim ayarları';
   static const categoriesTitle = 'Kategoriler';

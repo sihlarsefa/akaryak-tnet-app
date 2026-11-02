@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/models/json.dart';
 import '../../../core/ui/ui.dart';
+import '../../../core/utils/log.dart';
 import '../../../core/utils/turkish_text.dart';
 
 /// Bildirim kategorileri (sunucu `NotificationCategories`; tercih ekranındaki sıra).
@@ -92,6 +93,33 @@ class UserNotification {
     createdAt: r.dateUtc('createdAt') ?? DateTime.now().toUtc(),
     readAt: r.dateUtc('readAt'),
   );
+
+  /// Gelen kutusu listesinin hoşgörülü okuması: kimliksiz ya da okunamayan satır null döner, çağıran
+  /// onu atlar (tek bozuk satır listenin tamamını düşürmez).
+  static UserNotification? tryFromJson(JsonReader r) {
+    try {
+      final n = UserNotification.fromJson(r);
+      return n.id > 0 ? n : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// [json] içindeki [key] dizisi; okunamayan satırlar atlanır ve sayısı günlüğe yazılır.
+  static List<UserNotification> listFrom(Object? json, {String key = 'items'}) {
+    final raw = JsonReader.of(json)[key];
+    if (raw is! List) return const [];
+    final out = <UserNotification>[];
+    for (final e in raw) {
+      final n = e is Map ? tryFromJson(JsonReader.of(e)) : null;
+      if (n != null) out.add(n);
+    }
+    final skipped = raw.length - out.length;
+    if (skipped > 0) {
+      AppLog.warn('Bildirim listesinde $skipped satır okunamadı; atlandı.');
+    }
+    return out;
+  }
 
   final int id;
   final String category;

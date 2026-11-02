@@ -82,7 +82,12 @@ class JsonReader {
     if (v is int) return v;
     if (v is num) return v.isFinite ? v.toInt() : null;
     if (v is String) {
-      return int.tryParse(v.trim()) ?? double.tryParse(v.trim())?.toInt();
+      final s = v.trim();
+      final i = int.tryParse(s);
+      if (i != null) return i;
+      // "NaN", "Infinity", "1e999" sayı değildir: toInt() istisna fırlatırdı (satır ve liste düşerdi).
+      final d = double.tryParse(s);
+      return d != null && d.isFinite ? d.toInt() : null;
     }
     return null;
   }

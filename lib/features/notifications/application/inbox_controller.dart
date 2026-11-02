@@ -53,11 +53,24 @@ class InboxState {
   final AppFailure? moreError;
   final DateTime? loadedAt;
 
-  /// Çevrimdışı: son kaydedilen ilk sayfa gösteriliyor.
+  /// Geçici hata (çevrimdışı, zaman aşımı, 5xx, 429): son kaydedilen ilk sayfa gösteriliyor.
   final bool fromCache;
 
   bool get hasMore => page < totalPages;
   int get unreadCount => items.where((n) => !n.isRead).length;
+
+  /// Geçici hata: biraz sonra tekrar denemek anlamlıdır (çevrimdışı, zaman aşımı, 5xx, 429) ya da
+  /// istek bilerek iptal edildi. Ekran bunu kesin hata ("Bildirimler yüklenemedi") değil, "tekrar
+  /// dene" olarak gösterir.
+  static bool isRetryable(AppFailure f) =>
+      f.isTransient || (f is UnknownFailure && f.cancelled);
+
+  /// Liste gösterilirken son yenileme başarısız oldu (çevrimdışı hariç: onu kabuk söyler). Liste
+  /// kalır; üstünde "Liste şu an yenilenemedi." notu ve "Tekrar dene" çıkar.
+  AppFailure? get staleFailure {
+    final f = error;
+    return f != null && items.isNotEmpty && f is! OfflineFailure ? f : null;
+  }
 
   InboxState copyWith({
     List<UserNotification>? items,
@@ -89,8 +102,8 @@ class InboxState {
 }
 
 /// Bildirimler ekranı (spec A.4 A8): sayfalı liste, "Okunmamış" süzgeci, okundu işaretleme
-/// (iyimser; rozet hemen düşer), tümünü okundu say, push gelince sessiz yenileme, çevrimdışıyken son
-/// kaydedilen ilk sayfa.
+/// (iyimser; rozet hemen düşer), tümünü okundu say, push gelince sessiz yenileme, geçici hatada
+/// (çevrimdışı, zaman aşımı, 5xx, 429) son kaydedilen ilk sayfa ve "tekrar dene".
 ///
 /// v4 §3.5: bu oturumda açılan (ya da bitirilen) bir kaydın bildirimleri okundu sayılır
 /// ([localReadMarksProvider]): liste yüklenince ve yeni bir kayıt açılınca o bildirimler okundu
@@ -165,10 +178,12 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
     } catch (e) {
       if (!_alive(epoch)) return;
       final f = AppFailure.from(e);
-      if (state.items.isEmpty && !unreadOnly && f is OfflineFailure) {
+      AppLog.debug('Bildirimler okunamadı: $f');
+      // Geçici hatada (çevrimdışı, zaman aşımı, 5xx, 429) son kaydedilen ilk sayfa gösterilir.
+      if (state.items.isEmpty && !unreadOnly && InboxState.isRetryable(f)) {
         final cached = await _readCache();
         if (!_alive(epoch)) return;
-        if (cached != null) {
+        if (cached != null && cached.items.isNotEmpty) {
           state = state.copyWith(
             items: cached.items,
             page: cached.page,
@@ -176,7 +191,8 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
             totalCount: cached.items.length,
             loading: false,
             refreshing: false,
-            error: () => null,
+            // Çevrimdışını kabuk söyler; diğer geçici hatalarda listenin üstünde "tekrar dene" notu.
+            error: () => f is OfflineFailure ? null : f,
             loadedAt: cached.storedAt,
             fromCache: true,
           );
@@ -335,13 +351,19 @@ class InboxController extends AutoDisposeNotifier<InboxState> {
   _readCache() async {
     final key = _cacheKey;
     if (key == null) return null;
-    final entry = await ref.read(cacheStoreProvider).read(key);
-    if (entry == null) return null;
-    final r = JsonReader.of(entry.value);
-    return (
-      items: r.list('items', UserNotification.fromJson),
-      page: r.integer('page', 1),
-      storedAt: entry.storedAt,
-    );
+    try {
+      final entry = await ref.read(cacheStoreProvider).read(key);
+      if (entry == null) return null;
+      final r = JsonReader.of(entry.value);
+      return (
+        items: UserNotification.listFrom(entry.value),
+        page: r.integer('page', 1),
+        storedAt: entry.storedAt,
+      );
+    } catch (e) {
+      // Okunamayan önbellek yok sayılır (yoksa liste iskelette kalırdı).
+      AppLog.debug('Bildirim önbelleği okunamadı: $e');
+      return null;
+    }
   }
 }

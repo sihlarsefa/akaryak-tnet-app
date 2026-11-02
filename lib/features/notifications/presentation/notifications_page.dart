@@ -9,6 +9,7 @@ import '../../../app/tasks/task_inbox.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/network/failure_copy.dart';
 import '../../../core/push/push_payload.dart';
 import '../../../core/push/unread_count_provider.dart';
 import '../../../core/routing/app_location.dart';
@@ -93,6 +94,9 @@ class NotificationsPage extends ConsumerWidget {
             _CachedNote(at: s.loadedAt)
           else
             const SizedBox(height: 4),
+          // Liste gösterilirken yenileme başarısız (zaman aşımı, sunucu, 429): liste kalır, üstünde not.
+          if (s.staleFailure != null && !s.refreshing)
+            _RetryNote(onRetry: () => unawaited(ctl.refresh())),
           // Görünüm değişince içerik dokunulan yöne kayar (v4 §6 Add 6).
           Expanded(
             child: SharedAxisSwitcher(
@@ -143,20 +147,31 @@ class _Body extends ConsumerWidget {
     if (error != null && s.items.isEmpty) {
       return Center(
         child: SingleChildScrollView(
-          child: error is OfflineFailure
-              ? EmptyState.compact(
-                  title: NotificationsCopy.offlineTitle,
-                  message: NotificationsCopy.offlineMessage,
-                  illustration: AknIllustration.offline,
-                  actionLabel: NotificationsCopy.retry,
-                  onAction: () => unawaited(ctl.refresh()),
-                )
-              : ErrorState(
-                  title: NotificationsCopy.errorTitle,
-                  message: error.message,
-                  traceId: _shortTrace(error.traceId),
-                  onRetry: () => unawaited(ctl.refresh()),
-                ),
+          child: switch (error) {
+            OfflineFailure() => EmptyState.compact(
+              title: NotificationsCopy.offlineTitle,
+              message: NotificationsCopy.offlineMessage,
+              illustration: AknIllustration.offline,
+              actionLabel: NotificationsCopy.retry,
+              onAction: () => unawaited(ctl.refresh()),
+            ),
+            // Geçici hata (zaman aşımı, sunucu, 429) ve kayıtlı liste yok: yine hata durumu ("Tekrar
+            // dene"; sunucu hatasında destek kodu) ama "şu an" ve ne yapılacağı ile, ham metin değil.
+            _ when InboxState.isRetryable(error) => ErrorState(
+              title: NotificationsCopy.retryTitle,
+              message: _retryText(error),
+              traceId: error is ServerFailure
+                  ? _shortTrace(error.traceId)
+                  : null,
+              onRetry: () => unawaited(ctl.refresh()),
+            ),
+            _ => ErrorState(
+              title: NotificationsCopy.errorTitle,
+              message: error.message,
+              traceId: _shortTrace(error.traceId),
+              onRetry: () => unawaited(ctl.refresh()),
+            ),
+          },
         ),
       );
     }
@@ -410,6 +425,61 @@ class _CachedNote extends StatelessWidget {
     );
   }
 }
+
+/// Liste gösterilirken yenileme başarısız (geçici hata): "Liste şu an yenilenemedi." ve "Tekrar dene"
+/// (liste olduğu gibi kalır; kesin hata ekranı açılmaz).
+class _RetryNote extends StatelessWidget {
+  const _RetryNote({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AknSpace.page, 6, AknSpace.page, 0),
+      child: Semantics(
+        liveRegion: true,
+        child: Row(
+          children: [
+            ExcludeSemantics(
+              child: Icon(
+                PhosphorIconsRegular.warningCircle,
+                size: 18,
+                color: c.dim,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                NotificationsCopy.staleNote,
+                style: t.label.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: c.dim,
+                ),
+              ),
+            ),
+            AknButton.ghost(
+              label: NotificationsCopy.retry,
+              icon: PhosphorIconsRegular.arrowClockwise,
+              onPressed: onRetry,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Tekrar dene" durumunun metni: 429'da bekleme süresi, zaman aşımında ve sunucu hatasında ne
+/// yapılacağı; iptal edilen istekte genel cümle.
+String _retryText(AppFailure f) => switch (f) {
+  RateLimitedFailure(:final retryAfter) => FailureCopy.rateLimited(retryAfter),
+  TimeoutFailure() => FailureCopy.timeoutMessage,
+  ServerFailure() => f.problem?.detail ?? NotificationsCopy.serverRetry,
+  _ => NotificationsCopy.retryMessage,
+};
 
 /// Bir günün bildirimleri (yeni önce): başlık "Bugün", "Dün", gün adı ya da tarih.
 @immutable
