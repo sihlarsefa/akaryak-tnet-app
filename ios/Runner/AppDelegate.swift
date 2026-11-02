@@ -1,6 +1,9 @@
+import FirebaseCore
+import FirebaseMessaging
 import Flutter
 import GoogleMaps
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -14,8 +17,30 @@ import UIKit
        !key.isEmpty, !key.hasPrefix("$(") {
       GMSServices.provideAPIKey(key)
     }
-    // Firebase Dart tarafında başlatılır (yapılandırma dosyası yoksa push kapalı çalışır).
+    // Push (F2GO ile aynı sıra): Firebase açılışta yerelde başlatılır ve cihaz APNs'e hemen kaydedilir.
+    // Örtük Flutter motorunda eklentiler açılıştan sonra kaydolduğu için firebase_messaging bu kaydı
+    // kendisi yapamıyordu; APNs belirteci gelmeyince FCM belirteci de oluşmuyor, sunucuda cihaz
+    // görünmüyordu (uygulama kapalıyken bildirim yalnızca kutuya düşüyordu). Yapılandırma dosyası yoksa
+    // push kapalı çalışır (Dart tarafı da aynı kuralı izler).
+    if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+      if FirebaseApp.app() == nil {
+        FirebaseApp.configure()
+      }
+      UNUserNotificationCenter.current().delegate = self
+      application.registerForRemoteNotifications()
+    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // APNs belirteci doğrudan FCM'e verilir (yöntem değiştirmeye güvenmeden), sonra eklentilere iletilir.
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    if FirebaseApp.app() != nil {
+      Messaging.messaging().apnsToken = deviceToken
+    }
+    super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
