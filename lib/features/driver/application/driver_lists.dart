@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/push/push_providers.dart';
 import '../data/driver_models.dart';
 import '../data/driver_repository.dart';
@@ -140,6 +141,12 @@ class DriverListController
       if (p.category == 'shipments' || p.isFor('shipment.')) {
         unawaited(refresh());
       }
+    });
+    // Sekme dönüşü ve öne gelme: liste eskidiyse sessizce tazelenir.
+    ref.listen(revalidateProvider, (_, e) {
+      final s = state.valueOrNull;
+      if (e == null || s == null || s.refreshing) return;
+      if (Freshness.isStale(s.updatedAt, Freshness.list)) unawaited(refresh());
     });
 
     final repo = ref.read(driverRepositoryProvider);

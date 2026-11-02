@@ -97,6 +97,16 @@ class DeliveryPointsController
         fetch: () =>
             _repo.deliveryPointsJson(includeInactive: s.includeInactive),
         parse: CustomerMoreRepository.parseDeliveryPoints,
+        onCached: (cached) {
+          if (epoch != _epoch || state.points.isNotEmpty) return;
+          state = state.copyWith(
+            points: cached.value,
+            loading: false,
+            refreshing: true,
+            fromCache: true,
+            storedAt: cached.storedAt,
+          );
+        },
       );
       if (epoch != _epoch) return;
       state = state.copyWith(

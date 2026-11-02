@@ -22,11 +22,20 @@ class BayiRepository {
   final ApiClient api;
 
   /// Ekran yüklemeleri 403'ü kendi "yetkiniz yok" durumuyla gösterir (genel bildirim gösterilmez).
+  /// [cache]: yanıt önbelleğe yazılır (ilk sayfa, varsayılan süzgeç, ayrıntı; aramalar değil).
   Future<T> _get<T>(
     String path, {
     required JsonParser<T> parse,
     Map<String, dynamic>? query,
-  }) => api.get(path, parse: parse, query: query, quiet403: true);
+    bool cache = false,
+  }) => api.get(path, parse: parse, query: query, quiet403: true, cache: cache);
+
+  /// Önbellekteki son yanıt (ağa çıkmaz): ekran açılışta hemen gösterir, sonra sunucudan tazeler.
+  Future<CachedResponse<T>?> _peek<T>(
+    String path, {
+    required JsonParser<T> parse,
+    Map<String, dynamic>? query,
+  }) => api.peek(path, parse: parse, query: query);
 
   static const deskPageSize = 50;
   static const listPageSize = 25;
@@ -66,8 +75,14 @@ class BayiRepository {
       );
 
   /// Süzgeç seçenekleri (eski masa ucu).
-  Future<DeskFacets> quoteDeskFacets() =>
-      _get('stations/me/quote-desk/facets', parse: DeskFacets.fromJson);
+  Future<DeskFacets> quoteDeskFacets() => _get(
+    'stations/me/quote-desk/facets',
+    parse: DeskFacets.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<DeskFacets>?> peekQuoteDeskFacets() =>
+      _peek('stations/me/quote-desk/facets', parse: DeskFacets.fromJson);
 
   /// Toplu teklif: satır sonuçları istek sırasıyla döner.
   Future<List<DeskSubmitResult>> submitQuotes(
@@ -91,22 +106,57 @@ class BayiRepository {
   }) => _get(
     'bayi/orders',
     query: filter.toQuery(page: page, pageSize: pageSize),
-    parse: (j) => PagedResult.fromJson(j, BayiOrderRow.fromJson),
+    parse: _parseOrders,
+    cache: page == 1 && filter.q.trim().isEmpty,
   );
 
-  Future<BayiOrderCounts> orderCounts() =>
-      _get('bayi/orders/counts', parse: BayiOrderCounts.fromJson);
+  /// Süzgecin önbellekteki ilk sayfası (aramada yok).
+  Future<CachedResponse<PagedResult<BayiOrderRow>>?> peekOrders(
+    BayiOrdersFilter filter, {
+    int pageSize = listPageSize,
+  }) async => filter.q.trim().isNotEmpty
+      ? null
+      : _peek(
+          'bayi/orders',
+          query: filter.toQuery(page: 1, pageSize: pageSize),
+          parse: _parseOrders,
+        );
+
+  static PagedResult<BayiOrderRow> _parseOrders(Object? j) =>
+      PagedResult.fromJson(j, BayiOrderRow.fromJson);
+
+  Future<BayiOrderCounts> orderCounts() => _get(
+    'bayi/orders/counts',
+    parse: BayiOrderCounts.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<BayiOrderCounts>?> peekOrderCounts() =>
+      _peek('bayi/orders/counts', parse: BayiOrderCounts.fromJson);
 
   Future<OrderDetail> order(int id) =>
-      _get('orders/$id', parse: OrderDetail.fromJson);
+      _get('orders/$id', parse: OrderDetail.fromJson, cache: true);
 
-  Future<List<OrderTimelineItem>> orderTimeline(int id) => _get(
-    'orders/$id/timeline',
-    parse: (j) => JsonReader.parseList(j, OrderTimelineItem.fromJson),
+  Future<CachedResponse<OrderDetail>?> peekOrder(int id) =>
+      _peek('orders/$id', parse: OrderDetail.fromJson);
+
+  Future<List<OrderTimelineItem>> orderTimeline(int id) =>
+      _get('orders/$id/timeline', parse: _parseTimeline, cache: true);
+
+  Future<CachedResponse<List<OrderTimelineItem>>?> peekOrderTimeline(int id) =>
+      _peek('orders/$id/timeline', parse: _parseTimeline);
+
+  static List<OrderTimelineItem> _parseTimeline(Object? j) =>
+      JsonReader.parseList(j, OrderTimelineItem.fromJson);
+
+  Future<Fulfillment> fulfillment(int orderId) => _get(
+    'shipments/order/$orderId',
+    parse: Fulfillment.fromJson,
+    cache: true,
   );
 
-  Future<Fulfillment> fulfillment(int orderId) =>
-      _get('shipments/order/$orderId', parse: Fulfillment.fromJson);
+  Future<CachedResponse<Fulfillment>?> peekFulfillment(int orderId) =>
+      _peek('shipments/order/$orderId', parse: Fulfillment.fromJson);
 
   /// Tekil teklif (sipariş ayrıntısı). Teslim günü Türkiye yerel gece yarısı olarak gider.
   Future<void> quoteOrder(
@@ -132,10 +182,31 @@ class BayiRepository {
   }) => _get(
     'bayi/customers',
     query: {'q': q.trim(), 'page': page, 'pageSize': pageSize},
-    parse: (j) => PagedResult.fromJson(j, BayiCustomerRow.fromJson),
+    parse: _parseCustomers,
+    cache: page == 1 && q.trim().isEmpty,
   );
 
+  /// Carilerin önbellekteki ilk sayfası (aramasız liste).
+  Future<CachedResponse<PagedResult<BayiCustomerRow>>?> peekCustomers({
+    int pageSize = listPageSize,
+  }) => _peek(
+    'bayi/customers',
+    query: {'q': '', 'page': 1, 'pageSize': pageSize},
+    parse: _parseCustomers,
+  );
+
+  static PagedResult<BayiCustomerRow> _parseCustomers(Object? j) =>
+      PagedResult.fromJson(j, BayiCustomerRow.fromJson);
+
   Future<CustomerSummary> customerSummary(int customerId) => _get(
+    'bayi/customers/$customerId/summary',
+    parse: CustomerSummary.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<CustomerSummary>?> peekCustomerSummary(
+    int customerId,
+  ) => _peek(
     'bayi/customers/$customerId/summary',
     parse: CustomerSummary.fromJson,
   );
@@ -172,6 +243,14 @@ class BayiRepository {
     'shipments/board',
     query: {'from': from == null ? null : BayiJson.isoDate(from), 'days': days},
     parse: ShipmentBoard.fromJson,
+    cache: from == null,
+  );
+
+  /// Varsayılan panonun (bugünden 7 gün) önbellekteki son hâli.
+  Future<CachedResponse<ShipmentBoard>?> peekBoard({int days = 7}) => _peek(
+    'shipments/board',
+    query: {'days': days},
+    parse: ShipmentBoard.fromJson,
   );
 
   Future<BoardSuggestions> boardSuggestions() =>
@@ -194,10 +273,33 @@ class BayiRepository {
       today: TrTime.todayStart(),
     ),
     parse: ShipmentListPage.fromJson,
+    cache: page == 1 && filter.search.trim().isEmpty,
   );
 
-  Future<ShipmentDetail> shipmentDetail(int id) =>
-      _get('shipments/$id/detail', parse: ShipmentDetail.fromJson);
+  /// Süzgecin önbellekteki ilk sayfası (aramada yok).
+  Future<CachedResponse<ShipmentListPage>?> peekShipments(
+    ShipmentListFilter filter, {
+    int pageSize = listPageSize,
+  }) async => filter.search.trim().isNotEmpty
+      ? null
+      : _peek(
+          'shipments',
+          query: filter.toQuery(
+            page: 1,
+            pageSize: pageSize,
+            today: TrTime.todayStart(),
+          ),
+          parse: ShipmentListPage.fromJson,
+        );
+
+  Future<ShipmentDetail> shipmentDetail(int id) => _get(
+    'shipments/$id/detail',
+    parse: ShipmentDetail.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<ShipmentDetail>?> peekShipmentDetail(int id) =>
+      _peek('shipments/$id/detail', parse: ShipmentDetail.fromJson);
 
   /// Sevkiyat planla (`PlanShipmentRequest`). `scheduledAt` Türkiye yerel, ofsetsiz gider.
   Future<void> planShipment(
@@ -241,10 +343,14 @@ class BayiRepository {
 
   // ------------------------------------------------------------------ Ekip
 
-  Future<List<StaffMember>> staff() => _get(
-    'stations/me/staff',
-    parse: (j) => JsonReader.parseList(j, StaffMember.fromJson),
-  );
+  Future<List<StaffMember>> staff() =>
+      _get('stations/me/staff', parse: _parseStaff, cache: true);
+
+  Future<CachedResponse<List<StaffMember>>?> peekStaff() =>
+      _peek('stations/me/staff', parse: _parseStaff);
+
+  static List<StaffMember> _parseStaff(Object? j) =>
+      JsonReader.parseList(j, StaffMember.fromJson);
 
   Future<void> setStaffActive(String userId, bool active) => api.post<void>(
     'stations/me/staff/${Uri.encodeComponent(userId)}/active',

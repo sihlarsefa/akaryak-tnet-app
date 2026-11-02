@@ -55,6 +55,18 @@ abstract final class BayiCopy {
   /// Finans ek bilgi istedi: kimin yapacağı (v4 B16).
   static const financeInfoFromCustomer = 'Müşteriden bilgi bekleniyor';
 
+  /// Finans onayındaki siparişte izleyenin düğmesi yokken alt çubuğun notu (her sipariş finans
+  /// onayına düşer; teklif onaydan sonra verilir).
+  static const financePendingNote =
+      'Finans onayı bekleniyor. Teklif ve sevkiyat onaydan sonra açılır.';
+
+  /// Önbellekteki ayrıntı tazelenirken alt çubuk (eski durumla işlem yapılmaz).
+  static const dockRefreshing = 'Güncelleniyor… İşlemler birazdan açılır.';
+
+  /// Önbellekteki ayrıntı tazelenemedi (çevrimdışı, sunucu meşgul).
+  static const dockStale =
+      'Güncel hâli alınamadı. İşlem için aşağı çekip yenileyin.';
+
   // Cariler
   static const customersEmptyTitle = 'Cari bulunamadı';
   static const customersEmptyMessage =

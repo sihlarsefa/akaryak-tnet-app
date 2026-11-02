@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,28 +6,56 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/paged_result.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/cache_first.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../approvals/api.dart';
 import '../data/payment_models.dart';
 import '../data/payments_repository.dart';
 
-/// Ödemeler listesi (süzgeç başına).
+/// Ödemeler listesi (süzgeç başına). Önce önbellekteki ilk sayfa, hemen ardından sunucu.
 final paymentsListProvider = NotifierProvider.autoDispose
     .family<PaymentsListController, PagedState<PaymentRow>, PaymentsQuery>(
       PaymentsListController.new,
     );
 
 class PaymentsListController extends PagedNotifier<PaymentRow, PaymentsQuery> {
+  final _first = FirstPageCache();
+  bool _alive = true;
+
   @override
-  Future<PagedResult<PaymentRow>> fetchPage(PaymentsQuery q, int page) => ref
-      .read(paymentsRepositoryProvider)
-      .list(q, page: page, pageSize: pageSize);
+  PagedState<PaymentRow> build(PaymentsQuery arg) {
+    _alive = true;
+    ref.onDispose(() => _alive = false);
+    _listenRevalidate();
+    return super.build(arg);
+  }
+
+  void _listenRevalidate() => ref.listen(revalidateProvider, (_, e) {
+    final s = state;
+    if (e == null || s.loading || s.refreshing) return;
+    if (Freshness.isStale(s.loadedAt, Freshness.list)) unawaited(refresh());
+  });
+
+  @override
+  Future<PagedResult<PaymentRow>> fetchPage(PaymentsQuery q, int page) {
+    final repo = ref.read(paymentsRepositoryProvider);
+    if (page != 1) return repo.list(q, page: page, pageSize: pageSize);
+    return _first.page1(
+      peek: () => repo.peekList(q, pageSize: pageSize),
+      network: () => repo.list(q, pageSize: pageSize),
+      revalidate: () {
+        if (_alive) unawaited(refresh());
+      },
+    );
+  }
 
   @override
   Object? keyOf(PaymentRow item) => item.orderId;
 }
 
-/// Çek / senet portföyü (süzgeç başına).
+/// Çek / senet portföyü (süzgeç başına). Önce önbellekteki ilk sayfa, hemen ardından sunucu.
 final instrumentsListProvider = NotifierProvider.autoDispose
     .family<
       InstrumentsListController,
@@ -36,21 +65,55 @@ final instrumentsListProvider = NotifierProvider.autoDispose
 
 class InstrumentsListController
     extends PagedNotifier<Instrument, InstrumentsQuery> {
+  final _first = FirstPageCache();
+  bool _alive = true;
+
   @override
-  Future<PagedResult<Instrument>> fetchPage(InstrumentsQuery q, int page) => ref
-      .read(paymentsRepositoryProvider)
-      .instruments(q, page: page, pageSize: pageSize);
+  PagedState<Instrument> build(InstrumentsQuery arg) {
+    _alive = true;
+    ref.onDispose(() => _alive = false);
+    ref.listen(revalidateProvider, (_, e) {
+      final s = state;
+      if (e == null || s.loading || s.refreshing) return;
+      if (Freshness.isStale(s.loadedAt, Freshness.list)) unawaited(refresh());
+    });
+    return super.build(arg);
+  }
+
+  @override
+  Future<PagedResult<Instrument>> fetchPage(InstrumentsQuery q, int page) {
+    final repo = ref.read(paymentsRepositoryProvider);
+    if (page != 1) return repo.instruments(q, page: page, pageSize: pageSize);
+    return _first.page1(
+      peek: () => repo.peekInstruments(q, pageSize: pageSize),
+      network: () => repo.instruments(q, pageSize: pageSize),
+      revalidate: () {
+        if (_alive) unawaited(refresh());
+      },
+    );
+  }
 
   @override
   Object? keyOf(Instrument item) => item.id;
 }
 
-/// Ödeme ayrıntısı.
-final paymentDetailProvider = FutureProvider.autoDispose
-    .family<PaymentDetail, int>((ref, orderId) {
-      ref.watch(currentUserIdProvider);
-      return ref.read(paymentsRepositoryProvider).detail(orderId);
-    });
+/// Ödeme ayrıntısı: önce önbellekteki kayıt, arka planda sunucu (değer kalır). Durum değişikliği
+/// kaydın sürüm belirteciyle gider; eskiyse sunucu 409 döner, kayıt yeniden okunur.
+final paymentDetailProvider = AsyncNotifierProvider.autoDispose
+    .family<PaymentDetailController, PaymentDetail, int>(
+      PaymentDetailController.new,
+    );
+
+class PaymentDetailController
+    extends CacheFirstFamilyAsyncNotifier<PaymentDetail, int> {
+  @override
+  Future<CachedResponse<PaymentDetail>?> peek(int arg) =>
+      ref.read(paymentsRepositoryProvider).peekDetail(arg);
+
+  @override
+  Future<PaymentDetail> fetch(int arg) =>
+      ref.read(paymentsRepositoryProvider).detail(arg);
+}
 
 /// Cari süzgeci araması.
 final paymentCustomersProvider = FutureProvider.autoDispose

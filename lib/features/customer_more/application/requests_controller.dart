@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/media/image_capture.dart';
 import '../../../core/models/enums.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/cache_first.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/utils/turkish_text.dart';
 import '../../approvals/api.dart'
@@ -78,6 +80,29 @@ class RequestsController extends AutoDisposeNotifier<RequestsState> {
           ? s.page.copyWith(refreshing: true, clearError: true)
           : PagedState<OrderRequest>(items: s.page.items),
     );
+    if (!refresh && s.page.items.isEmpty) {
+      // Önce önbellekteki ilk sayfa, hemen ardından sunucu.
+      try {
+        final hit = await _repo.peekOrderRequests(
+          take: take,
+          statuses: s.segment.statuses,
+        );
+        if (epoch != _epoch) return;
+        if (hit != null) {
+          final r = hit.value;
+          state = state.copyWith(
+            page: PagedState(
+              items: r.items,
+              total: r.totalCount,
+              hasMore: false,
+              refreshing: true,
+              fromCache: true,
+              storedAt: hit.storedAt,
+            ),
+          );
+        }
+      } catch (_) {}
+    }
     try {
       final res = await _repo.orderRequests(
         take: take,
@@ -150,12 +175,22 @@ class RequestsController extends AutoDisposeNotifier<RequestsState> {
   }
 }
 
-/// Talep ayrıntısı.
-final orderRequestProvider = FutureProvider.autoDispose
-    .family<OrderRequest, int>((ref, id) {
-      ref.watch(currentUserIdProvider);
-      return ref.read(customerMoreRepositoryProvider).orderRequest(id);
-    });
+/// Talep ayrıntısı: önce önbellekteki kayıt, arka planda sunucu (değer kalır).
+final orderRequestProvider = AsyncNotifierProvider.autoDispose
+    .family<OrderRequestController, OrderRequest, int>(
+      OrderRequestController.new,
+    );
+
+class OrderRequestController
+    extends CacheFirstFamilyAsyncNotifier<OrderRequest, int> {
+  @override
+  Future<CachedResponse<OrderRequest>?> peek(int arg) =>
+      ref.read(customerMoreRepositoryProvider).peekOrderRequest(arg);
+
+  @override
+  Future<OrderRequest> fetch(int arg) =>
+      ref.read(customerMoreRepositoryProvider).orderRequest(arg);
+}
 
 /// Şirket içi talebin onay kaydındaki konu türü (sunucu `CompanyOrderRequestApprovalSource`).
 const companyRequestSubjectType = 'CustomerOrderRequest';

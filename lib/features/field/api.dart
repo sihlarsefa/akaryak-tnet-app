@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/offline/outbox_runner.dart';
 import 'data/field_outbox.dart';
 
+export 'application/field_home_controller.dart' show fieldHomeProvider;
 export 'application/tupras_prices.dart'
     show TuprasPrice, TuprasSnapshot, tuprasPricesProvider;
 export 'field_routes.dart' show fieldRoutes;

@@ -78,6 +78,9 @@ class SessionController extends Notifier<SessionState> {
       'Oturumunuz kapatıldı. Yeniden giriş yapın.';
   static const accessRefreshInterval = Duration(minutes: 15);
 
+  /// Öne gelmede `me/access` en çok bu sıklıkla okunur.
+  static const resumeAccessInterval = Duration(minutes: 5);
+
   /// Uygulamanın açtığı dış etkinlikten (kamera, paylaşım, tarayıcı) dönüşte kilit için hoşgörü.
   static const externalActivityGrace = Duration(minutes: 10);
 
@@ -211,14 +214,16 @@ class SessionController extends Notifier<SessionState> {
 
   // ------------------------------------------------------------------ Yetkiler
 
-  /// `me/access` yeniden okur (sessiz; hata fırlatmaz). [force] değilse 60 sn içinde tekrar gitmez.
-  Future<void> refreshAccess({bool force = false}) async {
+  /// `me/access` yeniden okur (sessiz; hata fırlatmaz). [force] değilse [minInterval] içinde tekrar
+  /// gitmez (403 sonrası 60 sn; öne gelmede [resumeAccessInterval]).
+  Future<void> refreshAccess({
+    bool force = false,
+    Duration minInterval = const Duration(seconds: 60),
+  }) async {
     final current = state;
     if (current is! SessionAuthenticated && current is! SessionLocked) return;
     final last = _lastAccessFetch;
-    if (!force &&
-        last != null &&
-        DateTime.now().difference(last) < const Duration(seconds: 60)) {
+    if (!force && last != null && DateTime.now().difference(last) < minInterval) {
       return;
     }
     _lastAccessFetch = DateTime.now();
@@ -408,7 +413,9 @@ class SessionController extends Notifier<SessionState> {
             DateTime.now().difference(pausedAt) > grace) {
           lock();
         }
-        unawaited(refreshAccess());
+        // Yetkiler 15 dakikada bir ve 403 sonrası zaten tazelenir; her öne gelişte değil (sık uygulama
+        // değişiminde istek yağmuru olmasın).
+        unawaited(refreshAccess(minInterval: resumeAccessInterval));
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
         break;

@@ -211,10 +211,29 @@ class CustomerMoreRepository {
     'shipments',
     query: query.toQuery(page: page, pageSize: pageSize),
     parse: ShipmentListPage.fromJson,
+    cache: page == 1 && (query.search?.trim().isEmpty ?? true),
   );
 
-  Future<ShipmentDetail> shipmentDetail(int id) =>
-      api.get('shipments/$id/detail', parse: ShipmentDetail.fromJson);
+  /// Süzgecin önbellekteki ilk sayfası (aramada yok).
+  Future<CachedResponse<ShipmentListPage>?> peekShipments(
+    ShipmentQuery query, {
+    int pageSize = 25,
+  }) async => (query.search?.trim().isNotEmpty ?? false)
+      ? null
+      : api.peek(
+          'shipments',
+          query: query.toQuery(page: 1, pageSize: pageSize),
+          parse: ShipmentListPage.fromJson,
+        );
+
+  Future<ShipmentDetail> shipmentDetail(int id) => api.get(
+    'shipments/$id/detail',
+    parse: ShipmentDetail.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<ShipmentDetail>?> peekShipmentDetail(int id) =>
+      api.peek('shipments/$id/detail', parse: ShipmentDetail.fromJson);
 
   /// Teslimatı kabul (204). Idempotency-Key aynı niyetin tekrarında aynı kalır.
   Future<void> acceptShipment(int id, {required String idempotencyKey}) =>
@@ -355,18 +374,45 @@ class CustomerMoreRepository {
     List<CustomerOrderRequestStatus> statuses = const [],
   }) => api.get(
     'customers/me/order-requests',
-    query: {
-      'skip': skip,
-      'take': take,
-      'statuses': [for (final s in statuses) s.code],
-    },
-    parse: (j) => PagedResult.fromJson(j, OrderRequest.fromJson),
+    query: _requestsQuery(skip: skip, take: take, statuses: statuses),
+    parse: _parseRequests,
+    cache: skip == 0,
   );
+
+  /// Talep listesinin önbellekteki ilk sayfası.
+  Future<CachedResponse<PagedResult<OrderRequest>>?> peekOrderRequests({
+    int take = 25,
+    List<CustomerOrderRequestStatus> statuses = const [],
+  }) => api.peek(
+    'customers/me/order-requests',
+    query: _requestsQuery(skip: 0, take: take, statuses: statuses),
+    parse: _parseRequests,
+  );
+
+  static Map<String, dynamic> _requestsQuery({
+    required int skip,
+    required int take,
+    required List<CustomerOrderRequestStatus> statuses,
+  }) => {
+    'skip': skip,
+    'take': take,
+    'statuses': [for (final s in statuses) s.code],
+  };
+
+  static PagedResult<OrderRequest> _parseRequests(Object? j) =>
+      PagedResult.fromJson(j, OrderRequest.fromJson);
 
   Future<OrderRequest> orderRequest(int id) => api.get(
     'customers/me/order-requests/$id',
-    parse: (j) => OrderRequest.fromJson(JsonReader.of(j)),
+    parse: _parseRequest,
+    cache: true,
   );
+
+  Future<CachedResponse<OrderRequest>?> peekOrderRequest(int id) =>
+      api.peek('customers/me/order-requests/$id', parse: _parseRequest);
+
+  static OrderRequest _parseRequest(Object? j) =>
+      OrderRequest.fromJson(JsonReader.of(j));
 
   Future<String?> cancelOrderRequest(int id) => api.post(
     'customers/me/order-requests/$id/cancel',
@@ -390,15 +436,28 @@ class CustomerMoreRepository {
 
   // ------------------------------------------------------------------ Finans bilgisi
 
-  Future<FinanceInfo> financeInfo() =>
-      api.get('customers/me/finance-info', parse: FinanceInfo.fromJson);
+  Future<FinanceInfo> financeInfo() => api.get(
+    'customers/me/finance-info',
+    parse: FinanceInfo.fromJson,
+    cache: true,
+  );
+
+  Future<CachedResponse<FinanceInfo>?> peekFinanceInfo() =>
+      api.peek('customers/me/finance-info', parse: FinanceInfo.fromJson);
 
   // ------------------------------------------------------------------ Şirket kullanıcıları
 
   Future<List<CompanyUser>> companyUsers() => api.get(
     'customers/me/company-users',
-    parse: (j) => JsonReader.parseList(j, CompanyUser.fromJson),
+    parse: _parseCompanyUsers,
+    cache: true,
   );
+
+  Future<CachedResponse<List<CompanyUser>>?> peekCompanyUsers() =>
+      api.peek('customers/me/company-users', parse: _parseCompanyUsers);
+
+  static List<CompanyUser> _parseCompanyUsers(Object? j) =>
+      JsonReader.parseList(j, CompanyUser.fromJson);
 
   /// Yeni şirket kullanıcısı. Kullanıcı adı zorunlu; şifre verilirse kullanıcı hemen girer, verilmezse
   /// e-postaya davet bağlantısı gider (e-posta o zaman zorunlu). Boş e-posta / şifre gönderilmez.

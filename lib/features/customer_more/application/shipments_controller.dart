@@ -7,8 +7,10 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/media/image_capture.dart';
 import '../../../core/models/enums.dart';
 import '../../../core/models/shipment.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/network/idempotency.dart';
+import '../../../core/offline/cache_first.dart';
 import '../../customer_orders/api.dart' show a2DataRevisionProvider;
 import '../data/customer_more_repository.dart';
 import '../data/shipments.dart';
@@ -116,6 +118,27 @@ class ShipmentsController extends AutoDisposeNotifier<ShipmentsState> {
           ? s.page.copyWith(refreshing: true, clearError: true)
           : PagedState<ShipmentListItem>(loading: true, items: s.page.items),
     );
+    if (!refresh) {
+      // Önce önbellekteki ilk sayfa (iskelet yerine), hemen ardından sunucu.
+      try {
+        final hit = await _repo.peekShipments(_query(s), pageSize: pageSize);
+        if (epoch != _epoch) return;
+        if (hit != null) {
+          final r = hit.value;
+          state = state.copyWith(
+            counts: r.counts,
+            page: PagedState(
+              items: r.items,
+              total: r.totalFiltered,
+              hasMore: false,
+              refreshing: true,
+              fromCache: true,
+              storedAt: hit.storedAt,
+            ),
+          );
+        }
+      } catch (_) {}
+    }
     try {
       final res = await _repo.shipments(_query(s), pageSize: pageSize);
       if (epoch != _epoch) return;
@@ -202,12 +225,22 @@ class ShipmentsController extends AutoDisposeNotifier<ShipmentsState> {
   }
 }
 
-/// `GET shipments/{id}/detail`.
-final shipmentDetailProvider = FutureProvider.autoDispose
-    .family<ShipmentDetail, int>((ref, id) {
-      ref.watch(currentUserIdProvider);
-      return ref.read(customerMoreRepositoryProvider).shipmentDetail(id);
-    });
+/// `GET shipments/{id}/detail`: önce önbellekteki ayrıntı, arka planda sunucu (değer kalır).
+final shipmentDetailProvider = AsyncNotifierProvider.autoDispose
+    .family<CustomerShipmentDetailController, ShipmentDetail, int>(
+      CustomerShipmentDetailController.new,
+    );
+
+class CustomerShipmentDetailController
+    extends CacheFirstFamilyAsyncNotifier<ShipmentDetail, int> {
+  @override
+  Future<CachedResponse<ShipmentDetail>?> peek(int arg) =>
+      ref.read(customerMoreRepositoryProvider).peekShipmentDetail(arg);
+
+  @override
+  Future<ShipmentDetail> fetch(int arg) =>
+      ref.read(customerMoreRepositoryProvider).shipmentDetail(arg);
+}
 
 /// İtiraz için seçilen fotoğraf (önce yüklenir, sonra itiraz gönderilir).
 @immutable

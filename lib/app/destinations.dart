@@ -552,11 +552,17 @@ NavLayout buildNavLayout(AccessPolicy p, AppFeatures f) {
 
 /// Oturumdaki kullanıcının alt menüsü (v4 §3.1: girişte sabit). Yalnızca yetki imzası ya da Asistan
 /// erişimi değişince yeniden hesaplanır (yönlendirici buna bağlıdır).
+///
+/// Politika türetilmiş [accessPolicyProvider]'dan değil, oturumun kendisinden kurulur: yönlendiricinin
+/// oturum dinleyicisi bu sağlayıcıyı, Riverpod türetilmiş sağlayıcıları kirli işaretlemeden önce okur
+/// (dinleyiciler `_markDependencyChanged`'dan önce çalışır). Soğuk açılışta (SessionUnknown →
+/// SessionAuthenticated / SessionLocked) eski, oturumsuz politika boş menü veriyor, boş menü önbellekte
+/// kalıyor ve kabuk hiç kurulmuyordu: TestFlight 4–10'da her yeniden açılışta alt çubuk yoktu.
 final navLayoutProvider = Provider<NavLayout>((ref) {
   ref.watch(sessionControllerProvider.select((s) => s.access?.layoutKey));
   final assistant = ref.watch(assistantEnabledProvider);
   return buildNavLayout(
-    ref.read(accessPolicyProvider),
+    AccessPolicy(ref.read(sessionControllerProvider).access),
     AppFeatures(assistant: assistant),
   );
 });

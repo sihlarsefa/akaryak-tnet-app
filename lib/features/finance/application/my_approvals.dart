@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/access_policy.dart';
+import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/env/app_config_controller.dart';
 import '../../../core/models/enums.dart';
@@ -25,8 +27,11 @@ abstract final class ApprovalSubjects {
 class MyApprovals {
   const MyApprovals(this.bySubject, {this.total = 0, this.complete = true});
 
-  /// Onaylar'ı açamayan ya da listesi yüklenemeyen izleyen: hiçbiri onun sırası değil.
+  /// Onaylar'ı açamayan izleyen: hiçbiri onun sırası değil.
   static const none = MyApprovals({});
+
+  /// Bende okunamadı (429, 503, zaman aşımı): bilinmiyor, "sırası değil" denmez.
+  static const unread = MyApprovals({}, complete: false);
 
   /// Konu kimliği → talep (Bende'nin okunan sayfası).
   final Map<int, ApprovalRow> bySubject;
@@ -46,8 +51,11 @@ class MyApprovals {
 /// satırlar izleyenin sırasıdır.
 ///
 /// * İzleyen Onaylar'ı açamıyorsa [MyApprovals.none] (sıra onda değil; istek atılmaz).
-/// * Liste yüklenirken null (çağıran beklerken iyimser davranabilir); yüklenemezse
-///   [MyApprovals.none].
+/// * Liste yüklenirken null (çağıran beklerken iyimser davranabilir); yüklenemezse (429, 503,
+///   zaman aşımı) boş ama **eksik** ([MyApprovals.complete] false): "sırası değil" sonucu çıkarılmaz,
+///   çağıran konunun kendi talebini (ör. siparişin `financeApprovalRequestId`) açar; karar sayfası
+///   yetkiyi yine denetler. Eskiden [MyApprovals.none] dönüyordu ve bir kez 429 alan finans birimi
+///   siparişte "Finans kararını ver" çubuğunu hiç görmüyordu.
 /// * Bende'nin ilk sayfası (25 satır) okunur; devamı varsa [MyApprovals.complete] false olur ve
 ///   çağıran bulamadığı talep için Onaylar'ı ([approvalsOfType]) açar.
 final myApprovalsBySubjectProvider = Provider.autoDispose
@@ -63,7 +71,12 @@ final myApprovalsBySubjectProvider = Provider.autoDispose
           ApprovalsQuery(scope: ApprovalScope.toMe, type: key.type),
         ),
       );
-      if (!s.hasData) return s.error == null ? null : MyApprovals.none;
+      if (!s.hasData) {
+        if (s.error == null) return null;
+        // Okunamadı: türü imzalayabilen için "bilinmiyor" (kendi talebini açar); imzalayamayan için
+        // sıra onun değil (satır içi "Onay talebini aç" kalır).
+        return _maySign(policy, key.type) ? MyApprovals.unread : MyApprovals.none;
+      }
       return MyApprovals(
         {
           for (final a in s.items)
@@ -76,6 +89,20 @@ final myApprovalsBySubjectProvider = Provider.autoDispose
         complete: !s.hasMore,
       );
     });
+
+/// İzleyen bu türün kararını verebilir mi (imza yetkinlikleri; merkez her türü izler). Bilinmeyen
+/// türde true (sunucu karar sayfasında yine denetler).
+bool _maySign(AccessPolicy p, ApprovalType type) {
+  if (p.isPlatform) return true;
+  final code = switch (type) {
+    ApprovalType.orderFinance => Caps.approveFinanceOrder,
+    ApprovalType.customerOnboarding => Caps.approveFinanceOnboarding,
+    ApprovalType.leadFinance => Caps.approveFinanceLead,
+    _ => null,
+  };
+  if (code == null) return true;
+  return p.access?.signingOrCapabilities.any((c) => c.code == code) ?? false;
+}
 
 /// Yeni cari finans onayları (finans kartı ve listesi): konu StationCustomer = kartın kimliği.
 const onboardingApprovals = (

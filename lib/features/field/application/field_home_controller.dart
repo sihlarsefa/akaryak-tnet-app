@@ -7,6 +7,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/models/json.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/utils/tr_time.dart';
 import '../data/field_models.dart';
 import '../data/field_repository.dart';
@@ -100,15 +101,31 @@ final fieldHomeProvider =
 class FieldHomeController extends AutoDisposeNotifier<FieldHomeState> {
   int _epoch = 0;
 
+  /// Sağlayıcı kapandı (sayfa ayrıldı, uygulama kapandı): bekleyen yükleme durumu yazmaz.
+  bool _disposed = false;
+
   static const _cacheName = 'field.home';
 
   @override
   FieldHomeState build() {
+    _disposed = false;
+    ref.onDispose(() {
+      _disposed = true;
+      _epoch++;
+    });
     ref.listen<int>(fieldSyncTickProvider, (_, _) => unawaited(refresh()));
     ref.watch(currentUserIdProvider);
+    // Sekme dönüşü ve öne gelme: veri eskidiyse sessizce tazelenir.
+    ref.listen(revalidateProvider, (_, e) {
+      if (e == null || state.loading || state.refreshing) return;
+      final at = state.cachedAt ?? _loadedAt;
+      if (Freshness.isStale(at, Freshness.home)) unawaited(refresh());
+    });
     Future.microtask(_initial);
     return const FieldHomeState();
   }
+
+  DateTime? _loadedAt;
 
   String? get _cacheKey {
     final uid = ref.read(currentUserIdProvider);
@@ -116,9 +133,11 @@ class FieldHomeController extends AutoDisposeNotifier<FieldHomeState> {
   }
 
   Future<void> _initial() async {
+    if (_disposed) return;
     final key = _cacheKey;
     if (key != null) {
       final cached = await ref.read(cacheStoreProvider).read(key);
+      if (_disposed) return;
       if (cached != null && state.data == null) {
         try {
           state = FieldHomeState(
@@ -136,6 +155,7 @@ class FieldHomeController extends AutoDisposeNotifier<FieldHomeState> {
   }
 
   Future<void> refresh() async {
+    if (_disposed) return;
     final epoch = ++_epoch;
     state = FieldHomeState(
       data: state.data,
@@ -242,6 +262,7 @@ class FieldHomeController extends AutoDisposeNotifier<FieldHomeState> {
     }
     final data = FieldHomeData.fromRaw(raw);
     state = FieldHomeState(data: data, loading: false);
+    _loadedAt = DateTime.now().toUtc();
     final key = _cacheKey;
     if (key != null) {
       await ref

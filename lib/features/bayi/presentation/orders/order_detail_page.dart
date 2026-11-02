@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/permissions.dart';
+import '../../../../core/auth/session_controller.dart';
 import '../../../../core/models/models.dart';
 import '../../../../core/offline/connectivity.dart';
 import '../../../../core/routing/app_location.dart';
@@ -188,15 +190,31 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
     final mine = financeWait && g.viewApprovals
         ? ref.watch(myApprovalsBySubjectProvider(orderFinanceApprovals))
         : MyApprovals.none;
+    // Sipariş finans onayını imzalayan (Finans birimi): Bende yüklenirken çubuk beklemez, siparişin
+    // kendi talebini açar (sağlayıcının izin verdiği iyimserlik; karar sayfası yetkiyi denetler).
+    final signsFinance = ref.watch(
+      accessPolicyProvider.select(
+        (p) =>
+            p.access?.signingOrCapabilities.any(
+              (c) => c.code == Caps.approveFinanceOrder,
+            ) ??
+            false,
+      ),
+    );
     final request = o == null ? null : mine?[o.id];
-    final int? financeRequestId =
-        o == null ||
-            !financeWait ||
-            mine == null ||
-            (request == null &&
-                (mine.complete || o.financeApprovalRequestId == null))
-        ? null
-        : request?.id ?? o.financeApprovalRequestId;
+    final int? financeRequestId;
+    if (o == null || !financeWait) {
+      financeRequestId = null;
+    } else if (mine == null) {
+      financeRequestId = signsFinance ? o.financeApprovalRequestId : null;
+    } else if (request != null) {
+      financeRequestId = request.id;
+    } else if (!mine.complete) {
+      // Bende okunamadı ya da devamı okunmadı: birincil talep açılır.
+      financeRequestId = o.financeApprovalRequestId;
+    } else {
+      financeRequestId = null;
+    }
     return AppScaffold(
       title: 'Sipariş',
       collapsedTitle: o == null
@@ -213,7 +231,25 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
       ],
       actionBar: bundle == null
           ? null
-          : _dock(bundle, actions, financeRequestId: financeRequestId),
+          // Önbellekteki ayrıntı sunucudan doğrulanana kadar eylem sunulmaz (eski durumla teklif /
+          // plan verilmez); çubuk yine görünür ve neyin beklendiğini söyler.
+          : state.fromCache
+          ? ActionBar.note(
+              key: const ValueKey('order-dock-refreshing'),
+              icon: PhosphorIconsRegular.arrowsClockwise,
+              text: state.refreshing
+                  ? BayiCopy.dockRefreshing
+                  : BayiCopy.dockStale,
+            )
+          : _dock(bundle, actions, financeRequestId: financeRequestId) ??
+                // Her sipariş finans onayına düşer (sunucu 2e379cb): teklif onaydan sonra verilir.
+                // Çubuk boş kalmaz; neyin beklendiği yazar.
+                (financeWait
+                    ? ActionBar.note(
+                        icon: PhosphorIconsRegular.hourglassHigh,
+                        text: BayiCopy.financePendingNote,
+                      )
+                    : null),
       body: LoadableBody<BayiOrderBundle>(
         state: state,
         onRetry: c.refresh,

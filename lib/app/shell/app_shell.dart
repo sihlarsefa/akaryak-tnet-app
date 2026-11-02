@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/offline/revalidate.dart';
 import '../../core/ui/ui.dart';
 import '../../features/auth/api.dart';
 import '../destinations.dart';
@@ -64,6 +65,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
     final shell = widget.navigationShell;
     shell.goBranch(index, initialLocation: index == shell.currentIndex);
+    // Sekme açık kalır (durumu korunur); verisi eskidiyse arka planda tazelenir.
+    ref.read(revalidateProvider.notifier).tabShown(layout.bar[index].path);
   }
 
   /// Android geri: bir sekme kökünde Ana sayfa'ya (ilk sekmeye) döner.
@@ -72,6 +75,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (shell.currentIndex == 0) return;
     AknHaptics.selection();
     shell.goBranch(0);
+    ref.read(revalidateProvider.notifier).tabShown(widget.layout.bar[0].path);
   }
 
   @override

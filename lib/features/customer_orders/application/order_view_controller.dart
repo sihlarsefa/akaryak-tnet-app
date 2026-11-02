@@ -239,63 +239,93 @@ class OrderViewController
           ? OrderTracking.fromJson(trackingRaw)
           : null;
 
-      PaymentUploadTarget? target;
-      Object? docsRaw;
-      var docs = const <Attachment>[];
       final method = detail.paymentMethodCode;
-      if (method == PaymentCodes.cheque ||
-          method == PaymentCodes.promissoryNote ||
-          method == PaymentCodes.transfer) {
+
+      Future<List<Object?>> attachmentsOf(
+        AttachmentOwnerType type,
+        int id,
+      ) async {
+        final raw = await api.get<Object?>(
+          'attachments',
+          query: {'ownerType': type.code, 'ownerId': id},
+          parse: (j) => j,
+        );
+        return raw is List ? raw : const <Object?>[];
+      }
+
+      // İkinci dalga paralel (eskiden belge hedefi → ekler (sahip başına sırayla) → teslimat özeti →
+      // avans, hepsi seri gidiyordu; alt çubuk bunların sonunu bekliyordu). Yalnızca hedefin
+      // sahibinin ekleri hedefi bekler.
+      Future<({PaymentUploadTarget? target, List<Object?> docs})?>
+      loadDocuments() async {
+        if (method != PaymentCodes.cheque &&
+            method != PaymentCodes.promissoryNote &&
+            method != PaymentCodes.transfer) {
+          return null;
+        }
+        final targetF = repo.documentTarget(
+          methodCode: method,
+          groupKey: detail.paymentGroupKey,
+          orderIds: [arg],
+        );
+        final orderDocsF = attachmentsOf(AttachmentOwnerType.order, arg);
         try {
-          target = await repo.documentTarget(
-            methodCode: method,
-            groupKey: detail.paymentGroupKey,
-            orderIds: [arg],
-          );
-          final owners = <(AttachmentOwnerType, int)>{
-            if (target != null && target.ownerId > 0)
-              (target.ownerType, target.ownerId),
-            (AttachmentOwnerType.order, arg),
-          };
-          final all = <Object?>[];
-          for (final (type, id) in owners) {
-            final raw = await api.get<Object?>(
-              'attachments',
-              query: {'ownerType': type.code, 'ownerId': id},
-              parse: (j) => j,
-            );
-            if (raw is List) all.addAll(raw);
-          }
-          docsRaw = all;
-          docs = JsonReader.parseList(all, Attachment.fromJson);
+          final target = await targetF;
+          final ownDocs =
+              target != null &&
+                  target.ownerId > 0 &&
+                  !(target.ownerType == AttachmentOwnerType.order &&
+                      target.ownerId == arg)
+              ? attachmentsOf(target.ownerType, target.ownerId)
+              : Future.value(const <Object?>[]);
+          final parts = await Future.wait([ownDocs, orderDocsF]);
+          return (target: target, docs: [...parts[0], ...parts[1]]);
         } on AppFailure catch (f) {
+          unawaited(orderDocsF.then<void>((_) {}, onError: (Object _) {}));
           AppLog.debug('Ödeme belgesi durumu alınamadı: $f');
+          return null;
         }
       }
 
       // Kısmi teslimden sonra açık kalan sipariş: neden kapanmadığı (yalnızca bu durumda istenir).
-      String? completionHint;
-      if (OrderView.needsCompletionHint(detail, tracking)) {
+      Future<String?> loadCompletionHint() async {
+        if (!OrderView.needsCompletionHint(detail, tracking)) return null;
         try {
-          completionHint = (await repo.fulfillment(arg)).completionHint;
+          return (await repo.fulfillment(arg)).completionHint;
         } on AppFailure catch (f) {
           AppLog.debug('Teslimat özeti alınamadı: $f');
+          return null;
         }
       }
 
-      double? advance;
-      if (method == PaymentCodes.advance &&
-          detail.status == OrderStatus.awaitingApproval) {
+      Future<double?> loadAdvance() async {
+        if (method != PaymentCodes.advance ||
+            detail.status != OrderStatus.awaitingApproval) {
+          return null;
+        }
         try {
           final o = await repo.paymentOptions(
             stationId: detail.stationId,
             productIds: [detail.productId],
           );
-          advance = o.options.advanceBalance;
+          return o.options.advanceBalance;
         } on AppFailure catch (f) {
           AppLog.debug('Avans bakiyesi alınamadı: $f');
+          return null;
         }
       }
+
+      final documentsF = loadDocuments();
+      final hintF = loadCompletionHint();
+      final advanceF = loadAdvance();
+      final documents = await documentsF;
+      final completionHint = await hintF;
+      final advance = await advanceF;
+      final target = documents?.target;
+      final Object? docsRaw = documents?.docs;
+      final docs = documents == null
+          ? const <Attachment>[]
+          : JsonReader.parseList(documents.docs, Attachment.fromJson);
 
       if (!_alive || epoch != _epoch) return;
       final view = OrderView(

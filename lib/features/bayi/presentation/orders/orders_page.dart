@@ -112,6 +112,11 @@ class _BayiOrdersPageState extends ConsumerState<BayiOrdersPage> {
     final s = ref.watch(bayiOrdersProvider);
     final c = ref.read(bayiOrdersProvider.notifier);
     final g = ref.watch(bayiGrantsProvider);
+    // Satırların "finans onayınızı bekliyor" lambası için Bende listeyle birlikte istenir (eskiden ilk
+    // satır kurulunca, listeden sonra seri gidiyordu).
+    if (g.viewApprovals) {
+      ref.watch(myApprovalsBySubjectProvider(orderFinanceApprovals));
+    }
     final f = s.filter;
     final counts = s.counts;
     final segments = [

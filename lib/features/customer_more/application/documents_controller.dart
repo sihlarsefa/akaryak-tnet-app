@@ -82,6 +82,21 @@ class DocumentsController extends AutoDisposeNotifier<DocumentsState> {
         writeCache: s.query.isDefault,
         fetch: () => _repo.documentArchiveJson(s.query, take: take),
         parse: DocumentArchivePage.fromJson,
+        onCached: (cached) {
+          if (epoch != _epoch || state.page.items.isNotEmpty) return;
+          final res = cached.value;
+          state = state.copyWith(
+            totals: res.totals,
+            page: PagedState(
+              items: res.items,
+              total: res.totals.count,
+              hasMore: false,
+              refreshing: true,
+              fromCache: true,
+              storedAt: cached.storedAt,
+            ),
+          );
+        },
       );
       if (epoch != _epoch) return;
       if (loaded.fromCache && !s.query.isDefault) {

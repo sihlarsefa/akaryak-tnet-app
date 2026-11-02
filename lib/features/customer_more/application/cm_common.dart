@@ -38,8 +38,11 @@ bool isConnectivityFailure(Object error) {
   return f is OfflineFailure || f is TimeoutFailure;
 }
 
-/// Önce sunucu; bağlantı yoksa önbellek. Başarılı yanıt önbelleğe yazılır.
-/// Önbellekte de yoksa özgün hata fırlar.
+/// Önce önbellek, sonra sunucu (2026-11-02; eskiden yalnızca çevrimdışıyken önbellek). [onCached]
+/// verilirse son kayıt sunucu beklenmeden ona verilir (ekran içeriği hemen gösterir, üstte ince
+/// "güncelleniyor" çubuğu); ardından sunucu yanıtı döner ve önbelleğe yazılır. Sunucuya ulaşılamazsa
+/// ya da geçici bir hata varsa (çevrimdışı, zaman aşımı, 429, 5xx) önbellekteki kayıt döner; önbellekte
+/// de yoksa özgün hata fırlar.
 Future<Loaded<T>> loadWithCache<T>({
   required CacheStore cache,
   required String? userId,
@@ -47,8 +50,21 @@ Future<Loaded<T>> loadWithCache<T>({
   required Future<Object?> Function() fetch,
   required T Function(Object? json) parse,
   bool writeCache = true,
+  void Function(Loaded<T> cached)? onCached,
 }) async {
   final key = userId == null ? null : CacheKeys.user(userId, name);
+  if (key != null && writeCache && onCached != null) {
+    try {
+      final entry = await cache.read(key);
+      if (entry != null) {
+        onCached(
+          Loaded(parse(entry.value), fromCache: true, storedAt: entry.storedAt),
+        );
+      }
+    } catch (_) {
+      // Bozuk ya da eski biçimde kayıt: sunucudan yüklenir.
+    }
+  }
   try {
     final json = await fetch();
     if (key != null && writeCache) {
@@ -56,7 +72,7 @@ Future<Loaded<T>> loadWithCache<T>({
     }
     return Loaded(parse(json));
   } catch (e) {
-    if (key == null || !isConnectivityFailure(e)) rethrow;
+    if (key == null || !isFallbackFailure(e)) rethrow;
     final entry = await cache.read(key);
     if (entry == null) rethrow;
     return Loaded(
@@ -65,6 +81,14 @@ Future<Loaded<T>> loadWithCache<T>({
       storedAt: entry.storedAt,
     );
   }
+}
+
+/// Önbelleğe düşülen hata: bağlantı ve geçici sunucu hataları (çevrimdışı, zaman aşımı, 429, 5xx).
+bool isFallbackFailure(Object error) {
+  final f = AppFailure.from(error);
+  return isConnectivityFailure(error) ||
+      f is RateLimitedFailure ||
+      f is ServerFailure;
 }
 
 /// Sonucu belirsiz durum geçişi (zaman aşımı, 400, 409; spec C.4a): varlığı yeniden okuyup hedef

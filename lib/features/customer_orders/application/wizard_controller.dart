@@ -7,11 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/storage/prefs_store.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/log.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
+import '../copy.dart';
 import '../data/customer_orders_repository.dart';
 import '../data/form_models.dart';
 import '../data/home_models.dart';
@@ -229,8 +231,13 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
   Future<void> init(WizardLaunch launch, {bool hasPending = false}) async {
     _frozen = false;
     try {
-      final h = await _ensureHome();
-      final f = await ref.read(orderFormProvider.notifier).ensure();
+      // Ana sayfa (bayiler, onay kuralı) ve sipariş formu birlikte (eskiden seri: iki tur bekleme).
+      final context = await Future.wait<Object?>([
+        _ensureHome(),
+        ref.read(orderFormProvider.notifier).ensure(),
+      ]);
+      final h = context[0] as CustomerHomeData?;
+      final f = context[1] as OrderFormOptions?;
       if (_disposed) return;
       if (h == null || f == null) {
         final err =
@@ -550,6 +557,10 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
 
   // ------------------------------------------------------------------ Sunucu denetimleri
 
+  /// Fiyatların (`payments/options`) ve sipariş verilebilirliğin sunucudan son okunduğu an.
+  DateTime? _paymentAt;
+  DateTime? _orderingAt;
+
   /// Girişte ve bayi değişince sipariş verilebilirlik denetimi.
   Future<void> checkOrdering(int? stationId) async {
     if (stationId == null) return;
@@ -558,6 +569,7 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
     try {
       final o = await _repo.orderingStatus(stationId);
       if (_disposed || seq != _orderingSeq) return;
+      _orderingAt = DateTime.now().toUtc();
       state = state.copyWith(ordering: o, checkingOrdering: false);
     } on AppFailure catch (f) {
       if (_disposed || seq != _orderingSeq) return;
@@ -594,6 +606,7 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
         productIds: products,
       );
       if (_disposed || seq != _paymentSeq) return;
+      _paymentAt = DateTime.now().toUtc();
       state = state.copyWith(payment: o, loadingPayment: false);
       _applyPaymentDefaults(force: applyDefaults);
     } on AppFailure catch (f) {
@@ -1000,6 +1013,50 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
   bool get allValid =>
       steps.every((st) => issuesFor(st).where((x) => x.blocking).isEmpty);
 
+  /// Gönderimden hemen önce: fiyatlar ve sipariş verilebilirlik (limit, finans durumu) taze mi
+  /// ([Freshness.decision] içinde sunucudan okunmuş mu). Değilse ikisi birlikte yeniden okunur; fiyat
+  /// değiştiyse ya da sipariş artık verilemiyorsa gönderilmez, kullanıcı yeni tutarı görüp yeniden
+  /// gönderir. Eski fiyatla sipariş verilmez.
+  Future<FreshCheck> ensureFreshForSubmit({DateTime? now}) async {
+    final stationId = state.draft.stationId;
+    if (stationId == null) return const FreshCheck.ok();
+    final at = now ?? DateTime.now().toUtc();
+    final homeFromCache = ref.read(customerHomeProvider).fromCache;
+    final fresh =
+        !homeFromCache &&
+        state.payment != null &&
+        !Freshness.isStale(_paymentAt, Freshness.decision, now: at) &&
+        !Freshness.isStale(_orderingAt, Freshness.decision, now: at);
+    if (fresh) return _blockedBy(state.ordering) ?? const FreshCheck.ok();
+    final before = Map<int, double>.of(state.prices);
+    await Future.wait([
+      if (homeFromCache) _ensureHome(),
+      checkOrdering(stationId),
+      loadPayment(),
+    ]);
+    if (_disposed) return const FreshCheck.ok();
+    if (state.payment == null ||
+        state.paymentError != null ||
+        Freshness.isStale(_paymentAt, Freshness.decision)) {
+      return const FreshCheck.failed(OrdersCopy.freshPricesFailed);
+    }
+    final blocked = _blockedBy(state.ordering);
+    if (blocked != null) return blocked;
+    final after = state.prices;
+    final changed = state.draft.lines.any((l) {
+      final id = l.productId;
+      if (id == null) return false;
+      return before[id] != after[id];
+    });
+    if (changed) return const FreshCheck.changed(OrdersCopy.freshPricesChanged);
+    return const FreshCheck.ok();
+  }
+
+  static FreshCheck? _blockedBy(OrderingStatus? o) {
+    if (o == null || o.canOrder) return null;
+    return FreshCheck.blocked(o.blockReason ?? OrdersCopy.freshOrderingBlocked);
+  }
+
   /// Şirket içi onaya düşecek mi (Talep eden; sunucu kuralının portu).
   bool get companyRequestPredicted {
     final rule = home?.companyApproval;
@@ -1062,4 +1119,34 @@ class OrderWizardController extends AutoDisposeNotifier<WizardState> {
     if (existing?.pending == null) await store?.clear();
     if (!_disposed) ref.read(draftRevisionProvider.notifier).bump();
   }
+}
+
+/// Gönderim öncesi tazelik denetiminin sonucu ([OrderWizardController.ensureFreshForSubmit]).
+@immutable
+class FreshCheck {
+  const FreshCheck.ok() : kind = FreshCheckKind.ok, message = null;
+  const FreshCheck.changed(String this.message) : kind = FreshCheckKind.changed;
+  const FreshCheck.blocked(String this.message) : kind = FreshCheckKind.blocked;
+  const FreshCheck.failed(String this.message) : kind = FreshCheckKind.failed;
+
+  final FreshCheckKind kind;
+
+  /// Kullanıcıya gösterilecek neden (yalnızca [ok] değilse).
+  final String? message;
+
+  bool get ok => kind == FreshCheckKind.ok;
+}
+
+enum FreshCheckKind {
+  /// Veri taze: gönderilebilir.
+  ok,
+
+  /// Fiyat değişti: yeni tutar gösterilir, kullanıcı yeniden gönderir.
+  changed,
+
+  /// Sipariş artık verilemiyor (limit, finans durumu).
+  blocked,
+
+  /// Güncel fiyatlar alınamadı (çevrimdışı, sunucu meşgul): gönderilmez.
+  failed,
 }

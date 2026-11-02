@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/utils/log.dart';
 import '../data/customer_orders_repository.dart';
@@ -35,6 +36,14 @@ class CustomerHomeController extends Notifier<Loadable<CustomerHomeData>> {
       final p = next.valueOrNull?.payload;
       if (p == null) return;
       unawaited(refresh());
+    });
+    // Ana sayfa açık kalır: öne gelmede ve sekmeye dönüşte eskidiyse sessizce tazelenir.
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null &&
+          !state.loading &&
+          Freshness.isStale(state.updatedAt, Freshness.home)) {
+        unawaited(refresh());
+      }
     });
     if (uid == null) return const Loadable();
     Future.microtask(() => _start(uid, epoch));

@@ -72,21 +72,51 @@ class FinanceRepository {
     int pageSize = 25,
   }) => api.get(
     'finance/customers',
-    query: {
-      'status': q.status?.key,
-      'risk': q.risk?.code,
-      if (q.reviewOverdue) 'overdue': true,
-      'q': q.search,
-      'page': page,
-      'pageSize': pageSize,
-    },
-    parse: (j) => PagedResult.fromJson(j, FinanceListItem.fromJson),
+    query: _query(q, page: page, pageSize: pageSize),
+    parse: _parseList,
+    // İlk sayfa (aramasız) önbelleğe yazılır: Finans açılışta hemen dolar.
+    cache: page == 1 && q.search.trim().isEmpty,
   );
+
+  /// Süzgecin önbellekteki ilk sayfası (aramada yok).
+  Future<CachedResponse<PagedResult<FinanceListItem>>?> peekList(
+    FinanceQuery q, {
+    int pageSize = 25,
+  }) async => q.search.trim().isNotEmpty
+      ? null
+      : api.peek(
+          'finance/customers',
+          query: _query(q, page: 1, pageSize: pageSize),
+          parse: _parseList,
+        );
+
+  static Map<String, dynamic> _query(
+    FinanceQuery q, {
+    required int page,
+    required int pageSize,
+  }) => {
+    'status': q.status?.key,
+    'risk': q.risk?.code,
+    if (q.reviewOverdue) 'overdue': true,
+    'q': q.search,
+    'page': page,
+    'pageSize': pageSize,
+  };
+
+  static PagedResult<FinanceListItem> _parseList(Object? j) =>
+      PagedResult.fromJson(j, FinanceListItem.fromJson);
 
   Future<FinanceCard> card(int stationCustomerId) => api.get(
     'finance/customers/$stationCustomerId',
     parse: FinanceCard.fromJson,
+    cache: true,
   );
+
+  Future<CachedResponse<FinanceCard>?> peekCard(int stationCustomerId) =>
+      api.peek(
+        'finance/customers/$stationCustomerId',
+        parse: FinanceCard.fromJson,
+      );
 }
 
 final financeRepositoryProvider = Provider<FinanceRepository>(

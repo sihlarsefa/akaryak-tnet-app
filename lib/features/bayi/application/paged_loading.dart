@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import 'bayi_runtime.dart';
 
 /// Bir sayfanın sonucu.
@@ -8,6 +10,10 @@ typedef PagedChunk<T> = ({List<T> items, bool hasMore, int total});
 
 /// Sayfalı liste yükleme davranışı (ilk yükleme, sessiz tazeleme, sonsuz kaydırma). Dönem sayacı
 /// ([_epoch]) eski isteklerin sonucunu yok sayar: süzgeç değişince yarışan yanıt listeyi bozmaz.
+///
+/// Önce önbellek (2026-11-02): [peekFirstPage] veren liste, iskelet yerine son ilk sayfayı hemen gösterir
+/// (üstte ince "güncelleniyor" çubuğu) ve sunucudan tazeler; tazeleme başarısızsa içerik kalır.
+/// [refreshIfStale] sekme dönüşünde ve öne gelmede yalnızca eskiyen listeyi tazeler.
 mixin PagedLoading<T, S> on Notifier<S> {
   int _epoch = 0;
 
@@ -20,14 +26,40 @@ mixin PagedLoading<T, S> on Notifier<S> {
   /// [page] (1 tabanlı) sayfasını getirir.
   Future<PagedChunk<T>> fetchPage(int page);
 
-  /// İlk sayfadan yeniden yükler. [silent] true ise içerik kalır, üstte ince çubuk görünür.
+  /// Geçerli süzgecin önbellekteki ilk sayfası (yoksa null; varsayılan: önbellek yok).
+  Future<CachedResponse<PagedChunk<T>>?> peekFirstPage() async => null;
+
+  /// İlk sayfadan yeniden yükler. [silent] true ise içerik kalır, üstte ince çubuk görünür. Sessiz
+  /// değilse (açılış, süzgeç değişimi) önce önbellekteki ilk sayfa denenir.
   Future<void> reload({bool silent = false}) async {
     final epoch = ++_epoch;
     final current = list;
-    final keep = silent && current.items.isNotEmpty;
+    var keep = silent && current.items.isNotEmpty;
+    if (!keep) {
+      CachedResponse<PagedChunk<T>>? hit;
+      try {
+        hit = await peekFirstPage();
+      } catch (_) {
+        hit = null;
+      }
+      if (epoch != _epoch) return;
+      if (hit != null) {
+        final chunk = hit.value;
+        state = withList(
+          PagedList<T>(
+            items: List.unmodifiable(chunk.items),
+            page: 1,
+            hasMore: chunk.hasMore,
+            totalCount: chunk.total,
+            updatedAt: hit.storedAt,
+          ),
+        );
+        keep = true;
+      }
+    }
     state = withList(
       keep
-          ? current.copyWith(refreshing: true, error: null, moreError: null)
+          ? list.copyWith(refreshing: true, error: null, moreError: null)
           : const PagedList(loading: true),
     );
     try {
@@ -51,6 +83,14 @@ mixin PagedLoading<T, S> on Notifier<S> {
             : PagedList<T>(error: f),
       );
     }
+  }
+
+  /// Liste [ttl]'den eskiyse sessizce tazeler (yüklenirken ya da tazeyken bir şey yapmaz).
+  Future<void> refreshIfStale(Duration ttl) async {
+    final l = list;
+    if (l.loading || l.refreshing || l.loadingMore) return;
+    if (!Freshness.isStale(l.updatedAt, ttl)) return;
+    await reload(silent: true);
   }
 
   /// Sonraki sayfa (liste sonuna yaklaşınca).

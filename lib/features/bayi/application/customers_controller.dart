@@ -4,7 +4,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../data/bayi_repository.dart';
 import '../data/customer_models.dart';
 import 'bayi_runtime.dart';
@@ -38,6 +40,9 @@ class BayiCustomersController extends Notifier<BayiCustomersState>
   @override
   BayiCustomersState build() {
     final user = ref.watch(currentUserIdProvider);
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null) unawaited(refreshIfStale(Freshness.list));
+    });
     if (user == null) return const BayiCustomersState(list: PagedList());
     Future.microtask(reload);
     return const BayiCustomersState();
@@ -59,6 +64,18 @@ class BayiCustomersController extends Notifier<BayiCustomersState>
         .read(bayiRepositoryProvider)
         .customers(q: state.query, page: page);
     return (items: r.items, hasMore: r.hasMore, total: r.totalCount);
+  }
+
+  @override
+  Future<CachedResponse<PagedChunk<BayiCustomerRow>>?> peekFirstPage() async {
+    if (state.query.isNotEmpty) return null;
+    final hit = await ref.read(bayiRepositoryProvider).peekCustomers();
+    if (hit == null) return null;
+    final r = hit.value;
+    return CachedResponse(
+      (items: r.items, hasMore: r.hasMore, total: r.totalCount),
+      storedAt: hit.storedAt,
+    );
   }
 
   void setQuery(String q) {
@@ -86,8 +103,27 @@ class CustomerSummaryController
       if (c == BayiChange.customer) unawaited(refresh());
     });
     ref.onDispose(sub.cancel);
-    Future.microtask(refresh);
+    Future.microtask(_start);
     return const Loadable.loading();
+  }
+
+  /// Önce önbellekteki kart, sonra sunucu.
+  Future<void> _start() async {
+    final epoch = _epoch;
+    try {
+      final hit = await ref
+          .read(bayiRepositoryProvider)
+          .peekCustomerSummary(arg);
+      if (hit != null && epoch == _epoch && !state.hasData) {
+        state = Loadable(
+          data: hit.value,
+          refreshing: true,
+          updatedAt: hit.storedAt,
+          fromCache: true,
+        );
+      }
+    } catch (_) {}
+    await refresh();
   }
 
   Future<void> refresh() async {

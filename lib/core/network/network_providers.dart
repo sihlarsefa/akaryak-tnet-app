@@ -8,6 +8,7 @@ import '../auth/token_store.dart';
 import '../env/app_env.dart';
 import '../env/app_info.dart';
 import '../models/auth_models.dart';
+import '../offline/cache_store.dart';
 import '../storage/secure_store.dart';
 import '../utils/log.dart';
 import 'api_client.dart';
@@ -18,6 +19,10 @@ import 'fake/fake_server.dart';
 import 'interceptors/app_headers_interceptor.dart';
 import 'interceptors/auth_interceptor.dart';
 import 'interceptors/debug_log_interceptor.dart';
+import 'interceptors/read_retry_interceptor.dart';
+import 'response_cache.dart';
+
+export 'interceptors/read_retry_interceptor.dart' show ReadRetryPolicy;
 
 /// Güvenli depo. Bootstrap gerçek depoyu verir; testler [MemorySecureStore].
 final secureStoreProvider = Provider<SecureStore>((ref) => MemorySecureStore());
@@ -112,6 +117,11 @@ final apiStackProvider = Provider<ApiStack>((ref) {
     },
   );
 
+  // Canlı API: 429 / 503'te `Retry-After` kadar bekleyip, kopan bağlantıda bir kez okumayı yeniden
+  // dener (yalnızca GET). Sahte dünya hata üretmez; testler kuralı kendisi verir.
+  final retry = env.isFake
+      ? null
+      : ReadRetryInterceptor(dio: dio, policy: ref.watch(readRetryPolicyProvider));
   dio.interceptors.addAll([
     // İlk sırada: reddedilen istek için yenileme de denenmez (belirteç gövdede de gitmez).
     if (kFakeApiCompiled && !env.isFake) _DemoSessionGuard(tokens),
@@ -122,9 +132,13 @@ final apiStackProvider = Provider<ApiStack>((ref) {
       refresher: refresher,
       events: events,
     ),
+    ?retry,
     if (kDebugMode) DebugLogInterceptor(),
   ]);
-  ref.onDispose(() => dio.close(force: true));
+  ref.onDispose(() {
+    retry?.close();
+    dio.close(force: true);
+  });
   return ApiStack(dio: dio, refresher: refresher);
 });
 
@@ -160,7 +174,23 @@ final tokenRefresherProvider = Provider<TokenRefresher>(
   (ref) => ref.watch(apiStackProvider).refresher,
 );
 
-/// Özelliklerin kullandığı API istemcisi.
-final apiClientProvider = Provider<ApiClient>(
-  (ref) => ApiClient(ref.watch(dioProvider)),
+/// Okumaların yeniden deneme kuralı (canlı API). Testler [ReadRetryPolicy.none] ile kapatabilir.
+final readRetryPolicyProvider = Provider<ReadRetryPolicy>(
+  (ref) => const ReadRetryPolicy(),
 );
+
+/// Özelliklerin kullandığı API istemcisi: uçuştaki aynı okumalar tek istek, yanıt önbelleği kullanıcıya
+/// (belirteç deposundaki kimlik: isteği yapan oturum) ve kipe (demo / canlı) özel.
+final apiClientProvider = Provider<ApiClient>((ref) {
+  final env = ref.watch(appEnvProvider);
+  final tokens = ref.watch(tokenStoreProvider);
+  return ApiClient(
+    ref.watch(dioProvider),
+    dedupeReads: true,
+    responses: ResponseCache(
+      store: ref.watch(cacheStoreProvider),
+      mode: ResponseCache.modeOf(fake: env.isFake),
+      userId: () => tokens.userId,
+    ),
+  );
+});

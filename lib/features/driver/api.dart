@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/offline/outbox_runner.dart';
 import 'application/driver_ops.dart';
 
+export 'application/driver_lists.dart' show driverListProvider;
+export 'data/driver_models.dart' show DriverTab;
 export 'driver_paths.dart' show DriverPaths;
 export 'driver_routes.dart' show driverRoutes;
 export 'presentation/assigned_deliveries_card.dart' show AssignedDeliveriesCard;

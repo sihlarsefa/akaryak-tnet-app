@@ -18,6 +18,7 @@ import '../core/routing/route_access.dart';
 import '../core/storage/prefs_store.dart';
 import '../core/ui/gallery/gallery_route.dart';
 import '../core/ui/ui.dart';
+import '../core/utils/log.dart';
 import '../features/approvals/api.dart';
 import '../features/assistant/api.dart';
 import '../features/auth/api.dart';
@@ -94,6 +95,12 @@ class AppRouter {
         }
         _syncLayout();
         _refresh.ping();
+        // Kemer + askı: türetilmiş sağlayıcılar bu dinleyiciden sonra kirlenir; bir mikro görev sonra
+        // menü yeniden okunur, kabuk her durumda oturumun güncel yetkisiyle kurulur.
+        Future.microtask(() {
+          if (_disposed) return;
+          if (_syncLayout()) _refresh.ping();
+        });
       }),
       ref.listen(navLayoutProvider, (_, _) => _syncLayout()),
       ref.listen(updateStatusProvider, (_, _) => _refresh.ping()),
@@ -122,12 +129,22 @@ class AppRouter {
     ]);
   }
 
-  void _syncLayout() {
+  /// Menü değiştiyse rota tablosunu yeniden kurar; değiştiyse true.
+  bool _syncLayout() {
     final next = ref.read(navLayoutProvider);
-    if (next == _layout) return;
+    final session = ref.read(sessionControllerProvider);
+    if (next.isEmpty &&
+        (session is SessionAuthenticated || session is SessionLocked)) {
+      // Oturum açıkken boş menü olmamalı (her rol en az 3 sekme alır): kabuksuz açılış.
+      AppLog.warn('Oturum açık ama alt menü boş');
+    }
+    if (next == _layout) return false;
     _layout = next;
     _config.value = _routingConfig(next);
+    return true;
   }
+
+  bool _disposed = false;
 
   final Ref ref;
   late final GoRouter router;
@@ -266,6 +283,7 @@ class AppRouter {
   }
 
   void dispose() {
+    _disposed = true;
     for (final s in _subs) {
       s.close();
     }

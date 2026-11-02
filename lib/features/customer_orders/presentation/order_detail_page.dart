@@ -11,6 +11,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/connectivity.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/routing/app_location.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/ui/ui.dart';
@@ -77,6 +78,9 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
   String? _conflict;
   bool _uncertain = false;
 
+  /// Onaydan önce güncel teklif okunuyor ([_freshForApproval]).
+  bool _verifying = false;
+
   /// Sunucu bu teklifin onayını şirket içi kuralla reddetti ([OrdersCopy.requesterApproveBlocked];
   /// eski API'de bayrak yokken kural bilinmiyorduysa): teklif ve sunucunun metni. Karar çubuğu panel
   /// gibi onaysız kurulur, revize ve red açık kalır.
@@ -123,11 +127,64 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
 
   // ------------------------------------------------------------------ Teklif kararı
 
+  /// Teklif onayından önce: gösterilen teklif sunucudan [Freshness.decision] içinde okunmamışsa
+  /// (önbellekten açıldı, eski) yeniden okunur. Teklif değiştiyse (yeni sürüm, tutar, durum) ya da
+  /// okunamadıysa onaylanmaz; kullanıcı güncel teklifi görür. Döner: onaylanacak güncel görünüm.
+  Future<OrderView?> _freshForApproval(OrderView shown, Quote quote) async {
+    final s = ref.read(orderViewProvider(_id));
+    final stale =
+        s.fromCache ||
+        s.loading ||
+        Freshness.isStale(s.updatedAt, Freshness.decision);
+    if (!stale) return shown;
+    setState(() => _verifying = true);
+    try {
+      await ref.read(orderViewProvider(_id).notifier).reload();
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+    if (!mounted) return null;
+    final now = ref.read(orderViewProvider(_id));
+    final fresh = now.data;
+    if (fresh == null ||
+        now.fromCache ||
+        Freshness.isStale(now.updatedAt, Freshness.decision)) {
+      AppToast.warning(OrdersCopy.freshQuoteFailed, context: context);
+      return null;
+    }
+    final q2 = fresh.latestQuote;
+    final same =
+        q2 != null &&
+        q2.id == quote.id &&
+        q2.version == quote.version &&
+        q2.totalAmountTry == quote.totalAmountTry &&
+        q2.unitPriceTry == quote.unitPriceTry &&
+        fresh.detail.status == OrderStatus.awaitingApproval;
+    if (!same) {
+      AknHaptics.warning();
+      AppToast.warning(OrdersCopy.freshQuoteChanged, context: context);
+      unawaited(
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          OrdersCopy.freshQuoteChanged,
+          TextDirection.ltr,
+        ),
+      );
+      return null;
+    }
+    return fresh;
+  }
+
   Future<void> _decide(OrderView v, QuoteAction action) async {
-    final q = v.latestQuote;
-    if (q == null || _pending != null) return;
+    final shown = v.latestQuote;
+    if (shown == null || _pending != null || _verifying) return;
+    Quote q = shown;
     String? note;
     if (action == QuoteAction.approve) {
+      final fresh = await _freshForApproval(v, q);
+      if (fresh == null || !mounted) return;
+      v = fresh;
+      q = fresh.latestQuote!;
       final ok = await showApproveRecap(
         context,
         quote: q,
@@ -539,11 +596,12 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
         primary = AknButton(
           label: OrdersCopy.approve,
           celebrate: true,
-          loading: _pending == QuoteAction.approve,
+          loading: _pending == QuoteAction.approve || _verifying,
           onPressed: () => _decide(v, QuoteAction.approve),
         );
       }
       if (_checking) caption = OrdersCopy.decisionChecking;
+      if (_verifying) caption = OrdersCopy.freshQuoteChecking;
       return ActionBar.decision(
         primary: primary,
         caption: caption,

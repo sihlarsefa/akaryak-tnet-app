@@ -6,6 +6,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
 import '../../../core/offline/connectivity.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/utils/log.dart';
 import '../../customer_orders/api.dart' show Loadable;
 import '../data/stats_models.dart';
@@ -67,6 +68,12 @@ abstract class StatsController<T>
         unawaited(refresh());
       }
     });
+    // Öne gelme ve sekmeye dönüş: deste eskidiyse sessizce tazelenir.
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null && !state.loading) {
+        unawaited(refreshIfStale(Freshness.home));
+      }
+    });
     if (_uid == null) return const Loadable();
     if (!accepts(_scope)) return const Loadable(error: ForbiddenFailure());
     Future.microtask(() => _start(epoch));
@@ -112,13 +119,19 @@ abstract class StatsController<T>
   }
 
   /// Veri yoksa ya da [maxAge]'den eskiyse tazeler (ana sayfaya dönüş, uygulamanın öne gelmesi).
+  /// Tazeleme bir mikro görev sonra başlar: deste bunu `didChangeDependencies` içinden çağırır ve
+  /// durum ağaç kurulurken değiştirilmez.
   Future<void> refreshIfStale([Duration maxAge = const Duration(minutes: 3)]) {
     final at = state.updatedAt;
     final stale =
         at == null ||
         state.fromCache ||
         DateTime.now().toUtc().difference(at) > maxAge;
-    return stale ? refresh() : Future<void>.value();
+    if (!stale) return Future<void>.value();
+    return Future<void>.microtask(() {
+      if (!_alive) return null;
+      return refresh();
+    });
   }
 
   Future<void> _load() async {

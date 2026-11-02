@@ -160,7 +160,8 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
 
   Future<void> _submit() async {
     final ctrl = ref.read(orderWizardProvider.notifier);
-    if (!ctrl.allValid) {
+    bool showFirstInvalid() {
+      if (ctrl.allValid) return false;
       // İlk hatalı adıma git ve hatalarını göster.
       for (final s in ctrl.steps) {
         if (ctrl.issuesFor(s).any((i) => i.blocking)) {
@@ -169,8 +170,27 @@ class _OrderWizardPageState extends ConsumerState<OrderWizardPage> {
         }
       }
       AknHaptics.warning();
+      return true;
+    }
+
+    if (showFirstInvalid()) return;
+    // Eski fiyatla ya da artık verilemeyen siparişle gönderilmez: fiyatlar ve sipariş verilebilirlik
+    // taze değilse yeniden okunur; değiştiyse kullanıcı yeni tutarı görür ve yeniden gönderir.
+    final fresh = await ctrl.ensureFreshForSubmit();
+    if (!mounted) return;
+    if (!fresh.ok) {
+      AknHaptics.warning();
+      AppToast.warning(fresh.message!, context: context);
+      unawaited(
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          fresh.message!,
+          TextDirection.ltr,
+        ),
+      );
       return;
     }
+    if (showFirstInvalid()) return;
     final w = ref.read(orderWizardProvider);
     await ctrl.saveDraftNow();
     await ref

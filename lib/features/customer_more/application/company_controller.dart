@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/enums.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/cache_first.dart';
 import '../../../core/utils/log.dart';
 import '../data/company.dart';
 import '../data/customer_more_repository.dart';
@@ -84,6 +86,19 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
     final thresholds = ref.read(accessPolicyProvider).companyApprovals
         ? _thresholdsOrNull()
         : Future<ApprovalThresholds?>.value();
+    if (s.users.isEmpty) {
+      // Önce önbellekteki kullanıcılar (iskelet yerine), hemen ardından sunucu.
+      try {
+        final hit = await _repo.peekCompanyUsers();
+        if (epoch == _epoch && hit != null && state.users.isEmpty) {
+          state = state.copyWith(
+            users: hit.value,
+            loading: false,
+            refreshing: true,
+          );
+        }
+      } catch (_) {}
+    }
     try {
       final users = await _repo.companyUsers();
       final t = await thresholds;
@@ -191,7 +206,19 @@ class CompanyUsersController extends AutoDisposeNotifier<CompanyUsersState> {
 }
 
 /// `GET customers/me/finance-info` → `{links, orders}`.
-final financeInfoProvider = FutureProvider.autoDispose<FinanceInfo>((ref) {
-  ref.watch(currentUserIdProvider);
-  return ref.read(customerMoreRepositoryProvider).financeInfo();
-});
+final financeInfoProvider =
+    AsyncNotifierProvider.autoDispose<FinanceInfoController, FinanceInfo>(
+      FinanceInfoController.new,
+    );
+
+/// Önce önbellekteki finans bilgisi, arka planda sunucu (değer kalır).
+class FinanceInfoController extends CacheFirstAsyncNotifier<FinanceInfo> {
+  @override
+  Future<CachedResponse<FinanceInfo>?> peek() =>
+      ref.read(customerMoreRepositoryProvider).peekFinanceInfo();
+
+  @override
+  Future<FinanceInfo> fetch() =>
+      ref.read(customerMoreRepositoryProvider).financeInfo();
+}
+

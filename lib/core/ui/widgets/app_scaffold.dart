@@ -985,6 +985,18 @@ class ActionBar extends StatelessWidget {
     );
   }
 
+  /// A dock that names why there is no step right now ("Finans onayı
+  /// bekleniyor …", offline): the icon and a 14/20 dim sentence at the
+  /// dock's tap height. The dock never just vanishes (v4 P3).
+  factory ActionBar.note({
+    Key? key,
+    required IconData icon,
+    required String text,
+  }) => ActionBar(
+    key: key,
+    child: _DockNote(icon: icon, text: text),
+  );
+
   final Widget child;
 
   @override
@@ -1030,6 +1042,32 @@ class ActionBar extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The body of [ActionBar.note]: the icon and the reason, 14/20 dim.
+class _DockNote extends StatelessWidget {
+  const _DockNote({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.akn;
+    final t = context.aknText;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: AknSpace.minTap),
+      child: Row(
+        children: [
+          ExcludeSemantics(child: Icon(icon, size: 20, color: c.dim)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: t.bodySmall.copyWith(color: c.dim)),
+          ),
+        ],
       ),
     );
   }

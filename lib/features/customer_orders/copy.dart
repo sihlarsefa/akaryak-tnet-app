@@ -166,6 +166,30 @@ abstract final class OrdersCopy {
   static const decisionChecking = 'Kararınız kontrol ediliyor';
   static const decisionOffline = 'Çevrimdışıyken karar verilemez';
 
+  // ------------------------------------------------------------------ Taze veri (fiyat, limit)
+  /// Gönderimden önce fiyatlar yeniden okundu ve değişti.
+  static const freshPricesChanged =
+      'Fiyatlar güncellendi. Yeni tutarı kontrol edip yeniden gönderin.';
+
+  /// Güncel fiyatlar okunamadı: eski fiyatla gönderilmez.
+  static const freshPricesFailed =
+      'Güncel fiyatlar alınamadı. Bağlantınızı kontrol edip tekrar gönderin.';
+
+  /// Gönderimden önce okunan durum: sipariş artık verilemiyor (bayi nedenini vermediyse).
+  static const freshOrderingBlocked =
+      'Bu bayiye şu an sipariş verilemiyor. Ayrıntı için bayinizle görüşün.';
+
+  /// Teklif onayından önce güncel teklif okunuyor.
+  static const freshQuoteChecking = 'Güncel teklif kontrol ediliyor…';
+
+  /// Onaydan önce okunan teklif değişti (yeni sürüm ya da tutar).
+  static const freshQuoteChanged =
+      'Teklif güncellendi. Yeni teklifi kontrol edip yeniden onaylayın.';
+
+  /// Onaydan önce güncel teklif okunamadı.
+  static const freshQuoteFailed =
+      'Güncel teklif alınamadı. Bağlantınızı kontrol edip tekrar deneyin.';
+
   /// Talep edenin eşik üstü teklifinde onay kapalı (panel eşitliği): panelin kilitli onay notu ve
   /// sunucunun onay denemesine verdiği metin (`OrderService.RequesterQuoteApprovalMessage`; web, API
   /// ve mobil aynı metin). Değiştirmeyin: uygulama sunucunun reddini bu metinle tanır.

@@ -7,7 +7,9 @@ import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/permissions.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../data/bayi_repository.dart';
 import '../data/dispatch_models.dart';
 import 'bayi_runtime.dart';
@@ -31,9 +33,34 @@ class DispatchBoardController extends Notifier<Loadable<ShipmentBoard>> {
       }
     });
     ref.onDispose(sub.cancel);
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null &&
+          !state.loading &&
+          !state.refreshing &&
+          Freshness.isStale(state.updatedAt, Freshness.list)) {
+        unawaited(refresh());
+      }
+    });
     if (user == null) return const Loadable();
-    Future.microtask(refresh);
+    Future.microtask(_start);
     return const Loadable.loading();
+  }
+
+  /// Önce önbellekteki pano, sonra sunucu.
+  Future<void> _start() async {
+    final epoch = _epoch;
+    try {
+      final hit = await ref.read(bayiRepositoryProvider).peekBoard();
+      if (hit != null && epoch == _epoch && !state.hasData) {
+        state = Loadable(
+          data: hit.value,
+          refreshing: true,
+          updatedAt: hit.storedAt,
+          fromCache: true,
+        );
+      }
+    } catch (_) {}
+    await refresh();
   }
 
   Future<void> refresh() async {
@@ -123,6 +150,9 @@ class ShipmentListController extends Notifier<ShipmentListState>
       if (c == BayiChange.shipments) unawaited(reload(silent: true));
     });
     ref.onDispose(sub.cancel);
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null) unawaited(refreshIfStale(Freshness.list));
+    });
     if (user == null) return const ShipmentListState(list: PagedList());
     final depot = opensWithLoadings(ref.read(accessPolicyProvider));
     final initial = ShipmentListState(
@@ -151,6 +181,20 @@ class ShipmentListController extends Notifier<ShipmentListState>
         .shipments(state.filter, page: page);
     if (page == 1) state = state.copyWith(counts: r);
     return (items: r.items, hasMore: r.hasMore, total: r.totalFiltered);
+  }
+
+  @override
+  Future<CachedResponse<PagedChunk<ShipmentListItem>>?> peekFirstPage() async {
+    final hit = await ref
+        .read(bayiRepositoryProvider)
+        .peekShipments(state.filter);
+    if (hit == null) return null;
+    final r = hit.value;
+    state = state.copyWith(counts: r);
+    return CachedResponse(
+      (items: r.items, hasMore: r.hasMore, total: r.totalFiltered),
+      storedAt: hit.storedAt,
+    );
   }
 
   void setFilter(ShipmentListFilter next) {
@@ -223,8 +267,27 @@ class ShipmentDetailController
   @override
   Loadable<ShipmentDetail> build(int arg) {
     ref.watch(currentUserIdProvider);
-    Future.microtask(refresh);
+    Future.microtask(_start);
     return const Loadable.loading();
+  }
+
+  /// Önce önbellekteki ayrıntı, sonra sunucu.
+  Future<void> _start() async {
+    final epoch = _epoch;
+    try {
+      final hit = await ref
+          .read(bayiRepositoryProvider)
+          .peekShipmentDetail(arg);
+      if (hit != null && epoch == _epoch && !state.hasData) {
+        state = Loadable(
+          data: hit.value,
+          refreshing: true,
+          updatedAt: hit.storedAt,
+          fromCache: true,
+        );
+      }
+    } catch (_) {}
+    await refresh();
   }
 
   /// Yeniden okur; dönen değer güncel ayrıntı (hata durumunda null).

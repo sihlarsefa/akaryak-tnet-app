@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/utils/turkish_text.dart';
 import '../data/bayi_repository.dart';
 import '../data/staff_models.dart';
@@ -100,9 +101,37 @@ class StaffController extends Notifier<StaffState> {
       if (c == BayiChange.staff) unawaited(refresh());
     });
     ref.onDispose(sub.cancel);
+    ref.listen(revalidateProvider, (_, e) {
+      final d = state.data;
+      if (e != null &&
+          !d.loading &&
+          !d.refreshing &&
+          Freshness.isStale(d.updatedAt, Freshness.list)) {
+        unawaited(refresh());
+      }
+    });
     if (user == null) return const StaffState(data: Loadable());
-    Future.microtask(refresh);
+    Future.microtask(_start);
     return const StaffState();
+  }
+
+  /// Önce önbellekteki ekip listesi, sonra sunucu.
+  Future<void> _start() async {
+    final epoch = _epoch;
+    try {
+      final hit = await _repo.peekStaff();
+      if (hit != null && epoch == _epoch && !state.data.hasData) {
+        state = state.copyWith(
+          data: Loadable(
+            data: List.unmodifiable(hit.value),
+            refreshing: true,
+            updatedAt: hit.storedAt,
+            fromCache: true,
+          ),
+        );
+      }
+    } catch (_) {}
+    await refresh();
   }
 
   Future<void> refresh() async {

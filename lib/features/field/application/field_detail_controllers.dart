@@ -129,16 +129,17 @@ class FieldLeadDetailController
   }
 
   Future<LeadDetailView> _load() async {
+    // Ön kayıt ve belgeleri birlikte (eskiden belgeler ön kayıttan sonra, seri gidiyordu).
+    final docsF = ref
+        .read(attachmentApiProvider)
+        .list(AttachmentOwnerType.customerLead, arg)
+        .then<List<Attachment>>(
+          (d) => d,
+          // Belgeler yüklenemezse ayrıntı yine gösterilir.
+          onError: (Object _) => const <Attachment>[],
+        );
     final detail = await _repo.lead(arg);
-    List<Attachment> docs = const [];
-    try {
-      docs = await ref
-          .read(attachmentApiProvider)
-          .list(AttachmentOwnerType.customerLead, arg);
-    } catch (_) {
-      // Belgeler yüklenemezse ayrıntı yine gösterilir.
-    }
-    return LeadDetailView(detail: detail, documents: docs);
+    return LeadDetailView(detail: detail, documents: await docsF);
   }
 
   Future<void> refresh() async {

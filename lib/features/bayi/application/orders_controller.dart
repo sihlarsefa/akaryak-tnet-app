@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/access_policy.dart';
 import '../../../core/auth/session_controller.dart';
+import '../../../core/models/models.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/network/app_failure.dart';
+import '../../../core/offline/revalidate.dart';
 import '../data/bayi_repository.dart';
 import '../data/order_models.dart';
 import 'bayi_grants.dart';
@@ -62,6 +65,13 @@ class BayiOrdersController extends Notifier<BayiOrdersState>
       }
     });
     ref.onDispose(sub.cancel);
+    // Sekme dönüşü, öne gelme: liste eskidiyse sessizce tazelenir (içerik kalır).
+    ref.listen(revalidateProvider, (_, e) {
+      if (e == null) return;
+      if (Freshness.isStale(state.list.updatedAt, Freshness.list)) {
+        unawaited(refresh(silent: true));
+      }
+    });
     if (user == null) return const BayiOrdersState(list: PagedList());
     Future.microtask(refresh);
     return BayiOrdersState(
@@ -105,17 +115,35 @@ class BayiOrdersController extends Notifier<BayiOrdersState>
     return (items: r.items, hasMore: r.hasMore, total: r.totalCount);
   }
 
+  @override
+  Future<CachedResponse<PagedChunk<BayiOrderRow>>?> peekFirstPage() async {
+    final hit = await _repo.peekOrders(state.filter);
+    if (hit == null) return null;
+    final r = hit.value;
+    return CachedResponse(
+      (items: r.items, hasMore: r.hasMore, total: r.totalCount),
+      storedAt: hit.storedAt,
+    );
+  }
+
   /// Liste ve sayılar.
   Future<void> refresh({bool silent = false}) async {
     await Future.wait([reload(silent: silent), loadCounts()]);
   }
 
   Future<void> loadCounts() async {
+    if (state.counts == null) {
+      // Çipler önbellekteki sayılarla hemen dolar; sunucu yanıtı gelince güncellenir.
+      final cached = await _repo.peekOrderCounts();
+      if (cached != null && state.counts == null) {
+        state = state.copyWith(counts: cached.value);
+      }
+    }
     try {
       final c = await _repo.orderCounts();
       state = state.copyWith(counts: c);
     } on AppFailure {
-      // Sayılar yüklenemezse çipler sayısız kalır; liste etkilenmez.
+      // Sayılar yüklenemezse çipler sayısız (ya da önbellekteki sayılarla) kalır; liste etkilenmez.
     }
   }
 
@@ -155,8 +183,46 @@ class BayiOrderController
       }
     });
     ref.onDispose(sub.cancel);
-    Future.microtask(refresh);
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null &&
+          !state.refreshing &&
+          Freshness.isStale(state.updatedAt, Freshness.detail)) {
+        unawaited(refresh());
+      }
+    });
+    Future.microtask(_start);
     return const Loadable.loading();
+  }
+
+  /// Önce önbellekteki ayrıntı (sipariş, zaman çizelgesi, sevkiyatlar), sonra sunucu.
+  Future<void> _start() async {
+    final epoch = _epoch;
+    final repo = ref.read(bayiRepositoryProvider);
+    try {
+      final hits = await Future.wait<Object?>([
+        repo.peekOrder(arg),
+        repo.peekOrderTimeline(arg),
+        repo.peekFulfillment(arg),
+      ]);
+      final order = hits[0] as CachedResponse<OrderDetail>?;
+      if (order != null && epoch == _epoch && !state.hasData) {
+        final timeline = hits[1] as CachedResponse<List<OrderTimelineItem>>?;
+        final fulfillment = hits[2] as CachedResponse<Fulfillment>?;
+        state = Loadable(
+          data: BayiOrderBundle(
+            order: order.value,
+            timeline: timeline?.value ?? const [],
+            fulfillment: fulfillment?.value,
+          ),
+          refreshing: true,
+          updatedAt: order.storedAt,
+          fromCache: true,
+        );
+      }
+    } catch (_) {
+      // Önbellek okunamadı: sunucudan yüklenir.
+    }
+    await refresh();
   }
 
   Future<void> refresh() async {

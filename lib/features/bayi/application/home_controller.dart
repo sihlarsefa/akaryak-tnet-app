@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/offline/revalidate.dart';
 import '../data/bayi_repository.dart';
 import '../data/home_models.dart';
 import '../data/order_models.dart';
@@ -33,6 +34,16 @@ class BayiHomeController extends Notifier<Loadable<BayiHomeData>> {
       }
     });
     ref.onDispose(sub.cancel);
+    // Ana sayfa açık kalır: öne gelmede ve sekmeye dönüşte eskidiyse sessizce tazelenir (eskiden
+    // yalnızca aşağı çekince ya da push gelince tazeleniyordu).
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null &&
+          !state.loading &&
+          !state.refreshing &&
+          Freshness.isStale(state.updatedAt, Freshness.home)) {
+        unawaited(refresh());
+      }
+    });
     if (_userId == null) return const Loadable();
     Future.microtask(() => load(useCache: true));
     return const Loadable.loading();
@@ -103,10 +114,12 @@ final bayiPipelineCountsProvider = FutureProvider.autoDispose<BayiOrderCounts?>(
       return null;
     }
     ref.watch(bayiHomeProvider.select((s) => s.updatedAt));
+    // Görev kutusunun sayısıyla aynı anda istenir: uçuştaki aynı okuma tek istektir.
     try {
       return await ref.read(bayiRepositoryProvider).orderCounts();
     } on Object {
-      return null;
+      final cached = await ref.read(bayiRepositoryProvider).peekOrderCounts();
+      return cached?.value;
     }
   },
 );

@@ -10,6 +10,7 @@ import '../core/offline/connectivity.dart';
 import '../core/offline/outbox_providers.dart';
 import '../core/offline/outbox_runner.dart';
 import '../core/offline/pending_ops_chip.dart';
+import '../core/offline/revalidate.dart';
 import '../core/push/app_badge.dart';
 import '../core/push/push_providers.dart';
 import '../core/push/unread_count_provider.dart';
@@ -21,6 +22,7 @@ import '../core/ui/ui.dart';
 import '../core/utils/app_messenger.dart';
 import 'app_overlays.dart';
 import 'destinations.dart';
+import 'prefetch.dart';
 import 'router.dart';
 
 /// Uygulama kökü: tema (açık/koyu), Türkçe yerelleştirme, yönlendirici, kabuk bilgisi
@@ -62,6 +64,9 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
         unawaited(ref.read(appBadgeProvider).set(count));
       }
     });
+    // Oturum hazır olunca rolün ana sayfa verisi ve istatistikleri hemen istenir (açılış ekranını
+    // beklemeden).
+    ref.read(sessionPrefetchProvider);
     _lastConfigLoad = DateTime.now();
     unawaited(ref.read(appConfigProvider.notifier).load());
     unawaited(ref.read(sessionControllerProvider.notifier).restore());
@@ -79,6 +84,8 @@ class _AknAppState extends ConsumerState<AknApp> with WidgetsBindingObserver {
     ref.read(sessionControllerProvider.notifier).handleLifecycle(state);
     ref.read(unreadCountProvider.notifier).handleLifecycle(state);
     if (state == AppLifecycleState.resumed) {
+      // Açık ekranlar verisi eskidiyse arka planda tazelenir (önbellekteki içerik kalır).
+      ref.read(revalidateProvider.notifier).resumed();
       unawaited(ref.read(outboxRunnerProvider).runOnce());
       final last = _lastConfigLoad;
       if (last == null ||

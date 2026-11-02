@@ -41,6 +41,13 @@ abstract interface class CacheStore {
 
   Future<void> remove(String key);
 
+  /// Anahtarı [prefix] ile başlayan kayıtları siler (yanıt önbelleğinde bir yazmadan etkilenen aile).
+  Future<void> removePrefix(String prefix);
+
+  /// Anahtarı [prefix] ile başlayan ve süresi geçmiş kayıtları siler (yanıt önbelleği: bir kez açılıp bir
+  /// daha okunmayan ayrıntılar diskte birikmesin). Süresiz kayıtlar kalır.
+  Future<void> removeExpired(String prefix);
+
   /// Kullanıcının kayıtlarını siler; anahtarı [keepPrefixes] öneklerinden biriyle başlayanlar kalır
   /// (istem dışı çıkışta yarım işler, bkz. `UserDrafts`).
   Future<void> clearUser(String userId, {Set<String> keepPrefixes = const {}});
@@ -126,6 +133,36 @@ class SqfliteCacheStore implements CacheStore {
   Future<void> remove(String key) async {
     try {
       await db.delete('cache_entries', where: 'key = ?', whereArgs: [key]);
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> removePrefix(String prefix) async {
+    if (prefix.isEmpty) return;
+    try {
+      // Birebir önek (LIKE büyük/küçük harf duyarsızdır ve `_`, `%` joker sayar).
+      await db.delete(
+        'cache_entries',
+        where: 'substr(key, 1, ?) = ?',
+        whereArgs: [prefix.length, prefix],
+      );
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> removeExpired(String prefix) async {
+    if (prefix.isEmpty) return;
+    try {
+      await db.delete(
+        'cache_entries',
+        where:
+            'substr(key, 1, ?) = ? AND expires_at IS NOT NULL AND expires_at < ?',
+        whereArgs: [
+          prefix.length,
+          prefix,
+          DateTime.now().toUtc().millisecondsSinceEpoch,
+        ],
+      );
     } catch (_) {}
   }
 
@@ -216,6 +253,21 @@ class MemoryCacheStore implements CacheStore {
 
   @override
   Future<void> remove(String key) async => _entries.remove(key);
+
+  @override
+  Future<void> removePrefix(String prefix) async {
+    if (prefix.isEmpty) return;
+    _entries.removeWhere((k, _) => k.startsWith(prefix));
+  }
+
+  @override
+  Future<void> removeExpired(String prefix) async {
+    if (prefix.isEmpty) return;
+    _entries.removeWhere((k, v) => k.startsWith(prefix) && v.$1.isExpired);
+  }
+
+  /// Kayıtlı anahtarlar (testler: gizlilik ve geçersiz kılma denetimi).
+  Iterable<String> get keys => _entries.keys;
 
   @override
   Future<void> clearUser(

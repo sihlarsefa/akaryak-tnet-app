@@ -7,6 +7,7 @@ import '../../../core/auth/session_controller.dart';
 import '../../../core/models/models.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/push/push_providers.dart';
 import '../data/customer_orders_repository.dart';
 import '../data/order_models.dart';
@@ -100,6 +101,14 @@ class OrdersListController
       final p = next.valueOrNull?.payload;
       if (p == null) return;
       unawaited(refresh());
+    });
+    ref.listen(revalidateProvider, (_, e) {
+      if (e != null &&
+          !state.loading &&
+          !state.loadingMore &&
+          Freshness.isStale(state.updatedAt, Freshness.list)) {
+        unawaited(refresh());
+      }
     });
     final epoch = ++_epoch;
     if (uid == null) return const OrdersListState();

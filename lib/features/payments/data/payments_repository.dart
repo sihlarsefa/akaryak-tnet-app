@@ -141,11 +141,31 @@ class PaymentsRepository {
   }) => api.get(
     'payments',
     query: {...q.toQuery(), 'page': page, 'pageSize': pageSize},
-    parse: (j) => PagedResult.fromJson(j, PaymentRow.fromJson),
+    parse: _parseRows,
+    // İlk sayfa (aramasız) önbelleğe yazılır: Tahsilat açılışta hemen dolar.
+    cache: page == 1 && q.search.trim().isEmpty,
   );
 
+  /// Süzgecin önbellekteki ilk sayfası (aramada yok).
+  Future<CachedResponse<PagedResult<PaymentRow>>?> peekList(
+    PaymentsQuery q, {
+    int pageSize = 25,
+  }) async => q.search.trim().isNotEmpty
+      ? null
+      : api.peek(
+          'payments',
+          query: {...q.toQuery(), 'page': 1, 'pageSize': pageSize},
+          parse: _parseRows,
+        );
+
+  static PagedResult<PaymentRow> _parseRows(Object? j) =>
+      PagedResult.fromJson(j, PaymentRow.fromJson);
+
   Future<PaymentDetail> detail(int orderId) =>
-      api.get('payments/$orderId', parse: PaymentDetail.fromJson);
+      api.get('payments/$orderId', parse: PaymentDetail.fromJson, cache: true);
+
+  Future<CachedResponse<PaymentDetail>?> peekDetail(int orderId) =>
+      api.peek('payments/$orderId', parse: PaymentDetail.fromJson);
 
   /// Ödeme durumunu değiştirir (204). Yalnızca `allowedTransitions`; gerekçe `noteRequiredFor`.
   /// [idempotencyKey]: niyet başına tek anahtar (C.4a); belirsiz sonuçta aynı anahtarla yinelenir.
@@ -176,15 +196,36 @@ class PaymentsRepository {
     int pageSize = 25,
   }) => api.get(
     'payments/instruments',
-    query: {
-      'kind': q.kind?.code,
-      'status': q.filter.key,
-      'q': q.search,
-      'page': page,
-      'pageSize': pageSize,
-    },
-    parse: (j) => PagedResult.fromJson(j, Instrument.fromJson),
+    query: _instrumentsQuery(q, page: page, pageSize: pageSize),
+    parse: _parseInstruments,
+    cache: page == 1 && q.search.trim().isEmpty,
   );
+
+  Future<CachedResponse<PagedResult<Instrument>>?> peekInstruments(
+    InstrumentsQuery q, {
+    int pageSize = 25,
+  }) async => q.search.trim().isNotEmpty
+      ? null
+      : api.peek(
+          'payments/instruments',
+          query: _instrumentsQuery(q, page: 1, pageSize: pageSize),
+          parse: _parseInstruments,
+        );
+
+  static Map<String, dynamic> _instrumentsQuery(
+    InstrumentsQuery q, {
+    required int page,
+    required int pageSize,
+  }) => {
+    'kind': q.kind?.code,
+    'status': q.filter.key,
+    'q': q.search,
+    'page': page,
+    'pageSize': pageSize,
+  };
+
+  static PagedResult<Instrument> _parseInstruments(Object? j) =>
+      PagedResult.fromJson(j, Instrument.fromJson);
 
   Future<void> changeInstrumentStatus(
     int id, {

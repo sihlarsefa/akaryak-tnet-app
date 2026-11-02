@@ -12,8 +12,6 @@ import 'dart:ui' as ui;
 import 'package:akaryakitnet/core/routing/nav_keys.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/driver/api.dart';
-import 'package:akaryakitnet/features/driver/application/driver_lists.dart';
-import 'package:akaryakitnet/features/driver/data/driver_models.dart';
 import 'package:akaryakitnet/features/driver/presentation/deliver_flow_page.dart';
 import 'package:akaryakitnet/features/driver/presentation/shipment_detail_page.dart';
 import 'package:akaryakitnet/features/driver/presentation/widgets/litre_keypad.dart';

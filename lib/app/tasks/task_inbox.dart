@@ -802,10 +802,14 @@ String _lowerFirst(String s) =>
 final bayiOrderCountsProvider = FutureProvider.autoDispose<BayiOrderCounts?>((
   ref,
 ) async {
-  final policy = ref.watch(accessPolicyProvider);
-  if (!policy.isBayi || !policy.can(Pg.stationShipmentBoard, Perm.edit)) {
-    return null;
-  }
+  // Yalnızca gereken yetki izlenir: her `me/access` tazelemesi (15 dk, öne gelme) sayıları yeniden
+  // istetmez.
+  final canPlan = ref.watch(
+    accessPolicyProvider.select(
+      (p) => p.isBayi && p.can(Pg.stationShipmentBoard, Perm.edit),
+    ),
+  );
+  if (!canPlan) return null;
   // Re-read whenever the home refreshes.
   ref.watch(bayiHomeProvider.select((s) => s.updatedAt));
   try {

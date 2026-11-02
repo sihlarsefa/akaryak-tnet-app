@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_controller.dart';
 import '../../../core/network/app_failure.dart';
 import '../../../core/offline/cache_store.dart';
+import '../../../core/offline/revalidate.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_number.dart';
 import '../../../core/utils/tr_time.dart';
@@ -172,11 +173,19 @@ class QuoteDeskController extends Notifier<DeskState> {
       if (c == BayiChange.quotes) unawaited(reload(silent: true));
     });
     ref.onDispose(sub.cancel);
-    if (_userId == null) return const DeskState(list: PagedList());
-    Future.microtask(() async {
-      await reload(useCache: true);
-      await loadFacets();
+    // Sekme dönüşü, öne gelme: masa eskidiyse sessizce tazelenir (satır içi fiyatlar korunur).
+    ref.listen(revalidateProvider, (_, e) {
+      final l = state.list;
+      if (e == null || l.loading || l.refreshing || l.loadingMore) return;
+      if (Freshness.isStale(l.updatedAt, Freshness.list)) {
+        unawaited(reload(silent: true));
+      }
     });
+    if (_userId == null) return const DeskState(list: PagedList());
+    // Masa ve süzgeç seçenekleri birlikte (eskiden seçenekler masadan sonra, seri gidiyordu).
+    Future.microtask(
+      () => Future.wait([reload(useCache: true), loadFacets()]),
+    );
     return const DeskState();
   }
 
@@ -329,6 +338,12 @@ class QuoteDeskController extends Notifier<DeskState> {
 
   /// Cari / ürün seçenekleri (yalnızca bekleyen siparişi olanlar). Hata sessizdir.
   Future<void> loadFacets() async {
+    if (identical(state.facets, DeskFacets.empty)) {
+      final cached = await _repo.peekQuoteDeskFacets();
+      if (cached != null && identical(state.facets, DeskFacets.empty)) {
+        state = state.copyWith(facets: cached.value);
+      }
+    }
     try {
       final f = await _repo.quoteDeskFacets();
       state = state.copyWith(facets: f);
