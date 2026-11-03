@@ -45,5 +45,22 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // firebase_messaging 15.x bildirim bağlantısını (bildirim merkezi temsilcisine katılma, ilk mesaj,
+    // APNs kaydı) UIApplicationDidFinishLaunchingNotification'da kurar; örtük motorda eklentiler
+    // açılıştan sonra kaydolduğu için bu bildirim kaçar: uygulama açıkken bant, onMessage ve dokunuş
+    // (onMessageOpenedApp) hiç çalışmaz. Kurulum burada bir kez elle tetiklenir; eklentinin kendi
+    // gözlemcisi önce kaldırılır, böylece kurulum iki kez çalışamaz. Yukarıdaki
+    // `UNUserNotificationCenter.current().delegate = self` bu bloktan önce kalmalıdır (yoksa eklenti
+    // temsilciyi devralır). firebase_messaging 16.5+ bunu kendisi yapar: yükseltirken bu blok silinmeli.
+    if FirebaseApp.app() != nil {
+      let setup = NSSelectorFromString("application_onDidFinishLaunchingNotification:")
+      if let fcm = engineBridge.pluginRegistry.valuePublished(byPlugin: "FLTFirebaseMessagingPlugin"),
+         fcm.responds(to: setup) {
+        NotificationCenter.default.removeObserver(
+          fcm, name: UIApplication.didFinishLaunchingNotification, object: nil)
+        _ = fcm.perform(
+          setup, with: NSNotification(name: UIApplication.didFinishLaunchingNotification, object: nil))
+      }
+    }
   }
 }
