@@ -51,8 +51,10 @@ abstract final class NotificationDisplay {
       // Müşteri: teklif geldi / süresi doluyor (bayinin kopyası bayi sipariş sayfasına gider).
       'order.quote_ready' ||
       'order.quote_expiring' when route.startsWith('/orders/') => 'Teklifi aç',
-      // Bayi: yeni sipariş geldi; teklif vermek bayinin işi (v4 B17).
-      'order.created' when canQuote && route.startsWith('/bayi/orders/') =>
+      // Bayi: yeni sipariş geldi; teklif vermek bayinin işi (v4 B17). Finans kapısı açıkken (üretimde
+      // her sipariş finansa düşer) bayinin "Yeni sipariş"i `order.finance_approved` olarak gelir.
+      'order.created' || 'order.finance_approved'
+          when canQuote && route.startsWith('/bayi/orders/') =>
         'Teklif ver',
       // Müşteri: teslim bildirildi (bayiye giden kopya bilgi verir: "müşteri onayı bekleniyor").
       'shipment.reported' when route.startsWith('/shipments/') =>
@@ -80,7 +82,8 @@ abstract final class NotificationDisplay {
       return switch (n.eventCode) {
         'order.quote_ready' ||
         'order.quote_expiring' ||
-        'order.created' => 'quote',
+        'order.created' ||
+        'order.finance_approved' => 'quote',
         _ => null,
       };
     }

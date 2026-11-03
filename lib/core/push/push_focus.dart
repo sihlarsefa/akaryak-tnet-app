@@ -2,6 +2,9 @@
 /// teslimat ya da talep; olayın türüne ve rotasına göre. Kilit ekranından, soğuk açılıştan ve
 /// uygulama içi balonun "Aç"ından açılan sayfa da karar bloğuna kayar ve parlar. Bilgi veren olayda,
 /// tanınmayan rotada ya da rotada zaten `focus` varsa rota olduğu gibi döner.
+///
+/// Bayinin "Yeni sipariş"i: finans kapısı açıkken (üretimde her sipariş finansa düşer) bayiye ilk push
+/// `order.finance_approved` olarak gelir; `order.created` gibi teklif bloğunu açar.
 String withPushFocus(String route, String? type, {bool canQuote = true}) {
   final uri = Uri.tryParse(route);
   if (uri == null || type == null || uri.queryParameters.containsKey('focus')) {
@@ -11,7 +14,8 @@ String withPushFocus(String route, String? type, {bool canQuote = true}) {
   final focus = switch (type) {
     'order.quote_ready' ||
     'order.quote_expiring' when path.startsWith('/orders/') => 'quote',
-    'order.created' when canQuote && path.startsWith('/bayi/orders/') =>
+    'order.created' || 'order.finance_approved'
+        when canQuote && path.startsWith('/bayi/orders/') =>
       'quote',
     'shipment.reported' when path.startsWith('/shipments/') => 'delivery',
     'approval.pending' ||

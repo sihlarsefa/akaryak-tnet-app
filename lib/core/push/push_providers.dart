@@ -114,7 +114,8 @@ class PushOptIn extends Notifier<bool> {
 
 /// Push yaşam döngüsü: ilk açılışta bildirim izni (bir kez), cihaz kaydı (giriş ve belirteç
 /// yenilemede `PUT devices/current`, "Anlık bildirimler" anahtarına göre), çıkışta belirteç silme, ön
-/// plan bildirimi, dokunulan push → derin bağlantı. Uygulama açılışta bir kez okur.
+/// plan push'u (sistem bildirimi; gösterilemezse uygulama içi balon), dokunulan push → derin bağlantı.
+/// Uygulama açılışta bir kez okur.
 final pushCoordinatorProvider = Provider<PushCoordinator>((ref) {
   final c = PushCoordinator(ref);
   unawaited(c.start());
@@ -190,7 +191,9 @@ class PushCoordinator {
     switch (e.origin) {
       case PushOrigin.foreground:
         final text = p.body ?? p.title;
-        if (text != null) {
+        // Sistem bildirimi olarak gösterildiyse (iOS bandı, Android yerel bildirim) balon çıkmaz: aynı
+        // push iki kez görünmez. Sistem gösteremediyse (izin yok, push yok) uygulama içi balon.
+        if (text != null && !e.presented) {
           final policy = ref.read(accessPolicyProvider);
           final route = RouteAccess.resolvePushRoute(
             p.route,
