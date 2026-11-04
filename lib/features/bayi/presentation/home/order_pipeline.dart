@@ -39,7 +39,7 @@ class PipelineStop {
     this.onTap,
   });
 
-  /// "Finans", "Teklif", "Müşteri", "Plan", "Yolda", "Teslim".
+  /// "Teklif", "Müşteri", "Finans", "Plan", "Yolda", "Teslim".
   final String label;
   final int count;
   final PipelineStopKind kind;
@@ -124,13 +124,6 @@ List<PipelineStop> pipelineStops(
   return [
     if (hasDesk) ...[
       PipelineStop(
-        label: 'Finans',
-        count: financeCount,
-        kind: financeKind,
-        unit: 'sipariş',
-        onTap: open(financeRoute),
-      ),
-      PipelineStop(
         label: 'Teklif',
         count: n == null
             ? (d?.openForQuote ?? 0)
@@ -149,6 +142,13 @@ List<PipelineStop> pipelineStops(
         kind: kindFor('Müşteri'),
         unit: 'sipariş, müşteri kararında',
         onTap: open(segment(BayiOrderSegment.awaitingCustomer)),
+      ),
+      PipelineStop(
+        label: 'Finans',
+        count: financeCount,
+        kind: financeKind,
+        unit: 'sipariş',
+        onTap: open(financeRoute),
       ),
     ],
     if (hasShipments) ...[

@@ -73,9 +73,9 @@ void main() {
       final handle = tester.ensureSemantics();
       final pipeline = tester.widget<OrderPipeline>(find.byType(OrderPipeline));
       expect(pipeline.stops.map((s) => s.label), [
-        'Finans',
         'Teklif',
         'Müşteri',
+        'Finans',
         'Plan',
         'Yolda',
         'Teslim',

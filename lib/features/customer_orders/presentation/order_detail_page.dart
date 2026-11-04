@@ -1174,9 +1174,11 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
 
     switch (d.financeStatus) {
       case OrderFinanceStatus.pending:
-        return 'Bayinin finans ekibi siparişinizi inceliyor; onaylanınca teklif gelir.';
+        return d.status == OrderStatus.awaitingApproval
+            ? 'Teklifi onayladınız; bayinin finans ekibi inceliyor. Onaylanınca sevkiyat planlanır.'
+            : 'Bayinin finans ekibi siparişinizi inceliyor.';
       case OrderFinanceStatus.infoRequested:
-        return 'Yanıtınız ve istenen belge gelene kadar teklif verilemez.';
+        return 'Finans kararı için yanıtınız ve istenen belge bekleniyor.';
       case OrderFinanceStatus.rejected:
         return d.financeReasons ??
             'Bayinin finans ekibi bu siparişi onaylamadı; bayinizle görüşün.';

@@ -250,7 +250,7 @@ class _BayiOrderDetailPageState extends ConsumerState<BayiOrderDetailPage> {
                   : BayiCopy.dockStale,
             )
           : _dock(bundle, actions, financeRequestId: financeRequestId) ??
-                // Her sipariş finans onayına düşer (sunucu 2e379cb): teklif onaydan sonra verilir.
+                // Sipariş müşteri onayından sonra finansa düşer; sevkiyat finans onayından sonra açılır.
                 // Çubuk boş kalmaz; neyin beklendiği yazar.
                 (financeWait
                     ? ActionBar.note(
@@ -749,7 +749,7 @@ class _Body extends ConsumerWidget {
   }) {
     final by = expires == null ? null : _until(expires);
     if (financeWait) {
-      return o.financeReasons ?? 'Finans kararı gelene kadar teklif verilemez.';
+      return o.financeReasons ?? BayiCopy.financePendingNote;
     }
     // Aşama cümlesi ("Teklif bekleniyor", "Revize istendi") ikinci satırda yinelenmez (P4, v4 tur 2):
     // ikinci satır yalnızca ne zamana kadar olduğunu söyler.

@@ -71,7 +71,7 @@ abstract final class CmCopy {
   // Finans bilgisi
   static const financeTitle = 'Finans bilgisi';
   static const financeIntro =
-      'Bağlı olduğunuz bayilerin finans onayı ve finans ekibinin sizden istediği bilgiler. Yeni cari hesaplar, bayi finans onayından sonra sipariş verebilir.';
+      'Bağlı olduğunuz bayilerin finans onayı ve finans ekibinin sizden istediği bilgiler. Siparişleriniz, teklifi onayladıktan sonra bayinin finans onayına gider.';
   static const financeNoLinks = 'Bağlı bayi yok';
   static const financeNoLinksMessage =
       'Bir bayi sizi davet ettiğinde finans durumu burada görünür.';

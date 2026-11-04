@@ -183,7 +183,7 @@ class CustomerRowCard extends StatelessWidget {
                     icon: PhosphorIconsFill.gauge,
                     tone: tone,
                     text: tone == AknTone.danger
-                        ? 'Limit aşıldı, yeni sipariş finans onayına gider.'
+                        ? 'Limit aşıldı; sipariş, müşteri onayından sonra finans onayına gider.'
                         : 'Limite yakın, limitin ${Fmt.percent(pct)} kadarı kullanıldı.',
                   ),
                 ],
@@ -194,7 +194,7 @@ class CustomerRowCard extends StatelessWidget {
               icon: PhosphorIconsFill.gauge,
               tone: tone,
               text: tone == AknTone.danger
-                  ? 'Limit aşıldı, yeni sipariş finans onayına gider.'
+                  ? 'Limit aşıldı; sipariş, müşteri onayından sonra finans onayına gider.'
                   : 'Limite yakın, limitin ${Fmt.percent(pct)} kadarı kullanıldı.',
             )
           : null,
