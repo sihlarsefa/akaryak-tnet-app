@@ -1,6 +1,7 @@
 // Bayi veri katmanı: sahte uçlar (§B biçimi) → depo → modeller. Ağ yok; yalıtılmış sahte sunucu.
 import 'package:akaryakitnet/core/models/models.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:akaryakitnet/features/bayi/data/bayi_json.dart';
 import 'package:akaryakitnet/features/bayi/data/bayi_repository.dart';
@@ -27,6 +28,9 @@ Future<(BayiHarness, ProviderContainer, BayiRepository)> _as(
 }
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   group('BayiJson', () {
     test('teslim penceresi: TimeSpan ve HH:mm', () {
       expect(BayiJson.windowTime('08:00:00'), '08:00');

@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/models/json.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,6 +134,9 @@ Future<void> _flow(
 }
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets('teklif → finans onayı → onay → yeniden teklif (1,0× açık)', (
     tester,
   ) async {

@@ -5,6 +5,7 @@
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/models/json.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/network/network_providers.dart';
 import 'package:akaryakitnet/core/utils/tr_time.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,9 @@ Future<void> _login(ProviderContainer c, String persona) async {
 }
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   test('limit aşan teklif: tekil onay kimliği, doğru talep ve bildirim', () async {
     final h = await TestHarness.create();
     final c = h.container();

@@ -159,7 +159,9 @@ class FieldLeadDetailController
         final now = await _repo.lead(arg);
         return now.status.isEditable
             ? null
-            : 'Ön kayıt finans onayına gönderildi.';
+            : (now.status == LeadStatus.converted
+                  ? 'Cari açıldı.'
+                  : 'Ön kayıt finans onayına gönderildi.');
       },
     );
     await _after();

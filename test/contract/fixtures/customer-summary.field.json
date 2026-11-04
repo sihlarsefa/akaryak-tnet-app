@@ -185,6 +185,7 @@
  "actions": {
   "canAddNote": false,
   "canRequestLimit": false,
+  "limitChangeDirect": true,
   "canCreateFieldForm": true,
   "canQuote": false,
   "canViewNotes": false

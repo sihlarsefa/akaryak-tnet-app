@@ -27,6 +27,9 @@ import 'support/bayi_app.dart';
 const _phone = Size(390, 844);
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): birim onaycısı olmayan bayide
   // sahip finans kararlarını da verir (gecikmiş onaylar kuyruğu).
   setUpAll(() {

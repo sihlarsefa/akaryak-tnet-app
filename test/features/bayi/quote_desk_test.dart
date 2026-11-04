@@ -2,6 +2,7 @@
 // gönderim ve satır başına sonuç
 // (finansa giden uyarı tonunda), gönderim sonrası tazeleme, geri sayımın yalnızca süre dolumu açıkken
 // görünmesi, teklif engeli ve görüntüleme yetkisi.
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/application/desk_controller.dart';
 import 'package:akaryakitnet/features/bayi/data/desk_models.dart';
@@ -23,6 +24,9 @@ Finder _rowCheck(int orderId) =>
     find.descendant(of: _card(orderId), matching: find.byType(Checkbox));
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets(
     'Önerileri uygula + toplu gönderim: satır sonuçları, finansa giden uyarı tonunda',
     (tester) async {

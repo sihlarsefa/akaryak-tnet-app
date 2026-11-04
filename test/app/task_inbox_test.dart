@@ -48,6 +48,9 @@ final _code = RegExp(r'\b(SIP|SVK|SSF|TLP)-');
 String _plain(String? s) => (s ?? '').replaceAll('\u00A0', ' ');
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talepler (9003) ve
   // birim onaycısı olmayan bayi (müdür ve sahip de karar verir). Roller v5 dünyası
   // test/app/roles_v5_test.dart içinde.

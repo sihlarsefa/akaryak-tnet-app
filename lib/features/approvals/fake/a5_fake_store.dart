@@ -25,6 +25,7 @@ import '../../../core/network/idempotency.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/utils/tr_time.dart';
 import '../../../core/utils/turkish_text.dart';
+import '../../customer_orders/customer_orders_fake.dart' show A2Fake;
 import '../../field/fake/field_fake_state.dart' show FieldFakeState;
 import 'fake_documents.dart';
 
@@ -1019,8 +1020,10 @@ class A5FakeStore {
         _fact('VKN', '34******52'),
         _fact('Talep edilen limit', Fmt.money(300000)),
       ],
-      warnings: const [
-        'Bu VKN sistemde başka bir bayide kayıtlı; cari açılışı merkez onayıyla yapılır. Bayi kademesinde onay verilemez; "Merkeze ilet" ile merkeze iletin ya da reddedin.',
+      warnings: [
+        world.firstStageApprovals
+            ? 'Bu VKN sistemde başka bir bayide kayıtlı. Cari başka bayiye aktif bağlıysa onaylanamaz (tek bayi kuralı); bu durumda reddedin.'
+            : 'Bu VKN sistemde başka bir bayide kayıtlı; cari açılışı merkez onayıyla yapılır. Bayi kademesinde onay verilemez; "Merkeze ilet" ile merkeze iletin ya da reddedin.',
       ],
       links: const {'leadId': 8003},
       existsElsewhere: true,
@@ -1346,11 +1349,13 @@ class A5FakeStore {
       type == ApprovalType.customerOnboarding.code ||
       type == ApprovalType.leadFinance.code;
 
-  /// Bayide karara bağlanan türler (sunucu `ApprovalTypes.IsBayiDecided`; sahip kararı 02.11.2026):
-  /// limit talebi ve yeni cari onayı. Merkez karar vermez, yalnızca izler.
-  static bool isBayiDecided(int type) =>
-      type == ApprovalType.limitChange.code ||
-      type == ApprovalType.customerOnboarding.code;
+  /// Bayide karara bağlanan türler (sunucu `ApprovalTypes.IsBayiDecided`; sahip kararı 04.11.2026 "admin
+  /// onayı olmaz"): şirket içi talep dışında tümü. Merkez karar vermez, yalnızca izler. Eski akış
+  /// ([FakeWorld.firstStageApprovals] kapalı): limit talebi ve yeni cari onayı.
+  bool isBayiDecided(int type) => world.firstStageApprovals
+      ? type != ApprovalType.companyOrderRequest.code
+      : type == ApprovalType.limitChange.code ||
+            type == ApprovalType.customerOnboarding.code;
 
   static bool isCustomerAddressed(int type) =>
       type == ApprovalType.orderFinance.code ||
@@ -1358,6 +1363,10 @@ class A5FakeStore {
 
   /// Talebi görebilir mi (gelen kutusu kapsamı).
   bool visible(FakePersona p, JsonMap a) {
+    // Sahip kararı 04.11.2026: limit, saha formu finansı ve yeni cari onayı artık açılmaz; eski örnekler görünmez.
+    if (world.firstStageApprovals && const {2, 5, 6}.contains(a['type'])) {
+      return false;
+    }
     switch (p.persona) {
       case Persona.platform:
         return true;
@@ -1383,7 +1392,15 @@ class A5FakeStore {
       p.persona == Persona.customer &&
       a['type'] != ApprovalType.companyOrderRequest.code;
 
+  /// Sahip kararı 04.11.2026 (sunucu `ApprovalEligibility.Check`): Bayi yöneticisi kendi bayisinde her bayi onayını
+  /// verir; birim onaycısı, dört göz ve kendi talebi kuralı ona uygulanmaz.
+  bool _managerSigns(FakePersona p, JsonMap a) =>
+      world.isBayiManager(p) &&
+      a['stationId'] == p.stationId &&
+      isBayiDecided(a['type'] as int);
+
   bool _eligible(FakePersona p, JsonMap a) {
+    if (_managerSigns(p, a)) return true;
     // Limit talebi ve yeni cari onayında merkez karar vermez (yükseltilse de; sunucu `Check`).
     if (p.persona == Persona.platform && isBayiDecided(a['type'] as int)) {
       return false;
@@ -1445,8 +1462,9 @@ class A5FakeStore {
     if (!_isOpen(a) || !visible(p, a)) return const [];
     if (customerView(p, a)) return const [];
     final x = extraOf(a);
-    if (a['requestedByUserId'] == p.userId) return const [];
-    if (x.deciders.contains(p.userId)) return const [];
+    final manager = _managerSigns(p, a);
+    if (!manager && a['requestedByUserId'] == p.userId) return const [];
+    if (!manager && x.deciders.contains(p.userId)) return const [];
     if (!_eligible(p, a)) return const [];
     if (a['status'] == ApprovalStatus.infoRequested.code) {
       return [ApprovalDecision.reject.code];
@@ -1548,7 +1566,7 @@ class A5FakeStore {
     if (p.persona == Persona.platform && isBayiDecided(type)) {
       return 'Bu talebe bayi karar verir; merkez yalnızca izler.';
     }
-    if (a['requestedByUserId'] == p.userId) {
+    if (!_managerSigns(p, a) && a['requestedByUserId'] == p.userId) {
       return 'Kendi talebinizi onaylayamazsınız.';
     }
     if (x.deciders.contains(p.userId)) {
@@ -2796,6 +2814,24 @@ class A5FakeStore {
       }
       final term = conditions['termDays'];
       if (term is num) order['paymentTermDays'] = term.toInt();
+      // Sahip kararı 04.11.2026: müşteri teklifi onaylamıştı, finans onayı siparişi "Onaylandı" yapar.
+      if (order['status'] == OrderStatus.awaitingApproval.code &&
+          order['acceptedQuoteId'] != null) {
+        order['status'] = OrderStatus.approved.code;
+        A2Fake.addHistory(
+          world,
+          order['id'] as int,
+          OrderStatus.awaitingApproval.code,
+          OrderStatus.approved.code,
+          note: x.conditional ? 'Finans koşullu onayladı' : 'Finans onayladı',
+          userId: p.userId,
+        );
+        _notifyCustomer(
+          a,
+          'Sipariş onaylandı: ${order['orderNumber']}',
+          'Finans onayı tamamlandı; bayiniz sevkiyatı planlayacak.',
+        );
+      }
     }
     if (type == ApprovalType.customerOnboarding.code) {
       final card = financeCards[a['subjectId']];
@@ -2984,6 +3020,11 @@ class A5FakeStore {
 
   /// `POST leads/{id}/forward-hq` (yedek: A6 kaydetmezse).
   String forwardLead(FakePersona p, int leadId) {
+    if (world.firstStageApprovals) {
+      throw FakeResponse.business(
+        'Merkeze iletme kaldırıldı; bu ön kayda bayinin finansı karar verir.',
+      );
+    }
     if (!p.hasCap(Caps.approveFinanceLead) || p.persona == Persona.platform) {
       throw FakeResponse.forbidden(
         'Merkeze iletmek için ön kayıt finans onay yetkisi gerekir.',
@@ -3048,6 +3089,7 @@ class A5FakeStore {
       'isForwardedToHq': lead['isForwardedToHq'],
       'isFinanceViewer': financeViewer,
       'canForwardToHq':
+          !world.firstStageApprovals &&
           financeViewer &&
           p.persona != Persona.platform &&
           awaiting &&

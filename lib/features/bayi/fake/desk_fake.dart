@@ -189,7 +189,8 @@ void registerBayiDeskFakes(FakeServer s) {
       }
       final total = roundTo(price! * qty(o), 2);
       final from = st(o);
-      if (exceedsLimit(w, o, total)) {
+      // Sahip kararı 04.11.2026: aşım teklifi durdurmaz; müşteri onayındaki finans görür.
+      if (!w.firstStageApprovals && exceedsLimit(w, o, total)) {
         routeToFinance(w, o, total, p);
         out.add(
           result(

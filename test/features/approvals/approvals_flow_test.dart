@@ -15,6 +15,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'a5_test_kit.dart';
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talep onayı
   // (9003).
   setUpAll(() {

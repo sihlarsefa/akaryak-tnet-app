@@ -62,11 +62,20 @@ müşteride ve merkezde ana sekmedir: birimin onaycısı başkasıysa o birimin 
 (`assignedOpenShipments > 0`) Teslimatlarım görünür. Rol adları sunucudan gelir (pasif rolde "(pasif)");
 Ekip'te birim onaycısında "Onaycı · Finans", Profil'de "Finans birimi · onaycı" yazar.
 
-**Eski akışlar (testler):** sahte dünyanın iki anahtarı vardır. `FakeWorld.companyApprovals` (varsayılan
+**İlk etap onayları** (sahip kararı 04.11.2026): merkez karar vermez, yalnızca izler. Sipariş akışı: sipariş →
+bayi teklifi → müşteri onayı → finans onayı → sevkiyat. Müşteri onayladıktan sonra sipariş "Onay bekleniyor"
+durumunda kalır, `canDecideQuote` kapanır ve "Aktif" bölmesinde görünür; finans onayı siparişi "Onaylandı" yapar.
+Tek finans onayı budur: saha formunun ayrı finansı, yeni cari ve ön kayıt finansı yoktur (gönderim cariyi hemen açar;
+VKN'si başka bayide kayıtlı ön kayıt finansa gider). Limit değişikliği onaysızdır: Finans birimi ve Bayi yöneticisi doğrudan
+değiştirir (`actions.limitChangeDirect`, `canRequestLimit`). Bayi yöneticisi bayideki her onayı verir; birim onaycısı, dört göz
+ve kendi talebi kuralı ona uygulanmaz.
+
+**Eski akışlar (testler):** sahte dünyanın üç anahtarı vardır. `FakeWorld.companyApprovals` (varsayılan
 kapalı) şirket içi onayı, 9003 / 9013 tohumlarını, talep bildirimini, eşikleri ve örnek talepleri açar;
-`FakeWorld.v5Station` (varsayılan açık) kapatılınca birim onaycıları kalkar ve 9006 iki kademeye döner.
-Eski akışı sınayan test dosyaları `setUpAll` içinde `FakeWorld.defaultCompanyApprovals = true` ya da
-`FakeWorld.defaultV5Station = false` yapar.
+`FakeWorld.v5Station` (varsayılan açık) kapatılınca birim onaycıları kalkar ve 9006 iki kademeye döner;
+`FakeWorld.firstStageApprovals` (varsayılan açık) kapatılınca finans teklifden önceye, limit talebi onaya, merkez
+kararı geri döner. Eski akışı sınayan test dosyaları `setUpAll` içinde `FakeWorld.defaultCompanyApprovals = true`,
+`FakeWorld.defaultV5Station = false` ya da `FakeWorld.defaultFirstStageApprovals = false` yapar.
 
 ## Ortamlar
 

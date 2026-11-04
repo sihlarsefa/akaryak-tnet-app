@@ -405,7 +405,7 @@ class _TaxCheck extends StatelessWidget {
             tone: AknTone.info,
             title: 'Bu VKN sistemde kayıtlı',
             message:
-                'Ön kayıt finansa gönderilebilir; cari açılışı merkez onayıyla yapılır.',
+                'Ön kayıt finansa gönderilebilir; kararı bayinin finansı verir.',
           ),
         ),
       );

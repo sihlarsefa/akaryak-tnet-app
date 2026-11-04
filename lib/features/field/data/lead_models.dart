@@ -915,7 +915,7 @@ abstract final class LeadRules {
         !v.contains(RegExp(r'\s'));
   }
 
-  /// Finansa göndermek için eksikler (sunucu ile aynı metinler). [taxPlateReady]: vergi levhası yüklendi
+  /// Göndermek için eksikler (sunucu ile aynı metinler). [taxPlateReady]: vergi levhası yüklendi
   /// ya da yüklenmek üzere sırada.
   static List<String> missingForSubmit(
     LeadDraft d, {

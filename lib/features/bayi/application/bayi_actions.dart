@@ -218,13 +218,25 @@ class BayiActions {
   /// okunur: bekleyen talep görülürse başarı sayılır.
   Future<BayiOutcome> requestLimit(
     int customerId,
-    LimitRequestDraft draft,
-  ) async {
+    LimitRequestDraft draft, {
+    bool direct = false,
+  }) async {
     final outcome = await runTransition(
       call: () => _repo.createLimitRequest(customerId, draft),
       // Yalnızca bu talebin kendisi bekliyorsa (başkasının açtığı talep "gönderildi" sayılmaz).
       reconcile: () async {
-        final p = (await _repo.customerSummary(customerId)).pendingLimitRequest;
+        final summary = await _repo.customerSummary(customerId);
+        // Limit onayı kapalı: yanıt kaybolduysa limitin kendisine bakılır (bekleyen talep oluşmaz).
+        if (direct) {
+          final l = summary.limit;
+          if (l == null || l.period != draft.limitPeriod) return false;
+          if (draft.isUnlimited) return true;
+          return l.limitType == draft.limitType &&
+              l.amount != null &&
+              draft.limitAmount != null &&
+              (l.amount! - draft.limitAmount!).abs() < 0.005;
+        }
+        final p = summary.pendingLimitRequest;
         if (p == null || p.period != draft.limitPeriod) return false;
         if (draft.isUnlimited) return true;
         return p.limitType == draft.limitType &&

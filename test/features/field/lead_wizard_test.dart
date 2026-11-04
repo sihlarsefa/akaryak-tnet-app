@@ -1,6 +1,7 @@
 // Ön kayıt sihirbazı denetleyicisi (spec A.3 L1–L2): KVKK açık rızası ve vergi levhası olmadan
 // finansa gönderim isteği atılmaz; canlı VKN kontrolü; çevrimdışı kayıt ve kayda bağlı belge.
 import 'package:akaryakitnet/core/models/enums.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/offline/outbox_op.dart';
 import 'package:akaryakitnet/core/offline/outbox_providers.dart';
 import 'package:akaryakitnet/core/offline/outbox_store.dart';
@@ -16,6 +17,9 @@ import 'field_test_kit.dart';
 const _args = LeadWizardArgs();
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   late FieldHarness h;
   late ProviderContainer c;
   late RequestLog log;
@@ -92,7 +96,7 @@ void main() {
     log.clear();
     await ctrl().submit();
     expect(s().missing, ['KVKK açık rızası']);
-    expect(s().banner, 'Finansa göndermek için eksik: KVKK açık rızası.');
+    expect(s().banner, 'Göndermek için eksik: KVKK açık rızası.');
     expect(posts(), isEmpty);
     expect(
       LeadWizardController.stepOfMissing(s().missing.single),
@@ -211,7 +215,7 @@ void main() {
       expect(log.exact('POST', 'leads'), isEmpty);
       // Çevrimdışıyken "Finansa gönder" bağlantı ister.
       await ctrl().submit();
-      expect(s().banner, startsWith('Finansa göndermek için bağlantı gerekir'));
+      expect(s().banner, startsWith('Göndermek için bağlantı gerekir'));
 
       c.read(onlineProvider.notifier).state = true;
       await c.read(outboxRunnerProvider).runOnce();

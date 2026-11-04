@@ -2,6 +2,7 @@
 // teslimat noktası ayrıntısı; limit talebi sayfası (CreateLimitChangeRequest alanları), görüşme notu
 // ekle / sil; sipariş masası (not / limit yok, "Teklif ver" masaya cari süzgeciyle) ve saha satış
 // (yalnızca portföy, "Saha formu").
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/application/customers_controller.dart';
 import 'package:akaryakitnet/features/bayi/application/desk_controller.dart';
@@ -18,6 +19,9 @@ Finder _confirm(String label) =>
     find.descendant(of: find.byType(ConfirmSheet), matching: find.text(label));
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets(
     'cari 360: limit, bekleyen talep, finans kartı, tahsilat ve teslimat noktası',
     (tester) async {

@@ -311,7 +311,7 @@ class FieldLeadDetailPage extends ConsumerWidget {
           tone: AknTone.info,
           title: 'Bu VKN sistemde kayıtlı',
           message:
-              'Ön kayıt finansa gönderilebilir; cari açılışı merkez onayıyla yapılır.',
+              'Ön kayıt finansa gönderilebilir; kararı bayinin finansı verir.',
         ),
       if (d.isForwardedToHq)
         const AknBanner(
@@ -623,7 +623,7 @@ class _LeadActions extends ConsumerWidget {
         if (submit)
           Expanded(
             child: AknButton(
-              label: 'Finansa gönder',
+              label: 'Gönder',
               icon: PhosphorIconsRegular.paperPlaneRight,
               expand: true,
               showSuccess: false,
@@ -631,9 +631,10 @@ class _LeadActions extends ConsumerWidget {
                   ? () async {
                       final ok = await showConfirmSheet(
                         context,
-                        title: 'Finansa gönderilsin mi?',
-                        message:
-                            'Finans ön kaydı inceler; ek bilgi isterse size bildirim gelir.',
+                        title: 'Gönderilsin mi?',
+                        message: detail.existsElsewhere
+                            ? 'Finans ön kaydı inceler; ek bilgi isterse size bildirim gelir.'
+                            : 'Cari hemen açılır, müşteriye portal daveti gider.',
                         confirmLabel: 'Gönder',
                         icon: PhosphorIconsRegular.paperPlaneRight,
                       );

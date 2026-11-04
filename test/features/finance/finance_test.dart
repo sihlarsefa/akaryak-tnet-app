@@ -1,6 +1,7 @@
 // Finans (spec D.3 A5): süzgeçler → `finance/customers` sorgu parametreleri, satırdan karta geçiş,
 // kart bölümleri, tasarım v2 (kart plakası "Kullanılabilir limit", ledger satırları, " · " yok) ve C.7
 // erişilebilirlik matrisi.
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/approvals/presentation/approval_detail_page.dart';
 import 'package:akaryakitnet/features/finance/copy.dart';
@@ -38,6 +39,9 @@ Future<void> closeSheet(WidgetTester tester) async {
 }
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets('süzgeçler sorguya gider ve listeyi daraltır', (tester) async {
     final app = await pumpA5(tester, persona: 'finans', location: '/finance');
     expect(

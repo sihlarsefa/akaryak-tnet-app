@@ -284,6 +284,7 @@ class SummaryActions {
   const SummaryActions({
     this.canAddNote = false,
     this.canRequestLimit = false,
+    this.limitChangeDirect = false,
     this.canCreateFieldForm = false,
     this.canQuote = false,
     this.canViewNotes = false,
@@ -292,6 +293,7 @@ class SummaryActions {
   factory SummaryActions.fromJson(JsonReader r) => SummaryActions(
     canAddNote: r.boolean('canAddNote'),
     canRequestLimit: r.boolean('canRequestLimit'),
+    limitChangeDirect: r.boolean('limitChangeDirect'),
     canCreateFieldForm: r.boolean('canCreateFieldForm'),
     canQuote: r.boolean('canQuote'),
     canViewNotes: r.boolean('canViewNotes'),
@@ -299,6 +301,9 @@ class SummaryActions {
 
   final bool canAddNote;
   final bool canRequestLimit;
+
+  /// Limit onayı kapalı: form limiti hemen değiştirir (sahip kararı 04.11.2026).
+  final bool limitChangeDirect;
   final bool canCreateFieldForm;
   final bool canQuote;
   final bool canViewNotes;

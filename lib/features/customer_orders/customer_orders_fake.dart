@@ -615,8 +615,11 @@ abstract final class A2Fake {
     }
     final platform = p.persona == Persona.platform;
     final status = o['status'] as int?;
+    // Sahip kararı 04.11.2026: teklifi onaylanmış, finans bekleyen siparişte karar kapalı.
     final decide =
-        status == 2 && (platform || p.can(Pg.customerQuotes, Perm.edit));
+        status == 2 &&
+        o['acceptedQuoteId'] == null &&
+        (platform || p.can(Pg.customerQuotes, Perm.edit));
     final blocked = decide && !platform && requiresCompanyApprover(p, o);
     final reported = w
         .shipmentsOfOrder(o['id'] as int)
@@ -1185,7 +1188,11 @@ void _registerLists(FakeServer server) {
     };
     final q = (req.query('q') ?? '').trim();
     final rows = w.ordersOfCustomer(p.customerId!).where((o) {
-      if (!statuses.contains(o['status'])) return false;
+      // Teklifi onaylanmış, finans bekleyen sipariş müşterinin kararını beklemez: "Aktif" bölmesinde.
+      final accepted = o['status'] == 2 && o['acceptedQuoteId'] != null;
+      if (accepted ? segment != 'active' : !statuses.contains(o['status'])) {
+        return false;
+      }
       if (q.isEmpty) return true;
       return [
         o['orderNumber'],
@@ -1554,7 +1561,9 @@ JsonMap _createOrder(
   final instrumentDue = (methodCode == 'CEK' || methodCode == 'SENET')
       ? TrTime.parseDate('${details['dueDate'] ?? ''}')
       : null;
-  final finance = method?['requiresFinance'] == true ? 1 : 0;
+  final finance = !w.firstStageApprovals && method?['requiresFinance'] == true
+      ? 1
+      : 0;
   final o = w.newOrder(
     id: id,
     customerId: cid,
@@ -1593,33 +1602,12 @@ JsonMap _createOrder(
   w.orders.add(o);
   A2Fake.addHistory(w, id, 0, 1, userId: p.userId);
   if (finance == 1) {
-    final approvalId = w.nextId('approval');
-    w.approvals.add({
-      'id': approvalId,
-      'type': 4,
-      'status': 0,
-      'isMirror': true,
-      'stationId': stationId,
-      'stationTitle': w.stationTitle(stationId),
-      'customerId': cid,
-      'customerTitle': w.customerTitle(cid),
-      'subjectType': 'Order',
-      'subjectId': id,
-      'subjectNumber': o['orderNumber'],
-      'title': 'Sipariş finans onayı',
-      'summary': '${A2Fake.methodShortName(methodCode)}, ${term ?? 0} gün vade',
-      'amount': o['estimatedAmount'],
-      'liters': line.liters,
-      'requestedByUserId': p.userId,
-      'requestedByName': '${w.customerTitle(cid)} (müşteri siparişi)',
-      'createdAt': now.toIso8601String(),
-      'dueAt': now.add(const Duration(hours: 8)).toIso8601String(),
-      'slaState': 1,
-      'currentLevelNo': 1,
-      'levelCount': 1,
-      'eligibleUserIds': const ['u-finans', 'u-mudur', 'u-sahip'],
-    });
-    o['financeApprovalRequestId'] = approvalId;
+    _openOrderFinance(
+      w,
+      o,
+      p,
+      summary: '${A2Fake.methodShortName(methodCode)}, ${term ?? 0} gün vade',
+    );
   } else {
     A2Fake.notifyStation(
       w,
@@ -1834,6 +1822,45 @@ void _registerDetail(FakeServer server) {
   }
 }
 
+/// Siparişin finans onayını açar (sunucu `OrderFinanceGate.OnOrderCreatedAsync`).
+void _openOrderFinance(
+  FakeWorld w,
+  JsonMap o,
+  FakePersona p, {
+  required String summary,
+}) {
+  final now = DateTime.now().toUtc();
+  final cid = o['customerId'] as int;
+  final stationId = o['stationId'] as int;
+  final approvalId = w.nextId('approval');
+  w.approvals.add({
+    'id': approvalId,
+    'type': 4,
+    'status': 0,
+    'isMirror': true,
+    'stationId': stationId,
+    'stationTitle': w.stationTitle(stationId),
+    'customerId': cid,
+    'customerTitle': w.customerTitle(cid),
+    'subjectType': 'Order',
+    'subjectId': o['id'],
+    'subjectNumber': o['orderNumber'],
+    'title': 'Sipariş finans onayı',
+    'summary': summary,
+    'amount': o['estimatedAmount'],
+    'liters': o['quantityLiters'],
+    'requestedByUserId': p.userId,
+    'requestedByName': '${w.customerTitle(cid)} (müşteri siparişi)',
+    'createdAt': now.toIso8601String(),
+    'dueAt': now.add(const Duration(hours: 8)).toIso8601String(),
+    'slaState': 1,
+    'currentLevelNo': 1,
+    'levelCount': 1,
+    'eligibleUserIds': const ['u-finans', 'u-mudur', 'u-sahip'],
+  });
+  o['financeApprovalRequestId'] = approvalId;
+}
+
 JsonMap _decide(FakeRequest req, String action) {
   final p = A2Fake.customer(req);
   req.requirePage(Pg.customerQuotes, Perm.edit);
@@ -1870,6 +1897,12 @@ JsonMap _decide(FakeRequest req, String action) {
   if (latest == null) {
     throw FakeResponse.business('Onaylanacak teklif bulunamadı.');
   }
+  // Sahip kararı 04.11.2026: müşteri kararını verdi, sonucu finans belirler (`OrderService`).
+  if (o['acceptedQuoteId'] != null) {
+    throw FakeResponse.business(
+      'Teklifi onayladınız; sipariş bayinin finans onayında. Sonuç size bildirilecek.',
+    );
+  }
   if (action == 'approve') {
     // Şirket içi onay kuralı, ilk denetim (sunucu `OrderService.ApproveAsync`): talep edenin eşik
     // üstü teklifini yalnızca Onaylayan ya da Yönetici onaylar (web, API ve mobil aynı metin);
@@ -1896,6 +1929,52 @@ JsonMap _decide(FakeRequest req, String action) {
         );
       }
     }
+  }
+  // Sahip kararı 04.11.2026: finans müşteri onayından sonra. Sipariş "Onay bekleniyor" kalır, sevkiyat
+  // finans kararına kadar açılmaz (`OrderService.TrySendToFinanceAfterCustomerApprovalAsync`).
+  if (action == 'approve' &&
+      w.firstStageApprovals &&
+      ((o['financeStatus'] as int?) ?? 0) == 0) {
+    final total = (latest['totalAmountTry'] as num).toDouble();
+    final term = o['paymentTermDays'] as int?;
+    final deferred = term != null && term > 0;
+    o['acceptedQuoteId'] = latest['id'];
+    o['financeStatus'] = 1;
+    o['financeReasons'] = deferred
+        ? 'Vadeli yöntem ($term gün)'
+        : 'Tüm siparişler finans onayından geçer';
+    o['estimatedAmount'] = total;
+    for (final q in (o['quotes'] as List).map(JsonReader.asMap)) {
+      q['isSelected'] = q['id'] == latest['id'];
+    }
+    _openOrderFinance(
+      w,
+      o,
+      p,
+      summary:
+          '${o['paymentMethodName'] ?? 'Ödeme belirtilmedi'}, ${A2Fake.money(total)}',
+    );
+    A2Fake.addHistory(
+      w,
+      o['id'] as int,
+      2,
+      2,
+      note:
+          'Müşteri teklifi onayladı; finans onayına gönderildi: ${o['financeReasons']}',
+      userId: p.userId,
+    );
+    A2Fake.notifyStation(
+      w,
+      stationId: o['stationId'] as int,
+      code: 'approval.pending',
+      title: 'Finans onayı bekliyor',
+      body: '${o['customerTitle']} teklifi onayladı, ${o['orderNumber']}',
+      orderId: o['id'] as int,
+      category: 'approvals',
+      audience: (x) => x.capabilities.containsKey(Caps.approveFinanceOrder),
+      actorUserId: p.userId,
+    );
+    return {'message': 'Teklif onayınız alındı.'};
   }
   final from = o['status'] as int;
   final to = switch (action) {
@@ -1934,7 +2013,7 @@ JsonMap _decide(FakeRequest req, String action) {
   );
   return {
     'message': switch (to) {
-      3 => 'Sipariş onaylandı.',
+      3 => 'Teklif onayınız alındı.',
       4 => 'Sipariş reddedildi.',
       _ => 'Revize talebi iletildi.',
     },

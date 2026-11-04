@@ -6,6 +6,7 @@ import 'package:akaryakitnet/core/models/enums.dart';
 import 'package:akaryakitnet/core/models/json.dart';
 import 'package:akaryakitnet/core/network/app_failure.dart';
 import 'package:akaryakitnet/core/network/fake/core_fakes.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/features/field/data/field_models.dart';
 import 'package:akaryakitnet/features/field/data/field_repository.dart';
 import 'package:akaryakitnet/features/field/fake/field_fake_state.dart';
@@ -15,6 +16,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'field_test_kit.dart';
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   late FieldHarness h;
   late ProviderContainer c;
   late RequestLog log;
@@ -494,7 +498,7 @@ void main() {
           isA<BusinessFailure>().having(
             (f) => f.message,
             'message',
-            'Finansa göndermek için eksik: VKN / TCKN zorunludur, Vergi dairesi, '
+            'Göndermek için eksik: VKN / TCKN zorunludur, Vergi dairesi, '
                 'İl, İlçe, En az bir yetkili, En az bir ürün için aylık litre, '
                 'KVKK açık rızası, Vergi levhası (Evrak).',
           ),
@@ -517,7 +521,7 @@ void main() {
             isA<BusinessFailure>().having(
               (f) => f.message,
               'message',
-              'Finansa göndermek için eksik: Vergi levhası (Evrak).',
+              'Göndermek için eksik: Vergi levhası (Evrak).',
             ),
           ),
         );

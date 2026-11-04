@@ -29,9 +29,13 @@ typedef FakeAttachmentListener =
 /// onay) eski akışta kalır. Eski akışın testleri anahtarları açar ([defaultCompanyApprovals],
 /// [defaultV5Station] ya da [FakeWorld.seeded]).
 class FakeWorld {
-  FakeWorld._({bool? companyApprovals, bool? v5Station})
-    : companyApprovals = companyApprovals ?? defaultCompanyApprovals,
-      v5Station = v5Station ?? defaultV5Station;
+  FakeWorld._({
+    bool? companyApprovals,
+    bool? v5Station,
+    bool? firstStageApprovals,
+  }) : companyApprovals = companyApprovals ?? defaultCompanyApprovals,
+       v5Station = v5Station ?? defaultV5Station,
+       firstStageApprovals = firstStageApprovals ?? defaultFirstStageApprovals;
 
   /// Tohumlanmış dünya. [now] verilirse tarihler ona göre üretilir (testler). [companyApprovals] ve
   /// [v5Station] verilmezse varsayılanlar ([defaultCompanyApprovals], [defaultV5Station]) geçerlidir.
@@ -39,9 +43,12 @@ class FakeWorld {
     DateTime? now,
     bool? companyApprovals,
     bool? v5Station,
-  }) =>
-      FakeWorld._(companyApprovals: companyApprovals, v5Station: v5Station)
-        ..reset(now: now);
+    bool? firstStageApprovals,
+  }) => FakeWorld._(
+    companyApprovals: companyApprovals,
+    v5Station: v5Station,
+    firstStageApprovals: firstStageApprovals,
+  )..reset(now: now);
 
   /// Yeni dünyaların şirket içi onay anahtarı (kapalı; eski akışın testleri `setUpAll` içinde açar —
   /// her test dosyası ayrı süreçte çalışır).
@@ -50,6 +57,14 @@ class FakeWorld {
   /// Yeni dünyaların Roller v5 bayi anahtarı (açık; eski çok kademeli / çok imzacılı akışın testleri
   /// kapatır).
   static bool defaultV5Station = true;
+
+  /// Yeni dünyaların ilk etap onay anahtarı (açık; eski akışın testleri kapatır).
+  static bool defaultFirstStageApprovals = true;
+
+  /// Sahip kararı 04.11.2026 (sunucunun aynası): merkez karar vermez, sipariş finansı müşteri teklifi
+  /// onayladıktan sonradır, saha formunun ayrı finansı yoktur, limit değişikliği onaysızdır (Finans
+  /// birimi ve Bayi yöneticisi). Kapalıyken eski akış: finans teklifden önce, limit talebi onayda.
+  final bool firstStageApprovals;
 
   /// Roller v5 öncesi şirket içi onay akışı (talep eden → onaylayan): açıkken 9003 / 9013, "Onayınızı
   /// bekleyen talep" bildirimi, onay eşikleri ve şirket talepleri tohumlanır ve `me/access`
@@ -201,6 +216,8 @@ class FakeWorld {
   /// imzalar). Birime bağlı olmayan kodlar, müşteri ve merkez hiç engellenmez.
   FakePersona? blockingApprover(FakePersona p, String? code) {
     if (p.persona != Persona.bayi) return null;
+    // Sahip kararı 04.11.2026: Bayi yöneticisi her birimin onayını verir.
+    if (isBayiManager(p)) return null;
     final unit = ApproverUnits.unitOf(code);
     if (unit == null) return null;
     final key = unitApproverKey(unit);
@@ -209,6 +226,12 @@ class FakeWorld {
     if (designee == null || designee.stationId != p.stationId) return null;
     return designee.capabilities.containsKey(code) ? designee : null;
   }
+
+  /// Bayide her şeyi onaylayan yönetici (sunucu `IsBayiManager`): ana hesap ve Bayi yöneticisi rolü.
+  bool isBayiManager(FakePersona p) =>
+      firstStageApprovals &&
+      p.persona == Persona.bayi &&
+      (p.key == 'sahip' || p.bayiRoleCodes.contains(BayiRoleCodes.owner));
 
   /// Persona bu kademenin yetkinliğiyle imzalayabilir mi (roller v5 imza süzgeci). Saha formunda üst ve
   /// istisna onayı alt bandı da imzalar (sunucudaki hiyerarşi): yönetici birimi onaycısı bant 1'i de

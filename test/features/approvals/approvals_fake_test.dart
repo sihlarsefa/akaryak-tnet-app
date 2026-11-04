@@ -25,6 +25,9 @@ Matcher fakeStatus(int status, {String? code, String? field}) =>
         );
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   // Roller v5 öncesi akış (eski sunucu, geçiş yapılmamış bayi / cari): şirket içi talepler (9003,
   // 9013) ve iki kademeli finans onayı (9006). Roller v5 kuralları test/app/roles_v5_test.dart
   // içinde.

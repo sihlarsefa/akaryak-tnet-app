@@ -113,7 +113,7 @@ abstract final class OrdersCopy {
   static const noMethods =
       'Bu bayide kullanılabilir ödeme yöntemi tanımlı değil; sipariş ödeme belirtilmeden gönderilir.';
   static const financeHint =
-      'Bu ödeme yönteminde sipariş önce bayinin finans onayına gider; onaylanınca bayi teklif verir.';
+      'Bu ödeme yönteminde sipariş, teklifi onayladıktan sonra bayinin finans onayına gider.';
   static const instrumentPhotoLater =
       'Görseli sipariş oluşunca çekip yükleyeceksiniz (kılavuz çerçeveyle).';
   static const oneInstrumentPerGroup =

@@ -66,6 +66,9 @@ void _acceptReported(FakeWorld w) {
 }
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets(
     'segment çipleri sayılardan gelir, sıfır olan gizlidir; çip listeyi süzer',
     (tester) async {

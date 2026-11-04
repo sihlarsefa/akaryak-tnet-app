@@ -1361,7 +1361,8 @@ JsonMap fieldFakePreview(FieldFakeState state, FakePersona p, JsonReader body) {
     'dueDate': TrTime.isoDate(TrTime.addDays(ship, term)),
     'collateralPct': customerId == 103 ? 25 : 0,
     'finance': {
-      'required': reasons.isNotEmpty,
+      // Sahip kararı 04.11.2026: formun ayrı finansı yok (sunucu `EvaluateFieldFormAsync`).
+      'required': reasons.isNotEmpty && !state.world.firstStageApprovals,
       'reasons': reasons,
       'blocked': blocked,
     },

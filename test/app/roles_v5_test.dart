@@ -98,6 +98,9 @@ AccessPolicy _policy(FakeWorld w, String key) =>
     AccessPolicy(MeAccess.fromJson(w.meAccess(_p(key))));
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  FakeWorld.defaultFirstStageApprovals = false;
+
   group('rol kodları ve adları (sunucu BayiRoleTemplateCodes)', () {
     test('etkin 7, pasif 6; adlar panelle aynı', () {
       expect(BayiRoleCodes.active, const [

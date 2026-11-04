@@ -15,6 +15,7 @@ import 'package:akaryakitnet/core/auth/permissions.dart';
 import 'package:akaryakitnet/core/models/models.dart';
 import 'package:akaryakitnet/core/network/fake/fake_parity.dart';
 import 'package:akaryakitnet/core/network/fake/fake_personas.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/customer_home/customer_home_fake.dart';
 import 'package:akaryakitnet/features/customer_orders/api.dart';
@@ -124,6 +125,9 @@ CustomerHomeData _home(
 }
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   group('kural (saf): rol × eşik × yetki = panel', () {
     const roles = <(String, int?)>[
       ('eski (rolsüz)', null),

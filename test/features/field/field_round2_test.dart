@@ -1,6 +1,7 @@
 // Tasarım v4 tur 2 (B13): finansın bilgi istediği ön kayıt bir onay talebidir — saha ana sayfasının
 // "Sıra sizde" işi ile Diğer'in Onaylar noktası aynı sayfayı (talebin yanıt alanı) açar: bir iş, bir
 // sayı, bir sayfa. Talep Bende'de bulunamazsa ön kayıt açılır.
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/approvals/api.dart';
 import 'package:akaryakitnet/features/approvals/approvals_fake.dart';
@@ -9,6 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'field_test_kit.dart';
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   testWidgets(
     'saha: "Bilgi gönder" talebin yanıt alanını açar (/approvals/:id?reply=1)',
     (tester) async {

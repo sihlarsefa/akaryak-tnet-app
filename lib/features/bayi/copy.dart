@@ -55,10 +55,10 @@ abstract final class BayiCopy {
   /// Finans ek bilgi istedi: kimin yapacağı (v4 B16).
   static const financeInfoFromCustomer = 'Müşteriden bilgi bekleniyor';
 
-  /// Finans onayındaki siparişte izleyenin düğmesi yokken alt çubuğun notu (her sipariş finans
-  /// onayına düşer; teklif onaydan sonra verilir).
+  /// Finans onayındaki siparişte izleyenin düğmesi yokken alt çubuğun notu (sipariş müşteri onayından
+  /// sonra finansa düşer; sevkiyat finans onayından sonra planlanır).
   static const financePendingNote =
-      'Finans onayı bekleniyor. Teklif ve sevkiyat onaydan sonra açılır.';
+      'Finans onayı bekleniyor. Sevkiyat onaydan sonra açılır.';
 
   /// Önbellekteki ayrıntı tazelenirken alt çubuk (eski durumla işlem yapılmaz).
   static const dockRefreshing = 'Güncelleniyor… İşlemler birazdan açılır.';

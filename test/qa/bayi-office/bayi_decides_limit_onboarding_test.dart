@@ -132,6 +132,9 @@ const _hint = 'Kendi talebinizi onaylayamazsınız.';
 const _designee = 'Bu birimin onaycısı Can Öztürk; talebi o onaylar.';
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   group('katalog: approve.finance.limit (Limit talebi onayı)', () {
     test(
       'bayiye verilebilir, finans biriminin kodu; eski merkez kodu birimsiz',

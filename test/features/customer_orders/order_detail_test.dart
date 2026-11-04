@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/media/image_capture.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/offline/connectivity.dart';
 import 'package:akaryakitnet/core/ui/ui.dart';
 import 'package:akaryakitnet/features/bayi/fake/dispatch_fake.dart';
@@ -27,6 +28,9 @@ final _jpeg = Uint8List.fromList(const [
 ]);
 
 void main() {
+  // Eski onay akışı (finans teklifden önce, limit talebi onayda): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   late A2Env env;
   late int o2; // karar bekleyen, çek, görsel eksik
   late int o3; // onaylı, yolda
@@ -241,7 +245,7 @@ void main() {
       await tester.tap(find.widgetWithText(AknButton, OrdersCopy.approve).last);
       await pumpUntil(tester, find.text('Onaylanan teklif'));
       expect(
-        find.text('Teklif onaylandı. Bayi sevkiyatı planlayacak.'),
+        find.text('Teklif onayınız alındı. Bayiniz süreci ilerletecek.'),
         findsOneWidget,
       );
       expect(flowOf(tester).currentLabel, 'Yolda');

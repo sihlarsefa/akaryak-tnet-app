@@ -66,7 +66,8 @@ void registerBayiOrderFakes(FakeServer s) {
     if (invalid != null) throw FakeResponse.business(invalid);
     final total = roundTo(price! * qty(o), 2);
     final from = st(o);
-    if (exceedsLimit(w, o, total)) {
+    // Sahip kararı 04.11.2026: aşım teklifi durdurmaz; müşteri onayındaki finans görür.
+    if (!w.firstStageApprovals && exceedsLimit(w, o, total)) {
       // Sunucu gibi (`SubmitQuoteAsync`): sipariş finans onayına alınıp kaydedilir, teklif
       // kaydedilmez ve yanıt 400 iş kuralıdır.
       routeToFinance(w, o, total, p);

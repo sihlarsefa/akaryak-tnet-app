@@ -1186,7 +1186,7 @@ class LeadWizardController
     if (missing.isNotEmpty) {
       state = state.copyWith(
         missing: missing,
-        banner: 'Finansa göndermek için eksik: ${missing.join(', ')}.',
+        banner: 'Göndermek için eksik: ${missing.join(', ')}.',
       );
       return;
     }
@@ -1194,7 +1194,7 @@ class LeadWizardController
       state = state.copyWith(
         missing: const [],
         banner:
-            'Finansa göndermek için bağlantı gerekir. Taslağı kaydedin; bağlantı gelince gönderin.',
+            'Göndermek için bağlantı gerekir. Taslağı kaydedin; bağlantı gelince gönderin.',
       );
       return;
     }
@@ -1237,7 +1237,9 @@ class LeadWizardController
           final d = await _repo.lead(id);
           return d.status.isEditable
               ? null
-              : 'Ön kayıt finans onayına gönderildi.';
+              : (d.status == LeadStatus.converted
+                    ? 'Cari açıldı.'
+                    : 'Ön kayıt finans onayına gönderildi.');
         },
       );
       await _clearAutosave();

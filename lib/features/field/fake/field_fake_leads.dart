@@ -196,7 +196,7 @@ void registerFieldLeadFakes(FakeServer s) {
     final missing = _missing(r.world, lead);
     if (missing.isNotEmpty) {
       throw FakeResponse.business(
-        'Finansa göndermek için eksik: ${missing.join(', ')}.',
+        'Göndermek için eksik: ${missing.join(', ')}.',
       );
     }
     final dup = _duplicates(
@@ -217,6 +217,35 @@ void registerFieldLeadFakes(FakeServer s) {
     }
     final now = DateTime.now().toUtc();
     final open = r.world.approval(lead['approvalRequestId'] as int?);
+    // Sahip kararı 04.11.2026: carinin ilk açılışında finans onayı yok; VKN'si başka bayide kayıtlı ön kayıt finansa gider.
+    if (r.world.firstStageApprovals && dup['existsElsewhere'] != true) {
+      if (open != null && (open['status'] == 0 || open['status'] == 4)) {
+        open['status'] = 3;
+      }
+      final contacts = (lead['contacts'] as List? ?? const []).map(
+        JsonReader.asMap,
+      );
+      final emails = [
+        for (final c in contacts)
+          if (c['email'] case final String e when e.isNotEmpty) e,
+      ];
+      lead
+        ..['status'] = 5
+        ..['approvalRequestId'] = null
+        ..['submittedAt'] = FakeWorld.utc(now)
+        ..['convertedAt'] = FakeWorld.utc(now)
+        ..['decisionNote'] = null
+        ..['existsElsewhere'] = false
+        ..['customerCode'] =
+            'C-${1000 + Random(lead['id'] as int).nextInt(8999)}'
+        ..['inviteCandidates'] = emails
+        ..['inviteEmail'] = emails.isEmpty ? null : emails.first
+        ..['inviteExpiresAt'] = emails.isEmpty
+            ? null
+            : FakeWorld.local(now.add(const Duration(hours: 72)))
+        ..['concurrencyToken'] = FieldFakeState.newToken();
+      return {'message': 'Cari açıldı.'};
+    }
     if (open != null &&
         open['status'] == 4 &&
         open['requestedByUserId'] == p.userId) {
@@ -788,6 +817,7 @@ JsonMap _detail(FieldFakeState state, FakePersona p, JsonMap lead) {
     'attachmentCount': _attachmentCount(world, id),
     'approvalStatus': approval?['status'],
     'canForwardToHq':
+        !world.firstStageApprovals &&
         p.persona != Persona.platform &&
         finance &&
         lead['existsElsewhere'] == true &&

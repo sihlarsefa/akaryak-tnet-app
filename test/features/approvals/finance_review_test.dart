@@ -15,6 +15,7 @@ import 'package:akaryakitnet/core/auth/session_controller.dart';
 import 'package:akaryakitnet/core/auth/session_state.dart';
 import 'package:akaryakitnet/core/models/enums.dart';
 import 'package:akaryakitnet/core/network/fake/fake_server.dart';
+import 'package:akaryakitnet/core/network/fake/fake_world.dart';
 import 'package:akaryakitnet/core/push/push_focus.dart';
 import 'package:akaryakitnet/core/push/push_payload.dart';
 import 'package:akaryakitnet/core/push/push_providers.dart';
@@ -75,6 +76,9 @@ class _TapPush extends PushService {
 }
 
 void main() {
+  // Eski onay akışı (birim onaycısı yöneticiyi de süzer, ön kayıt finansa gider): `FakeWorld.firstStageApprovals` kapalı.
+  setUpAll(() => FakeWorld.defaultFirstStageApprovals = false);
+
   group('ayrıntı: finans incelemesi (yapılandırılmış summary.finance)', () {
     testWidgets(
       'plaka "Tahmini tutar" ve ödeme · limit · gecikmiş; limit aşımı plakada; "Siparişi aç" ilk ekranda',

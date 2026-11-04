@@ -114,10 +114,20 @@ void registerBayiCustomerFakes(FakeServer s) {
 
   s.post('stations/me/customers/{customerId}/limit-requests', (req) {
     final p = bayiUser(req);
-    requireAny(p, const [(Pg.stationCustomers, Perm.create)]);
     final w = req.world;
+    // Limit onayı kapalıyken yetki yetkinlik kuralıdır (Finans birimi şablonunda "Ekler" yok); onay yolunda "Ekler".
+    requireAny(p, [
+      (Pg.stationCustomers, w.firstStageApprovals ? Perm.view : Perm.create),
+    ]);
     final customerId = req.intParam('customerId');
     final link = _requireLink(w, p, customerId);
+    // Sahip kararı 04.11.2026 ("limit onayı ilk etapta gerek yok"): limiti Finans birimi / Bayi yöneticisi
+    // doğrudan değiştirir (sunucu `LimitChangeRequestService.CanChangeLimitAsync`).
+    if (w.firstStageApprovals && !_canChangeLimit(w, p)) {
+      throw FakeResponse.business(
+        'Limiti bayinin Finans birimi ya da Bayi yöneticisi değiştirebilir.',
+      );
+    }
     final r = req.json;
     final reason = r.str('reason').trim();
     if (reason.isEmpty) {
@@ -178,11 +188,27 @@ void registerBayiCustomerFakes(FakeServer s) {
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
     w.bag<List<JsonMap>>(BayiBags.limitRequests, () => []).add(row);
+    if (w.firstStageApprovals) {
+      link['limitPeriod'] = period;
+      link['limitType'] = type;
+      link['limitAmount'] = amount;
+      row['status'] = 1;
+      row['decidedAt'] = row['createdAt'];
+      row['decisionNote'] = 'Doğrudan değiştirildi (limit onayı kapalı).';
+      return _limitDto(w, link, row);
+    }
     // Sahip kararı 02.11.2026: talep bayinin Finans birimi onayına düşer (Onaylar; merkez izler).
     row['approvalId'] = openLimitApproval(w, p, link, row);
     return _limitDto(w, link, row);
   });
 }
+
+/// Limiti doğrudan değiştirebilir mi (sunucu `CanChangeLimitAsync`): ana hesap (Bayi yöneticisi) ya da limit onayı
+/// yetkinliği (Finans birimi; birim onaycısı seçiliyse yalnızca o).
+bool _canChangeLimit(FakeWorld w, FakePersona p) =>
+    p.userId == 'u-sahip' ||
+    (p.capabilities.containsKey(Caps.approveFinanceLimit) &&
+        w.signsStep(p, Caps.approveFinanceLimit));
 
 /// Limit talebinin onay yansımasını açar (sunucu `LimitRequestApprovalSource.OpenCommand` ve
 /// `LimitChangeSummaryBuilder`; sahip kararı 02.11.2026 "limiti de aynı şekilde": karar bayide, merkez
@@ -645,8 +671,11 @@ JsonMap _summary(
       'canAddNote': !portfolio && p.can(Pg.stationCustomers, Perm.edit),
       'canRequestLimit':
           !portfolio &&
-          p.can(Pg.stationCustomers, Perm.create) &&
-          pending == null,
+          pending == null &&
+          (w.firstStageApprovals
+              ? _canChangeLimit(w, p)
+              : p.can(Pg.stationCustomers, Perm.create)),
+      'limitChangeDirect': w.firstStageApprovals,
       'canCreateFieldForm': canFieldForm,
       'canQuote':
           (p.can(Pg.stationQuoteDesk, Perm.create) ||

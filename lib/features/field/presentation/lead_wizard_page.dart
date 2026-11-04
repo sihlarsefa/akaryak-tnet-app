@@ -193,7 +193,7 @@ class _LeadBottomBar extends ConsumerWidget {
         : null;
     final primary = last
         ? AknButton(
-            label: 'Finansa gönder',
+            label: 'Gönder',
             icon: PhosphorIconsRegular.paperPlaneRight,
             expand: true,
             loading: s.busy && s.busyLabel != 'Kaydediliyor',
@@ -281,8 +281,12 @@ class _LeadOutcomeView extends ConsumerWidget {
         return _LeadQueuedView(opId: opId, submitRequested: submitRequested);
       case LeadSubmitted(:final leadId, :final message):
         return ResultView(
-          title: 'Finansa gönderildi',
-          message: '$message Finans ek bilgi isterse size bildirim gelir.',
+          title: message.contains('finans')
+              ? 'Finansa gönderildi'
+              : 'Cari açıldı',
+          message: message.contains('finans')
+              ? '$message Finans ek bilgi isterse size bildirim gelir.'
+              : '$message Müşteriye portal daveti gider.',
           tone: AknTone.ok,
           primaryLabel: 'Ön kaydı aç',
           onPrimary: () => context.pushReplacement(AppRoutes.fieldLead(leadId)),

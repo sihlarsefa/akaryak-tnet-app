@@ -232,7 +232,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage>
       case DecisionDone():
         final text = switch (action) {
           QuoteAction.approve =>
-            'Teklif onaylandı. Bayi sevkiyatı planlayacak.',
+            'Teklif onayınız alındı. Bayiniz süreci ilerletecek.',
           QuoteAction.revise =>
             'Revize istendi. Bayi yeni teklif hazırlayacak.',
           QuoteAction.reject => 'Teklif reddedildi.',

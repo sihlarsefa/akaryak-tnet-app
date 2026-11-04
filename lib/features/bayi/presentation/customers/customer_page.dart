@@ -373,7 +373,9 @@ class _LimitPlate extends ConsumerWidget {
     final t = context.aknText;
     final k = context.akn;
     final pending = s.pendingLimitRequest;
-    final canRequest = s.actions.canRequestLimit && g.requestLimit;
+    final canRequest =
+        s.actions.canRequestLimit &&
+        (s.actions.limitChangeDirect || g.requestLimit);
     String num0(double? v) => Fmt.number((v ?? 0).round());
     final unit = l.isLiters ? 'L' : '₺';
     String amountText(double? v) =>
@@ -478,7 +480,9 @@ class _LimitPlate extends ConsumerWidget {
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: AknButton.secondary(
-                label: 'Limit talebi',
+                label: s.actions.limitChangeDirect
+                    ? 'Limit değiştir'
+                    : 'Limit talebi',
                 icon: PhosphorIconsRegular.trendUp,
                 size: AknButtonSize.small,
                 onPressed: () => showLimitRequestSheet(context, s),

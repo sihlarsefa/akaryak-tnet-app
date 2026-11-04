@@ -11,15 +11,16 @@ import '../../application/customers_controller.dart';
 import '../../data/customer_models.dart';
 import '../widgets/bayi_widgets.dart';
 
-/// Limit değişikliği talebi (`CreateLimitChangeRequest`: periyot, tür, tutar, gerekçe). Bayinin Finans
-/// birimi onaylar (merkeze gitmez); talep sonuçlanana kadar yeni talep açılamaz. Gönderilirse true.
+/// Limit değişikliği (`CreateLimitChangeRequest`: periyot, tür, tutar, gerekçe). Limit onayı kapalıyken
+/// ([SummaryActions.limitChangeDirect]; sahip kararı 04.11.2026) hemen uygulanır; açıkken bayinin Finans
+/// birimi onaylar. Gönderilirse true.
 Future<bool> showLimitRequestSheet(
   BuildContext context,
   CustomerSummary s,
 ) async {
   final r = await showAppSheet<bool>(
     context: context,
-    title: 'Limit talebi',
+    title: s.actions.limitChangeDirect ? 'Limit değiştir' : 'Limit talebi',
     subtitle: s.title,
     builder: (_) => _LimitSheet(summary: s),
   );
@@ -72,11 +73,19 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
     );
     setState(() => _busy = true);
     try {
-      await ref.read(bayiActionsProvider).requestLimit(s.customerId, draft);
+      await ref
+          .read(bayiActionsProvider)
+          .requestLimit(
+            s.customerId,
+            draft,
+            direct: s.actions.limitChangeDirect,
+          );
       if (!mounted) return;
       AknHaptics.success();
       AppToast.success(
-        'Limit talebi Finans birimi onayına gönderildi.',
+        s.actions.limitChangeDirect
+            ? 'Limit güncellendi.'
+            : 'Limit talebi Finans birimi onayına gönderildi.',
         context: context,
       );
       Navigator.of(context).pop(true);
@@ -92,6 +101,7 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
     final t = context.aknText;
     final online = ref.watch(isOnlineProvider);
     final limit = widget.summary.limit;
+    final direct = widget.summary.actions.limitChangeDirect;
     final liters = _type == 'Litre';
     return Form(
       key: _form,
@@ -152,9 +162,11 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
             ),
             const SizedBox(height: 12),
             MoneyField(
-              label: liters
-                  ? 'Talep edilen limit (litre)'
-                  : 'Talep edilen limit',
+              label: direct
+                  ? (liters ? 'Yeni limit (litre)' : 'Yeni limit')
+                  : (liters
+                        ? 'Talep edilen limit (litre)'
+                        : 'Talep edilen limit'),
               unit: liters ? 'L' : '₺',
               controller: _amount,
               requiredValue: true,
@@ -173,17 +185,21 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
             maxLength: LimitOptions.reasonMax,
             textCapitalization: TextCapitalization.sentences,
             validator: (v) => v == null || v.trim().isEmpty
-                ? 'Talep gerekçesi zorunludur.'
+                ? (direct
+                      ? 'Gerekçe zorunludur.'
+                      : 'Talep gerekçesi zorunludur.')
                 : null,
           ),
           const SizedBox(height: 8),
           Text(
-            'Talep Finans birimi onayına gider; sonuç bildirim olarak gelir.',
+            direct
+                ? 'Kaydedince limit hemen güncellenir; değişiklik kayıt altına alınır.'
+                : 'Talep Finans birimi onayına gider; sonuç bildirim olarak gelir.',
             style: t.bodySmall,
           ),
           const SizedBox(height: 20),
           AknButton(
-            label: 'Talebi gönder',
+            label: direct ? 'Limiti kaydet' : 'Talebi gönder',
             expand: true,
             loading: _busy,
             onPressed: online ? () => unawaited(_submit()) : null,

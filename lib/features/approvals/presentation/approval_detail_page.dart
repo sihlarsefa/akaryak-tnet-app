@@ -452,18 +452,17 @@ class _ApprovalDetailPageState extends ConsumerState<ApprovalDetailPage> {
     final lead = leadId == null
         ? null
         : ref.watch(leadForwardInfoProvider(leadId)).valueOrNull;
-    // "Merkeze ilet": approve.finance.lead ile, talep finans onayı beklerken (Submitted /
-    // InReview). Sunucunun ön kayıt bilgisi okunabiliyorsa onun `canForwardToHq` kuralı geçerlidir.
+    // "Merkeze ilet": yalnızca sunucu izin verirse (`canForwardToHq`). Sahip kararı 04.11.2026 ("admin
+    // onayı olmaz"): sunucu artık izin vermez, düğme görünmez.
     final canForward =
         leadId != null &&
         policy.isBayi &&
         policy.hasCap(Caps.approveFinanceLead) &&
         d.status == ApprovalStatus.pending &&
-        (lead == null
-            ? true
-            : (lead.awaitingFinance &&
-                  lead.canForwardToHq &&
-                  !lead.isForwardedToHq));
+        lead != null &&
+        lead.awaitingFinance &&
+        lead.canForwardToHq &&
+        !lead.isForwardedToHq;
 
     final online = ref.watch(isOnlineProvider);
     // v4: çevrimiçi karar rıhtımı (tek birincil, çerçevesiz ikinciller); çevrimdışıyken
