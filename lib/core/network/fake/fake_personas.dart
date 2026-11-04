@@ -192,19 +192,8 @@ abstract final class FakeRoleTemplates {
       Pg.stationCustomers: 'G', //
       Pg.stationReports: 'G', Pg.stationFinance: 'G', Pg.stationApprovals: 'G',
     },
-    BayiRoleCodes.salesManager: {
-      Pg.stationFieldOrders: 'T',
-      Pg.stationFieldApprovals: 'GD',
-      Pg.stationCustomers: 'GDI',
-      Pg.stationLeads: 'T', //
-      Pg.stationApprovals: 'GE',
-      Pg.stationOrders: 'G',
-      Pg.stationQuotes: 'G',
-      Pg.stationReports: 'G',
-      Pg.stationProfitability: 'G',
-      Pg.stationPricing: 'G',
-      Pg.stationStaff: 'G',
-    },
+    // Sahip kararı 04.11.2026: Satış müdürü Bayi yöneticisi gibi tam yetkili (sunucu `Approvals.BayiManagerSignsAll`).
+    BayiRoleCodes.salesManager: _every('T'),
     BayiRoleCodes.fieldRep: {
       Pg.stationFieldOrders: 'GED',
       Pg.stationLeads: 'GED',
@@ -349,9 +338,8 @@ abstract final class FakeRoleTemplates {
       Caps.paymentInstrumentManage: null,
     },
     BayiRoleCodes.salesManager: {
-      Caps.approveFieldManager: null,
-      Caps.costsView: null,
-      Caps.leadViewAll: null,
+      for (final c in Caps.bayiAssignable)
+        if (c != Caps.shipmentOwnOnly && c != Caps.leadCreate) c: null,
     },
     BayiRoleCodes.fieldRep: {Caps.leadCreate: null},
     BayiRoleCodes.orderDesk: {},

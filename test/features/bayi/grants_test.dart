@@ -186,18 +186,22 @@ void main() {
     expect(g.viewDesk, isFalse);
   });
 
-  test('satış müdürü ve finans: not var, limit talebi (Ekler) yok', () async {
-    final s = await _grants('satis');
-    expect(s.addCustomerNote, isTrue);
-    expect(s.requestLimit, isFalse);
-    expect(s.viewStaff, isTrue);
-    expect(s.manageStaff, isFalse);
-    final f = await _grants('finans');
-    expect(f.addCustomerNote, isTrue);
-    expect(f.requestLimit, isFalse);
-    expect(f.viewFinance, isTrue);
-    expect(f.viewStaff, isFalse);
-  });
+  test(
+    'satış müdürü tam yetkili; finans: not var, limit talebi (Ekler) yok',
+    () async {
+      final s = await _grants('satis');
+      expect(s.addCustomerNote, isTrue);
+      expect(s.requestLimit, isTrue);
+      expect(s.viewStaff, isTrue);
+      expect(s.manageStaff, isTrue);
+      expect(s.viewFinance, isTrue);
+      final f = await _grants('finans');
+      expect(f.addCustomerNote, isTrue);
+      expect(f.requestLimit, isFalse);
+      expect(f.viewFinance, isTrue);
+      expect(f.viewStaff, isFalse);
+    },
+  );
 
   test('merkez: her şey açık, ownOnly hiçbir zaman', () async {
     expect(

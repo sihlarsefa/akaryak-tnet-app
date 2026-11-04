@@ -227,11 +227,13 @@ class FakeWorld {
     return designee.capabilities.containsKey(code) ? designee : null;
   }
 
-  /// Bayide her şeyi onaylayan yönetici (sunucu `IsBayiManager`): ana hesap ve Bayi yöneticisi rolü.
+  /// Bayide her şeyi onaylayan yönetici (sunucu `IsBayiManager`): ana hesap, Bayi yöneticisi ve Satış müdürü.
   bool isBayiManager(FakePersona p) =>
       firstStageApprovals &&
       p.persona == Persona.bayi &&
-      (p.key == 'sahip' || p.bayiRoleCodes.contains(BayiRoleCodes.owner));
+      (p.key == 'sahip' ||
+          p.bayiRoleCodes.contains(BayiRoleCodes.owner) ||
+          p.bayiRoleCodes.contains(BayiRoleCodes.salesManager));
 
   /// Persona bu kademenin yetkinliğiyle imzalayabilir mi (roller v5 imza süzgeci). Saha formunda üst ve
   /// istisna onayı alt bandı da imzalar (sunucudaki hiyerarşi): yönetici birimi onaycısı bant 1'i de

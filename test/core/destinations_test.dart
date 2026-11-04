@@ -374,7 +374,11 @@ void main() {
       'satis': (
         ['Ana sayfa', 'Onaylar', 'Saha', 'Cariler'],
         [
+          'Teklifler',
           'Siparişler',
+          'Sevkiyat',
+          'Tahsilat',
+          'Finans',
           'Ekip',
           'İstatistikler',
           'Asistan',

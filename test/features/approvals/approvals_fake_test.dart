@@ -392,7 +392,7 @@ void main() {
         throwsA(fakeStatus(400, code: 'business_rule')),
       );
       expect(
-        () => store.forwardLead(p('satis'), 8003),
+        () => store.forwardLead(p('muhasebe'), 8003),
         throwsA(fakeStatus(403)),
       );
     });

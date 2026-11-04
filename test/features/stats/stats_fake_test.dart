@@ -107,7 +107,7 @@ void main() {
     test('rol bölümleri: ekip, tahsilat ve risk yetkiyle gelir', () {
       final satis = BayiStats.fromJson(_bayi('satis'));
       expect(satis.team, isNotEmpty, reason: 'satış müdürü');
-      expect(satis.collections, isNull, reason: 'ödeme yetkisi yok');
+      expect(satis.collections, isNotNull, reason: 'satış müdürü tam yetkili');
       expect(satis.risk, isNotNull);
 
       final finans = BayiStats.fromJson(_bayi('finans'));

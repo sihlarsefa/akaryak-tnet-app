@@ -125,7 +125,7 @@ void registerBayiCustomerFakes(FakeServer s) {
     // doğrudan değiştirir (sunucu `LimitChangeRequestService.CanChangeLimitAsync`).
     if (w.firstStageApprovals && !_canChangeLimit(w, p)) {
       throw FakeResponse.business(
-        'Limiti bayinin Finans birimi ya da Bayi yöneticisi değiştirebilir.',
+        'Limiti bayinin Finans birimi, Satış müdürü ya da Bayi yöneticisi değiştirebilir.',
       );
     }
     final r = req.json;
@@ -206,6 +206,7 @@ void registerBayiCustomerFakes(FakeServer s) {
 /// Limiti doğrudan değiştirebilir mi (sunucu `CanChangeLimitAsync`): ana hesap (Bayi yöneticisi) ya da limit onayı
 /// yetkinliği (Finans birimi; birim onaycısı seçiliyse yalnızca o).
 bool _canChangeLimit(FakeWorld w, FakePersona p) =>
+    w.isBayiManager(p) ||
     p.userId == 'u-sahip' ||
     (p.capabilities.containsKey(Caps.approveFinanceLimit) &&
         w.signsStep(p, Caps.approveFinanceLimit));

@@ -278,6 +278,41 @@ void main() {
     });
   });
 
+  group('Satış müdürü tam yetkili', () {
+    test(
+      'sipariş finansını onaylar, limit değiştirir, tüm sayfaları açar',
+      () async {
+        final id = await quotedOrder();
+        final o = await approveQuote(id);
+        await decide('satis', financeApprovalOf(o), 1);
+        expect(w.order(id)!['status'], 3);
+        await api.ok(
+          'satis',
+          'POST',
+          'stations/me/customers/101/limit-requests',
+          body: {
+            'limitPeriod': 'Aylık',
+            'limitType': 'Tutar',
+            'limitAmount': 444000,
+            'reason': 'Alım hacmi arttı',
+          },
+        );
+        final summary = await api.ok(
+          'satis',
+          'GET',
+          'bayi/customers/101/summary',
+        );
+        expect(summary.obj('limit').decOrNull('amount'), 444000);
+        final satis = findFakePersona('satis')!;
+        final sahip = findFakePersona('sahip')!;
+        expect(satis.pages.toSet(), sahip.pages.toSet());
+        for (final code in sahip.capabilities.keys) {
+          expect(satis.capabilities.containsKey(code), isTrue, reason: code);
+        }
+      },
+    );
+  });
+
   group('yalnızca sipariş finans onayı', () {
     test('limit ve yeni cari onayı listede görünmez', () {
       final store = A5FakeStore.of(w);
@@ -338,14 +373,14 @@ void main() {
 
     test('yetkisi olmayan değiştiremez, düğme de açılmaz', () async {
       final r = await api.send(
-        'satis',
+        'muhasebe',
         'POST',
         'stations/me/customers/101/limit-requests',
         body: body(999000),
       );
       expect(r.status, greaterThanOrEqualTo(400));
       final summary = await api.ok(
-        'satis',
+        'muhasebe',
         'GET',
         'bayi/customers/101/summary',
       );

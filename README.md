@@ -67,8 +67,8 @@ bayi teklifi → müşteri onayı → finans onayı → sevkiyat. Müşteri onay
 durumunda kalır, `canDecideQuote` kapanır ve "Aktif" bölmesinde görünür; finans onayı siparişi "Onaylandı" yapar.
 Tek finans onayı budur: saha formunun ayrı finansı, yeni cari ve ön kayıt finansı yoktur (gönderim cariyi hemen açar;
 VKN'si başka bayide kayıtlı ön kayıt finansa gider). Limit değişikliği onaysızdır: Finans birimi ve Bayi yöneticisi doğrudan
-değiştirir (`actions.limitChangeDirect`, `canRequestLimit`). Bayi yöneticisi bayideki her onayı verir; birim onaycısı, dört göz
-ve kendi talebi kuralı ona uygulanmaz.
+değiştirir (`actions.limitChangeDirect`, `canRequestLimit`). Bayi yöneticisi ve Satış müdürü bayide her şeyi yapar, her onayı verir;
+birim onaycısı, dört göz ve kendi talebi kuralı onlara uygulanmaz.
 
 **Eski akışlar (testler):** sahte dünyanın üç anahtarı vardır. `FakeWorld.companyApprovals` (varsayılan
 kapalı) şirket içi onayı, 9003 / 9013 tohumlarını, talep bildirimini, eşikleri ve örnek talepleri açar;

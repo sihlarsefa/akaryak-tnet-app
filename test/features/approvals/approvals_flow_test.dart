@@ -463,8 +463,8 @@ void main() {
       await finish(tester);
     });
 
-    testWidgets('yetkinliği olmayan (satış müdürü) görmez', (tester) async {
-      await pumpA5(tester, persona: 'satis', location: '/approvals/9009');
+    testWidgets('yetkinliği olmayan (muhasebe) görmez', (tester) async {
+      await pumpA5(tester, persona: 'muhasebe', location: '/approvals/9009');
       expect(find.text('Merkeze ilet'), findsNothing);
       await finish(tester);
     });
